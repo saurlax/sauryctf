@@ -16,7 +16,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	database, err := db.ConnectTest()
 	require.NoError(t, err)
 	require.NoError(t, db.Migrate(database))
-	database.Exec("TRUNCATE TABLE team_members, teams, sessions, users RESTART IDENTITY CASCADE")
+	db.CleanTables(database)
 	return database
 }
 
