@@ -36,9 +36,9 @@ func TestCreateChallenge_Success(t *testing.T) {
 
 	visible := true
 	body := challenges.CreateChallengeRequest{
-		Title:    "SQL Injection",
-		Category: "web",
-		Flag:     "flag{sql_injection}",
+		Title:     "SQL Injection",
+		Category:  "web",
+		Flag:      "flag{sql_injection}",
 		IsVisible: &visible,
 	}
 	b, _ := json.Marshal(body)
@@ -79,9 +79,9 @@ func TestGetChallenge_Success(t *testing.T) {
 
 	visible := true
 	svc.CreateChallenge(challenges.CreateChallengeRequest{
-		Title:    "Test Challenge",
-		Category: "web",
-		Flag:     "flag{test}",
+		Title:     "Test Challenge",
+		Category:  "web",
+		Flag:      "flag{test}",
 		IsVisible: &visible,
 	}, 1)
 

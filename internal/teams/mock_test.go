@@ -10,9 +10,9 @@ import (
 var _ ServiceInterface = (*MockService)(nil)
 
 type MockService struct {
-	Teams   map[uint]*models.Team   // keyed by team ID
-	Members map[uint]map[uint]bool  // teamID -> userID -> exists
-	Err     error                   // if set, all methods return this
+	Teams   map[uint]*models.Team  // keyed by team ID
+	Members map[uint]map[uint]bool // teamID -> userID -> exists
+	Err     error                  // if set, all methods return this
 	NextID  uint
 }
 

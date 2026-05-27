@@ -30,14 +30,14 @@ func (m *MockService) CreateChallenge(req CreateChallengeRequest, createdBy uint
 		visible = *req.IsVisible
 	}
 	ch := &models.Challenge{
-		ID:         m.nextID,
-		Title:      req.Title,
+		ID:          m.nextID,
+		Title:       req.Title,
 		Description: req.Description,
-		Category:   models.ChallengeCategory(req.Category),
-		Flag:       req.Flag,
-		BaseScore:  req.BaseScore,
-		IsVisible:  visible,
-		CreatedBy:  createdBy,
+		Category:    models.ChallengeCategory(req.Category),
+		Flag:        req.Flag,
+		BaseScore:   req.BaseScore,
+		IsVisible:   visible,
+		CreatedBy:   createdBy,
 	}
 	if ch.BaseScore == 0 {
 		ch.BaseScore = 100

@@ -33,10 +33,10 @@ func TestCreateGame_Success(t *testing.T) {
 	r := setupTestRouter(svc)
 
 	body := map[string]interface{}{
-		"name":       "Spring CTF",
+		"name":        "Spring CTF",
 		"description": "A fun CTF",
-		"start_time": time.Now().Add(24 * time.Hour).Format(time.RFC3339),
-		"end_time":   time.Now().Add(48 * time.Hour).Format(time.RFC3339),
+		"start_time":  time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+		"end_time":    time.Now().Add(48 * time.Hour).Format(time.RFC3339),
 	}
 	b, _ := json.Marshal(body)
 

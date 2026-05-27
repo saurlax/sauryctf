@@ -14,7 +14,7 @@ import (
 
 // mockAuth implements auth.ServiceInterface for middleware tests.
 type mockAuth struct {
-	users  map[string]*models.User  // token -> user
+	users  map[string]*models.User // token -> user
 	failID bool
 }
 
@@ -22,10 +22,10 @@ func newMockAuth() *mockAuth {
 	return &mockAuth{users: make(map[string]*models.User)}
 }
 
-func (m *mockAuth) Register(_, _, _ string) (*models.User, error) { return nil, nil }
+func (m *mockAuth) Register(_, _, _ string) (*models.User, error)   { return nil, nil }
 func (m *mockAuth) Login(_, _ string) (string, *models.User, error) { return "", nil, nil }
-func (m *mockAuth) Logout(_ string) error { return nil }
-func (m *mockAuth) GetUserByID(_ uint) (*models.User, error) { return nil, nil }
+func (m *mockAuth) Logout(_ string) error                           { return nil }
+func (m *mockAuth) GetUserByID(_ uint) (*models.User, error)        { return nil, nil }
 func (m *mockAuth) ValidateToken(token string) (*models.User, error) {
 	if u, ok := m.users[token]; ok {
 		return u, nil

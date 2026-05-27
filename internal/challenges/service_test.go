@@ -31,9 +31,9 @@ func TestService_CreateChallenge(t *testing.T) {
 
 	visible := true
 	ch, err := svc.CreateChallenge(challenges.CreateChallengeRequest{
-		Title:    "XSS Challenge",
-		Category: "web",
-		Flag:     "flag{xss}",
+		Title:     "XSS Challenge",
+		Category:  "web",
+		Flag:      "flag{xss}",
 		IsVisible: &visible,
 	}, 1)
 	assert.NoError(t, err)

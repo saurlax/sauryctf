@@ -7,10 +7,10 @@ import (
 )
 
 type MockService struct {
-	mu       sync.Mutex
-	Games    map[uint]*GameResponse
-	GameChs  map[string]bool // "gameID-challengeID"
-	nextID   uint
+	mu      sync.Mutex
+	Games   map[uint]*GameResponse
+	GameChs map[string]bool // "gameID-challengeID"
+	nextID  uint
 }
 
 func NewMockService() *MockService {

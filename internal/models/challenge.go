@@ -43,8 +43,8 @@ type Challenge struct {
 	DecayRate     float64           `gorm:"not null;default:0.1" json:"decay_rate"` // Score decay per solve
 	MaxAttempts   int               `gorm:"default:0" json:"max_attempts"`          // 0 = unlimited
 	Hints         string            `gorm:"type:text" json:"hints"`                 // JSON array of hints
-	Attachments   string            `gorm:"type:text" json:"attachments"`            // JSON array of file URLs
-	ContainerSpec string            `gorm:"type:text" json:"container_spec"`         // Docker image, ports, env (for dynamic)
+	Attachments   string            `gorm:"type:text" json:"attachments"`           // JSON array of file URLs
+	ContainerSpec string            `gorm:"type:text" json:"container_spec"`        // Docker image, ports, env (for dynamic)
 	IsVisible     bool              `gorm:"not null" json:"is_visible"`
 	CreatedBy     uint              `gorm:"index" json:"created_by"`
 	CreatedAt     time.Time         `json:"created_at"`
