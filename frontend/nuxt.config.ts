@@ -4,4 +4,19 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   modules: ['@nuxt/ui'],
   css: ['~/assets/css/main.css'],
+
+  routeRules: {
+    '/api/**': {
+      proxy: 'http://localhost:8080/api/**',
+    },
+  },
+
+  nitro: {
+    devProxy: {
+      '/api': {
+        target: 'http://localhost:8080/api',
+        changeOrigin: true,
+      },
+    },
+  },
 })

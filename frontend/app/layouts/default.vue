@@ -1,9 +1,16 @@
 <script setup lang="ts">
-const items = [
-  { label: '首页', to: '/' },
-  { label: '比赛', to: '/games' },
-  { label: '登录', to: '/login' },
-]
+const { authState, isLoggedIn, logout } = useAuth()
+
+const items = computed(() => {
+  const nav = [
+    { label: '首页', to: '/' },
+    { label: '比赛', to: '/games' },
+  ]
+  if (isLoggedIn.value) {
+    nav.push({ label: '控制台', to: '/console' })
+  }
+  return nav
+})
 </script>
 
 <template>
@@ -13,8 +20,29 @@ const items = [
     </template>
     <UNavigationMenu :items="items" />
     <template #right>
-      <UButton label="登录" variant="ghost" to="/login" />
-      <UButton label="注册" to="/register" />
+      <template v-if="isLoggedIn">
+        <UDropdownMenu
+          :items="
+            [
+              [
+                { label: authState.user?.username || '用户', icon: 'i-lucide-user', disabled: true },
+              ],
+              [
+                { label: '控制台', icon: 'i-lucide-layout-dashboard', to: '/console' },
+                { label: '我的队伍', icon: 'i-lucide-users', to: '/console/team' },
+              ],
+              [
+                { label: '退出登录', icon: 'i-lucide-log-out', onSelect: logout },
+              ],
+            ]"
+        >
+          <UButton variant="ghost" icon="i-lucide-user" />
+        </UDropdownMenu>
+      </template>
+      <template v-else>
+        <UButton label="登录" variant="ghost" to="/login" />
+        <UButton label="注册" to="/register" />
+      </template>
     </template>
   </UHeader>
 
