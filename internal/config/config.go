@@ -17,9 +17,9 @@ func Load() *Config {
 	loadDotEnv(".env")
 
 	return &Config{
-		Host:        getEnv("HOST", "127.0.0.1"),
+		Host:        getEnv("HOST", "0.0.0.0"),
 		Port:        getEnv("PORT", "8080"),
-		DatabaseURL: getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost/sauryctf"),
+		DatabaseURL: getEnv("DATABASE_URL", ""),
 		JWTSecret:   getEnv("JWT_SECRET", "dev-secret-change-in-production"),
 	}
 }

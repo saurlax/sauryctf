@@ -9,6 +9,16 @@ dist
 # Node dependencies
 node_modules
 
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
 # Logs
 logs
 *.log
@@ -17,6 +27,18 @@ logs
 .DS_Store
 .fleet
 .idea
+
+# Environment (never commit secrets)
+.env
+.env.local
+
+# SQLite database
+*.db
+
+# Local env files
+.env
+.env.*
+!.env.example
 
 # Local env files
 .env

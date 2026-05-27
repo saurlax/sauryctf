@@ -3,6 +3,7 @@ package db
 import (
 	"os"
 
+	"github.com/glebarez/sqlite"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -10,18 +11,31 @@ import (
 	"github.com/saurlax/sauryctf/internal/models"
 )
 
-func Connect(dsn string) (*gorm.DB, error) {
-	return gorm.Open(postgres.Open(dsn), &gorm.Config{
+// Connect opens a database connection.
+// If DATABASE_URL is set, it connects to PostgreSQL; otherwise it uses a local SQLite file.
+func Connect() (*gorm.DB, error) {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn != "" {
+		return gorm.Open(postgres.Open(dsn), &gorm.Config{
+			Logger: logger.Default.LogMode(logger.Info),
+		})
+	}
+	// Default: SQLite file at ./sauryctf.db
+	return gorm.Open(sqlite.Open("sauryctf.db"), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
 	})
 }
 
+// ConnectTest opens a test database connection (same logic, silent logging).
 func ConnectTest() (*gorm.DB, error) {
 	dsn := os.Getenv("DATABASE_URL")
-	if dsn == "" {
-		dsn = "postgresql://postgres:postgres@localhost/sauryctf"
+	if dsn != "" {
+		return gorm.Open(postgres.Open(dsn), &gorm.Config{
+			Logger: logger.Default.LogMode(logger.Silent),
+		})
 	}
-	return gorm.Open(postgres.Open(dsn), &gorm.Config{
+	// Use in-memory SQLite for tests
+	return gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 }
@@ -33,4 +47,13 @@ func Migrate(db *gorm.DB) error {
 		&models.Team{},
 		&models.TeamMember{},
 	)
+}
+
+// CleanTables deletes all rows from all tables (for testing).
+// Works with both SQLite and PostgreSQL.
+func CleanTables(db *gorm.DB) {
+	db.Exec("DELETE FROM team_members")
+	db.Exec("DELETE FROM teams")
+	db.Exec("DELETE FROM sessions")
+	db.Exec("DELETE FROM users")
 }
