@@ -5,12 +5,6 @@ export default defineNuxtConfig({
   modules: ['@nuxt/ui'],
   css: ['~/assets/css/main.css'],
 
-  routeRules: {
-    '/api/**': {
-      proxy: 'http://localhost:8080/api/**',
-    },
-  },
-
   nitro: {
     devProxy: {
       '/api': {
