@@ -5,6 +5,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/saurlax/sauryctf/internal/auth"
+	"github.com/saurlax/sauryctf/internal/challenges"
+	"github.com/saurlax/sauryctf/internal/games"
 	"github.com/saurlax/sauryctf/internal/rbac"
 	"github.com/saurlax/sauryctf/internal/teams"
 )
@@ -31,6 +33,16 @@ func NewServer(db *gorm.DB, jwtSecret string) *gin.Engine {
 	teamsSvc := teams.NewService(db)
 	teamsHandler := teams.NewHandler(teamsSvc)
 	teamsHandler.RegisterRoutes(api)
+
+	// Challenges
+	challengesSvc := challenges.NewService(db)
+	challengesHandler := challenges.NewHandler(challengesSvc)
+	challengesHandler.RegisterRoutes(api)
+
+	// Games
+	gamesSvc := games.NewService(db)
+	gamesHandler := games.NewHandler(gamesSvc)
+	gamesHandler.RegisterRoutes(api)
 
 	return engine
 }

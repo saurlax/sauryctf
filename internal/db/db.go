@@ -46,12 +46,20 @@ func Migrate(db *gorm.DB) error {
 		&models.Session{},
 		&models.Team{},
 		&models.TeamMember{},
+		&models.Challenge{},
+		&models.Solve{},
+		&models.Game{},
+		&models.GameChallenge{},
 	)
 }
 
 // CleanTables deletes all rows from all tables (for testing).
 // Works with both SQLite and PostgreSQL.
 func CleanTables(db *gorm.DB) {
+	db.Exec("DELETE FROM solves")
+	db.Exec("DELETE FROM game_challenges")
+	db.Exec("DELETE FROM games")
+	db.Exec("DELETE FROM challenges")
 	db.Exec("DELETE FROM team_members")
 	db.Exec("DELETE FROM teams")
 	db.Exec("DELETE FROM sessions")
