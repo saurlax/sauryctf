@@ -1,40 +1,151 @@
-This project is being planned as a CTF/AWD platform with a Go backend at the repository root and a Nuxt 4 SSG frontend in a subdirectory.
+# SauryCTF — AI Agent Instructions
+
+A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 
 ## Architecture
 
-- The repository root is the Go backend/application root. Do not create a separate `backend/` directory for the Go service.
-- The Nuxt frontend should live under `frontend/`.
-- The frontend is SSG-only. Use `nuxt generate` for static output; do not design or rely on Nuxt SSR/Nitro server APIs for product backend logic.
-- The Go backend is a monolithic application: it owns API, auth, database access, background jobs, k3s lifecycle control, reconcile logic, and future challenge proxy services in one deployable service unless explicitly changed later.
+- Go backend lives in the repo root; Nuxt frontend lives in `frontend/`.
+- Frontend is pure SSG (`nuxt generate`) — no SSR/Nitro for business logic.
+- Backend is a monolith: API, auth, database, cron jobs, k3s lifecycle, and challenge proxies all run in one process.
+- Frontend must never access Kubernetes directly; all cluster operations go through the backend API.
 
-- The frontend must never access Kubernetes directly; all cluster operations go through the Go backend/controller.
+## Quick Reference
 
-## Research and implementation workflow
+| Action | Command |
+|--------|--------|
+| Start backend | `go run ./cmd/server` |
+| Start frontend | `cd frontend && pnpm dev` |
+| Backend tests | `go test ./...` (single package: `go test ./internal/auth/... -v -p 1`) |
+| Frontend type check | `cd frontend && pnpm nuxt typecheck` |
+| Frontend build | `cd frontend && pnpm generate` |
+| Full test suite | `make test` |
 
-- Before each implementation step, read the relevant spec first. If `specs/` contains local planning drafts, use them as context but treat `AGENTS.md` as the hard rule source.
-- Before each implementation step, check Context7 and relevant official/network documentation for the libraries being used.
-- Prefer TDD: write or update tests before implementing behavior.
+## Frontend (`frontend/`)
 
-- Install dependencies with package manager commands instead of manually editing dependency files:
-  - Frontend: `pnpm add <pkg>@latest` or `pnpm add -D <pkg>@latest`.
-  - Backend: `go get <module>@latest` followed by `go mod tidy`.
-- Work in small, reviewable steps. When commits are explicitly requested, commit step-by-step with Conventional Commit messages, for example `feat(auth): add login endpoint` or `test(score): cover dynamic scoring`.
+**Tech stack:** Nuxt 4.4 + Vue 3.5 + @nuxt/ui 4.8 + Tailwind CSS 4.3
 
-## Frontend
+**Directory structure:**
+- `app/pages/index.vue` — Home / landing page
+- `app/pages/login.vue` — Login page
+- `app/pages/register.vue` — Registration page
+- `app/pages/games/index.vue` — Games list
+- `app/pages/console/index.vue` — Console dashboard (protected)
+- `app/pages/console/team.vue` — Team management (protected)
+- `app/layouts/default.vue` — Global layout (Header/Footer/Navigation)
+- `app/composables/useAuth.ts` — Auth state management (JWT token, localStorage persistence)
+- `app/middleware/auth.ts` — Route guard (protects /console/* routes)
+- `app/assets/css/main.css` — Global styles
 
-- Use Nuxt 4 SSG in `frontend/`.
-- Prioritize Nuxt UI components and avoid custom Tailwind/CSS unless necessary for layout.
-- Keep the UI clean and component-composed.
-- For error toasts, include `e.data?.message || e.message` in the description when applicable.
+**Conventions:**
+- **Prefer Nuxt UI components** — avoid hand-writing Tailwind/CSS unless layout requires it.
+- Keep UI clean; use component composition.
+- Error toast descriptions use `e.data?.message || e.message`.
+- API requests go through `/api/**` (dev proxy via `nuxt.config.ts` `devProxy` to `localhost:8080`).
+- **After every frontend code change, run `cd frontend && pnpm nuxt typecheck` to ensure type safety.**
 
-## Backend
+## Backend (repo root)
 
-- Use one monolithic Go backend at the repository root.
-- Prefer one main application entrypoint, such as `cmd/sauryctf` or `cmd/server`; do not split API, worker, controller, and proxy into many binaries unless the user explicitly decides to change the architecture later.
+**Tech stack:** Go + Gin + GORM + JWT v5
 
-- Put business modules under `internal/`, for example `internal/http`, `internal/instances`, `internal/k8s`, `internal/proxy`, `internal/scoreboard`, and `internal/auth`.
-- The challenge proxy is a long-running backend service that forwards Kubernetes challenge traffic through HTTP/WebSocket/TCP tunnels. It is not a manual CLI management command.
-- Kubernetes lifecycle, TTL cleanup, and reconcile logic should live in internal services/controllers and run as part of the backend process initially; they can be split into separate processes only when scaling or HA requires it.
-- Prefer simple, explicit backend APIs and keep business logic testable.
-- Dynamic container management must be idempotent and label all Kubernetes resources consistently.
-- All admin operations should write audit logs.
+**Entry point:** `cmd/server/main.go`
+
+**Modules (`internal/`):**
+
+| Module | Responsibility |
+|--------|---------------|
+| `auth/` | Registration, login, JWT verification, logout |
+| `rbac/` | AuthMiddleware (JWT validation) + RequireRole middleware |
+| `teams/` | Team create/join/leave/remove member |
+| `challenges/` | Challenge CRUD, flag submission, dynamic scoring |
+| `games/` | Game CRUD, challenge association |
+| `models/` | Data models (User, Session, Team, TeamMember, Challenge, Solve, Game, GameChallenge) |
+| `config/` | Env var loading (HOST, PORT, DATABASE_URL, JWT_SECRET) |
+| `db/` | Database connection (SQLite by default; PostgreSQL when DATABASE_URL is set), migration, test helpers (`ConnectTest`, `CleanTables`) |
+| `http/` | Gin server init, route registration (`/api/healthz`, plus all CRUD routes below) |
+
+**User roles:** `user`, `team_captain`, `judge`, `admin`, `super_admin`
+
+**Challenge categories:** `web`, `pwn`, `crypto`, `reverse`, `misc`, `forensics`, `awd`
+
+**Challenge types:** `static`, `dynamic` (with decay-based scoring: `base_score`, `min_score`, `decay_rate`)
+
+**API endpoints (summary):**
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `GET` | `/api/healthz` | — | Health check |
+| `POST` | `/api/auth/register` | — | Register |
+| `POST` | `/api/auth/login` | — | Login → JWT |
+| `POST` | `/api/auth/logout` | ✓ | Invalidate session |
+| `GET` | `/api/auth/me` | ✓ | Current user info |
+| `POST` | `/api/teams` | ✓ | Create team |
+| `POST` | `/api/teams/join` | ✓ | Join by invite code |
+| `POST` | `/api/teams/leave` | ✓ | Leave team |
+| `GET` | `/api/teams/my` | ✓ | My team info |
+| `DELETE` | `/api/teams/:id/members/:mid` | ✓ | Remove member (captain) |
+| `POST` | `/api/challenges` | admin | Create challenge |
+| `GET` | `/api/challenges` | ✓ | List (query: `category`, `show_hidden`) |
+| `GET` | `/api/challenges/:id` | ✓ | Get challenge |
+| `PUT` | `/api/challenges/:id` | admin | Update challenge |
+| `DELETE` | `/api/challenges/:id` | admin | Delete challenge |
+| `POST` | `/api/challenges/:id/submit` | ✓ | Submit flag |
+| `POST` | `/api/games` | admin | Create game |
+| `GET` | `/api/games` | ✓ | List (query: `all=true`) |
+| `GET` | `/api/games/:id` | ✓ | Get game |
+| `PUT` | `/api/games/:id` | admin | Update game |
+| `POST` | `/api/games/:id/challenges` | admin | Add challenge to game |
+| `DELETE` | `/api/games/:id/challenges/:cid` | admin | Remove challenge from game |
+
+**Each business module follows a uniform pattern:**
+```
+internal/<module>/
+├── interface.go    # ServiceInterface definition + request/response structs
+├── service.go      # Service implementation (GORM database operations)
+├── handler.go      # Handler (HTTP route handling, depends on ServiceInterface)
+├── mock_test.go    # MockService (in-memory test implementation)
+├── handler_test.go # Handler tests (pure mock, no database dependency)
+└── service_test.go # Service tests (SQLite :memory:, no external dependencies)
+```
+
+**Conventions:**
+- Handlers depend only on `ServiceInterface`, never directly on concrete `*Service`.
+- All admin operations write audit logs.
+- Dynamic container management must be idempotent; Kubernetes resources must be uniformly labeled.
+
+## Makefile
+
+| Target | Command |
+|--------|---------|
+| `make test` | Run full test suite |
+| `make test-backend` | `go test ./...` |
+| `make test-frontend` | `cd frontend && pnpm test` |
+| `make dev-backend` | `go run ./cmd/server` |
+| `make dev-frontend` | `cd frontend && pnpm dev` |
+| `make generate` | `cd frontend && pnpm generate` |
+
+## Testing
+
+**Backend testing strategy (strict layering):**
+- **Handler/Middleware tests**: Use MockService — pure in-memory, no database dependency. Validate HTTP request/response.
+- **Service tests**: Use `db.ConnectTest()` to create a SQLite `:memory:` database. Call `db.CleanTables()` before/after each test to reset state.
+- Run tests with `-p 1` for serial execution (SQLite in-memory does not support concurrent writes).
+
+**Frontend testing:**
+- Type check: `cd frontend && pnpm nuxt typecheck`
+- Build verification: `cd frontend && pnpm generate`
+
+## Workflow
+
+- Check Context7 docs before implementing to confirm latest library usage.
+- Follow TDD: write/update tests first, then implement.
+- Install dependencies using package manager commands:
+  - Frontend: `pnpm add <pkg>@latest` or `pnpm add -D <pkg>@latest`
+  - Backend: `go get <module>@latest && go mod tidy`
+- Small commits, Conventional Commit format: `feat(auth): add login endpoint`, `test(score): cover dynamic scoring`
+
+## Database
+
+- SQLite is the default for local development (`sauryctf.db`) — zero configuration.
+- Set `DATABASE_URL` env var to automatically switch to PostgreSQL.
+- GORM AutoMigrate manages schema — see `internal/db/db.go` `Migrate()`.
+- `.env` files are auto-loaded (see `internal/config/config.go`); see `.env.example`.
