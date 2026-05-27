@@ -15,7 +15,7 @@ const items = computed(() => {
 
 <template>
   <UHeader>
-    <template #logo>
+    <template #title>
       <span class="text-xl font-bold">SauryCTF</span>
     </template>
     <UNavigationMenu :items="items" />

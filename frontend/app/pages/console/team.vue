@@ -30,7 +30,7 @@ const joinLoading = ref(false)
 
 const apiBase = '/api/teams'
 
-async function authHeaders() {
+async function authHeaders(): Promise<Record<string, string>> {
   const token = import.meta.client ? localStorage.getItem('token') : null
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
@@ -110,6 +110,12 @@ async function leaveTeam() {
   }
 }
 
+async function copyInviteCode() {
+  if (!team.value) return
+  await navigator.clipboard.writeText(team.value.invite_code)
+  toast.add({ title: '已复制', color: 'success' })
+}
+
 if (import.meta.client) {
   if (!authState.user) await fetchUser()
   await fetchTeam()
@@ -152,7 +158,7 @@ if (import.meta.client) {
                 icon="i-lucide-copy"
                 variant="ghost"
                 size="xs"
-                @click="navigator.clipboard.writeText(team.invite_code); toast.add({ title: '已复制', color: 'success' })"
+                @click="copyInviteCode()"
               />
             </div>
           </div>
