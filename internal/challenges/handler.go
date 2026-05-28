@@ -15,14 +15,18 @@ func NewHandler(svc ServiceInterface) *Handler {
 	return &Handler{svc: svc}
 }
 
-func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
+func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, adminRg *gin.RouterGroup) {
+	// Public (authenticated) routes
 	g := rg.Group("/challenges")
 	g.GET("", h.ListChallenges)
 	g.GET("/:id", h.GetChallenge)
-	g.POST("", h.CreateChallenge)
-	g.PUT("/:id", h.UpdateChallenge)
-	g.DELETE("/:id", h.DeleteChallenge)
 	g.POST("/:id/submit", h.SubmitFlag)
+
+	// Admin-only routes
+	admin := adminRg.Group("/challenges")
+	admin.POST("", h.CreateChallenge)
+	admin.PUT("/:id", h.UpdateChallenge)
+	admin.DELETE("/:id", h.DeleteChallenge)
 }
 
 func (h *Handler) CreateChallenge(c *gin.Context) {

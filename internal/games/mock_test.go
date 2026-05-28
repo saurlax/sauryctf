@@ -4,20 +4,24 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/saurlax/sauryctf/internal/models"
 )
 
 type MockService struct {
-	mu      sync.Mutex
-	Games   map[uint]*GameResponse
-	GameChs map[string]bool // "gameID-challengeID"
-	nextID  uint
+	mu            sync.Mutex
+	Games         map[uint]*GameResponse
+	GameChs       map[string]bool // "gameID-challengeID"
+	Participations map[string]bool // "gameID-teamID"
+	nextID        uint
 }
 
 func NewMockService() *MockService {
 	return &MockService{
-		Games:   make(map[uint]*GameResponse),
-		GameChs: make(map[string]bool),
-		nextID:  1,
+		Games:          make(map[uint]*GameResponse),
+		GameChs:        make(map[string]bool),
+		Participations: make(map[string]bool),
+		nextID:         1,
 	}
 }
 
@@ -113,3 +117,66 @@ func (m *MockService) RemoveChallenge(gameID uint, challengeID uint) error {
 	delete(m.GameChs, key)
 	return nil
 }
+
+func (m *MockService) JoinGame(gameID uint, teamID uint, userID uint) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.Games[gameID]; !ok {
+		return fmt.Errorf("game not found")
+	}
+	key := fmt.Sprintf("%d-%d", gameID, teamID)
+	if m.Participations[key] {
+		return fmt.Errorf("team already joined this game")
+	}
+	m.Participations[key] = true
+	return nil
+}
+
+func (m *MockService) LeaveGame(gameID uint, teamID uint, userID uint) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	key := fmt.Sprintf("%d-%d", gameID, teamID)
+	if !m.Participations[key] {
+		return fmt.Errorf("not joined this game")
+	}
+	delete(m.Participations, key)
+	return nil
+}
+
+func (m *MockService) GetParticipation(gameID uint, teamID uint) (*models.Participation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	key := fmt.Sprintf("%d-%d", gameID, teamID)
+	if !m.Participations[key] {
+		return nil, fmt.Errorf("participation not found")
+	}
+	return &models.Participation{GameID: gameID, TeamID: teamID, Status: models.ParticipationAccepted}, nil
+}
+
+func (m *MockService) GetGameChallenges(gameID uint) ([]GameChallengeDetail, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.Games[gameID]; !ok {
+		return nil, fmt.Errorf("game not found")
+	}
+	return []GameChallengeDetail{}, nil
+}
+
+func (m *MockService) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID uint, flag string) (*SubmitResult, error) {
+	if flag == "correct_flag" {
+		return &SubmitResult{Correct: true, Score: 100, Message: "correct"}, nil
+	}
+	return &SubmitResult{Correct: false, Message: "wrong flag"}, nil
+}
+
+func (m *MockService) GetScoreboard(gameID uint) (*ScoreboardResponse, error) {
+	if _, ok := m.Games[gameID]; !ok {
+		return nil, fmt.Errorf("game not found")
+	}
+	return &ScoreboardResponse{GameID: gameID, Entries: []ScoreboardEntry{}}, nil
+}
+

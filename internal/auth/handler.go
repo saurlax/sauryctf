@@ -21,7 +21,7 @@ type RegisterRequest struct {
 }
 
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
+	Username string `json:"username" binding:"required"`
 	Password string `json:"password" binding:"required"`
 }
 
@@ -38,8 +38,17 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
+	// Auto-login after registration
+	token, _, err := h.svc.Login(req.Username, req.Password)
+	if err != nil {
+		// Registration succeeded but auto-login failed; still return user
+		c.JSON(http.StatusCreated, gin.H{"user": user})
+		return
+	}
+
 	c.JSON(http.StatusCreated, gin.H{
-		"user": user,
+		"token": token,
+		"user":  user,
 	})
 }
 
@@ -50,7 +59,7 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	token, user, err := h.svc.Login(req.Email, req.Password)
+	token, user, err := h.svc.Login(req.Username, req.Password)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
@@ -83,13 +92,9 @@ func (h *Handler) Logout(c *gin.Context) {
 }
 
 func (h *Handler) Me(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
-		return
-	}
+	userID := c.MustGet("user_id").(uint)
 
-	user, err := h.svc.GetUserByID(userID.(uint))
+	user, err := h.svc.GetUserByID(userID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return

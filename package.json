@@ -4,17 +4,14 @@
   "scripts": {
     "dev": "concurrently -k -n BE,FE -c blue,green \"pnpm dev:backend\" \"pnpm dev:frontend\"",
     "dev:backend": "go run ./cmd/server",
-    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:frontend": "pnpm --filter sauryctf-frontend dev",
     "test": "pnpm test:backend && pnpm test:frontend",
     "test:backend": "go test ./...",
-    "test:frontend": "pnpm --filter frontend test",
-    "generate": "pnpm --filter frontend generate",
-    "typecheck": "pnpm --filter frontend typecheck"
+    "test:frontend": "pnpm --filter sauryctf-frontend typecheck",
+    "generate": "pnpm --filter sauryctf-frontend generate",
+    "typecheck": "pnpm --filter sauryctf-frontend typecheck"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
-  },
-  "dependencies": {
-    "zod": "^4.4.3"
   }
 }

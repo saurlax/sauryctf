@@ -26,7 +26,7 @@ func setupTestRouter(svc challenges.ServiceInterface) *gin.Engine {
 
 	h := challenges.NewHandler(svc)
 	api := r.Group("/api")
-	h.RegisterRoutes(api)
+	h.RegisterRoutes(api, api)
 	return r
 }
 

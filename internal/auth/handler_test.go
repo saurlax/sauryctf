@@ -60,6 +60,7 @@ func TestHandler_Register(t *testing.T) {
 		var resp map[string]interface{}
 		json.Unmarshal(w.Body.Bytes(), &resp)
 		assert.NotNil(t, resp["user"])
+		assert.NotEmpty(t, resp["token"])
 	})
 
 	t.Run("bad request", func(t *testing.T) {
@@ -88,8 +89,21 @@ func TestHandler_Login(t *testing.T) {
 	mock.Users["alice@test.com"] = &models.User{ID: 1, Username: "alice", Email: "alice@test.com", Role: models.RoleUser, Status: models.StatusActive}
 	r := setupAuthRouter(mock)
 
-	t.Run("success", func(t *testing.T) {
-		body := `{"email":"alice@test.com","password":"123456"}`
+	t.Run("success with username", func(t *testing.T) {
+		body := `{"username":"alice","password":"123456"}`
+		req := httptest.NewRequest("POST", "/api/auth/login", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp map[string]interface{}
+		json.Unmarshal(w.Body.Bytes(), &resp)
+		assert.NotEmpty(t, resp["token"])
+	})
+
+	t.Run("success with email", func(t *testing.T) {
+		body := `{"username":"alice@test.com","password":"123456"}`
 		req := httptest.NewRequest("POST", "/api/auth/login", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
@@ -102,7 +116,7 @@ func TestHandler_Login(t *testing.T) {
 	})
 
 	t.Run("bad request", func(t *testing.T) {
-		body := `{"email":"bad"}`
+		body := `{}`
 		req := httptest.NewRequest("POST", "/api/auth/login", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
@@ -112,7 +126,7 @@ func TestHandler_Login(t *testing.T) {
 	})
 
 	t.Run("wrong credentials", func(t *testing.T) {
-		body := `{"email":"nobody@test.com","password":"123456"}`
+		body := `{"username":"nobody","password":"123456"}`
 		req := httptest.NewRequest("POST", "/api/auth/login", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
@@ -126,7 +140,7 @@ func TestHandler_Me(t *testing.T) {
 	mock := NewMockService()
 	user := &models.User{ID: 1, Username: "alice", Email: "alice@test.com", Role: models.RoleUser, Status: models.StatusActive}
 	mock.Users["alice@test.com"] = user
-	token := "mock-token-alice@test.com"
+	token := "mock-token-alice"
 	mock.Tokens[token] = user
 	r := setupAuthRouter(mock)
 

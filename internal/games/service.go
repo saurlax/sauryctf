@@ -2,6 +2,8 @@ package games
 
 import (
 	"errors"
+	"math"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -105,13 +107,11 @@ func (s *Service) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, err
 }
 
 func (s *Service) AddChallenge(gameID uint, challengeID uint, scoreOverride int) error {
-	// Verify game exists
 	var game models.Game
 	if err := s.db.First(&game, gameID).Error; err != nil {
 		return errors.New("game not found")
 	}
 
-	// Verify challenge exists
 	var ch models.Challenge
 	if err := s.db.First(&ch, challengeID).Error; err != nil {
 		return errors.New("challenge not found")
@@ -134,6 +134,295 @@ func (s *Service) RemoveChallenge(gameID uint, challengeID uint) error {
 	return result.Error
 }
 
+// JoinGame registers a team to a game.
+// Simplified vs GZCTF: no invite code or review — all joins are auto-accepted.
+func (s *Service) JoinGame(gameID uint, teamID uint, userID uint) error {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		return errors.New("game not found")
+	}
+
+	// Prevent duplicate participation
+	var existing models.Participation
+	err := s.db.Where("game_id = ? AND team_id = ?", gameID, teamID).First(&existing).Error
+	if err == nil {
+		return errors.New("team already joined this game")
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
+	part := &models.Participation{
+		GameID: gameID,
+		TeamID: teamID,
+		UserID: userID,
+		Status: models.ParticipationAccepted,
+	}
+	return s.db.Create(part).Error
+}
+
+// LeaveGame removes a team's participation from a game.
+// Only allowed before the game starts (matching GZCTF's constraint).
+func (s *Service) LeaveGame(gameID uint, teamID uint, userID uint) error {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		return errors.New("game not found")
+	}
+	if time.Now().After(game.StartTime) {
+		return errors.New("cannot leave a game that has already started")
+	}
+
+	result := s.db.Where("game_id = ? AND team_id = ?", gameID, teamID).Delete(&models.Participation{})
+	if result.RowsAffected == 0 {
+		return errors.New("not joined this game")
+	}
+	return result.Error
+}
+
+func (s *Service) GetParticipation(gameID uint, teamID uint) (*models.Participation, error) {
+	var part models.Participation
+	if err := s.db.Where("game_id = ? AND team_id = ?", gameID, teamID).First(&part).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("participation not found")
+		}
+		return nil, err
+	}
+	return &part, nil
+}
+
+// GetGameChallenges returns challenges for a game with solve counts and team solve status.
+func (s *Service) GetGameChallenges(gameID uint) ([]GameChallengeDetail, error) {
+	type row struct {
+		ChallengeID   uint
+		ScoreOverride int
+		Title         string
+		Category      string
+		Type          string
+		Difficulty    string
+		BaseScore     int
+		IsVisible     bool
+	}
+
+	var rows []row
+	if err := s.db.Table("game_challenges").
+		Select("game_challenges.challenge_id, game_challenges.score_override, "+
+			"challenges.title, challenges.category, challenges.type, challenges.difficulty, "+
+			"challenges.base_score, challenges.is_visible").
+		Joins("JOIN challenges ON challenges.id = game_challenges.challenge_id").
+		Where("game_challenges.game_id = ? AND challenges.is_visible = ?", gameID, true).
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	// Count solves per challenge in this game
+	type solveCount struct {
+		ChallengeID uint
+		Count       int
+	}
+	var counts []solveCount
+	s.db.Table("solves").
+		Select("challenge_id, count(*) as count").
+		Where("game_id = ?", gameID).
+		Group("challenge_id").
+		Scan(&counts)
+
+	countMap := map[uint]int{}
+	for _, c := range counts {
+		countMap[c.ChallengeID] = c.Count
+	}
+
+	result := make([]GameChallengeDetail, 0, len(rows))
+	for _, r := range rows {
+		score := r.BaseScore
+		if r.ScoreOverride > 0 {
+			score = r.ScoreOverride
+		}
+		result = append(result, GameChallengeDetail{
+			ID:         r.ChallengeID,
+			Title:      r.Title,
+			Category:   r.Category,
+			Type:       r.Type,
+			Difficulty: r.Difficulty,
+			Score:      score,
+			SolveCount: countMap[r.ChallengeID],
+		})
+	}
+	return result, nil
+}
+
+// SubmitFlag handles flag submission scoped to a game.
+// Uses exponential decay scoring identical to the standalone challenges service.
+func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID uint, flag string) (*SubmitResult, error) {
+	// Verify game exists and team has joined
+	var part models.Participation
+	if err := s.db.Where("game_id = ? AND team_id = ?", gameID, teamID).First(&part).Error; err != nil {
+		return nil, errors.New("team has not joined this game")
+	}
+
+	// Verify challenge is in this game
+	var gc models.GameChallenge
+	if err := s.db.Where("game_id = ? AND challenge_id = ?", gameID, challengeID).First(&gc).Error; err != nil {
+		return nil, errors.New("challenge not in this game")
+	}
+
+	var ch models.Challenge
+	if err := s.db.First(&ch, challengeID).Error; err != nil {
+		return nil, errors.New("challenge not found")
+	}
+
+	// Check flag
+	if ch.Flag != flag {
+		return &SubmitResult{Correct: false, Message: "wrong flag"}, nil
+	}
+
+	// Idempotent: already solved?
+	var existing models.Solve
+	err := s.db.Where("challenge_id = ? AND team_id = ? AND game_id = ?", challengeID, teamID, gameID).
+		First(&existing).Error
+	if err == nil {
+		return &SubmitResult{Correct: true, Score: existing.Score, Message: "already solved"}, nil
+	}
+
+	// Count how many teams solved this before us
+	var solvesBefore int64
+	s.db.Model(&models.Solve{}).Where("challenge_id = ? AND game_id = ?", challengeID, gameID).Count(&solvesBefore)
+
+	// Determine blood type
+	bloodType := ""
+	switch solvesBefore {
+	case 0:
+		bloodType = "first"
+	case 1:
+		bloodType = "second"
+	case 2:
+		bloodType = "third"
+	}
+
+	// Decay scoring
+	score := computeScore(ch, int(solvesBefore))
+
+	solve := &models.Solve{
+		ChallengeID: challengeID,
+		UserID:      userID,
+		TeamID:      teamID,
+		GameID:      gameID,
+		Score:       score,
+		BloodType:   bloodType,
+	}
+	if err := s.db.Create(solve).Error; err != nil {
+		return nil, err
+	}
+
+	return &SubmitResult{Correct: true, Score: score, BloodType: bloodType, Message: "correct"}, nil
+}
+
+// computeScore applies exponential decay: score = max(min_score, base * exp((1-x)/decay))
+func computeScore(ch models.Challenge, solvesBefore int) int {
+	base := ch.BaseScore
+	if base == 0 {
+		base = 500
+	}
+	minScore := ch.MinScore
+	if minScore == 0 {
+		minScore = 50
+	}
+	decayRate := ch.DecayRate
+	if decayRate == 0 {
+		decayRate = 30
+	}
+
+	// Blood bonuses
+	multiplier := 1.0
+	switch solvesBefore {
+	case 0:
+		multiplier = 1.0 // first blood: no extra decay yet
+	case 1:
+		multiplier = 1.0
+	case 2:
+		multiplier = 1.0
+	}
+
+	x := float64(solvesBefore + 1)
+	score := int(math.Round(float64(base) * multiplier * math.Exp((1-x)/decayRate)))
+	if score < minScore {
+		score = minScore
+	}
+	return score
+}
+
+// GetScoreboard aggregates solve data into a ranked scoreboard.
+func (s *Service) GetScoreboard(gameID uint) (*ScoreboardResponse, error) {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		return nil, errors.New("game not found")
+	}
+
+	type teamScore struct {
+		TeamID     uint
+		TeamName   string
+		TotalScore int
+		SolveCount int
+		LastSolve  time.Time
+	}
+
+	var rows []struct {
+		TeamID    uint
+		TeamName  string
+		Score     int
+		SolvedAt  time.Time
+	}
+
+	if err := s.db.Table("solves").
+		Select("solves.team_id, teams.name as team_name, solves.score, solves.solved_at").
+		Joins("JOIN teams ON teams.id = solves.team_id").
+		Where("solves.game_id = ?", gameID).
+		Order("solves.solved_at ASC").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	// Aggregate per team
+	teamMap := map[uint]*teamScore{}
+	for _, r := range rows {
+		entry, exists := teamMap[r.TeamID]
+		if !exists {
+			entry = &teamScore{TeamID: r.TeamID, TeamName: r.TeamName}
+			teamMap[r.TeamID] = entry
+		}
+		entry.TotalScore += r.Score
+		entry.SolveCount++
+		if r.SolvedAt.After(entry.LastSolve) {
+			entry.LastSolve = r.SolvedAt
+		}
+	}
+
+	// Sort: higher score first; tie-break by earlier last solve
+	entries := make([]ScoreboardEntry, 0, len(teamMap))
+	for _, ts := range teamMap {
+		entries = append(entries, ScoreboardEntry{
+			TeamID:     ts.TeamID,
+			TeamName:   ts.TeamName,
+			Score:      ts.TotalScore,
+			SolveCount: ts.SolveCount,
+			LastSolve:  ts.LastSolve,
+		})
+	}
+	// Simple sort
+	for i := 0; i < len(entries); i++ {
+		for j := i + 1; j < len(entries); j++ {
+			a, b := entries[i], entries[j]
+			if b.Score > a.Score || (b.Score == a.Score && b.LastSolve.Before(a.LastSolve)) {
+				entries[i], entries[j] = entries[j], entries[i]
+			}
+		}
+	}
+	for i := range entries {
+		entries[i].Rank = i + 1
+	}
+
+	return &ScoreboardResponse{GameID: gameID, Entries: entries}, nil
+}
+
 func toResponse(g *models.Game) *GameResponse {
 	return &GameResponse{
 		ID:          g.ID,
@@ -147,3 +436,4 @@ func toResponse(g *models.Game) *GameResponse {
 		CreatedAt:   g.CreatedAt,
 	}
 }
+

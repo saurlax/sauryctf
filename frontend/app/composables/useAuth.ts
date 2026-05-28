@@ -42,11 +42,11 @@ export function useAuth() {
   async function fetchUser() {
     if (!authState.token) return null
     try {
-      const res = await $fetch<{ id: number, username: string, email: string, role: string }>('/api/auth/me', {
+      const res = await $fetch<{ user: { id: number, username: string, email: string, role: string } }>('/api/auth/me', {
         headers: { Authorization: `Bearer ${authState.token}` },
       })
-      authState.user = res
-      return res
+      authState.user = res.user
+      return res.user
     }
     catch {
       clearAuth()

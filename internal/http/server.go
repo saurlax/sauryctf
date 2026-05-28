@@ -7,6 +7,7 @@ import (
 	"github.com/saurlax/sauryctf/internal/auth"
 	"github.com/saurlax/sauryctf/internal/challenges"
 	"github.com/saurlax/sauryctf/internal/games"
+	"github.com/saurlax/sauryctf/internal/models"
 	"github.com/saurlax/sauryctf/internal/rbac"
 	"github.com/saurlax/sauryctf/internal/teams"
 )
@@ -25,9 +26,14 @@ func NewServer(db *gorm.DB, jwtSecret string) *gin.Engine {
 	authHandler := auth.NewHandler(authSvc)
 	authHandler.RegisterRoutes(engine.Group("/api"))
 
-	// Protected routes
+	// Protected routes (any authenticated user)
 	api := engine.Group("/api")
 	api.Use(rbac.AuthMiddleware(authSvc))
+
+	// Admin routes (admin + super_admin only)
+	adminAPI := engine.Group("/api")
+	adminAPI.Use(rbac.AuthMiddleware(authSvc))
+	adminAPI.Use(rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin))
 
 	// Teams
 	teamsSvc := teams.NewService(db)
@@ -37,12 +43,12 @@ func NewServer(db *gorm.DB, jwtSecret string) *gin.Engine {
 	// Challenges
 	challengesSvc := challenges.NewService(db)
 	challengesHandler := challenges.NewHandler(challengesSvc)
-	challengesHandler.RegisterRoutes(api)
+	challengesHandler.RegisterRoutes(api, adminAPI)
 
 	// Games
 	gamesSvc := games.NewService(db)
 	gamesHandler := games.NewHandler(gamesSvc)
-	gamesHandler.RegisterRoutes(api)
+	gamesHandler.RegisterRoutes(api, adminAPI)
 
 	return engine
 }

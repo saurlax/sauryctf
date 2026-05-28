@@ -1,6 +1,10 @@
 package games
 
-import "time"
+import (
+	"time"
+
+	"github.com/saurlax/sauryctf/internal/models"
+)
 
 // ServiceInterface defines the game management contract.
 type ServiceInterface interface {
@@ -10,6 +14,16 @@ type ServiceInterface interface {
 	UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, error)
 	AddChallenge(gameID uint, challengeID uint, scoreOverride int) error
 	RemoveChallenge(gameID uint, challengeID uint) error
+	// Participation
+	JoinGame(gameID uint, teamID uint, userID uint) error
+	LeaveGame(gameID uint, teamID uint, userID uint) error
+	GetParticipation(gameID uint, teamID uint) (*models.Participation, error)
+	// Challenges in game
+	GetGameChallenges(gameID uint) ([]GameChallengeDetail, error)
+	// Flag submission (game-scoped, replaces the standalone submit)
+	SubmitFlag(gameID uint, challengeID uint, userID uint, teamID uint, flag string) (*SubmitResult, error)
+	// Scoreboard
+	GetScoreboard(gameID uint) (*ScoreboardResponse, error)
 }
 
 type CreateGameRequest struct {
@@ -45,4 +59,39 @@ type ChallengeInGame struct {
 	GameID        uint `json:"game_id"`
 	ChallengeID   uint `json:"challenge_id"`
 	ScoreOverride int  `json:"score_override"`
+}
+
+// GameChallengeDetail is returned to players: challenge info + their solve status.
+type GameChallengeDetail struct {
+	ID          uint   `json:"id"`
+	Title       string `json:"title"`
+	Category    string `json:"category"`
+	Type        string `json:"type"`
+	Difficulty  string `json:"difficulty"`
+	Score       int    `json:"score"`   // effective score (override or base)
+	Solved      bool   `json:"solved"`  // whether this team solved it
+	SolveCount  int    `json:"solve_count"`
+	BloodTeam   string `json:"blood_team,omitempty"` // first blood team name
+}
+
+type SubmitResult struct {
+	Correct   bool   `json:"correct"`
+	Score     int    `json:"score,omitempty"`
+	BloodType string `json:"blood_type,omitempty"`
+	Message   string `json:"message"`
+}
+
+// ScoreboardEntry is one team's row in the scoreboard.
+type ScoreboardEntry struct {
+	Rank      int    `json:"rank"`
+	TeamID    uint   `json:"team_id"`
+	TeamName  string `json:"team_name"`
+	Score     int    `json:"score"`
+	SolveCount int   `json:"solve_count"`
+	LastSolve time.Time `json:"last_solve"`
+}
+
+type ScoreboardResponse struct {
+	GameID  uint              `json:"game_id"`
+	Entries []ScoreboardEntry `json:"entries"`
 }

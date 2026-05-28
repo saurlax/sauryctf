@@ -2,6 +2,7 @@ package teams
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,7 +30,7 @@ func (h *Handler) CreateTeam(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetUint("user_id")
+	userID := c.MustGet("user_id").(uint)
 
 	team, err := h.svc.CreateTeam(req.Name, userID)
 	if err != nil {
@@ -47,7 +48,7 @@ func (h *Handler) JoinTeam(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetUint("user_id")
+	userID := c.MustGet("user_id").(uint)
 
 	if err := h.svc.JoinTeam(req.InviteCode, userID); err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
@@ -58,7 +59,7 @@ func (h *Handler) JoinTeam(c *gin.Context) {
 }
 
 func (h *Handler) LeaveTeam(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	userID := c.MustGet("user_id").(uint)
 
 	team, err := h.svc.GetUserTeam(userID)
 	if err != nil {
@@ -75,7 +76,7 @@ func (h *Handler) LeaveTeam(c *gin.Context) {
 }
 
 func (h *Handler) GetMyTeam(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	userID := c.MustGet("user_id").(uint)
 
 	team, err := h.svc.GetUserTeam(userID)
 	if err != nil {
@@ -87,11 +88,21 @@ func (h *Handler) GetMyTeam(c *gin.Context) {
 }
 
 func (h *Handler) RemoveMember(c *gin.Context) {
-	userID := c.GetUint("user_id")
-	teamID := c.GetUint("team_id")
-	memberID := c.GetUint("member_id")
+	userID := c.MustGet("user_id").(uint)
 
-	if err := h.svc.RemoveMember(teamID, memberID, userID); err != nil {
+	teamID, err := strconv.ParseUint(c.Param("team_id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid team_id"})
+		return
+	}
+
+	memberID, err := strconv.ParseUint(c.Param("member_id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid member_id"})
+		return
+	}
+
+	if err := h.svc.RemoveMember(uint(teamID), uint(memberID), userID); err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return
 	}

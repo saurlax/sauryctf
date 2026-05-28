@@ -45,9 +45,9 @@ func (s *Service) Register(username, email, password string) (*models.User, erro
 	return user, nil
 }
 
-func (s *Service) Login(email, password string) (string, *models.User, error) {
+func (s *Service) Login(username, password string) (string, *models.User, error) {
 	var user models.User
-	if err := s.db.Where("email = ?", email).First(&user).Error; err != nil {
+	if err := s.db.Where("username = ? OR email = ?", username, username).First(&user).Error; err != nil {
 		return "", nil, errors.New("invalid credentials")
 	}
 

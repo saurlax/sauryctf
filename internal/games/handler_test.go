@@ -24,7 +24,7 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 
 	h := games.NewHandler(svc)
 	api := r.Group("/api")
-	h.RegisterRoutes(api)
+	h.RegisterRoutes(api, api)
 	return r
 }
 

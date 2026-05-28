@@ -44,15 +44,22 @@ func (m *MockService) Register(username, email, password string) (*models.User, 
 	return user, nil
 }
 
-func (m *MockService) Login(email, password string) (string, *models.User, error) {
+func (m *MockService) Login(username, password string) (string, *models.User, error) {
 	if m.FailWith != nil {
 		return "", nil, m.FailWith
 	}
-	user, ok := m.Users[email]
-	if !ok {
+	// Search by username or email
+	var user *models.User
+	for _, u := range m.Users {
+		if u.Username == username || u.Email == username {
+			user = u
+			break
+		}
+	}
+	if user == nil {
 		return "", nil, assert.AnError
 	}
-	token := "mock-token-" + email
+	token := "mock-token-" + user.Username
 	m.Tokens[token] = user
 	return token, user, nil
 }
