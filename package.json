@@ -1,0 +1,17 @@
+{
+  "name": "sauryctf",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k -n BE,FE -c blue,green \"pnpm dev:backend\" \"pnpm dev:frontend\"",
+    "dev:backend": "go run ./cmd/server",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "test": "pnpm test:backend && pnpm test:frontend",
+    "test:backend": "go test ./...",
+    "test:frontend": "pnpm --filter frontend test",
+    "generate": "pnpm --filter frontend generate",
+    "typecheck": "pnpm --filter frontend typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

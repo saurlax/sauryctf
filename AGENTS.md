@@ -13,12 +13,13 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 
 | Action | Command |
 |--------|--------|
-| Start backend | `go run ./cmd/server` |
-| Start frontend | `cd frontend && pnpm dev` |
-| Backend tests | `go test ./...` (single package: `go test ./internal/auth/... -v -p 1`) |
-| Frontend type check | `cd frontend && pnpm nuxt typecheck` |
-| Frontend build | `cd frontend && pnpm generate` |
-| Full test suite | `make test` |
+| Start both (dev) | `pnpm dev` |
+| Start backend only | `pnpm dev:backend` |
+| Start frontend only | `pnpm dev:frontend` |
+| Backend tests | `pnpm test:backend` (single package: `go test ./internal/auth/... -v -p 1`) |
+| Frontend type check | `pnpm typecheck` |
+| Frontend build | `pnpm generate` |
+| Full test suite | `pnpm test` |
 
 ## Frontend (`frontend/`)
 
@@ -112,7 +113,7 @@ internal/<module>/
 - All admin operations write audit logs.
 - Dynamic container management must be idempotent; Kubernetes resources must be uniformly labeled.
 
-## Makefile
+## Makefile (legacy — prefer pnpm scripts above)
 
 | Target | Command |
 |--------|---------|
