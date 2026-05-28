@@ -3,6 +3,7 @@ package games_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -24,7 +25,59 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 
 	h := games.NewHandler(svc)
 	api := r.Group("/api")
-	h.RegisterRoutes(api, api)
+	// 直接注册路由（对齐 oapi-codegen 生成的路由结构）
+	api.GET("/games", func(c *gin.Context) {
+		showAll := c.Query("all") == "true"
+		h.ListGames(c, showAll)
+	})
+	api.POST("/games", h.CreateGame)
+	api.GET("/games/:id", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.GetGame(c, id)
+	})
+	api.PUT("/games/:id", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.UpdateGame(c, id)
+	})
+	api.GET("/games/:id/challenges", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.GetGameChallenges(c, id)
+	})
+	api.POST("/games/:id/challenges", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.AddChallengeToGame(c, id)
+	})
+	api.DELETE("/games/:id/challenges/:challengeId", func(c *gin.Context) {
+		var id, challengeId int
+		fmt.Sscan(c.Param("id"), &id)
+		fmt.Sscan(c.Param("challengeId"), &challengeId)
+		h.RemoveChallengeFromGame(c, id, challengeId)
+	})
+	api.POST("/games/:id/challenges/:challengeId/submit", func(c *gin.Context) {
+		var id, challengeId int
+		fmt.Sscan(c.Param("id"), &id)
+		fmt.Sscan(c.Param("challengeId"), &challengeId)
+		h.SubmitGameFlag(c, id, challengeId)
+	})
+	api.POST("/games/:id/join", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.JoinGame(c, id)
+	})
+	api.DELETE("/games/:id/leave", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.LeaveGame(c, id)
+	})
+	api.GET("/games/:id/scoreboard", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.GetScoreboard(c, id)
+	})
 	return r
 }
 

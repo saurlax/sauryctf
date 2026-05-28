@@ -1,50 +1,27 @@
+import type { components } from '~/types/api'
+
+type UserInfo = components['schemas']['UserInfo']
+
 interface AuthState {
-  token: string | null
-  user: {
-    id: number
-    username: string
-    email: string
-    role: string
-  } | null
+  user: UserInfo | null
 }
 
 const authState = reactive<AuthState>({
-  token: null,
   user: null,
 })
 
 export function useAuth() {
   const router = useRouter()
 
-  const isLoggedIn = computed(() => !!authState.token)
-
-  function setToken(token: string) {
-    authState.token = token
-    if (import.meta.client) {
-      localStorage.setItem('token', token)
-    }
-  }
-
-  function loadToken() {
-    if (import.meta.client) {
-      authState.token = localStorage.getItem('token')
-    }
-  }
+  const isLoggedIn = computed(() => !!authState.user)
 
   function clearAuth() {
-    authState.token = null
     authState.user = null
-    if (import.meta.client) {
-      localStorage.removeItem('token')
-    }
   }
 
   async function fetchUser() {
-    if (!authState.token) return null
     try {
-      const res = await $fetch<{ user: { id: number, username: string, email: string, role: string } }>('/api/auth/me', {
-        headers: { Authorization: `Bearer ${authState.token}` },
-      })
+      const res = await $api('get', '/api/auth/me')
       authState.user = res.user
       return res.user
     }
@@ -55,45 +32,31 @@ export function useAuth() {
   }
 
   async function login(username: string, password: string) {
-    const res = await $fetch<{ token: string }>('/api/auth/login', {
-      method: 'POST',
+    const res = await $api('post', '/api/auth/login', {
       body: { username, password },
     })
-    setToken(res.token)
-    await fetchUser()
+    authState.user = res.user
   }
 
   async function register(username: string, email: string, password: string) {
-    const res = await $fetch<{ token: string }>('/api/auth/register', {
-      method: 'POST',
+    const res = await $api('post', '/api/auth/register', {
       body: { username, email, password },
     })
-    setToken(res.token)
-    await fetchUser()
+    authState.user = res.user
   }
 
   async function logout() {
     try {
-      await $fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${authState.token}` },
-      })
+      await $api('post', '/api/auth/logout')
     }
     catch {}
     clearAuth()
     router.push('/login')
   }
 
-  // Initialize on client
-  if (import.meta.client && !authState.token) {
-    loadToken()
-  }
-
   return {
     authState,
     isLoggedIn,
-    setToken,
-    loadToken,
     clearAuth,
     fetchUser,
     login,

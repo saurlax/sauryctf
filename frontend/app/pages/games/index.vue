@@ -1,15 +1,8 @@
 <script setup lang="ts">
-interface Game {
-  id: number
-  name: string
-  description: string
-  start_time: string
-  end_time: string
-  status: 'draft' | 'active' | 'ended'
-  is_public: boolean
-}
+import type { components } from '~/types/api'
 
-const { authState } = useAuth()
+type Game = components['schemas']['Game']
+
 const toast = useToast()
 const games = ref<Game[]>([])
 const loading = ref(true)
@@ -17,9 +10,7 @@ const loading = ref(true)
 async function fetchGames() {
   loading.value = true
   try {
-    const res = await $fetch<Game[]>('/api/games', {
-      headers: { Authorization: `Bearer ${authState.token}` },
-    })
+    const res = await $api('get', '/api/games')
     games.value = res || []
   }
   catch (e: any) {

@@ -1,37 +1,11 @@
 <script setup lang="ts">
-interface GameChallengeDetail {
-  id: number
-  title: string
-  category: string
-  type: string
-  difficulty: string
-  score: number
-  solved: boolean
-  solve_count: number
-  blood_team?: string
-}
+import type { components } from '~/types/api'
 
-interface Game {
-  id: number
-  name: string
-  description: string
-  start_time: string
-  end_time: string
-  status: 'draft' | 'active' | 'ended'
-  is_public: boolean
-}
-
-interface ScoreboardEntry {
-  rank: number
-  team_id: number
-  team_name: string
-  score: number
-  solve_count: number
-  last_solve: string
-}
+type Game = components['schemas']['Game']
+type GameChallengeDetail = components['schemas']['GameChallengeDetail']
+type ScoreboardEntry = components['schemas']['ScoreboardEntry']
 
 const route = useRoute()
-const { authState } = useAuth()
 const toast = useToast()
 
 const game = ref<Game | null>(null)
@@ -44,16 +18,12 @@ const flagInputs = reactive<Record<number, string>>({})
 
 const gameId = route.params.id as string
 
-const headers = computed(() => ({
-  Authorization: `Bearer ${authState.token}`,
-}))
-
 async function fetchAll() {
   loading.value = true
   try {
     const [gameRes, challengesRes] = await Promise.all([
-      $fetch<Game>(`/api/games/${gameId}`, { headers: headers.value }),
-      $fetch<GameChallengeDetail[]>(`/api/games/${gameId}/challenges`, { headers: headers.value }),
+      $api('get', '/api/games/{id}', { params: { id: Number(gameId) } }),
+      $api('get', '/api/games/{id}/challenges', { params: { id: Number(gameId) } }),
     ])
     game.value = gameRes
     challenges.value = challengesRes || []
@@ -68,10 +38,7 @@ async function fetchAll() {
 
 async function fetchScoreboard() {
   try {
-    const res = await $fetch<{ game_id: number, entries: ScoreboardEntry[] }>(
-      `/api/games/${gameId}/scoreboard`,
-      { headers: headers.value },
-    )
+    const res = await $api('get', '/api/games/{id}/scoreboard', { params: { id: Number(gameId) } })
     scoreboard.value = res.entries || []
   }
   catch (e: any) {
@@ -85,9 +52,7 @@ async function submitFlag(challengeId: number) {
 
   // Need team_id — get from authState or team info
   // For now, prompt user's team from the teams API
-  const team = await $fetch<{ team: { id: number } }>('/api/teams/my', {
-    headers: headers.value,
-  }).catch(() => null)
+  const team = await $api('get', '/api/teams/my').catch(() => null)
 
   if (!team) {
     toast.add({ title: '请先加入队伍再提交', color: 'warning' })
@@ -96,14 +61,10 @@ async function submitFlag(challengeId: number) {
 
   submitting.value = challengeId
   try {
-    const res = await $fetch<{ correct: boolean, message: string, score?: number, blood_type?: string }>(
-      `/api/games/${gameId}/challenges/${challengeId}/submit`,
-      {
-        method: 'POST',
-        headers: headers.value,
-        body: { flag, team_id: team.team.id },
-      },
-    )
+    const res = await $api('post', '/api/games/{id}/challenges/{challengeId}/submit', {
+      params: { id: Number(gameId), challengeId: challengeId },
+      body: { flag, team_id: team.team.id },
+    })
     if (res.correct) {
       toast.add({ title: '🎉 Flag 正确！', description: `+${res.score} 分${res.blood_type ? ` (${res.blood_type === 'first' ? '一血' : res.blood_type === 'second' ? '二血' : '三血'})` : ''}`, color: 'success' })
       flagInputs[challengeId] = ''
@@ -212,7 +173,7 @@ onMounted(fetchAll)
 
             <div class="flex items-center justify-between text-sm text-muted mb-3">
               <div class="flex items-center gap-2">
-                <UBadge :color="getDifficultyColor(ch.difficulty)" variant="soft" size="sm">
+                <UBadge :color="getDifficultyColor(ch.difficulty ?? '')" variant="soft" size="sm">
                   {{ ch.difficulty || 'medium' }}
                 </UBadge>
                 <span>{{ ch.score }} pts</span>
@@ -261,7 +222,7 @@ onMounted(fetchAll)
             </span>
           </template>
           <template #last_solve-cell="{ row }">
-            {{ new Date(row.original.last_solve).toLocaleString() }}
+            {{ row.original.last_solve ? new Date(row.original.last_solve).toLocaleString() : '-' }}
           </template>
         </UTable>
       </div>

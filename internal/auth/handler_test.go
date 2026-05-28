@@ -23,12 +23,13 @@ func setupAuthRouter(mock *MockService) *gin.Engine {
 	api.POST("/auth/register", h.Register)
 	api.POST("/auth/login", h.Login)
 
-	// Protected routes (simulate auth middleware)
+	// Protected routes (simulate auth middleware via cookie)
 	protected := api.Group("")
 	protected.Use(func(c *gin.Context) {
-		token := c.GetHeader("Authorization")
-		if len(token) > 7 && token[:7] == "Bearer " {
-			token = token[7:]
+		token, err := c.Cookie("token")
+		if err != nil || token == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
 		}
 		user, err := mock.ValidateToken(token)
 		if err != nil {
@@ -40,7 +41,7 @@ func setupAuthRouter(mock *MockService) *gin.Engine {
 		c.Next()
 	})
 	protected.POST("/auth/logout", h.Logout)
-	protected.GET("/auth/me", h.Me)
+	protected.GET("/auth/me", h.GetMe)
 
 	return r
 }
@@ -60,7 +61,8 @@ func TestHandler_Register(t *testing.T) {
 		var resp map[string]interface{}
 		json.Unmarshal(w.Body.Bytes(), &resp)
 		assert.NotNil(t, resp["user"])
-		assert.NotEmpty(t, resp["token"])
+		// token is now in Set-Cookie header, not in response body
+		assert.NotEmpty(t, w.Header().Get("Set-Cookie"))
 	})
 
 	t.Run("bad request", func(t *testing.T) {
@@ -97,9 +99,8 @@ func TestHandler_Login(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		var resp map[string]interface{}
-		json.Unmarshal(w.Body.Bytes(), &resp)
-		assert.NotEmpty(t, resp["token"])
+		// token is now in Set-Cookie header
+		assert.NotEmpty(t, w.Header().Get("Set-Cookie"))
 	})
 
 	t.Run("success with email", func(t *testing.T) {
@@ -110,9 +111,7 @@ func TestHandler_Login(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		var resp map[string]interface{}
-		json.Unmarshal(w.Body.Bytes(), &resp)
-		assert.NotEmpty(t, resp["token"])
+		assert.NotEmpty(t, w.Header().Get("Set-Cookie"))
 	})
 
 	t.Run("bad request", func(t *testing.T) {
@@ -146,7 +145,7 @@ func TestHandler_Me(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/auth/me", nil)
-		req.Header.Set("Authorization", "Bearer "+token)
+		req.AddCookie(&http.Cookie{Name: "token", Value: token})
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -154,8 +153,6 @@ func TestHandler_Me(t *testing.T) {
 	})
 
 	t.Run("no token", func(t *testing.T) {
-		// Me requires auth middleware, which won't be set without it
-		// Just test without Authorization header — handler checks c.Get("user_id")
 		req := httptest.NewRequest("GET", "/api/auth/me", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)

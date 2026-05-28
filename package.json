@@ -8,10 +8,12 @@
     "test": "pnpm test:backend && pnpm test:frontend",
     "test:backend": "go test ./...",
     "test:frontend": "pnpm --filter sauryctf-frontend typecheck",
-    "generate": "pnpm --filter sauryctf-frontend generate",
+    "generate:api": "openapi-typescript api/openapi.yaml -o frontend/app/types/api.d.ts",
+    "generate": "pnpm generate:api && pnpm --filter sauryctf-frontend generate",
     "typecheck": "pnpm --filter sauryctf-frontend typecheck"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "openapi-typescript": "^6.7.6"
   }
 }

@@ -2,7 +2,6 @@ package teams
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -87,36 +86,13 @@ func (h *Handler) GetMyTeam(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"team": team})
 }
 
-func (h *Handler) RemoveMember(c *gin.Context) {
+func (h *Handler) RemoveTeamMember(c *gin.Context, teamId int, memberId int) {
 	userID := c.MustGet("user_id").(uint)
 
-	teamID, err := strconv.ParseUint(c.Param("team_id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid team_id"})
-		return
-	}
-
-	memberID, err := strconv.ParseUint(c.Param("member_id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid member_id"})
-		return
-	}
-
-	if err := h.svc.RemoveMember(uint(teamID), uint(memberID), userID); err != nil {
+	if err := h.svc.RemoveMember(uint(teamId), uint(memberId), userID); err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "member removed"})
-}
-
-func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
-	teams := rg.Group("/teams")
-	{
-		teams.POST("", h.CreateTeam)
-		teams.POST("/join", h.JoinTeam)
-		teams.POST("/leave", h.LeaveTeam)
-		teams.GET("/my", h.GetMyTeam)
-		teams.DELETE("/:team_id/members/:member_id", h.RemoveMember)
-	}
 }

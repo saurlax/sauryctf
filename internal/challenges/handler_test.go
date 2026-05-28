@@ -3,6 +3,7 @@ package challenges_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,7 +27,45 @@ func setupTestRouter(svc challenges.ServiceInterface) *gin.Engine {
 
 	h := challenges.NewHandler(svc)
 	api := r.Group("/api")
-	h.RegisterRoutes(api, api)
+	// 直接注册路由（对齐 oapi-codegen 生成的路由结构）
+	api.GET("/challenges", func(c *gin.Context) {
+		category := c.Query("category")
+		showHidden := c.Query("show_hidden") == "true"
+		h.ListChallenges(c, category, showHidden)
+	})
+	api.POST("/challenges", h.CreateChallenge)
+	api.GET("/challenges/:id", func(c *gin.Context) {
+		var id int
+		if _, err := fmt.Sscan(c.Param("id"), &id); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "invalid id"})
+			return
+		}
+		h.GetChallenge(c, id)
+	})
+	api.PUT("/challenges/:id", func(c *gin.Context) {
+		var id int
+		if _, err := fmt.Sscan(c.Param("id"), &id); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "invalid id"})
+			return
+		}
+		h.UpdateChallenge(c, id)
+	})
+	api.DELETE("/challenges/:id", func(c *gin.Context) {
+		var id int
+		if _, err := fmt.Sscan(c.Param("id"), &id); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "invalid id"})
+			return
+		}
+		h.DeleteChallenge(c, id)
+	})
+	api.POST("/challenges/:id/submit", func(c *gin.Context) {
+		var id int
+		if _, err := fmt.Sscan(c.Param("id"), &id); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "invalid id"})
+			return
+		}
+		h.SubmitChallengeFlag(c, id)
+	})
 	return r
 }
 

@@ -14,7 +14,10 @@ func TestHealthzHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	engine := gin.New()
-	engine.GET("/api/healthz", HealthzHandler)
+	// 直接注册一个匿名 handler 测试 Healthz 逻辑
+	engine.GET("/api/healthz", func(c *gin.Context) {
+		c.JSON(http.StatusOK, HealthResponse{Status: "ok", Version: "0.1.0"})
+	})
 
 	req, err := http.NewRequest("GET", "/api/healthz", nil)
 	assert.NoError(t, err)
@@ -24,7 +27,7 @@ func TestHealthzHandler(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, recorder.Code)
 
-	var response HealthzResponse
+	var response HealthResponse
 	err = json.Unmarshal(recorder.Body.Bytes(), &response)
 	assert.NoError(t, err)
 

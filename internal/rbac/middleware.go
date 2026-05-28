@@ -12,14 +12,18 @@ import (
 
 func AuthMiddleware(authSvc auth.ServiceInterface) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token := c.GetHeader("Authorization")
-		if token == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing authorization header"})
-			return
+		token, err := c.Cookie("token")
+		if err != nil || token == "" {
+			// 回退到 Authorization header
+			header := c.GetHeader("Authorization")
+			if strings.HasPrefix(header, "Bearer ") {
+				token = header[7:]
+			}
 		}
 
-		if strings.HasPrefix(token, "Bearer ") {
-			token = token[7:]
+		if token == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing token"})
+			return
 		}
 
 		user, err := authSvc.ValidateToken(token)

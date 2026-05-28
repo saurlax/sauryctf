@@ -2,7 +2,6 @@ package challenges
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,20 +12,6 @@ type Handler struct {
 
 func NewHandler(svc ServiceInterface) *Handler {
 	return &Handler{svc: svc}
-}
-
-func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, adminRg *gin.RouterGroup) {
-	// Public (authenticated) routes
-	g := rg.Group("/challenges")
-	g.GET("", h.ListChallenges)
-	g.GET("/:id", h.GetChallenge)
-	g.POST("/:id/submit", h.SubmitFlag)
-
-	// Admin-only routes
-	admin := adminRg.Group("/challenges")
-	admin.POST("", h.CreateChallenge)
-	admin.PUT("/:id", h.UpdateChallenge)
-	admin.DELETE("/:id", h.DeleteChallenge)
 }
 
 func (h *Handler) CreateChallenge(c *gin.Context) {
@@ -45,13 +30,7 @@ func (h *Handler) CreateChallenge(c *gin.Context) {
 	c.JSON(http.StatusCreated, ch)
 }
 
-func (h *Handler) GetChallenge(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid id"})
-		return
-	}
-
+func (h *Handler) GetChallenge(c *gin.Context, id int) {
 	ch, err := h.svc.GetChallenge(uint(id))
 	if err != nil {
 		if err.Error() == "challenge not found" {
@@ -64,10 +43,7 @@ func (h *Handler) GetChallenge(c *gin.Context) {
 	c.JSON(http.StatusOK, ch)
 }
 
-func (h *Handler) ListChallenges(c *gin.Context) {
-	category := c.Query("category")
-	showHidden := c.Query("show_hidden") == "true"
-
+func (h *Handler) ListChallenges(c *gin.Context, category string, showHidden bool) {
 	challenges, err := h.svc.ListChallenges(category, showHidden)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
@@ -76,13 +52,7 @@ func (h *Handler) ListChallenges(c *gin.Context) {
 	c.JSON(http.StatusOK, challenges)
 }
 
-func (h *Handler) UpdateChallenge(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid id"})
-		return
-	}
-
+func (h *Handler) UpdateChallenge(c *gin.Context, id int) {
 	var req UpdateChallengeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
@@ -101,13 +71,7 @@ func (h *Handler) UpdateChallenge(c *gin.Context) {
 	c.JSON(http.StatusOK, ch)
 }
 
-func (h *Handler) DeleteChallenge(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid id"})
-		return
-	}
-
+func (h *Handler) DeleteChallenge(c *gin.Context, id int) {
 	if err := h.svc.DeleteChallenge(uint(id)); err != nil {
 		if err.Error() == "challenge not found" {
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
@@ -119,13 +83,7 @@ func (h *Handler) DeleteChallenge(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }
 
-func (h *Handler) SubmitFlag(c *gin.Context) {
-	challengeID, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid id"})
-		return
-	}
-
+func (h *Handler) SubmitChallengeFlag(c *gin.Context, id int) {
 	var req struct {
 		Flag   string `json:"flag" binding:"required"`
 		GameID uint   `json:"game_id" binding:"required"`
@@ -138,17 +96,15 @@ func (h *Handler) SubmitFlag(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	teamID, _ := c.Get("team_id")
 
-	result, err := h.svc.SubmitFlag(uint(challengeID), req.GameID, userID.(uint), teamID.(uint), req.Flag)
+	result, err := h.svc.SubmitFlag(uint(id), req.GameID, userID.(uint), teamID.(uint), req.Flag)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
 	}
 
-	status := http.StatusOK
 	if result.Correct {
-		status = http.StatusOK
+		c.JSON(http.StatusOK, result)
 	} else {
-		status = http.StatusForbidden
+		c.JSON(http.StatusForbidden, result)
 	}
-	c.JSON(status, result)
 }

@@ -66,13 +66,13 @@ func TestAuthMiddleware(t *testing.T) {
 		})
 
 		c.Request, _ = http.NewRequest("GET", "/test", nil)
-		c.Request.Header.Set("Authorization", "Bearer invalid-token")
+		c.Request.AddCookie(&http.Cookie{Name: "token", Value: "invalid-token"})
 		r.ServeHTTP(w, c.Request)
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
-	t.Run("valid token sets user context", func(t *testing.T) {
+	t.Run("valid cookie sets user context", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, r := gin.CreateTestContext(w)
 		r.GET("/test", middleware, func(c *gin.Context) {
@@ -82,7 +82,7 @@ func TestAuthMiddleware(t *testing.T) {
 		})
 
 		c.Request, _ = http.NewRequest("GET", "/test", nil)
-		c.Request.Header.Set("Authorization", "Bearer valid-token")
+		c.Request.AddCookie(&http.Cookie{Name: "token", Value: "valid-token"})
 		r.ServeHTTP(w, c.Request)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -91,6 +91,20 @@ func TestAuthMiddleware(t *testing.T) {
 		json.Unmarshal(w.Body.Bytes(), &resp)
 		assert.Equal(t, float64(1), resp["user_id"])
 		assert.Equal(t, string(models.RoleUser), resp["role"])
+	})
+
+	t.Run("fallback to Authorization header", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, r := gin.CreateTestContext(w)
+		r.GET("/test", middleware, func(c *gin.Context) {
+			c.JSON(200, gin.H{"ok": true})
+		})
+
+		c.Request, _ = http.NewRequest("GET", "/test", nil)
+		c.Request.Header.Set("Authorization", "Bearer valid-token")
+		r.ServeHTTP(w, c.Request)
+
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
 }
 
@@ -113,7 +127,7 @@ func TestRequireRole(t *testing.T) {
 		})
 
 		c.Request, _ = http.NewRequest("GET", "/admin", nil)
-		c.Request.Header.Set("Authorization", "Bearer "+userToken)
+		c.Request.AddCookie(&http.Cookie{Name: "token", Value: userToken})
 		r.ServeHTTP(w, c.Request)
 
 		assert.Equal(t, http.StatusForbidden, w.Code)
@@ -127,7 +141,7 @@ func TestRequireRole(t *testing.T) {
 		})
 
 		c.Request, _ = http.NewRequest("GET", "/admin", nil)
-		c.Request.Header.Set("Authorization", "Bearer "+adminToken)
+		c.Request.AddCookie(&http.Cookie{Name: "token", Value: adminToken})
 		r.ServeHTTP(w, c.Request)
 
 		assert.Equal(t, http.StatusOK, w.Code)

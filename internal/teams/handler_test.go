@@ -3,6 +3,7 @@ package teams
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,21 +17,31 @@ import (
 func setupTeamsRouter(mock *MockService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	h := NewHandler(mock)
-	// Simulate auth middleware: set user_id from query param
-	api := r.Group("/api")
-	api.Use(func(c *gin.Context) {
+	// 模拟认证中间件：从 X-Test-User-ID header 读取用户 ID
+	r.Use(func(c *gin.Context) {
 		uid := c.GetHeader("X-Test-User-ID")
 		if uid == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no user"})
 			return
 		}
 		var id uint
-		json.Unmarshal([]byte(uid), &id)
+		fmt.Sscan(uid, &id)
 		c.Set("user_id", id)
 		c.Next()
 	})
-	h.RegisterRoutes(api)
+	h := NewHandler(mock)
+	// 直接注册路由（对齐 oapi-codegen 生成的路由结构）
+	api := r.Group("/api")
+	api.POST("/teams", h.CreateTeam)
+	api.GET("/teams/my", h.GetMyTeam)
+	api.POST("/teams/join", h.JoinTeam)
+	api.POST("/teams/leave", h.LeaveTeam)
+	api.DELETE("/teams/:teamId/members/:memberId", func(c *gin.Context) {
+		var teamId, memberId int
+		fmt.Sscan(c.Param("teamId"), &teamId)
+		fmt.Sscan(c.Param("memberId"), &memberId)
+		h.RemoveTeamMember(c, teamId, memberId)
+	})
 	return r
 }
 

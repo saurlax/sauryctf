@@ -1,3 +1,23 @@
+// Package main is the entry point for SauryCTF backend.
+//
+// @title           SauryCTF API
+// @version         0.1.0
+// @description     Next-generation CTF/AWD platform API.
+//
+// @contact.name   SauryCTF
+// @contact.url    https://github.com/saurlax/sauryctf
+//
+// @license.name  MIT
+//
+// @host      localhost:8080
+// @BasePath  /api
+//
+// @securityDefinitions.apikey  BearerAuth
+// @in                          header
+// @name                        Authorization
+// @description                 JWT token: "Bearer <token>"
+//
+//go:generate oapi-codegen --config ../../api/oapi-codegen.yaml ../../api/openapi.yaml
 package main
 
 import (
