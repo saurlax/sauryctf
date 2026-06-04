@@ -1,4 +1,4 @@
-openapi: "3.1.0"
+openapi: "3.0.3"
 info:
   title: SauryCTF API
   version: "0.1.0"
@@ -291,10 +291,9 @@ components:
           type: string
           format: date-time
         scoreboard_freeze_at:
-          type:
-            - string
-            - "null"
+          type: string
           format: date-time
+          nullable: true
         status:
           type: string
           enum: [draft, active, ended]
@@ -308,10 +307,9 @@ components:
         writeup_required:
           type: boolean
         writeup_deadline:
-          type:
-            - string
-            - "null"
+          type: string
           format: date-time
+          nullable: true
         is_public:
           type: boolean
         created_by:
@@ -341,10 +339,9 @@ components:
           type: string
           format: date-time
         scoreboard_freeze_at:
-          type:
-            - string
-            - "null"
+          type: string
           format: date-time
+          nullable: true
         registration_mode:
           type: string
           enum: [review, auto_accept]
@@ -355,10 +352,9 @@ components:
         writeup_required:
           type: boolean
         writeup_deadline:
-          type:
-            - string
-            - "null"
+          type: string
           format: date-time
+          nullable: true
         is_public:
           type: boolean
 
@@ -382,10 +378,9 @@ components:
           type: string
           format: date-time
         scoreboard_freeze_at:
-          type:
-            - string
-            - "null"
+          type: string
           format: date-time
+          nullable: true
         status:
           type: string
           enum: [draft, active, ended]
@@ -399,10 +394,9 @@ components:
         writeup_required:
           type: boolean
         writeup_deadline:
-          type:
-            - string
-            - "null"
+          type: string
           format: date-time
+          nullable: true
         is_public:
           type: boolean
 
@@ -552,10 +546,9 @@ components:
           type: string
           enum: [submitted, approved, rejected]
         writeup_deadline:
-          type:
-            - string
-            - "null"
+          type: string
           format: date-time
+          nullable: true
         writeup_deadline_passed:
           type: boolean
         missing_writeup:
@@ -594,9 +587,8 @@ components:
           type: string
           enum: [pending, accepted, rejected]
         division:
-          type:
-            - string
-            - "null"
+          type: string
+          nullable: true
 
     HealthResponse:
       type: object
@@ -1021,8 +1013,6 @@ paths:
       operationId: listGames
       summary: List games
       tags: [games]
-      security:
-        - BearerAuth: []
       parameters:
         - name: all
           in: query
@@ -1063,8 +1053,6 @@ paths:
       operationId: getGame
       summary: Get a game
       tags: [games]
-      security:
-        - BearerAuth: []
       parameters:
         - name: id
           in: path

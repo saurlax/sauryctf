@@ -39,7 +39,9 @@ SauryCTF 是一个对标 GZCTF 的 Go + Gin + GORM + Nuxt SSG CTF 平台。
 
 1. 空库启动后端，确认控制台没有 bootstrap admin 报错
 2. 用 `admin / sauryctf` 登录 `http://127.0.0.1:3000/login`
-3. 进入 `/console/admin` 创建一场最小比赛，验证管理员鉴权和 Cookie 会话都正常
+3. 进入 `/console/admin` 创建一场最小比赛，先保持公开但仍为 `draft`
+4. 在管理页新建一道题目并挂载到这场比赛
+5. 将比赛切换为 `active`，再打开 `/games` 确认公开列表和比赛详情已经可见
 
 ## 本地开发
 

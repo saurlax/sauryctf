@@ -161,21 +161,18 @@ func (e CreateChallengeRequestType) Valid() bool {
 	}
 }
 
-// Defines values for GameStatus.
+// Defines values for CreateGameRequestRegistrationMode.
 const (
-	GameStatusActive GameStatus = "active"
-	GameStatusDraft  GameStatus = "draft"
-	GameStatusEnded  GameStatus = "ended"
+	CreateGameRequestRegistrationModeAutoAccept CreateGameRequestRegistrationMode = "auto_accept"
+	CreateGameRequestRegistrationModeReview     CreateGameRequestRegistrationMode = "review"
 )
 
-// Valid indicates whether the value is a known member of the GameStatus enum.
-func (e GameStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the CreateGameRequestRegistrationMode enum.
+func (e CreateGameRequestRegistrationMode) Valid() bool {
 	switch e {
-	case GameStatusActive:
+	case CreateGameRequestRegistrationModeAutoAccept:
 		return true
-	case GameStatusDraft:
-		return true
-	case GameStatusEnded:
+	case CreateGameRequestRegistrationModeReview:
 		return true
 	default:
 		return false
@@ -194,6 +191,27 @@ func (e GameRegistrationMode) Valid() bool {
 	case GameRegistrationModeAutoAccept:
 		return true
 	case GameRegistrationModeReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GameStatus.
+const (
+	GameStatusActive GameStatus = "active"
+	GameStatusDraft  GameStatus = "draft"
+	GameStatusEnded  GameStatus = "ended"
+)
+
+// Valid indicates whether the value is a known member of the GameStatus enum.
+func (e GameStatus) Valid() bool {
+	switch e {
+	case GameStatusActive:
+		return true
+	case GameStatusDraft:
+		return true
+	case GameStatusEnded:
 		return true
 	default:
 		return false
@@ -251,6 +269,69 @@ func (e GameChallengeDetailType) Valid() bool {
 	}
 }
 
+// Defines values for GameParticipantEntryStatus.
+const (
+	GameParticipantEntryStatusAccepted GameParticipantEntryStatus = "accepted"
+	GameParticipantEntryStatusPending  GameParticipantEntryStatus = "pending"
+	GameParticipantEntryStatusRejected GameParticipantEntryStatus = "rejected"
+)
+
+// Valid indicates whether the value is a known member of the GameParticipantEntryStatus enum.
+func (e GameParticipantEntryStatus) Valid() bool {
+	switch e {
+	case GameParticipantEntryStatusAccepted:
+		return true
+	case GameParticipantEntryStatusPending:
+		return true
+	case GameParticipantEntryStatusRejected:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GameParticipationStatus.
+const (
+	GameParticipationStatusAccepted GameParticipationStatus = "accepted"
+	GameParticipationStatusPending  GameParticipationStatus = "pending"
+	GameParticipationStatusRejected GameParticipationStatus = "rejected"
+)
+
+// Valid indicates whether the value is a known member of the GameParticipationStatus enum.
+func (e GameParticipationStatus) Valid() bool {
+	switch e {
+	case GameParticipationStatusAccepted:
+		return true
+	case GameParticipationStatusPending:
+		return true
+	case GameParticipationStatusRejected:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GameParticipationWriteupStatus.
+const (
+	GameParticipationWriteupStatusApproved  GameParticipationWriteupStatus = "approved"
+	GameParticipationWriteupStatusRejected  GameParticipationWriteupStatus = "rejected"
+	GameParticipationWriteupStatusSubmitted GameParticipationWriteupStatus = "submitted"
+)
+
+// Valid indicates whether the value is a known member of the GameParticipationWriteupStatus enum.
+func (e GameParticipationWriteupStatus) Valid() bool {
+	switch e {
+	case GameParticipationWriteupStatusApproved:
+		return true
+	case GameParticipationWriteupStatusRejected:
+		return true
+	case GameParticipationWriteupStatusSubmitted:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SubmitResultBloodType.
 const (
 	First  SubmitResultBloodType = "first"
@@ -266,6 +347,24 @@ func (e SubmitResultBloodType) Valid() bool {
 	case Second:
 		return true
 	case Third:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateGameRequestRegistrationMode.
+const (
+	AutoAccept UpdateGameRequestRegistrationMode = "auto_accept"
+	Review     UpdateGameRequestRegistrationMode = "review"
+)
+
+// Valid indicates whether the value is a known member of the UpdateGameRequestRegistrationMode enum.
+func (e UpdateGameRequestRegistrationMode) Valid() bool {
+	switch e {
+	case AutoAccept:
+		return true
+	case Review:
 		return true
 	default:
 		return false
@@ -293,18 +392,21 @@ func (e UpdateGameRequestStatus) Valid() bool {
 	}
 }
 
-// Defines values for UpdateGameRequestRegistrationMode.
+// Defines values for UpdateParticipationStatusRequestStatus.
 const (
-	UpdateGameRequestRegistrationModeAutoAccept UpdateGameRequestRegistrationMode = "auto_accept"
-	UpdateGameRequestRegistrationModeReview     UpdateGameRequestRegistrationMode = "review"
+	UpdateParticipationStatusRequestStatusAccepted UpdateParticipationStatusRequestStatus = "accepted"
+	UpdateParticipationStatusRequestStatusPending  UpdateParticipationStatusRequestStatus = "pending"
+	UpdateParticipationStatusRequestStatusRejected UpdateParticipationStatusRequestStatus = "rejected"
 )
 
-// Valid indicates whether the value is a known member of the UpdateGameRequestRegistrationMode enum.
-func (e UpdateGameRequestRegistrationMode) Valid() bool {
+// Valid indicates whether the value is a known member of the UpdateParticipationStatusRequestStatus enum.
+func (e UpdateParticipationStatusRequestStatus) Valid() bool {
 	switch e {
-	case UpdateGameRequestRegistrationModeAutoAccept:
+	case UpdateParticipationStatusRequestStatusAccepted:
 		return true
-	case UpdateGameRequestRegistrationModeReview:
+	case UpdateParticipationStatusRequestStatusPending:
+		return true
+	case UpdateParticipationStatusRequestStatusRejected:
 		return true
 	default:
 		return false
@@ -424,16 +526,23 @@ type CreateChallengeRequestType string
 
 // CreateGameRequest defines model for CreateGameRequest.
 type CreateGameRequest struct {
-	Description      *string               `json:"description,omitempty"`
-	EndTime          time.Time             `json:"end_time"`
-	IsPublic         *bool                 `json:"is_public,omitempty"`
-	MaxTeamMembers   *int                  `json:"max_team_members,omitempty"`
-	Name             string                `json:"name"`
-	Notice           *string               `json:"notice,omitempty"`
-	RegistrationMode *GameRegistrationMode `json:"registration_mode,omitempty"`
-	ScoreboardFreezeAt *time.Time          `json:"scoreboard_freeze_at,omitempty"`
-	StartTime        time.Time             `json:"start_time"`
+	Description        *string                            `json:"description,omitempty"`
+	Divisions          *[]string                          `json:"divisions,omitempty"`
+	EndTime            time.Time                          `json:"end_time"`
+	IsPublic           *bool                              `json:"is_public,omitempty"`
+	MaxTeamMembers     *int                               `json:"max_team_members,omitempty"`
+	Name               string                             `json:"name"`
+	Notice             *string                            `json:"notice,omitempty"`
+	PracticeMode       *bool                              `json:"practice_mode,omitempty"`
+	RegistrationMode   *CreateGameRequestRegistrationMode `json:"registration_mode,omitempty"`
+	ScoreboardFreezeAt *time.Time                         `json:"scoreboard_freeze_at,omitempty"`
+	StartTime          time.Time                          `json:"start_time"`
+	WriteupDeadline    *time.Time                         `json:"writeup_deadline,omitempty"`
+	WriteupRequired    *bool                              `json:"writeup_required,omitempty"`
 }
+
+// CreateGameRequestRegistrationMode defines model for CreateGameRequest.RegistrationMode.
+type CreateGameRequestRegistrationMode string
 
 // CreateTeamRequest defines model for CreateTeamRequest.
 type CreateTeamRequest struct {
@@ -447,38 +556,45 @@ type ErrorResponse struct {
 
 // Game defines model for Game.
 type Game struct {
-	CreatedAt        *time.Time            `json:"created_at,omitempty"`
-	CreatedBy        *int                  `json:"created_by,omitempty"`
-	Description      *string               `json:"description,omitempty"`
-	EndTime          time.Time             `json:"end_time"`
-	Id               int                   `json:"id"`
-	IsPublic         *bool                 `json:"is_public,omitempty"`
-	MaxTeamMembers   *int                  `json:"max_team_members,omitempty"`
-	Name             string                `json:"name"`
-	Notice           *string               `json:"notice,omitempty"`
-	RegistrationMode *GameRegistrationMode `json:"registration_mode,omitempty"`
-	ScoreboardFreezeAt *time.Time          `json:"scoreboard_freeze_at,omitempty"`
-	StartTime        time.Time             `json:"start_time"`
-	Status           GameStatus            `json:"status"`
+	CreatedAt          *time.Time            `json:"created_at,omitempty"`
+	CreatedBy          *int                  `json:"created_by,omitempty"`
+	Description        *string               `json:"description,omitempty"`
+	Divisions          *[]string             `json:"divisions,omitempty"`
+	EndTime            time.Time             `json:"end_time"`
+	Id                 int                   `json:"id"`
+	IsPublic           *bool                 `json:"is_public,omitempty"`
+	MaxTeamMembers     *int                  `json:"max_team_members,omitempty"`
+	Name               string                `json:"name"`
+	Notice             *string               `json:"notice,omitempty"`
+	PracticeMode       *bool                 `json:"practice_mode,omitempty"`
+	RegistrationMode   *GameRegistrationMode `json:"registration_mode,omitempty"`
+	ScoreboardFreezeAt *time.Time            `json:"scoreboard_freeze_at,omitempty"`
+	StartTime          time.Time             `json:"start_time"`
+	Status             GameStatus            `json:"status"`
+	WriteupDeadline    *time.Time            `json:"writeup_deadline,omitempty"`
+	WriteupRequired    *bool                 `json:"writeup_required,omitempty"`
 }
-
-// GameStatus defines model for Game.Status.
-type GameStatus string
 
 // GameRegistrationMode defines model for Game.RegistrationMode.
 type GameRegistrationMode string
 
+// GameStatus defines model for Game.Status.
+type GameStatus string
+
 // GameChallengeDetail defines model for GameChallengeDetail.
 type GameChallengeDetail struct {
-	BloodTeam  *string                     `json:"blood_team,omitempty"`
-	Category   GameChallengeDetailCategory `json:"category"`
-	Difficulty *string                     `json:"difficulty,omitempty"`
-	Id         int                         `json:"id"`
-	Score      int                         `json:"score"`
-	SolveCount *int                        `json:"solve_count,omitempty"`
-	Solved     *bool                       `json:"solved,omitempty"`
-	Title      string                      `json:"title"`
-	Type       GameChallengeDetailType     `json:"type"`
+	Attachments *string                     `json:"attachments,omitempty"`
+	BloodTeam   *string                     `json:"blood_team,omitempty"`
+	Category    GameChallengeDetailCategory `json:"category"`
+	Description *string                     `json:"description,omitempty"`
+	Difficulty  *string                     `json:"difficulty,omitempty"`
+	Hints       *string                     `json:"hints,omitempty"`
+	Id          int                         `json:"id"`
+	Score       int                         `json:"score"`
+	SolveCount  *int                        `json:"solve_count,omitempty"`
+	Solved      *bool                       `json:"solved,omitempty"`
+	Title       string                      `json:"title"`
+	Type        GameChallengeDetailType     `json:"type"`
 }
 
 // GameChallengeDetailCategory defines model for GameChallengeDetail.Category.
@@ -486,6 +602,45 @@ type GameChallengeDetailCategory string
 
 // GameChallengeDetailType defines model for GameChallengeDetail.Type.
 type GameChallengeDetailType string
+
+// GameParticipantEntry defines model for GameParticipantEntry.
+type GameParticipantEntry struct {
+	Division   *string                    `json:"division,omitempty"`
+	JoinedAt   time.Time                  `json:"joined_at"`
+	Score      int                        `json:"score"`
+	SolveCount int                        `json:"solve_count"`
+	Status     GameParticipantEntryStatus `json:"status"`
+	TeamId     int                        `json:"team_id"`
+	TeamName   string                     `json:"team_name"`
+}
+
+// GameParticipantEntryStatus defines model for GameParticipantEntry.Status.
+type GameParticipantEntryStatus string
+
+// GameParticipation defines model for GameParticipation.
+type GameParticipation struct {
+	Division       *string                  `json:"division,omitempty"`
+	Divisions      *[]string                `json:"divisions,omitempty"`
+	HasTeam        bool                     `json:"has_team"`
+	MissingWriteup *bool                    `json:"missing_writeup,omitempty"`
+	Participated   bool                     `json:"participated"`
+	Status         *GameParticipationStatus `json:"status,omitempty"`
+	Team           *struct {
+		Id   int    `json:"id"`
+		Name string `json:"name"`
+	} `json:"team,omitempty"`
+	WriteupDeadline       *time.Time                      `json:"writeup_deadline,omitempty"`
+	WriteupDeadlinePassed *bool                           `json:"writeup_deadline_passed,omitempty"`
+	WriteupRequired       *bool                           `json:"writeup_required,omitempty"`
+	WriteupStatus         *GameParticipationWriteupStatus `json:"writeup_status,omitempty"`
+	WriteupSubmitted      *bool                           `json:"writeup_submitted,omitempty"`
+}
+
+// GameParticipationStatus defines model for GameParticipation.Status.
+type GameParticipationStatus string
+
+// GameParticipationWriteupStatus defines model for GameParticipation.WriteupStatus.
+type GameParticipationWriteupStatus string
 
 // GameSubmitFlagRequest defines model for GameSubmitFlagRequest.
 type GameSubmitFlagRequest struct {
@@ -531,33 +686,23 @@ type RegisterRequest struct {
 
 // Scoreboard defines model for Scoreboard.
 type Scoreboard struct {
-	Entries    []ScoreboardEntry `json:"entries"`
-	FreezeTime *time.Time        `json:"freeze_time,omitempty"`
-	GameId     int               `json:"game_id"`
-	IsFrozen   *bool             `json:"is_frozen,omitempty"`
+	Challenges *[]ScoreboardChallengeStat `json:"challenges,omitempty"`
+	Division   *string                    `json:"division,omitempty"`
+	Divisions  *[]string                  `json:"divisions,omitempty"`
+	Entries    []ScoreboardEntry          `json:"entries"`
+	FreezeTime *time.Time                 `json:"freeze_time,omitempty"`
+	GameId     int                        `json:"game_id"`
+	IsFrozen   *bool                      `json:"is_frozen,omitempty"`
 }
 
-// GameParticipation defines model for GameParticipation.
-type GameParticipation struct {
-	HasTeam      bool                  `json:"has_team"`
-	Participated bool                  `json:"participated"`
-	Status       *GameParticipationStatus `json:"status,omitempty"`
-	Team         *GameParticipationTeam `json:"team,omitempty"`
-}
-
-// GameParticipationStatus defines model for GameParticipation.Status.
-type GameParticipationStatus string
-
-const (
-	GameParticipationStatusAccepted GameParticipationStatus = "accepted"
-	GameParticipationStatusPending  GameParticipationStatus = "pending"
-	GameParticipationStatusRejected GameParticipationStatus = "rejected"
-)
-
-// GameParticipationTeam defines model for GameParticipation.Team.
-type GameParticipationTeam struct {
-	Id   int    `json:"id"`
-	Name string `json:"name"`
+// ScoreboardChallengeStat defines model for ScoreboardChallengeStat.
+type ScoreboardChallengeStat struct {
+	BloodTeam   *string `json:"blood_team,omitempty"`
+	Category    string  `json:"category"`
+	Id          int     `json:"id"`
+	Score       int     `json:"score"`
+	SolvedCount int     `json:"solved_count"`
+	Title       string  `json:"title"`
 }
 
 // ScoreboardEntry defines model for ScoreboardEntry.
@@ -606,37 +751,55 @@ type TeamMember struct {
 
 // UpdateChallengeRequest defines model for UpdateChallengeRequest.
 type UpdateChallengeRequest struct {
-	BaseScore   *int     `json:"base_score,omitempty"`
-	Category    *string  `json:"category,omitempty"`
-	DecayRate   *float32 `json:"decay_rate,omitempty"`
-	Description *string  `json:"description,omitempty"`
-	Difficulty  *string  `json:"difficulty,omitempty"`
-	Flag        *string  `json:"flag,omitempty"`
-	IsVisible   *bool    `json:"is_visible,omitempty"`
-	MinScore    *int     `json:"min_score,omitempty"`
-	Title       *string  `json:"title,omitempty"`
-	Type        *string  `json:"type,omitempty"`
+	Attachments   *string  `json:"attachments,omitempty"`
+	BaseScore     *int     `json:"base_score,omitempty"`
+	Category      *string  `json:"category,omitempty"`
+	ContainerSpec *string  `json:"container_spec,omitempty"`
+	DecayRate     *float32 `json:"decay_rate,omitempty"`
+	Description   *string  `json:"description,omitempty"`
+	Difficulty    *string  `json:"difficulty,omitempty"`
+	Flag          *string  `json:"flag,omitempty"`
+	FlagFormat    *string  `json:"flag_format,omitempty"`
+	Hints         *string  `json:"hints,omitempty"`
+	IsVisible     *bool    `json:"is_visible,omitempty"`
+	MaxAttempts   *int     `json:"max_attempts,omitempty"`
+	MinScore      *int     `json:"min_score,omitempty"`
+	Title         *string  `json:"title,omitempty"`
+	Type          *string  `json:"type,omitempty"`
 }
 
 // UpdateGameRequest defines model for UpdateGameRequest.
 type UpdateGameRequest struct {
-	Description      *string                            `json:"description,omitempty"`
-	EndTime          *time.Time                         `json:"end_time,omitempty"`
-	IsPublic         *bool                              `json:"is_public,omitempty"`
-	MaxTeamMembers   *int                               `json:"max_team_members,omitempty"`
-	Name             *string                            `json:"name,omitempty"`
-	Notice           *string                            `json:"notice,omitempty"`
-	RegistrationMode *UpdateGameRequestRegistrationMode `json:"registration_mode,omitempty"`
-	ScoreboardFreezeAt *time.Time                       `json:"scoreboard_freeze_at,omitempty"`
-	StartTime        *time.Time                         `json:"start_time,omitempty"`
-	Status           *UpdateGameRequestStatus           `json:"status,omitempty"`
+	Description        *string                            `json:"description,omitempty"`
+	Divisions          *[]string                          `json:"divisions,omitempty"`
+	EndTime            *time.Time                         `json:"end_time,omitempty"`
+	IsPublic           *bool                              `json:"is_public,omitempty"`
+	MaxTeamMembers     *int                               `json:"max_team_members,omitempty"`
+	Name               *string                            `json:"name,omitempty"`
+	Notice             *string                            `json:"notice,omitempty"`
+	PracticeMode       *bool                              `json:"practice_mode,omitempty"`
+	RegistrationMode   *UpdateGameRequestRegistrationMode `json:"registration_mode,omitempty"`
+	ScoreboardFreezeAt *time.Time                         `json:"scoreboard_freeze_at,omitempty"`
+	StartTime          *time.Time                         `json:"start_time,omitempty"`
+	Status             *UpdateGameRequestStatus           `json:"status,omitempty"`
+	WriteupDeadline    *time.Time                         `json:"writeup_deadline,omitempty"`
+	WriteupRequired    *bool                              `json:"writeup_required,omitempty"`
 }
+
+// UpdateGameRequestRegistrationMode defines model for UpdateGameRequest.RegistrationMode.
+type UpdateGameRequestRegistrationMode string
 
 // UpdateGameRequestStatus defines model for UpdateGameRequest.Status.
 type UpdateGameRequestStatus string
 
-// UpdateGameRequestRegistrationMode defines model for UpdateGameRequest.RegistrationMode.
-type UpdateGameRequestRegistrationMode string
+// UpdateParticipationStatusRequest defines model for UpdateParticipationStatusRequest.
+type UpdateParticipationStatusRequest struct {
+	Division *string                                `json:"division,omitempty"`
+	Status   UpdateParticipationStatusRequestStatus `json:"status"`
+}
+
+// UpdateParticipationStatusRequestStatus defines model for UpdateParticipationStatusRequest.Status.
+type UpdateParticipationStatusRequestStatus string
 
 // UserInfo defines model for UserInfo.
 type UserInfo struct {
@@ -666,6 +829,11 @@ type ListChallengesParams struct {
 // ListGamesParams defines parameters for ListGames.
 type ListGamesParams struct {
 	All *bool `form:"all,omitempty" json:"all,omitempty"`
+}
+
+// GetScoreboardParams defines parameters for GetScoreboard.
+type GetScoreboardParams struct {
+	Division *string `form:"division,omitempty" json:"division,omitempty"`
 }
 
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
@@ -700,6 +868,9 @@ type JoinGameJSONRequestBody = JoinGameRequest
 
 // LeaveGameJSONRequestBody defines body for LeaveGame for application/json ContentType.
 type LeaveGameJSONRequestBody = JoinGameRequest
+
+// UpdateGameParticipantJSONRequestBody defines body for UpdateGameParticipant for application/json ContentType.
+type UpdateGameParticipantJSONRequestBody = UpdateParticipationStatusRequest
 
 // CreateTeamJSONRequestBody defines body for CreateTeam for application/json ContentType.
 type CreateTeamJSONRequestBody = CreateTeamRequest
@@ -769,12 +940,21 @@ type ServerInterface interface {
 	// Leave a game
 	// (DELETE /api/games/{id}/leave)
 	LeaveGame(c *gin.Context, id int)
-	// Get game scoreboard
-	// (GET /api/games/{id}/scoreboard)
-	GetScoreboard(c *gin.Context, id int)
+	// Get game participants (admin)
+	// (GET /api/games/{id}/participants)
+	GetGameParticipants(c *gin.Context, id int)
+	// Remove participant from a game (admin)
+	// (DELETE /api/games/{id}/participants/{teamId})
+	DeleteGameParticipant(c *gin.Context, id int, teamId int)
+	// Update participant status in a game (admin)
+	// (PUT /api/games/{id}/participants/{teamId})
+	UpdateGameParticipant(c *gin.Context, id int, teamId int)
 	// Get my participation status in a game
 	// (GET /api/games/{id}/participation)
 	GetGameParticipation(c *gin.Context, id int)
+	// Get game scoreboard
+	// (GET /api/games/{id}/scoreboard)
+	GetScoreboard(c *gin.Context, id int, params GetScoreboardParams)
 	// Health check
 	// (GET /api/healthz)
 	Healthz(c *gin.Context)
@@ -1026,8 +1206,6 @@ func (siw *ServerInterfaceWrapper) ListGames(c *gin.Context) {
 	var err error
 	_ = err
 
-	c.Set(string(BearerAuthScopes), []string{})
-
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListGamesParams
 
@@ -1078,8 +1256,6 @@ func (siw *ServerInterfaceWrapper) GetGame(c *gin.Context) {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
 	}
-
-	c.Set(string(BearerAuthScopes), []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -1271,32 +1447,6 @@ func (siw *ServerInterfaceWrapper) JoinGame(c *gin.Context) {
 	siw.Handler.JoinGame(c, id)
 }
 
-// GetGameParticipation operation middleware
-func (siw *ServerInterfaceWrapper) GetGameParticipation(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	var id int
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(string(BearerAuthScopes), []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetGameParticipation(c, id)
-}
-
 // LeaveGame operation middleware
 func (siw *ServerInterfaceWrapper) LeaveGame(c *gin.Context) {
 
@@ -1324,8 +1474,8 @@ func (siw *ServerInterfaceWrapper) LeaveGame(c *gin.Context) {
 	siw.Handler.LeaveGame(c, id)
 }
 
-// GetScoreboard operation middleware
-func (siw *ServerInterfaceWrapper) GetScoreboard(c *gin.Context) {
+// GetGameParticipants operation middleware
+func (siw *ServerInterfaceWrapper) GetGameParticipants(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -1348,7 +1498,144 @@ func (siw *ServerInterfaceWrapper) GetScoreboard(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetScoreboard(c, id)
+	siw.Handler.GetGameParticipants(c, id)
+}
+
+// DeleteGameParticipant operation middleware
+func (siw *ServerInterfaceWrapper) DeleteGameParticipant(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "teamId" -------------
+	var teamId int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "teamId", c.Param("teamId"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter teamId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteGameParticipant(c, id, teamId)
+}
+
+// UpdateGameParticipant operation middleware
+func (siw *ServerInterfaceWrapper) UpdateGameParticipant(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "teamId" -------------
+	var teamId int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "teamId", c.Param("teamId"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter teamId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateGameParticipant(c, id, teamId)
+}
+
+// GetGameParticipation operation middleware
+func (siw *ServerInterfaceWrapper) GetGameParticipation(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetGameParticipation(c, id)
+}
+
+// GetScoreboard operation middleware
+func (siw *ServerInterfaceWrapper) GetScoreboard(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetScoreboardParams
+
+	// ------------- Optional query parameter "division" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "division", c.Request.URL.Query(), &params.Division, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter division: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetScoreboard(c, id, params)
 }
 
 // Healthz operation middleware
@@ -1506,8 +1793,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/api/games/:id/challenges/:challengeId", wrapper.RemoveChallengeFromGame)
 	router.POST(options.BaseURL+"/api/games/:id/challenges/:challengeId/submit", wrapper.SubmitGameFlag)
 	router.POST(options.BaseURL+"/api/games/:id/join", wrapper.JoinGame)
-	router.GET(options.BaseURL+"/api/games/:id/participation", wrapper.GetGameParticipation)
 	router.DELETE(options.BaseURL+"/api/games/:id/leave", wrapper.LeaveGame)
+	router.GET(options.BaseURL+"/api/games/:id/participants", wrapper.GetGameParticipants)
+	router.DELETE(options.BaseURL+"/api/games/:id/participants/:teamId", wrapper.DeleteGameParticipant)
+	router.PUT(options.BaseURL+"/api/games/:id/participants/:teamId", wrapper.UpdateGameParticipant)
+	router.GET(options.BaseURL+"/api/games/:id/participation", wrapper.GetGameParticipation)
 	router.GET(options.BaseURL+"/api/games/:id/scoreboard", wrapper.GetScoreboard)
 	router.GET(options.BaseURL+"/api/healthz", wrapper.Healthz)
 	router.POST(options.BaseURL+"/api/teams", wrapper.CreateTeam)

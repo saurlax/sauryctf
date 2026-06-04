@@ -182,7 +182,7 @@ func (h *Handler) GetGameWriteup(c *gin.Context, id int) {
 func (h *Handler) SubmitGameWriteup(c *gin.Context, id int) {
 	h.games.SubmitWriteup(c, id)
 }
-func (h *Handler) GetScoreboard(c *gin.Context, id int) {
+func (h *Handler) GetScoreboard(c *gin.Context, id int, _ GetScoreboardParams) {
 	h.games.GetScoreboard(c, id)
 }
 func (h *Handler) GetGameParticipants(c *gin.Context, id int) {
