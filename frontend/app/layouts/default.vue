@@ -40,7 +40,10 @@ const items = computed(() => {
         </UDropdownMenu>
       </template>
       <template v-else>
-        <UButton label="登录/注册" to="/login" />
+        <div class="flex items-center gap-2">
+          <UButton label="登录" variant="ghost" to="/login" />
+          <UButton label="注册" to="/register" />
+        </div>
       </template>
     </template>
   </UHeader>

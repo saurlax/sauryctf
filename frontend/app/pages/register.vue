@@ -1,0 +1,77 @@
+<script setup lang="ts">
+import * as z from 'zod'
+import type { FormSubmitEvent } from '@nuxt/ui'
+
+const { authState, fetchUser, register } = useAuth()
+const router = useRouter()
+const toast = useToast()
+
+const registerSchema = z.object({
+  username: z.string().min(2, '用户名至少 2 个字符'),
+  email: z.string().email('请输入有效邮箱'),
+  password: z.string().min(6, '密码至少 6 个字符'),
+})
+
+type RegisterSchema = z.output<typeof registerSchema>
+
+const state = reactive<Partial<RegisterSchema>>({
+  username: '',
+  email: '',
+  password: '',
+})
+
+async function onRegister(payload: FormSubmitEvent<RegisterSchema>) {
+  try {
+    await register(payload.data.username, payload.data.email, payload.data.password)
+    toast.add({ title: '注册成功', description: '已自动登录，正在进入控制台。', color: 'success' })
+    router.push('/console')
+  }
+  catch (e: any) {
+    toast.add({ title: '注册失败', description: e.data?.message || e.message, color: 'error' })
+  }
+}
+
+onMounted(async () => {
+  if (!authState.user) {
+    await fetchUser()
+  }
+
+  if (authState.user) {
+    await router.push('/console')
+  }
+})
+</script>
+
+<template>
+  <div class="flex min-h-[70vh] items-center justify-center">
+    <UPageCard
+      class="w-full max-w-md"
+      title="注册"
+      description="创建一个新的选手账号，注册成功后会直接登录。"
+      icon="i-lucide-user-plus"
+    >
+      <UForm :schema="registerSchema" :state="state" class="space-y-4" @submit="onRegister">
+        <UFormField name="username" label="用户名" required>
+          <UInput v-model="state.username" class="w-full" placeholder="例如 saury" />
+        </UFormField>
+
+        <UFormField name="email" label="邮箱" required>
+          <UInput v-model="state.email" class="w-full" type="email" placeholder="you@example.com" />
+        </UFormField>
+
+        <UFormField name="password" label="密码" required>
+          <UInput v-model="state.password" class="w-full" type="password" placeholder="至少 6 个字符" />
+        </UFormField>
+
+        <UButton type="submit" block label="创建账号" icon="i-lucide-user-round-plus" />
+      </UForm>
+
+      <div class="mt-4 text-sm text-muted">
+        已有账号？
+        <ULink to="/login" class="font-medium">
+          去登录
+        </ULink>
+      </div>
+    </UPageCard>
+  </div>
+</template>

@@ -45,7 +45,7 @@ onMounted(async () => {
     <UPageCard
       class="w-full max-w-md"
       title="登录"
-      description="当前版本关闭公开注册，请使用已有账号登录。"
+      description="使用已有账号登录，进入控制台或比赛页面。"
       icon="i-lucide-lock"
     >
       <UAlert
@@ -53,7 +53,7 @@ onMounted(async () => {
         color="info"
         variant="soft"
         title="默认管理员入口"
-        description="用户名 admin，密码 sauryctf。启动后如果系统里还没有默认管理员，会自动补齐。"
+        description="只有在系统首次启动且 users 表为空时，后端才会初始化 admin / sauryctf。"
       />
 
       <UForm :schema="loginSchema" :state="state" class="space-y-4" @submit="onLogin">
@@ -67,6 +67,13 @@ onMounted(async () => {
 
         <UButton type="submit" block label="进入控制台" icon="i-lucide-log-in" />
       </UForm>
+
+      <div class="mt-4 text-sm text-muted">
+        还没有账号？
+        <ULink to="/register" class="font-medium">
+          去注册
+        </ULink>
+      </div>
     </UPageCard>
   </div>
 </template>
