@@ -91,6 +91,21 @@ pnpm dev:local
 
 当前仓库里 `dev:frontend` 已经固定为本地可访问的 `127.0.0.1:3000`，便于直接联调登录态和 Cookie 会话。
 
+本地登录调试时，有两个约束最好保持不变：
+
+- 浏览器入口优先使用 `http://127.0.0.1:3000`，不要在同一轮调试里混用 `localhost:3000`
+- 前端请求保持走同源 `/api/**`
+  - 当前 Nuxt 开发环境已经通过 `nitro.devProxy` 把 `/api` 转发到 `http://localhost:8080/api`
+  - `frontend/app/plugins/api.ts` 里的 `$apiFetch` 也固定带上了 `credentials: 'include'`
+  - 这样浏览器收到的是来自前端源站的 `token` Cookie，刷新页面后 `/api/auth/me` 才能稳定恢复登录态
+
+如果登录后仍然是访客态，可以先按这个顺序排查：
+
+1. 确认后端实际跑在 `127.0.0.1:8080` 或 `localhost:8080`
+2. 打开浏览器开发者工具，确认登录请求地址是 `http://127.0.0.1:3000/api/auth/login`，而不是直接跨源请求 `http://localhost:8080/api/auth/login`
+3. 确认登录响应里出现了 `Set-Cookie: token=...`
+4. 刷新后访问 `http://127.0.0.1:3000/api/auth/me`，确认仍然返回当前用户
+
 ## 当前前端原则
 
 - 只使用 Nuxt UI 做极简页面拼接
