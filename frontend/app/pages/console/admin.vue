@@ -112,6 +112,7 @@ const loadingResources = ref(false)
 const loadingGameChallenges = ref(false)
 const loadingParticipants = ref(false)
 const loadingSubmissions = ref(false)
+const loadingCheatClues = ref(false)
 const updatingParticipantId = ref<number | null>(null)
 const removingParticipantId = ref<number | null>(null)
 const removingChallengeId = ref<number | null>(null)
@@ -205,6 +206,16 @@ const submissions = ref<Array<{
   score: number
   blood_type?: string
   submitted_at: string
+}>>([])
+const cheatClues = ref<Array<{
+  submitted_flag: string
+  challenge_id: number
+  challenge_title: string
+  first_seen_at: string
+  last_seen_at: string
+  team_count: number
+  submission_count: number
+  teams: string[]
 }>>([])
 type AdminGameSummary = (typeof games.value)[number]
 
@@ -576,11 +587,35 @@ async function loadSubmissions() {
   }
 }
 
+async function loadCheatClues() {
+  if (!attachForm.game_id) {
+    cheatClues.value = []
+    return
+  }
+
+  loadingCheatClues.value = true
+  try {
+    cheatClues.value = await $fetch(`/api/admin/games/${attachForm.game_id}/cheat-clues`, {
+      query: {
+        count: 20,
+      },
+    })
+  }
+  catch (e: any) {
+    cheatClues.value = []
+    toast.add({ title: '可疑线索加载失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    loadingCheatClues.value = false
+  }
+}
+
 function resetSelectedGameContext() {
   selectedGameChallenges.value = []
   participants.value = []
   writeups.value = []
   submissions.value = []
+  cheatClues.value = []
 
   for (const key of Object.keys(participantStatusDrafts)) {
     delete participantStatusDrafts[Number(key)]
@@ -1635,6 +1670,7 @@ watch(() => attachForm.game_id, async () => {
   await loadParticipants()
   await loadWriteups()
   await loadSubmissions()
+  await loadCheatClues()
 })
 
 watch(() => [submissionFilters.type, submissionFilters.count], async () => {
@@ -2629,6 +2665,57 @@ onMounted(async () => {
 
             <div v-else-if="selectedGame && !loadingSubmissions" class="text-sm text-muted">
               这场比赛还没有提交记录。
+            </div>
+          </UPageCard>
+
+          <UPageCard title="可疑提交线索" icon="i-lucide-shield-alert">
+            <div v-if="selectedGame" class="mb-3 flex items-center justify-between gap-3">
+              <div class="text-sm text-muted">
+                {{ selectedGame.name }} · {{ loadingCheatClues ? '正在分析线索...' : `${cheatClues.length} 条线索` }}
+              </div>
+              <UButton
+                size="sm"
+                variant="ghost"
+                icon="i-lucide-refresh-cw"
+                :loading="loadingCheatClues"
+                @click="loadCheatClues"
+              >
+                刷新
+              </UButton>
+            </div>
+            <div v-else class="text-sm text-muted">
+              先选择比赛，再查看当前比赛的可疑提交线索。
+            </div>
+
+            <div v-if="cheatClues.length" class="space-y-2">
+              <div
+                v-for="clue in cheatClues"
+                :key="`${clue.challenge_id}-${clue.submitted_flag}`"
+                class="rounded-lg border border-default px-3 py-3 text-sm"
+              >
+                <div class="flex items-center justify-between gap-3">
+                  <div class="font-medium">
+                    {{ clue.challenge_title }} · {{ clue.team_count }} 支队伍
+                  </div>
+                  <UBadge color="warning" variant="soft">
+                    {{ clue.submission_count }} 次重复错误提交
+                  </UBadge>
+                </div>
+                <div class="mt-2 text-muted break-all">
+                  错误 Flag：{{ clue.submitted_flag }}
+                </div>
+                <div class="mt-2 grid gap-2 text-muted md:grid-cols-2">
+                  <div>首次出现：{{ new Date(clue.first_seen_at).toLocaleString() }}</div>
+                  <div>最近出现：{{ new Date(clue.last_seen_at).toLocaleString() }}</div>
+                </div>
+                <div class="mt-2 text-muted">
+                  涉及队伍：{{ clue.teams.join(' / ') }}
+                </div>
+              </div>
+            </div>
+
+            <div v-else-if="selectedGame && !loadingCheatClues" class="text-sm text-muted">
+              当前还没有发现跨队重复错误 Flag 的线索。
             </div>
           </UPageCard>
 

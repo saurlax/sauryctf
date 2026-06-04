@@ -679,10 +679,12 @@ func TestService_ExportSubmissionsPackage_IncludesJSONAndCSV(t *testing.T) {
 	assert.Contains(t, files["submissions.json"], `"challenge_title": "Fixture Challenge"`)
 	assert.Contains(t, files["submissions.json"], `"team_name": "Team One"`)
 	assert.Contains(t, files["submissions.json"], `"result": "accepted"`)
-	assert.Contains(t, files["submissions.csv"], "id,game_id,challenge_id,challenge_title,category,user_id,username,team_id,team_name,result,message,is_correct,is_practice,score,blood_type,submitted_at")
+	assert.Contains(t, files["submissions.json"], `"submitted_flag": "flag{fixture}"`)
+	assert.Contains(t, files["submissions.csv"], "id,game_id,challenge_id,challenge_title,category,user_id,username,team_id,team_name,submitted_flag,result,message,is_correct,is_practice,score,blood_type,submitted_at")
 	assert.Contains(t, files["submissions.csv"], "Fixture Challenge")
 	assert.Contains(t, files["submissions.csv"], "Team One")
 	assert.Contains(t, files["submissions.csv"], "accepted,correct,true")
+	assert.Contains(t, files["submissions.csv"], "flag{fixture}")
 }
 
 func TestService_ListSubmissionRecords_IncludesWrongAndAcceptedAttempts(t *testing.T) {
@@ -708,9 +710,11 @@ func TestService_ListSubmissionRecords_IncludesWrongAndAcceptedAttempts(t *testi
 	assert.Equal(t, "accepted", records[0].Result)
 	assert.Equal(t, "correct", records[0].Message)
 	assert.True(t, records[0].IsCorrect)
+	assert.Equal(t, "flag{fixture}", records[0].SubmittedFlag)
 	assert.Equal(t, "wrong_flag", records[1].Result)
 	assert.Equal(t, "wrong flag", records[1].Message)
 	assert.False(t, records[1].IsCorrect)
+	assert.Equal(t, "flag{wrong}", records[1].SubmittedFlag)
 }
 
 func TestService_ListSubmissionRecords_FiltersByTypeAndLimit(t *testing.T) {
@@ -739,6 +743,33 @@ func TestService_ListSubmissionRecords_FiltersByTypeAndLimit(t *testing.T) {
 	require.Len(t, limited, 2)
 	assert.Equal(t, "already_solved", limited[0].Result)
 	assert.Equal(t, "accepted", limited[1].Result)
+}
+
+func TestService_ListSubmissionCheatClues_GroupsSharedWrongFlagsAcrossTeams(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, team1ID, team2ID := createGameChallengeFixture(t, database)
+
+	_, err = svc.SubmitFlag(gameID, challengeID, 1, team1ID, "shared-wrong-flag")
+	require.NoError(t, err)
+	_, err = svc.SubmitFlag(gameID, challengeID, 2, team2ID, "shared-wrong-flag")
+	require.NoError(t, err)
+	_, err = svc.SubmitFlag(gameID, challengeID, 1, team1ID, "another-wrong-flag")
+	require.NoError(t, err)
+
+	clues, err := svc.ListSubmissionCheatClues(gameID, 10)
+	require.NoError(t, err)
+	require.Len(t, clues, 1)
+	assert.Equal(t, "shared-wrong-flag", clues[0].SubmittedFlag)
+	assert.Equal(t, challengeID, clues[0].ChallengeID)
+	assert.Equal(t, "Fixture Challenge", clues[0].ChallengeTitle)
+	assert.Equal(t, 2, clues[0].TeamCount)
+	assert.Equal(t, 2, clues[0].SubmissionCount)
+	assert.ElementsMatch(t, []string{"Team One", "Team Two"}, clues[0].Teams)
 }
 
 func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {

@@ -69,6 +69,7 @@ type GameSubmission struct {
 	ChallengeID uint                 `gorm:"not null;index" json:"challenge_id"`
 	UserID      uint                 `gorm:"not null;index" json:"user_id"`
 	TeamID      uint                 `gorm:"not null;index" json:"team_id"`
+	SubmittedFlag string             `gorm:"type:text" json:"submitted_flag"`
 	Result      GameSubmissionResult `gorm:"size:32;not null;index" json:"result"`
 	Message     string               `gorm:"type:text" json:"message"`
 	IsCorrect   bool                 `gorm:"not null;default:false" json:"is_correct"`

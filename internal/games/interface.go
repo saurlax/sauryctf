@@ -24,6 +24,7 @@ type ServiceInterface interface {
 	ExportWriteupsPackage(id uint) ([]byte, string, error)
 	ExportSubmissionsPackage(id uint) ([]byte, string, error)
 	ListSubmissionRecords(gameID uint, submissionType string, limit int) ([]GameSubmissionRecord, error)
+	ListSubmissionCheatClues(gameID uint, limit int) ([]GameSubmissionCheatClue, error)
 	ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error)
 	AddChallenge(gameID uint, challengeID uint, scoreOverride int) error
 	RemoveChallenge(gameID uint, challengeID uint) error
@@ -235,6 +236,7 @@ type GameSubmissionRecord struct {
 	Username       string    `json:"username"`
 	TeamID         uint      `json:"team_id"`
 	TeamName       string    `json:"team_name"`
+	SubmittedFlag  string    `json:"submitted_flag"`
 	Result         string    `json:"result"`
 	Message        string    `json:"message"`
 	IsCorrect      bool      `json:"is_correct"`
@@ -242,6 +244,17 @@ type GameSubmissionRecord struct {
 	Score          int       `json:"score"`
 	BloodType      string    `json:"blood_type"`
 	SubmittedAt    time.Time `json:"submitted_at"`
+}
+
+type GameSubmissionCheatClue struct {
+	SubmittedFlag  string    `json:"submitted_flag"`
+	ChallengeID    uint      `json:"challenge_id"`
+	ChallengeTitle string    `json:"challenge_title"`
+	FirstSeenAt    time.Time `json:"first_seen_at"`
+	LastSeenAt     time.Time `json:"last_seen_at"`
+	TeamCount      int       `json:"team_count"`
+	SubmissionCount int      `json:"submission_count"`
+	Teams          []string  `json:"teams"`
 }
 
 type ExportGamePackage struct {

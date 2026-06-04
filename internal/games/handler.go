@@ -212,6 +212,29 @@ func (h *Handler) ListSubmissionRecords(c *gin.Context, id int) {
 	c.JSON(http.StatusOK, submissions)
 }
 
+func (h *Handler) ListSubmissionCheatClues(c *gin.Context, id int) {
+	limit := 50
+	if value := c.Query("count"); value != "" {
+		if _, scanErr := fmt.Sscan(value, &limit); scanErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "invalid submission count"})
+			return
+		}
+	}
+
+	clues, err := h.svc.ListSubmissionCheatClues(uint(id), limit)
+	if err != nil {
+		switch err.Error() {
+		case "game not found":
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, clues)
+}
+
 func (h *Handler) ImportGamePackage(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {

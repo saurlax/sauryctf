@@ -75,6 +75,11 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 		fmt.Sscan(c.Param("id"), &id)
 		h.ListSubmissionRecords(c, id)
 	})
+	api.GET("/admin/games/:id/cheat-clues", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.ListSubmissionCheatClues(c, id)
+	})
 	api.GET("/games/:id/challenges", func(c *gin.Context) {
 		var id int
 		fmt.Sscan(c.Param("id"), &id)
@@ -705,6 +710,41 @@ func TestListSubmissionRecords_SupportsTypeAndCountQuery(t *testing.T) {
 	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 	assert.Len(t, response, 1)
 	assert.Equal(t, "wrong_flag", response[0]["result"])
+}
+
+func TestListSubmissionCheatClues_Success(t *testing.T) {
+	svc := games.NewMockService()
+	_, _ = svc.CreateGame(games.CreateGameRequest{
+		Name:      "Cheat Clue Game",
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(time.Hour),
+	}, 1)
+	svc.CheatClues[1] = []games.GameSubmissionCheatClue{
+		{
+			SubmittedFlag:   "test-flag",
+			ChallengeID:     3,
+			ChallengeTitle:  "Mock Challenge",
+			FirstSeenAt:     time.Now().Add(-time.Minute),
+			LastSeenAt:      time.Now(),
+			TeamCount:       2,
+			SubmissionCount: 3,
+			Teams:           []string{"Blue Team", "Red Team"},
+		},
+	}
+
+	r := setupTestRouter(svc)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/admin/games/1/cheat-clues", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response []map[string]any
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Len(t, response, 1)
+	assert.Equal(t, "test-flag", response[0]["submitted_flag"])
+	assert.Equal(t, float64(2), response[0]["team_count"])
 }
 
 func TestImportGamePackage_Success(t *testing.T) {

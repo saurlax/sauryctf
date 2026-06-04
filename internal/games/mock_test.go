@@ -21,6 +21,7 @@ type MockService struct {
 	UserTeams        map[uint]*GameParticipationTeam
 	Writeups         map[string]*GameWriteupResponse
 	Submissions      map[uint][]GameSubmissionRecord
+	CheatClues       map[uint][]GameSubmissionCheatClue
 	nextID           uint
 }
 
@@ -33,6 +34,7 @@ func NewMockService() *MockService {
 		UserTeams:        make(map[uint]*GameParticipationTeam),
 		Writeups:         make(map[string]*GameWriteupResponse),
 		Submissions:      make(map[uint][]GameSubmissionRecord),
+		CheatClues:       make(map[uint][]GameSubmissionCheatClue),
 		nextID:           1,
 	}
 }
@@ -211,6 +213,7 @@ func (m *MockService) DeleteGame(id uint) error {
 	delete(m.Games, id)
 	delete(m.ChallengesByGame, id)
 	delete(m.Submissions, id)
+	delete(m.CheatClues, id)
 	prefix := fmt.Sprintf("%d-", id)
 	for key := range m.Participations {
 		if strings.HasPrefix(key, prefix) {
@@ -457,6 +460,21 @@ func (m *MockService) ListSubmissionRecords(gameID uint, submissionType string, 
 	return items, nil
 }
 
+func (m *MockService) ListSubmissionCheatClues(gameID uint, limit int) ([]GameSubmissionCheatClue, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.Games[gameID]; !ok {
+		return nil, fmt.Errorf("game not found")
+	}
+
+	items := append([]GameSubmissionCheatClue(nil), m.CheatClues[gameID]...)
+	if limit > 0 && len(items) > limit {
+		items = items[:limit]
+	}
+	return items, nil
+}
+
 func (m *MockService) ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error) {
 	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
@@ -668,6 +686,7 @@ func (m *MockService) SubmitFlag(gameID uint, challengeID uint, userID uint, tea
 		Username:       fmt.Sprintf("user-%d", userID),
 		TeamID:         teamID,
 		TeamName:       fmt.Sprintf("team-%d", teamID),
+		SubmittedFlag:  flag,
 		SubmittedAt:    time.Now(),
 	}
 	if flag == "correct_flag" {

@@ -1442,7 +1442,7 @@ func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID 
 
 	// Check flag
 	if ch.Flag != flag {
-		_ = s.recordSubmission(gameID, challengeID, userID, teamID, models.GameSubmissionWrongFlag, "wrong flag", false, isPractice, 0, "")
+		_ = s.recordSubmission(gameID, challengeID, userID, teamID, flag, models.GameSubmissionWrongFlag, "wrong flag", false, isPractice, 0, "")
 		return &SubmitResult{Correct: false, Message: "wrong flag"}, nil
 	}
 
@@ -1451,7 +1451,7 @@ func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID 
 	err := s.db.Where("challenge_id = ? AND team_id = ? AND game_id = ? AND is_practice = ?", challengeID, teamID, gameID, isPractice).
 		First(&existing).Error
 	if err == nil {
-		_ = s.recordSubmission(gameID, challengeID, userID, teamID, models.GameSubmissionAlreadySolved, "already solved", true, isPractice, existing.Score, existing.BloodType)
+		_ = s.recordSubmission(gameID, challengeID, userID, teamID, flag, models.GameSubmissionAlreadySolved, "already solved", true, isPractice, existing.Score, existing.BloodType)
 		return &SubmitResult{Correct: true, Score: existing.Score, IsPractice: isPractice, Message: "already solved"}, nil
 	}
 
@@ -1484,24 +1484,25 @@ func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID 
 	if isPractice {
 		message = "practice solved"
 	}
-	_ = s.recordSubmission(gameID, challengeID, userID, teamID, models.GameSubmissionAccepted, message, true, isPractice, score, bloodType)
+	_ = s.recordSubmission(gameID, challengeID, userID, teamID, flag, models.GameSubmissionAccepted, message, true, isPractice, score, bloodType)
 
 	return &SubmitResult{Correct: true, Score: score, BloodType: bloodType, IsPractice: isPractice, Message: message}, nil
 }
 
-func (s *Service) recordSubmission(gameID uint, challengeID uint, userID uint, teamID uint, result models.GameSubmissionResult, message string, isCorrect bool, isPractice bool, score int, bloodType string) error {
+func (s *Service) recordSubmission(gameID uint, challengeID uint, userID uint, teamID uint, submittedFlag string, result models.GameSubmissionResult, message string, isCorrect bool, isPractice bool, score int, bloodType string) error {
 	return s.db.Create(&models.GameSubmission{
-		GameID:      gameID,
-		ChallengeID: challengeID,
-		UserID:      userID,
-		TeamID:      teamID,
-		Result:      result,
-		Message:     message,
-		IsCorrect:   isCorrect,
-		IsPractice:  isPractice,
-		Score:       score,
-		BloodType:   bloodType,
-		SubmittedAt: time.Now(),
+		GameID:        gameID,
+		ChallengeID:   challengeID,
+		UserID:        userID,
+		TeamID:        teamID,
+		SubmittedFlag: strings.TrimSpace(submittedFlag),
+		Result:        result,
+		Message:       message,
+		IsCorrect:     isCorrect,
+		IsPractice:    isPractice,
+		Score:         score,
+		BloodType:     bloodType,
+		SubmittedAt:   time.Now(),
 	}).Error
 }
 
@@ -1772,6 +1773,29 @@ func normalizeSubmissionLimit(limit int) int {
 	return limit
 }
 
+func parseSubmissionAggregateTime(value string) (time.Time, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, errors.New("invalid aggregate submission time")
+	}
+
+	for _, layout := range []string{
+		time.RFC3339Nano,
+		"2006-01-02 15:04:05.999999999Z07:00",
+		"2006-01-02 15:04:05.999999999-07:00",
+		"2006-01-02 15:04:05Z07:00",
+		"2006-01-02 15:04:05-07:00",
+		"2006-01-02 15:04:05",
+	} {
+		parsed, err := time.Parse(layout, value)
+		if err == nil {
+			return parsed, nil
+		}
+	}
+
+	return time.Time{}, fmt.Errorf("invalid aggregate submission time: %s", value)
+}
+
 func (s *Service) ListSubmissionRecords(gameID uint, submissionType string, limit int) ([]GameSubmissionRecord, error) {
 	var game models.Game
 	if err := s.db.First(&game, gameID).Error; err != nil {
@@ -1795,6 +1819,7 @@ func (s *Service) ListSubmissionRecords(gameID uint, submissionType string, limi
 		Username       string
 		TeamID         uint
 		TeamName       string
+		SubmittedFlag  string
 		Result         string
 		Message        string
 		IsCorrect      bool
@@ -1816,6 +1841,7 @@ func (s *Service) ListSubmissionRecords(gameID uint, submissionType string, limi
 			users.username,
 			game_submissions.team_id,
 			teams.name as team_name,
+			game_submissions.submitted_flag,
 			game_submissions.result,
 			game_submissions.message,
 			game_submissions.is_correct,
@@ -1849,6 +1875,7 @@ func (s *Service) ListSubmissionRecords(gameID uint, submissionType string, limi
 			Username:       row.Username,
 			TeamID:         row.TeamID,
 			TeamName:       row.TeamName,
+			SubmittedFlag:  row.SubmittedFlag,
 			Result:         row.Result,
 			Message:        row.Message,
 			IsCorrect:      row.IsCorrect,
@@ -1856,6 +1883,88 @@ func (s *Service) ListSubmissionRecords(gameID uint, submissionType string, limi
 			Score:          row.Score,
 			BloodType:      row.BloodType,
 			SubmittedAt:    row.SubmittedAt,
+		})
+	}
+
+	return result, nil
+}
+
+func (s *Service) ListSubmissionCheatClues(gameID uint, limit int) ([]GameSubmissionCheatClue, error) {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("game not found")
+		}
+		return nil, err
+	}
+
+	type clueRow struct {
+		SubmittedFlag   string
+		ChallengeID     uint
+		ChallengeTitle  string
+		FirstSeenAt     string
+		LastSeenAt      string
+		TeamCount       int
+		SubmissionCount int
+	}
+
+	var rows []clueRow
+	if err := s.db.Table("game_submissions").
+		Select(`
+			game_submissions.submitted_flag,
+			game_submissions.challenge_id,
+			challenges.title as challenge_title,
+			MIN(game_submissions.submitted_at) as first_seen_at,
+			MAX(game_submissions.submitted_at) as last_seen_at,
+			COUNT(DISTINCT game_submissions.team_id) as team_count,
+			COUNT(game_submissions.id) as submission_count
+		`).
+		Joins("JOIN challenges ON challenges.id = game_submissions.challenge_id").
+		Where("game_submissions.game_id = ?", gameID).
+		Where("game_submissions.result = ?", models.GameSubmissionWrongFlag).
+		Where("game_submissions.is_practice = ?", false).
+		Where("TRIM(game_submissions.submitted_flag) <> ''").
+		Group("game_submissions.submitted_flag, game_submissions.challenge_id, challenges.title").
+		Having("COUNT(DISTINCT game_submissions.team_id) >= 2").
+		Order("team_count DESC, submission_count DESC, last_seen_at DESC").
+		Limit(normalizeSubmissionLimit(limit)).
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	result := make([]GameSubmissionCheatClue, 0, len(rows))
+	for _, row := range rows {
+		firstSeenAt, err := parseSubmissionAggregateTime(row.FirstSeenAt)
+		if err != nil {
+			return nil, err
+		}
+		lastSeenAt, err := parseSubmissionAggregateTime(row.LastSeenAt)
+		if err != nil {
+			return nil, err
+		}
+
+		var teams []string
+		if err := s.db.Table("game_submissions").
+			Select("DISTINCT teams.name").
+			Joins("JOIN teams ON teams.id = game_submissions.team_id").
+			Where("game_submissions.game_id = ?", gameID).
+			Where("game_submissions.challenge_id = ?", row.ChallengeID).
+			Where("game_submissions.submitted_flag = ?", row.SubmittedFlag).
+			Where("game_submissions.result = ?", models.GameSubmissionWrongFlag).
+			Order("teams.name ASC").
+			Pluck("teams.name", &teams).Error; err != nil {
+			return nil, err
+		}
+
+		result = append(result, GameSubmissionCheatClue{
+			SubmittedFlag:   row.SubmittedFlag,
+			ChallengeID:     row.ChallengeID,
+			ChallengeTitle:  row.ChallengeTitle,
+			FirstSeenAt:     firstSeenAt,
+			LastSeenAt:      lastSeenAt,
+			TeamCount:       row.TeamCount,
+			SubmissionCount: row.SubmissionCount,
+			Teams:           teams,
 		})
 	}
 
@@ -2256,7 +2365,7 @@ func buildSubmissionsCSV(submissions []GameSubmissionRecord) ([]byte, error) {
 	var buffer bytes.Buffer
 	writer := csv.NewWriter(&buffer)
 
-	if err := writer.Write([]string{"id", "game_id", "challenge_id", "challenge_title", "category", "user_id", "username", "team_id", "team_name", "result", "message", "is_correct", "is_practice", "score", "blood_type", "submitted_at"}); err != nil {
+	if err := writer.Write([]string{"id", "game_id", "challenge_id", "challenge_title", "category", "user_id", "username", "team_id", "team_name", "submitted_flag", "result", "message", "is_correct", "is_practice", "score", "blood_type", "submitted_at"}); err != nil {
 		return nil, err
 	}
 
@@ -2271,6 +2380,7 @@ func buildSubmissionsCSV(submissions []GameSubmissionRecord) ([]byte, error) {
 			submission.Username,
 			fmt.Sprintf("%d", submission.TeamID),
 			submission.TeamName,
+			submission.SubmittedFlag,
 			submission.Result,
 			submission.Message,
 			fmt.Sprintf("%t", submission.IsCorrect),

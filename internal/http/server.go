@@ -60,6 +60,9 @@ func NewServer(db *gorm.DB, jwtSecret string) *gin.Engine {
 	admin.GET("/games/:id/submissions", func(c *gin.Context) {
 		handler.games.ListSubmissionRecords(c, mustIntParam(c, "id"))
 	})
+	admin.GET("/games/:id/cheat-clues", func(c *gin.Context) {
+		handler.games.ListSubmissionCheatClues(c, mustIntParam(c, "id"))
+	})
 
 	return engine
 }
