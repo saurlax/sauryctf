@@ -149,6 +149,10 @@ export interface paths {
     /** Get full mounted challenges for management (admin) */
     get: operations["getAdminGameChallenges"];
   };
+  "/api/admin/games/{id}/instances": {
+    /** List current instance leases for a game (admin) */
+    get: operations["getAdminGameInstances"];
+  };
   "/api/admin/games/{id}/writeups": {
     /** List game writeups for review (admin) */
     get: operations["getAdminGameWriteups"];
@@ -427,6 +431,28 @@ export interface components {
       extension_duration_minutes: number;
       renewal_window_minutes: number;
       team_active_limit: number;
+    };
+    AdminGameInstanceLease: {
+      id: number;
+      game_id: number;
+      team_id: number;
+      team_name: string;
+      challenge_id: number;
+      challenge_title: string;
+      status: string;
+      provider?: string;
+      image?: string;
+      launch_url?: string;
+      /** Format: date-time */
+      started_at: string;
+      /** Format: date-time */
+      last_renewed_at: string;
+      /** Format: date-time */
+      expires_at: string;
+      /** Format: date-time */
+      stopped_at?: string | null;
+      seconds_left: number;
+      is_expired: boolean;
     };
     JoinGameRequest: {
       team_id: number;
@@ -1393,6 +1419,22 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["GameChallengeDetail"][];
+        };
+      };
+    };
+  };
+  /** List current instance leases for a game (admin) */
+  getAdminGameInstances: {
+    parameters: {
+      path: {
+        id: number;
+      };
+    };
+    responses: {
+      /** @description Instance lease list */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AdminGameInstanceLease"][];
         };
       };
     };

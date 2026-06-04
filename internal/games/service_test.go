@@ -2168,6 +2168,91 @@ func TestService_ChallengeInstanceLifecycle_UsesCustomProvider(t *testing.T) {
 	assert.Equal(t, "custom provider note", running.Note)
 }
 
+func TestService_ListInstanceLeases_ForAdminMonitoring(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	database := svcDB(t, svc)
+
+	user := models.User{Username: "instance-admin", Email: "instance-admin@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+
+	team := models.Team{Name: "Monitor Lease Team", InviteCode: "monitor-lease-team", CaptainID: user.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team.ID,
+		UserID: user.ID,
+		Role:   models.MemberRoleCaptain,
+	}).Error)
+
+	game := models.Game{
+		Name:         "Lease Monitor Game",
+		StartTime:    time.Now().Add(-time.Hour),
+		EndTime:      time.Now().Add(time.Hour),
+		Status:       "active",
+		IsPublic:     true,
+		PracticeMode: true,
+		CreatedBy:    user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+	require.NoError(t, database.Create(&models.Participation{
+		GameID: game.ID, TeamID: team.ID, UserID: user.ID, Status: models.ParticipationAccepted,
+	}).Error)
+
+	challengeA := models.Challenge{
+		Title:         "Lease A",
+		Category:      models.CategoryWeb,
+		Type:          models.TypeDynamic,
+		Flag:          "flag{lease-a}",
+		BaseScore:     100,
+		MinScore:      100,
+		DecayRate:     0,
+		IsVisible:     true,
+		CreatedBy:     user.ID,
+		ContainerSpec: `{"runtime":{"provider":"docker","image":"ctf/example:a"},"connection":{"url":"http://127.0.0.1:8081/a"}}`,
+	}
+	challengeB := models.Challenge{
+		Title:         "Lease B",
+		Category:      models.CategoryWeb,
+		Type:          models.TypeDynamic,
+		Flag:          "flag{lease-b}",
+		BaseScore:     100,
+		MinScore:      100,
+		DecayRate:     0,
+		IsVisible:     true,
+		CreatedBy:     user.ID,
+		ContainerSpec: `{"runtime":{"provider":"docker","image":"ctf/example:b"},"connection":{"url":"http://127.0.0.1:8081/b"}}`,
+	}
+	require.NoError(t, database.Create(&challengeA).Error)
+	require.NoError(t, database.Create(&challengeB).Error)
+	require.NoError(t, database.Create(&models.GameChallenge{GameID: game.ID, ChallengeID: challengeA.ID}).Error)
+	require.NoError(t, database.Create(&models.GameChallenge{GameID: game.ID, ChallengeID: challengeB.ID}).Error)
+
+	_, err := svc.EnsureChallengeInstance(game.ID, challengeA.ID, user.ID)
+	require.NoError(t, err)
+	_, err = svc.EnsureChallengeInstance(game.ID, challengeB.ID, user.ID)
+	require.NoError(t, err)
+
+	var expiredLease models.GameInstanceLease
+	require.NoError(t, database.Where("game_id = ? AND challenge_id = ? AND team_id = ?", game.ID, challengeB.ID, team.ID).First(&expiredLease).Error)
+	expiredLease.ExpiresAt = time.Now().Add(-time.Minute)
+	require.NoError(t, database.Save(&expiredLease).Error)
+
+	leases, err := svc.ListInstanceLeases(game.ID)
+	require.NoError(t, err)
+	require.Len(t, leases, 2)
+
+	assert.Equal(t, "Lease B", leases[0].ChallengeTitle)
+	assert.True(t, leases[0].IsExpired)
+	assert.Equal(t, 0, leases[0].SecondsLeft)
+	assert.Equal(t, team.Name, leases[0].TeamName)
+
+	assert.Equal(t, "Lease A", leases[1].ChallengeTitle)
+	assert.False(t, leases[1].IsExpired)
+	assert.Greater(t, leases[1].SecondsLeft, 0)
+	assert.Equal(t, "docker", leases[1].Provider)
+}
+
 func TestService_ChallengeInstanceLifecycle_DestroyUsesProvider(t *testing.T) {
 	database, err := db.ConnectTest()
 	require.NoError(t, err)

@@ -560,6 +560,48 @@ components:
         team_active_limit:
           type: integer
 
+    AdminGameInstanceLease:
+      type: object
+      required: [id, game_id, team_id, team_name, challenge_id, challenge_title, status, started_at, last_renewed_at, expires_at, seconds_left, is_expired]
+      properties:
+        id:
+          type: integer
+        game_id:
+          type: integer
+        team_id:
+          type: integer
+        team_name:
+          type: string
+        challenge_id:
+          type: integer
+        challenge_title:
+          type: string
+        status:
+          type: string
+        provider:
+          type: string
+        image:
+          type: string
+        launch_url:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        last_renewed_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        stopped_at:
+          type: string
+          format: date-time
+          nullable: true
+        seconds_left:
+          type: integer
+        is_expired:
+          type: boolean
+
     JoinGameRequest:
       type: object
       required: [team_id]
@@ -1868,6 +1910,29 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/GameChallengeDetail"
+
+  /api/admin/games/{id}/instances:
+    get:
+      operationId: getAdminGameInstances
+      summary: List current instance leases for a game (admin)
+      tags: [games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Instance lease list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminGameInstanceLease"
 
   /api/admin/games/{id}/writeups:
     get:

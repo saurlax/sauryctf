@@ -84,6 +84,7 @@ type ServiceInterface interface {
 	ListSubmissionRecords(gameID uint, submissionType string, limit int) ([]GameSubmissionRecord, error)
 	ListSubmissionCheatClues(gameID uint, limit int) ([]GameSubmissionCheatClue, error)
 	GetAdminDashboardSummary(limit int) (*AdminDashboardSummaryResponse, error)
+	ListInstanceLeases(gameID uint) ([]GameInstanceLeaseEntry, error)
 	ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error)
 	AddChallenge(gameID uint, challengeID uint, scoreOverride int) error
 	RemoveChallenge(gameID uint, challengeID uint) error
@@ -216,6 +217,25 @@ type ChallengeInstanceResponse struct {
 	CanStart      bool                            `json:"can_start"`
 	CanRenew      bool                            `json:"can_renew"`
 	Message       string                          `json:"message"`
+}
+
+type GameInstanceLeaseEntry struct {
+	ID            uint       `json:"id"`
+	GameID        uint       `json:"game_id"`
+	TeamID        uint       `json:"team_id"`
+	TeamName      string     `json:"team_name"`
+	ChallengeID   uint       `json:"challenge_id"`
+	ChallengeTitle string    `json:"challenge_title"`
+	Status        string     `json:"status"`
+	Provider      string     `json:"provider"`
+	Image         string     `json:"image"`
+	LaunchURL     string     `json:"launch_url"`
+	StartedAt     time.Time  `json:"started_at"`
+	LastRenewedAt time.Time  `json:"last_renewed_at"`
+	ExpiresAt     time.Time  `json:"expires_at"`
+	StoppedAt     *time.Time `json:"stopped_at,omitempty"`
+	SecondsLeft   int        `json:"seconds_left"`
+	IsExpired     bool       `json:"is_expired"`
 }
 
 type SubmitResult struct {

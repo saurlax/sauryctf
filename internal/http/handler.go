@@ -234,6 +234,13 @@ func (h *Handler) GetAdminGameChallenges(c *gin.Context, id int) {
 	}
 	h.games.GetAdminGameChallenges(c, id)
 }
+func (h *Handler) GetAdminGameInstances(c *gin.Context, id int) {
+	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
+	if c.IsAborted() {
+		return
+	}
+	h.games.ListInstanceLeases(c, id)
+}
 func (h *Handler) GetAdminGameWriteups(c *gin.Context, id int) {
 	h.GetGameWriteups(c, id)
 }

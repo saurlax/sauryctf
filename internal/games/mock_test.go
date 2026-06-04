@@ -789,6 +789,49 @@ func (m *MockService) GetAdminGameChallenges(gameID uint) ([]GameChallengeDetail
 	return m.GetGameChallenges(gameID)
 }
 
+func (m *MockService) ListInstanceLeases(gameID uint) ([]GameInstanceLeaseEntry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.Games[gameID]; !ok {
+		return nil, fmt.Errorf("game not found")
+	}
+
+	result := make([]GameInstanceLeaseEntry, 0, len(m.InstanceLeases))
+	for _, lease := range m.InstanceLeases {
+		if lease.GameID != gameID {
+			continue
+		}
+
+		entry := GameInstanceLeaseEntry{
+			ID:             uint(len(result) + 1),
+			GameID:         lease.GameID,
+			TeamID:         lease.TeamID,
+			TeamName:       fmt.Sprintf("Team %d", lease.TeamID),
+			ChallengeID:    lease.ChallengeID,
+			ChallengeTitle: fmt.Sprintf("Challenge %d", lease.ChallengeID),
+			Status:         lease.Status,
+			Provider:       lease.Provider,
+			Image:          lease.Image,
+			LaunchURL:      lease.LaunchURL,
+			SecondsLeft:    lease.SecondsLeft,
+			IsExpired:      lease.SecondsLeft <= 0,
+		}
+		if lease.StartedAt != nil {
+			entry.StartedAt = *lease.StartedAt
+		}
+		if lease.LastRenewedAt != nil {
+			entry.LastRenewedAt = *lease.LastRenewedAt
+		}
+		if lease.ExpiresAt != nil {
+			entry.ExpiresAt = *lease.ExpiresAt
+		}
+		result = append(result, entry)
+	}
+
+	return result, nil
+}
+
 func (m *MockService) GetGameChallengesForTeam(gameID uint, teamID uint) ([]GameChallengeDetail, error) {
 	return m.GetGameChallenges(gameID)
 }

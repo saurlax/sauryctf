@@ -116,6 +116,7 @@ const dynamicSmokeProvisioning = ref(false)
 const loadingResources = ref(false)
 const loadingGameChallenges = ref(false)
 const loadingParticipants = ref(false)
+const loadingInstances = ref(false)
 const loadingSubmissions = ref(false)
 const loadingCheatClues = ref(false)
 const loadingAnnouncements = ref(false)
@@ -186,6 +187,24 @@ const participants = ref<Array<{
   joined_at: string
   score: number
   solve_count: number
+}>>([])
+const instanceLeases = ref<Array<{
+  id: number
+  game_id: number
+  team_id: number
+  team_name: string
+  challenge_id: number
+  challenge_title: string
+  status: string
+  provider?: string
+  image?: string
+  launch_url?: string
+  started_at: string
+  last_renewed_at: string
+  expires_at: string
+  stopped_at?: string | null
+  seconds_left: number
+  is_expired: boolean
 }>>([])
 const writeups = ref<Array<{
   game_id: number
@@ -381,12 +400,16 @@ const selectedMonitorStats = computed(() => {
   const acceptedCount = submissions.value.filter(item => item.result === 'accepted').length
   const wrongCount = submissions.value.filter(item => item.result === 'wrong_flag').length
   const repeatedCount = submissions.value.filter(item => item.result === 'already_solved').length
+  const runningInstanceCount = instanceLeases.value.filter(item => !item.is_expired).length
+  const expiredInstanceCount = instanceLeases.value.filter(item => item.is_expired).length
 
   return [
     { label: '最近提交', value: String(submissions.value.length), icon: 'i-lucide-logs' },
     { label: '正确提交', value: String(acceptedCount), icon: 'i-lucide-circle-check-big' },
     { label: '错误 Flag', value: String(wrongCount), icon: 'i-lucide-circle-x' },
     { label: '重复提交', value: String(repeatedCount), icon: 'i-lucide-copy-check' },
+    { label: '运行中实例', value: String(runningInstanceCount), icon: 'i-lucide-box' },
+    { label: '已过期实例', value: String(expiredInstanceCount), icon: 'i-lucide-box-select' },
     { label: '可疑线索', value: String(cheatClues.value.length), icon: 'i-lucide-shield-alert' },
     { label: '比赛公告', value: String(announcements.value.length), icon: 'i-lucide-megaphone' },
   ]
@@ -810,6 +833,29 @@ async function loadParticipants() {
   }
 }
 
+async function loadInstanceLeases() {
+  if (!attachForm.game_id) {
+    instanceLeases.value = []
+    return
+  }
+
+  loadingInstances.value = true
+  try {
+    instanceLeases.value = await $api('get', '/api/admin/games/{id}/instances', {
+      params: {
+        id: attachForm.game_id,
+      },
+    })
+  }
+  catch (e: any) {
+    instanceLeases.value = []
+    toast.add({ title: '实例监控加载失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    loadingInstances.value = false
+  }
+}
+
 async function loadWriteups() {
   if (!attachForm.game_id) {
     writeups.value = []
@@ -941,6 +987,7 @@ async function loadScoreboard() {
 function resetSelectedGameContext() {
   selectedGameChallenges.value = []
   participants.value = []
+  instanceLeases.value = []
   writeups.value = []
   submissions.value = []
   cheatClues.value = []
@@ -1149,6 +1196,26 @@ function getRegistrationModeLabel(mode?: 'review' | 'auto_accept') {
 
 function getPracticeModeLabel(enabled?: boolean) {
   return enabled ? '赛后练习开启' : '仅正赛'
+}
+
+function getInstanceLeaseStatusColor(lease: { is_expired: boolean, status: string }) {
+  if (lease.is_expired) {
+    return 'warning' as const
+  }
+  if (lease.status === 'running') {
+    return 'success' as const
+  }
+  return 'neutral' as const
+}
+
+function getInstanceLeaseStatusLabel(lease: { is_expired: boolean, status: string }) {
+  if (lease.is_expired) {
+    return '已过期'
+  }
+  if (lease.status === 'running') {
+    return '运行中'
+  }
+  return lease.status || '未知'
 }
 
 function getSubmissionResultColor(result: 'accepted' | 'wrong_flag' | 'already_solved' | 'rejected') {
@@ -2158,6 +2225,7 @@ watch(() => gameSettingsForm.game_id, () => {
 watch(() => attachForm.game_id, async () => {
   await loadSelectedGameChallenges()
   await loadParticipants()
+  await loadInstanceLeases()
   await loadWriteups()
   await loadScoreboard()
   await loadSubmissions()
@@ -2432,7 +2500,7 @@ onMounted(async () => {
                 size="sm"
                 variant="outline"
                 icon="i-lucide-refresh-cw"
-                :loading="loadingSubmissions || loadingCheatClues || loadingAnnouncements || loadingParticipants"
+                :loading="loadingSubmissions || loadingCheatClues || loadingAnnouncements || loadingParticipants || loadingInstances"
                 @click="selectGameContext(selectedAdminOverview.game.id)"
               >
                 刷新监控
@@ -2574,6 +2642,65 @@ onMounted(async () => {
               </div>
               <div v-else class="text-sm text-muted">
                 当前没有待审 Writeup。
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-default px-3 py-3 xl:col-span-3">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <div class="font-medium">
+                    实例监控
+                  </div>
+                  <div class="text-sm text-muted">
+                    当前比赛下所有动态实例租约，优先帮助判断是否有队伍实例已经过期。
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <UBadge color="success" variant="soft">
+                    运行中 {{ instanceLeases.filter(item => !item.is_expired).length }}
+                  </UBadge>
+                  <UBadge color="warning" variant="soft">
+                    已过期 {{ instanceLeases.filter(item => item.is_expired).length }}
+                  </UBadge>
+                </div>
+              </div>
+
+              <div v-if="instanceLeases.length" class="space-y-2">
+                <div
+                  v-for="lease in instanceLeases"
+                  :key="lease.id"
+                  class="rounded-md bg-elevated/60 px-3 py-3"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="text-sm font-medium">
+                        {{ lease.team_name }} · {{ lease.challenge_title }}
+                      </div>
+                      <div class="mt-1 text-xs text-muted">
+                        Team #{{ lease.team_id }} · Challenge #{{ lease.challenge_id }}{{ lease.provider ? ` · ${lease.provider}` : '' }}{{ lease.image ? ` · ${lease.image}` : '' }}
+                      </div>
+                      <div class="mt-2 grid gap-2 text-xs text-muted md:grid-cols-2 xl:grid-cols-4">
+                        <div>启动：{{ new Date(lease.started_at).toLocaleString() }}</div>
+                        <div>续期：{{ new Date(lease.last_renewed_at).toLocaleString() }}</div>
+                        <div>到期：{{ new Date(lease.expires_at).toLocaleString() }}</div>
+                        <div>{{ lease.is_expired ? '当前已过期' : `剩余 ${lease.seconds_left} 秒` }}</div>
+                      </div>
+                      <div v-if="lease.launch_url" class="mt-2 text-xs text-muted break-all">
+                        入口：{{ lease.launch_url }}
+                      </div>
+                    </div>
+                    <UBadge :color="getInstanceLeaseStatusColor(lease)" variant="soft">
+                      {{ getInstanceLeaseStatusLabel(lease) }}
+                    </UBadge>
+                  </div>
+                </div>
+              </div>
+
+              <div v-else-if="loadingInstances" class="text-sm text-muted">
+                正在加载实例租约...
+              </div>
+              <div v-else class="text-sm text-muted">
+                当前比赛还没有运行中的动态实例租约。
               </div>
             </div>
           </div>

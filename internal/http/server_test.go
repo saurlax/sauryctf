@@ -726,6 +726,127 @@ func TestServer_AdminDashboardSummary(t *testing.T) {
 	assert.Equal(t, "flag{shared-wrong}", payload.CheatClues[0].SubmittedFlag)
 }
 
+func TestServer_AdminCanListGameInstances(t *testing.T) {
+	server := setupHTTPTestServer(t)
+	defer server.Close()
+
+	adminCookie := loginBootstrapAdmin(t, server.URL)
+
+	start := time.Now().Add(-time.Hour).UTC().Truncate(time.Second)
+	end := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
+	game := createSmokeGame(t, server.URL, adminCookie, map[string]any{
+		"name":              "Admin Instance Monitor Game",
+		"description":       "instance monitor fixture",
+		"start_time":        start.Format(time.RFC3339),
+		"end_time":          end.Format(time.RFC3339),
+		"registration_mode": "auto_accept",
+		"practice_mode":     true,
+		"is_public":         true,
+	})
+
+	challenge := createSmokeChallenge(t, server.URL, adminCookie, map[string]any{
+		"title":          "Admin Instance Challenge",
+		"description":    "dynamic fixture",
+		"category":       "web",
+		"type":           "dynamic",
+		"flag":           "flag{admin-instance}",
+		"base_score":     200,
+		"is_visible":     true,
+		"container_spec": `{"runtime":{"provider":"docker","image":"ctf/example:latest"},"connection":{"url":"http://127.0.0.1:18081","note":"admin instance"}}`,
+	})
+
+	attachBody, err := json.Marshal(map[string]any{
+		"challenge_id": challenge.ID,
+	})
+	require.NoError(t, err)
+
+	attachReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/games/"+idPath(game.ID)+"/challenges", bytes.NewReader(attachBody))
+	require.NoError(t, err)
+	attachReq.Header.Set("Content-Type", "application/json")
+	attachReq.AddCookie(adminCookie)
+
+	attachResp, err := http.DefaultClient.Do(attachReq)
+	require.NoError(t, err)
+	defer attachResp.Body.Close()
+	require.Equal(t, http.StatusOK, attachResp.StatusCode)
+
+	updateBody, err := json.Marshal(map[string]any{
+		"status": "active",
+	})
+	require.NoError(t, err)
+
+	updateReq, err := http.NewRequest(http.MethodPut, server.URL+"/api/games/"+idPath(game.ID), bytes.NewReader(updateBody))
+	require.NoError(t, err)
+	updateReq.Header.Set("Content-Type", "application/json")
+	updateReq.AddCookie(adminCookie)
+
+	updateResp, err := http.DefaultClient.Do(updateReq)
+	require.NoError(t, err)
+	defer updateResp.Body.Close()
+	require.Equal(t, http.StatusOK, updateResp.StatusCode)
+
+	teamBody := bytes.NewBufferString(`{"name":"Admin Instance Team"}`)
+	teamReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/teams", teamBody)
+	require.NoError(t, err)
+	teamReq.Header.Set("Content-Type", "application/json")
+	teamReq.AddCookie(adminCookie)
+
+	teamResp, err := http.DefaultClient.Do(teamReq)
+	require.NoError(t, err)
+	defer teamResp.Body.Close()
+	require.Equal(t, http.StatusCreated, teamResp.StatusCode)
+
+	var teamPayload struct {
+		Team struct {
+			ID uint `json:"id"`
+		} `json:"team"`
+	}
+	require.NoError(t, json.NewDecoder(teamResp.Body).Decode(&teamPayload))
+
+	joinBody, err := json.Marshal(map[string]any{
+		"team_id": teamPayload.Team.ID,
+	})
+	require.NoError(t, err)
+
+	joinReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/games/"+idPath(game.ID)+"/join", bytes.NewReader(joinBody))
+	require.NoError(t, err)
+	joinReq.Header.Set("Content-Type", "application/json")
+	joinReq.AddCookie(adminCookie)
+
+	joinResp, err := http.DefaultClient.Do(joinReq)
+	require.NoError(t, err)
+	defer joinResp.Body.Close()
+	require.Equal(t, http.StatusOK, joinResp.StatusCode)
+
+	instanceReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/games/"+idPath(game.ID)+"/challenges/"+idPath(challenge.ID)+"/instance", nil)
+	require.NoError(t, err)
+	instanceReq.AddCookie(adminCookie)
+
+	instanceResp, err := http.DefaultClient.Do(instanceReq)
+	require.NoError(t, err)
+	defer instanceResp.Body.Close()
+	require.Equal(t, http.StatusOK, instanceResp.StatusCode)
+
+	adminListReq, err := http.NewRequest(http.MethodGet, server.URL+"/api/admin/games/"+idPath(game.ID)+"/instances", nil)
+	require.NoError(t, err)
+	adminListReq.AddCookie(adminCookie)
+
+	adminListResp, err := http.DefaultClient.Do(adminListReq)
+	require.NoError(t, err)
+	defer adminListResp.Body.Close()
+	require.Equal(t, http.StatusOK, adminListResp.StatusCode)
+
+	var payload []games.GameInstanceLeaseEntry
+	require.NoError(t, json.NewDecoder(adminListResp.Body).Decode(&payload))
+	require.Len(t, payload, 1)
+	assert.Equal(t, game.ID, payload[0].GameID)
+	assert.Equal(t, challenge.ID, payload[0].ChallengeID)
+	assert.Equal(t, "Admin Instance Team", payload[0].TeamName)
+	assert.Equal(t, "Admin Instance Challenge", payload[0].ChallengeTitle)
+	assert.False(t, payload[0].IsExpired)
+	assert.Greater(t, payload[0].SecondsLeft, 0)
+}
+
 func TestServer_NormalUserCannotCreateGame(t *testing.T) {
 	server := setupHTTPTestServer(t)
 	defer server.Close()

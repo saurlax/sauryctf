@@ -521,6 +521,26 @@ type AddChallengeToGameRequest struct {
 	ScoreOverride *int `json:"score_override,omitempty"`
 }
 
+// AdminGameInstanceLease defines model for AdminGameInstanceLease.
+type AdminGameInstanceLease struct {
+	ChallengeId    int        `json:"challenge_id"`
+	ChallengeTitle string     `json:"challenge_title"`
+	ExpiresAt      time.Time  `json:"expires_at"`
+	GameId         int        `json:"game_id"`
+	Id             int        `json:"id"`
+	Image          *string    `json:"image,omitempty"`
+	IsExpired      bool       `json:"is_expired"`
+	LastRenewedAt  time.Time  `json:"last_renewed_at"`
+	LaunchUrl      *string    `json:"launch_url,omitempty"`
+	Provider       *string    `json:"provider,omitempty"`
+	SecondsLeft    int        `json:"seconds_left"`
+	StartedAt      time.Time  `json:"started_at"`
+	Status         string     `json:"status"`
+	StoppedAt      *time.Time `json:"stopped_at,omitempty"`
+	TeamId         int        `json:"team_id"`
+	TeamName       string     `json:"team_name"`
+}
+
 // AuthResponse defines model for AuthResponse.
 type AuthResponse struct {
 	Token string   `json:"token"`
@@ -1063,6 +1083,9 @@ type ServerInterface interface {
 	// Export a game package (admin)
 	// (POST /api/admin/games/{id}/export)
 	ExportAdminGamePackage(c *gin.Context, id int)
+	// List current instance leases for a game (admin)
+	// (GET /api/admin/games/{id}/instances)
+	GetAdminGameInstances(c *gin.Context, id int)
 	// List game writeups for review (admin)
 	// (GET /api/admin/games/{id}/writeups)
 	GetAdminGameWriteups(c *gin.Context, id int)
@@ -1285,6 +1308,33 @@ func (siw *ServerInterfaceWrapper) ExportAdminGamePackage(c *gin.Context) {
 	}
 
 	siw.Handler.ExportAdminGamePackage(c, id)
+}
+
+// GetAdminGameInstances operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminGameInstances(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminGameInstances(c, id)
 }
 
 // GetAdminGameWriteups operation middleware
@@ -2315,6 +2365,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/api/admin/games/:id", wrapper.DeleteAdminGame)
 	router.GET(options.BaseURL+"/api/admin/games/:id/challenges", wrapper.GetAdminGameChallenges)
 	router.POST(options.BaseURL+"/api/admin/games/:id/export", wrapper.ExportAdminGamePackage)
+	router.GET(options.BaseURL+"/api/admin/games/:id/instances", wrapper.GetAdminGameInstances)
 	router.GET(options.BaseURL+"/api/admin/games/:id/writeups", wrapper.GetAdminGameWriteups)
 	router.PUT(options.BaseURL+"/api/admin/games/:id/writeups/:teamId", wrapper.UpdateAdminGameWriteup)
 	router.POST(options.BaseURL+"/api/auth/login", wrapper.Login)

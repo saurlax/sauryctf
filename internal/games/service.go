@@ -719,6 +719,90 @@ func (s *Service) GetAdminDashboardSummary(limit int) (*AdminDashboardSummaryRes
 	return resp, nil
 }
 
+func (s *Service) ListInstanceLeases(gameID uint) ([]GameInstanceLeaseEntry, error) {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("game not found")
+		}
+		return nil, err
+	}
+
+	type leaseRow struct {
+		ID             uint
+		GameID         uint
+		TeamID         uint
+		TeamName       string
+		ChallengeID    uint
+		ChallengeTitle string
+		Status         string
+		Provider       string
+		Image          string
+		LaunchURL      string
+		StartedAt      time.Time
+		LastRenewedAt  time.Time
+		ExpiresAt      time.Time
+		StoppedAt      *time.Time
+	}
+
+	var rows []leaseRow
+	if err := s.db.Table("game_instance_leases").
+		Select(`
+			game_instance_leases.id,
+			game_instance_leases.game_id,
+			game_instance_leases.team_id,
+			teams.name as team_name,
+			game_instance_leases.challenge_id,
+			challenges.title as challenge_title,
+			game_instance_leases.status,
+			game_instance_leases.provider,
+			game_instance_leases.image,
+			game_instance_leases.launch_url,
+			game_instance_leases.started_at,
+			game_instance_leases.last_renewed_at,
+			game_instance_leases.expires_at,
+			game_instance_leases.stopped_at
+		`).
+		Joins("JOIN teams ON teams.id = game_instance_leases.team_id").
+		Joins("JOIN challenges ON challenges.id = game_instance_leases.challenge_id").
+		Where("game_instance_leases.game_id = ?", gameID).
+		Order("game_instance_leases.expires_at ASC, game_instance_leases.id ASC").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	result := make([]GameInstanceLeaseEntry, 0, len(rows))
+	for _, row := range rows {
+		secondsLeft := int(time.Until(row.ExpiresAt).Seconds())
+		isExpired := !row.ExpiresAt.After(now)
+		if isExpired {
+			secondsLeft = 0
+		}
+
+		result = append(result, GameInstanceLeaseEntry{
+			ID:             row.ID,
+			GameID:         row.GameID,
+			TeamID:         row.TeamID,
+			TeamName:       row.TeamName,
+			ChallengeID:    row.ChallengeID,
+			ChallengeTitle: row.ChallengeTitle,
+			Status:         row.Status,
+			Provider:       row.Provider,
+			Image:          row.Image,
+			LaunchURL:      row.LaunchURL,
+			StartedAt:      row.StartedAt,
+			LastRenewedAt:  row.LastRenewedAt,
+			ExpiresAt:      row.ExpiresAt,
+			StoppedAt:      row.StoppedAt,
+			SecondsLeft:    secondsLeft,
+			IsExpired:      isExpired,
+		})
+	}
+
+	return result, nil
+}
+
 func (s *Service) GetPublicGame(id uint) (*GameResponse, error) {
 	game, err := s.GetGame(id)
 	if err != nil {

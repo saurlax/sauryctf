@@ -461,6 +461,21 @@ func (h *Handler) GetAdminGameChallenges(c *gin.Context, id int) {
 	c.JSON(http.StatusOK, challenges)
 }
 
+func (h *Handler) ListInstanceLeases(c *gin.Context, id int) {
+	leases, err := h.svc.ListInstanceLeases(uint(id))
+	if err != nil {
+		switch err.Error() {
+		case "game not found":
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, leases)
+}
+
 func (h *Handler) GetChallengeInstance(c *gin.Context, id int, challengeId int) {
 	userID := c.MustGet("user_id").(uint)
 
