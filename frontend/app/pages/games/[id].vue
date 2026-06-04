@@ -10,6 +10,7 @@ type ScoreboardChallengeStat = components['schemas']['ScoreboardChallengeStat']
 const route = useRoute()
 const toast = useToast()
 const { authState, fetchUser } = useAuth()
+const isAdmin = computed(() => ['admin', 'super_admin'].includes(authState.user?.role || ''))
 
 const game = ref<Game | null>(null)
 const challenges = ref<GameChallengeDetail[]>([])
@@ -431,6 +432,22 @@ onMounted(async () => {
               <UButton icon="i-lucide-users" variant="outline" to="/console/team">
                 管理我的队伍
               </UButton>
+            </div>
+          </UPageCard>
+
+          <UPageCard v-if="isAdmin" title="管理快捷入口" icon="i-lucide-shield-check">
+            <div class="space-y-3 text-sm">
+              <p class="text-muted">
+                你当前拥有赛事管理权限，可以继续前往管理端更新比赛信息、题目配置和挂题关系。
+              </p>
+              <div class="flex flex-col gap-3">
+                <UButton icon="i-lucide-settings-2" to="/console/admin" block>
+                  打开赛事管理
+                </UButton>
+                <UButton icon="i-lucide-layout-dashboard" to="/console" variant="outline" block>
+                  返回控制台
+                </UButton>
+              </div>
             </div>
           </UPageCard>
 
