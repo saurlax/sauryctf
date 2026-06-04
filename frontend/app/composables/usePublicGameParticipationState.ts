@@ -12,6 +12,9 @@ type PublicParticipationStateInput = {
   participation: GameParticipation | null | undefined
   registrationMode?: 'review' | 'auto_accept'
   maxTeamMembers?: number
+  loginTo?: string
+  registerTo?: string
+  teamTo?: string
 }
 
 type PublicParticipationMeta = {
@@ -36,7 +39,16 @@ function getPhaseEndedDescription() {
 
 export function usePublicGameParticipationState() {
   function resolveParticipationMeta(input: PublicParticipationStateInput): PublicParticipationMeta {
-    const { gameId, gamePhase, practiceMode = false, isLoggedIn, participation, registrationMode = 'review' } = input
+    const {
+      gameId,
+      gamePhase,
+      practiceMode = false,
+      isLoggedIn,
+      participation,
+      registrationMode = 'review',
+      loginTo = '/login',
+      teamTo = '/console/team',
+    } = input
 
     if (!isLoggedIn) {
       return {
@@ -44,7 +56,7 @@ export function usePublicGameParticipationState() {
         color: 'neutral',
         description: '先登录，再决定创建队伍或直接进入比赛详情页。',
         actionLabel: '去登录',
-        actionTo: '/login',
+        actionTo: loginTo,
       }
     }
 
@@ -54,7 +66,7 @@ export function usePublicGameParticipationState() {
         color: 'warning',
         description: '需要先创建或加入队伍，才能报名比赛并提交 Flag。',
         actionLabel: '去队伍页',
-        actionTo: '/console/team',
+        actionTo: teamTo,
       }
     }
 

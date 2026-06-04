@@ -52,6 +52,8 @@ function getStatusLabel(status: string) {
 }
 
 function getParticipationMeta(game: Game) {
+  const redirect = encodeURIComponent(`/games/${game.id}`)
+
   return resolveParticipationMeta({
     gameId: game.id,
     gamePhase: game.status === 'ended' ? 'ended' : game.status === 'draft' ? 'draft' : 'active',
@@ -60,6 +62,9 @@ function getParticipationMeta(game: Game) {
     participation: participationMap.value[game.id],
     registrationMode: game.registration_mode,
     maxTeamMembers: game.max_team_members,
+    loginTo: `/login?redirect=${redirect}`,
+    registerTo: `/register?redirect=${redirect}`,
+    teamTo: `/console/team?redirect=${redirect}`,
   })
 }
 

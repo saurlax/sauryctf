@@ -417,6 +417,9 @@ const participationMeta = computed(() => resolveParticipationMeta({
   participation: participation.value,
   registrationMode: game.value?.registration_mode,
   maxTeamMembers: game.value?.max_team_members,
+  loginTo: loginEntry.value,
+  registerTo: registerEntry.value,
+  teamTo: teamEntry.value,
 }))
 
 const participationHint = computed(() => {
