@@ -42,6 +42,7 @@ const submitting = ref<number | null>(null) // challenge id being submitted
 const writeupSubmitting = ref(false)
 const instanceLoading = reactive<Record<number, boolean>>({})
 const instanceStarting = reactive<Record<number, boolean>>({})
+const instanceAutoRefreshing = ref(false)
 const flagInputs = reactive<Record<number, string>>({})
 const writeupForm = reactive({
   content: '',
@@ -406,6 +407,44 @@ function getInstanceSecondsLeft(challengeId: number) {
   return Math.max(0, Math.floor((new Date(state.expires_at).getTime() - now.value) / 1000))
 }
 
+function formatSecondsLeft(seconds: number) {
+  if (seconds <= 0) {
+    return '0 秒'
+  }
+
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const remainingSeconds = seconds % 60
+  const parts = []
+
+  if (hours > 0) {
+    parts.push(`${hours} 小时`)
+  }
+  if (minutes > 0 || hours > 0) {
+    parts.push(`${minutes} 分`)
+  }
+  parts.push(`${remainingSeconds} 秒`)
+
+  return parts.join(' ')
+}
+
+function getInstanceLeasePercent(challengeId: number) {
+  const state = instanceStates[challengeId]
+  if (!state?.started_at || !state?.expires_at) {
+    return state?.status === 'running' && getInstanceSecondsLeft(challengeId) > 0 ? 100 : 0
+  }
+
+  const startedAt = new Date(state.started_at).getTime()
+  const expiresAt = new Date(state.expires_at).getTime()
+  const total = expiresAt - startedAt
+  if (total <= 0) {
+    return getInstanceSecondsLeft(challengeId) > 0 ? 100 : 0
+  }
+
+  const remaining = Math.max(0, expiresAt - now.value)
+  return Math.max(0, Math.min(100, Math.round((remaining / total) * 100)))
+}
+
 function getInstanceStatusColor(challengeId: number) {
   const state = instanceStates[challengeId]
   if (state?.status === 'running' && getInstanceSecondsLeft(challengeId) > 0) {
@@ -428,6 +467,26 @@ function getInstanceStatusLabel(challengeId: number) {
   return '待启动'
 }
 
+function isMockInstance(challenge: GameChallengeDetail) {
+  return getDisplayedInstanceLaunchUrl(challenge).startsWith('/mock-instance/')
+}
+
+function getInstanceEntryLabel(challenge: GameChallengeDetail) {
+  if (instanceStates[challenge.id]?.launch_url) {
+    return isMockInstance(challenge) ? '本地 Mock 实例' : '当前队伍实例'
+  }
+
+  return hasChallengeInstanceTemplate(challenge.container_spec) ? '模板入口' : '静态入口'
+}
+
+function getInstanceEntryColor(challenge: GameChallengeDetail) {
+  if (instanceStates[challenge.id]?.launch_url) {
+    return isMockInstance(challenge) ? 'warning' as const : 'success' as const
+  }
+
+  return hasChallengeInstanceTemplate(challenge.container_spec) ? 'info' as const : 'neutral' as const
+}
+
 async function syncChallengeInstances() {
   for (const challenge of challenges.value) {
     if (authState.user && supportsManagedInstance(challenge)) {
@@ -436,6 +495,30 @@ async function syncChallengeInstances() {
     }
 
     instanceStates[challenge.id] = null
+  }
+}
+
+async function refreshRunningChallengeInstances() {
+  if (instanceAutoRefreshing.value || !authState.user) {
+    return
+  }
+
+  const runningChallenges = challenges.value.filter(challenge =>
+    supportsManagedInstance(challenge)
+    && instanceStates[challenge.id]?.status === 'running'
+    && getInstanceSecondsLeft(challenge.id) > 0,
+  )
+
+  if (runningChallenges.length === 0) {
+    return
+  }
+
+  instanceAutoRefreshing.value = true
+  try {
+    await Promise.all(runningChallenges.map(challenge => fetchChallengeInstance(challenge.id)))
+  }
+  finally {
+    instanceAutoRefreshing.value = false
   }
 }
 
@@ -1254,12 +1337,18 @@ onMounted(async () => {
   await ensureInitialized()
   const timer = window.setInterval(() => {
     now.value = Date.now()
-  }, 60_000)
+  }, 1000)
+  const instanceRefreshTimer = window.setInterval(() => {
+    if (activeTab.value === 'challenges') {
+      refreshRunningChallengeInstances()
+    }
+  }, 15_000)
   await fetchAll()
   await syncChallengeInstances()
 
   onBeforeUnmount(() => {
     window.clearInterval(timer)
+    window.clearInterval(instanceRefreshTimer)
   })
 })
 </script>
@@ -1726,6 +1815,19 @@ onMounted(async () => {
                       <p v-if="getChallengeInstanceSpec(ch.container_spec)?.note" class="leading-6 whitespace-pre-wrap">
                         {{ getChallengeInstanceSpec(ch.container_spec)?.note }}
                       </p>
+                      <div class="flex flex-wrap items-center gap-2">
+                        <UBadge :color="getInstanceEntryColor(ch)" variant="soft" size="sm">
+                          {{ getInstanceEntryLabel(ch) }}
+                        </UBadge>
+                        <UBadge
+                          v-if="supportsManagedInstance(ch)"
+                          :color="instanceAutoRefreshing ? 'info' : 'neutral'"
+                          variant="subtle"
+                          size="sm"
+                        >
+                          {{ instanceAutoRefreshing ? '自动同步中' : '15 秒自动同步' }}
+                        </UBadge>
+                      </div>
                       <div v-if="getDisplayedInstanceLaunchUrl(ch)" class="flex flex-col gap-2">
                         <UButton
                           :to="getDisplayedInstanceLaunchUrl(ch)"
@@ -1791,6 +1893,23 @@ onMounted(async () => {
                           variant="soft"
                           title="当前队伍实例"
                           :description="instanceStates[ch.id]?.message || (hasChallengeInstanceTemplate(ch.container_spec) ? '当前题目支持最小实例租约，并会把模板入口解析成当前队伍可用的独立地址。' : '当前题目支持最小实例租约，启动后会返回当前队伍的运行状态。')"
+                        />
+
+                        <div class="mb-3 rounded-md border border-default px-3 py-3">
+                          <div class="mb-2 flex items-center justify-between gap-3 text-xs text-muted">
+                            <span>租约剩余时间</span>
+                            <span>{{ instanceLoading[ch.id] ? '同步中' : formatSecondsLeft(getInstanceSecondsLeft(ch.id)) }}</span>
+                          </div>
+                          <UProgress :model-value="getInstanceLeasePercent(ch.id)" status />
+                        </div>
+
+                        <UAlert
+                          v-if="isMockInstance(ch)"
+                          class="mb-3"
+                          color="warning"
+                          variant="soft"
+                          title="当前是本地 Mock 实例"
+                          description="这说明平台已经完成了队伍维度的入口解析，但当前落点仍是前端 mock 页面，还没有接入真实 Docker / K8s provider。"
                         />
 
                         <div class="grid gap-3 text-xs text-muted md:grid-cols-2">

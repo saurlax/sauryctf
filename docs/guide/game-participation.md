@@ -194,6 +194,9 @@
 - 适合先把动态题的连接入口做成“每队不同但稳定”的本地形态
   - 例如 `connection.url` 可以写成 `/mock-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}`
   - 当前仍然只是在租约响应里生成差异化入口，不会真的创建容器或反代
+- 比赛页现在会把这类动态题显示成更明确的“实例面板”：
+  - 会区分模板入口、当前队伍实例、本地 mock 实例
+  - 会显示剩余租约时间、续期时间和 15 秒自动同步状态
 - 这样做是为了向 GZCTF 的 `ContainerProvider` 模型靠拢
   - 后续可以按 `runtime.provider` 继续接 `docker`、`k8s` 或代理型 provider
   - 当前 `docker`、`k8s`、`proxy` 等名称都会先落到同一套占位 provider
