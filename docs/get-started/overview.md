@@ -8,6 +8,7 @@ SauryCTF 是一个对标 GZCTF 的 Go + Gin + GORM + Nuxt SSG CTF 平台。
 - 队伍创建、加入、退出
 - 比赛创建、题目挂载、比赛报名
 - 比赛详情页、题目列表、排行榜
+- 控制台首页导航与管理入口
 - 动态计分与一血/二血/三血元数据
 
 ## 本地开发
@@ -40,5 +41,6 @@ pnpm dev
 ## 建议阅读顺序
 
 - `docs/get-started/overview.md`
+- `docs/guide/console-home.md`
 - `docs/guide/game-participation.md`
 - `AGENTS.md`
