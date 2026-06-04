@@ -21,6 +21,21 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 | Frontend build | `pnpm generate` |
 | Full test suite | `pnpm test` |
 
+## Local Smoke Flow
+
+- End-to-end local validation guide lives in `docs/get-started/smoke-flow.md`.
+- Preferred verification order on a fresh database:
+  1. login with `admin / sauryctf`
+  2. create one public contest
+  3. create one challenge
+  4. attach the challenge
+  5. activate the contest
+  6. register a normal user
+  7. create a team
+  8. join the contest
+  9. submit one known flag
+  10. confirm the scoreboard updates
+
 ## Frontend (`frontend/`)
 
 **Tech stack:** Nuxt 4.4 + Vue 3.5 + @nuxt/ui 4.8 + Tailwind CSS 4.3
