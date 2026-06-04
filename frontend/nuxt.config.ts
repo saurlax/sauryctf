@@ -5,6 +5,13 @@ export default defineNuxtConfig({
   modules: ['@nuxt/ui'],
   css: ['~/assets/css/main.css'],
 
+  runtimeConfig: {
+    apiBase: 'http://127.0.0.1:8080/api',
+    public: {
+      apiBase: '/api',
+    },
+  },
+
   nitro: {
     devProxy: {
       '/api': {
