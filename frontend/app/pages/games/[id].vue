@@ -390,6 +390,117 @@ const submitHint = computed(() => publicParticipationHints.value.submitHint)
 
 const challengeVisibilityHint = computed(() => publicParticipationHints.value.visibilityHint)
 
+const nextStepMeta = computed(() => {
+  if (!authState.user) {
+    return {
+      title: '下一步：先登录账号',
+      description: '登录后就能看到你自己的队伍状态，并决定是先组队还是直接进入比赛详情继续操作。',
+      color: 'info' as const,
+      actionLabel: '去登录',
+      actionTo: '/login',
+      secondaryLabel: '创建账号',
+      secondaryTo: '/register',
+    }
+  }
+
+  if (!participation.value?.has_team) {
+    return {
+      title: '下一步：先准备队伍',
+      description: '当前比赛以内队形式参赛。先去控制台创建或加入队伍，再回来完成报名。',
+      color: 'warning' as const,
+      actionLabel: '去队伍页',
+      actionTo: '/console/team',
+    }
+  }
+
+  if (!participation.value?.participated) {
+    return {
+      title: '下一步：完成报名',
+      description: game.value?.registration_mode === 'auto_accept'
+        ? '当前比赛会自动通过报名。确认后，如果比赛已开始，你的队伍就可以直接提交 Flag。'
+        : '当前比赛需要先提交报名申请。提交后等待管理员审核通过，才能正式参赛。',
+      color: 'info' as const,
+      actionLabel: '报名比赛',
+      actionTo: `/games/${gameId}`,
+    }
+  }
+
+  if (participation.value.missing_writeup) {
+    return {
+      title: '下一步：补交 Writeup',
+      description: participation.value.writeup_deadline
+        ? `当前队伍还没有提交 Writeup，请在 ${new Date(participation.value.writeup_deadline).toLocaleString()} 前切换到 Writeup 标签补交。`
+        : '当前队伍还没有提交 Writeup，请切换到 Writeup 标签尽快补交。',
+      color: 'warning' as const,
+      actionLabel: '去 Writeup',
+      actionTo: `/games/${gameId}`,
+      actionTab: 'writeup' as const,
+    }
+  }
+
+  if (participation.value.status === 'pending') {
+    return {
+      title: '下一步：等待审核',
+      description: '你的队伍报名已经提交成功。现在无需重复操作，等待管理员审核通过后就能正式参赛。',
+      color: 'warning' as const,
+      actionLabel: '查看队伍',
+      actionTo: '/console/team',
+    }
+  }
+
+  if (participation.value.status === 'rejected') {
+    return {
+      title: '下一步：撤回后重新报名',
+      description: '当前报名没有通过。你可以先退出这次报名，调整队伍后再重新提交申请。',
+      color: 'error' as const,
+      actionLabel: '退出本次报名',
+      actionTo: `/games/${gameId}`,
+    }
+  }
+
+  if (participation.value.writeup_required && participation.value.writeup_submitted && participation.value.writeup_status === 'submitted') {
+    return {
+      title: '下一步：等待 Writeup 审核',
+      description: 'Writeup 已经提交成功。你可以继续留在比赛页参赛，或返回 Writeup 标签补充更新内容。',
+      color: 'info' as const,
+      actionLabel: '去 Writeup',
+      actionTo: `/games/${gameId}`,
+      actionTab: 'writeup' as const,
+    }
+  }
+
+  if (gameStatusMeta.value.label === '未开始') {
+    return {
+      title: '下一步：等待开赛',
+      description: '你的队伍已经具备参赛资格。比赛开始后，题面会自动开放，随后就可以提交 Flag。',
+      color: 'info' as const,
+      actionLabel: '查看题目',
+      actionTo: `/games/${gameId}`,
+      actionTab: 'challenges' as const,
+    }
+  }
+
+  if (gameStatusMeta.value.label === '进行中') {
+    return {
+      title: '下一步：开始解题',
+      description: '当前已经满足参赛条件，可以直接切换到题目标签开始查看题面、附件并提交 Flag。',
+      color: 'success' as const,
+      actionLabel: '进入题目',
+      actionTo: `/games/${gameId}`,
+      actionTab: 'challenges' as const,
+    }
+  }
+
+  return {
+    title: '下一步：查看复盘信息',
+    description: '比赛当前已经结束。你仍然可以继续查看题目、排行榜和 Writeup 信息。',
+    color: 'neutral' as const,
+    actionLabel: '查看排行榜',
+    actionTo: `/games/${gameId}`,
+    actionTab: 'scoreboard' as const,
+  }
+})
+
 const detailPrimaryAction = computed(() => {
   if (!authState.user) {
     return {
@@ -466,6 +577,12 @@ const detailSecondaryAction = computed(() => {
 
   return null
 })
+
+function handleNextStepAction(meta: typeof nextStepMeta.value) {
+  if (meta.actionTab) {
+    activeTab.value = meta.actionTab
+  }
+}
 
 const participationSummaryLabel = computed(() => {
   if (!authState.user) {
@@ -687,62 +804,92 @@ onMounted(async () => {
       </UPageGrid>
 
       <UPageCard class="mb-6">
-        <div class="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <p class="text-sm text-muted mb-1">
-              {{ authState.user ? '我的报名状态' : '公开浏览提示' }}
-            </p>
-            <div v-if="authState.user && participationLoading" class="flex items-center gap-2 text-sm text-muted">
-              <UIcon name="i-lucide-loader-2" class="size-4 animate-spin" />
-              <span>加载中...</span>
+        <div class="space-y-4">
+          <div class="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <p class="text-sm text-muted mb-1">
+                {{ authState.user ? '我的报名状态' : '公开浏览提示' }}
+              </p>
+              <div v-if="authState.user && participationLoading" class="flex items-center gap-2 text-sm text-muted">
+                <UIcon name="i-lucide-loader-2" class="size-4 animate-spin" />
+                <span>加载中...</span>
+              </div>
+              <div v-else class="flex items-center gap-2 flex-wrap">
+                <UBadge
+                  :color="participationSummaryColor"
+                  variant="soft"
+                >
+                  {{ participationSummaryLabel }}
+                </UBadge>
+                <span v-if="participation?.team" class="text-sm text-muted">
+                  当前队伍：{{ participation.team.name }}
+                </span>
+              </div>
+              <p class="mt-2 text-sm text-muted max-w-2xl">
+                {{ participationHint.description }}
+              </p>
             </div>
-            <div v-else class="flex items-center gap-2 flex-wrap">
-              <UBadge
-                :color="participationSummaryColor"
-                variant="soft"
+
+            <div class="flex gap-2">
+              <UButton
+                v-if="detailPrimaryAction.mode === 'link'"
+                :to="detailPrimaryAction.to"
+                :icon="detailPrimaryAction.icon"
+                :color="detailPrimaryAction.color"
+                :variant="detailPrimaryAction.variant"
               >
-                {{ participationSummaryLabel }}
-              </UBadge>
-              <span v-if="participation?.team" class="text-sm text-muted">
-                当前队伍：{{ participation.team.name }}
-              </span>
+                {{ detailPrimaryAction.label }}
+              </UButton>
+              <UButton
+                v-else
+                :icon="detailPrimaryAction.icon"
+                :color="detailPrimaryAction.color"
+                :variant="detailPrimaryAction.variant"
+                :loading="detailPrimaryAction.loading"
+                :disabled="detailPrimaryAction.disabled"
+                :to="detailPrimaryAction.to"
+                @click="detailPrimaryAction.onClick?.()"
+              >
+                {{ detailPrimaryAction.label }}
+              </UButton>
+              <UButton
+                v-if="detailSecondaryAction"
+                :to="detailSecondaryAction.to"
+                variant="outline"
+                :icon="detailSecondaryAction.icon"
+              >
+                {{ detailSecondaryAction.label }}
+              </UButton>
             </div>
-            <p class="mt-2 text-sm text-muted max-w-2xl">
-              {{ participationHint.description }}
-            </p>
           </div>
 
-          <div class="flex gap-2">
-            <UButton
-              v-if="detailPrimaryAction.mode === 'link'"
-              :to="detailPrimaryAction.to"
-              :icon="detailPrimaryAction.icon"
-              :color="detailPrimaryAction.color"
-              :variant="detailPrimaryAction.variant"
-            >
-              {{ detailPrimaryAction.label }}
-            </UButton>
-            <UButton
-              v-else
-              :icon="detailPrimaryAction.icon"
-              :color="detailPrimaryAction.color"
-              :variant="detailPrimaryAction.variant"
-              :loading="detailPrimaryAction.loading"
-              :disabled="detailPrimaryAction.disabled"
-              :to="detailPrimaryAction.to"
-              @click="detailPrimaryAction.onClick?.()"
-            >
-              {{ detailPrimaryAction.label }}
-            </UButton>
-            <UButton
-              v-if="detailSecondaryAction"
-              :to="detailSecondaryAction.to"
-              variant="outline"
-              :icon="detailSecondaryAction.icon"
-            >
-              {{ detailSecondaryAction.label }}
-            </UButton>
-          </div>
+          <UAlert
+            :color="nextStepMeta.color"
+            variant="soft"
+            :title="nextStepMeta.title"
+            :description="nextStepMeta.description"
+          >
+            <template #actions>
+              <div class="flex gap-2">
+                <UButton
+                  size="sm"
+                  :to="nextStepMeta.actionTo"
+                  :color="nextStepMeta.color === 'neutral' ? 'neutral' : 'primary'"
+                  @click="handleNextStepAction(nextStepMeta)"
+                >
+                  {{ nextStepMeta.actionLabel }}
+                </UButton>
+                <UButton
+                  v-if="nextStepMeta.secondaryLabel && nextStepMeta.secondaryTo"
+                  size="sm"
+                  variant="outline"
+                  :to="nextStepMeta.secondaryTo"
+                >
+                  {{ nextStepMeta.secondaryLabel }}
+                </UButton>
+              </div>
+            </template>
+          </UAlert>
         </div>
       </UPageCard>
 
