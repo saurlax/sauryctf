@@ -27,6 +27,7 @@ const (
 	RegistrationModeAutoAccept = "auto_accept"
 	exportAttachmentDir        = "attachments"
 	instanceLeaseDuration      = 30 * time.Minute
+	instanceRenewalWindow      = 10 * time.Minute
 )
 
 type Service struct {
@@ -239,10 +240,14 @@ func buildInstanceResponse(gameID uint, challengeID uint, teamID uint, lease *mo
 	message := "当前实例租约已过期，可以重新启动。"
 	if lease.ExpiresAt.After(now) {
 		status = "running"
-		canRenew = true
 		canStart = false
 		secondsLeft = int(time.Until(lease.ExpiresAt).Seconds())
-		message = fmt.Sprintf("实例运行中，预计还剩 %d 秒。", secondsLeft)
+		if time.Until(lease.ExpiresAt) <= instanceRenewalWindow {
+			canRenew = true
+			message = fmt.Sprintf("实例运行中，预计还剩 %d 秒，当前已经进入可续期窗口。", secondsLeft)
+		} else {
+			message = fmt.Sprintf("实例运行中，预计还剩 %d 秒；需在到期前 %d 分钟内续期。", secondsLeft, int(instanceRenewalWindow/time.Minute))
+		}
 	}
 
 	response.Status = status
@@ -1927,6 +1932,9 @@ func (s *Service) EnsureChallengeInstance(gameID uint, challengeID uint, userID 
 
 	var existingLease *models.GameInstanceLease
 	if !errors.Is(findErr, gorm.ErrRecordNotFound) {
+		if lease.ExpiresAt.After(now) && time.Until(lease.ExpiresAt) > instanceRenewalWindow {
+			return nil, fmt.Errorf("instance renewal is only available within %d minutes before expiry", int(instanceRenewalWindow/time.Minute))
+		}
 		existingLease = &lease
 	}
 	provider := resolveChallengeInstanceProvider(s.instanceProviders, spec.Provider)

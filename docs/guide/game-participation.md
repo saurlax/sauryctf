@@ -198,6 +198,7 @@
   - 会区分模板入口、当前队伍实例、本地 mock 实例
   - 会显示剩余租约时间、续期时间和 15 秒自动同步状态
   - 已经支持在选手侧手动销毁当前队伍实例，便于重置本地 mock 租约
+  - 续期现在会对齐 GZCTF 的最小窗口语义：只有在到期前 10 分钟内才开放
 - 这样做是为了向 GZCTF 的 `ContainerProvider` 模型靠拢
   - 后续可以按 `runtime.provider` 继续接 `docker`、`k8s` 或代理型 provider
   - 当前 `docker`、`k8s`、`proxy` 等名称都会先落到同一套占位 provider

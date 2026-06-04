@@ -1777,7 +1777,7 @@ func TestService_ChallengeInstanceLifecycle_ForAcceptedTeam(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "running", running.Status)
 	assert.False(t, running.CanStart)
-	assert.True(t, running.CanRenew)
+	assert.False(t, running.CanRenew)
 	require.NotNil(t, running.ExpiresAt)
 	assert.Equal(t, "docker", running.Provider)
 	assert.Equal(t, "ctf/example:latest", running.Image)
@@ -1794,6 +1794,74 @@ func TestService_ChallengeInstanceLifecycle_ForAcceptedTeam(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "idle", idleAgain.Status)
 	assert.True(t, idleAgain.CanStart)
+}
+
+func TestService_ChallengeInstanceLifecycle_OnlyRenewsWithinWindow(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	database := svcDB(t, svc)
+
+	user := models.User{Username: "renew-user", Email: "renew@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+
+	team := models.Team{Name: "Renew Team", InviteCode: "renew-team", CaptainID: user.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team.ID,
+		UserID: user.ID,
+		Role:   models.MemberRoleCaptain,
+	}).Error)
+
+	challenge := models.Challenge{
+		Title:         "Renew Window",
+		Category:      models.CategoryWeb,
+		Type:          models.TypeDynamic,
+		Flag:          "flag{renew}",
+		BaseScore:     100,
+		MinScore:      100,
+		DecayRate:     0,
+		IsVisible:     true,
+		CreatedBy:     user.ID,
+		ContainerSpec: `{"runtime":{"provider":"docker","image":"ctf/example:latest"},"connection":{"url":"http://127.0.0.1:8081","note":"renew window"}}`,
+	}
+	require.NoError(t, database.Create(&challenge).Error)
+
+	game := models.Game{
+		Name:         "Renew Window Game",
+		StartTime:    time.Now().Add(-time.Hour),
+		EndTime:      time.Now().Add(time.Hour),
+		Status:       "active",
+		IsPublic:     true,
+		PracticeMode: true,
+		CreatedBy:    user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+	require.NoError(t, database.Create(&models.GameChallenge{
+		GameID: game.ID, ChallengeID: challenge.ID,
+	}).Error)
+	require.NoError(t, database.Create(&models.Participation{
+		GameID: game.ID, TeamID: team.ID, UserID: user.ID, Status: models.ParticipationAccepted,
+	}).Error)
+
+	_, err := svc.EnsureChallengeInstance(game.ID, challenge.ID, user.ID)
+	require.NoError(t, err)
+
+	_, err = svc.EnsureChallengeInstance(game.ID, challenge.ID, user.ID)
+	require.Error(t, err)
+	assert.Equal(t, "instance renewal is only available within 10 minutes before expiry", err.Error())
+
+	var lease models.GameInstanceLease
+	require.NoError(t, database.Where("game_id = ? AND challenge_id = ? AND team_id = ?", game.ID, challenge.ID, team.ID).First(&lease).Error)
+	lease.ExpiresAt = time.Now().Add(5 * time.Minute)
+	require.NoError(t, database.Save(&lease).Error)
+
+	renewed, err := svc.EnsureChallengeInstance(game.ID, challenge.ID, user.ID)
+	require.NoError(t, err)
+	assert.False(t, renewed.CanRenew)
+	require.NotNil(t, renewed.ExpiresAt)
+	assert.True(t, renewed.ExpiresAt.After(time.Now().Add(20 * time.Minute)))
+	assert.Contains(t, renewed.Message, "需在到期前 10 分钟内续期")
 }
 
 func TestService_ChallengeInstanceLifecycle_RendersTemplateFieldsPerTeam(t *testing.T) {

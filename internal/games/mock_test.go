@@ -833,8 +833,8 @@ func (m *MockService) EnsureChallengeInstance(gameID uint, challengeID uint, use
 		ExpiresAt:     &expires,
 		SecondsLeft:   int(time.Until(expires).Seconds()),
 		CanStart:      false,
-		CanRenew:      true,
-		Message:       "实例运行中。",
+		CanRenew:      false,
+		Message:       "实例运行中；需在到期前 10 分钟内续期。",
 	}
 	m.InstanceLeases[key] = result
 	copy := *result

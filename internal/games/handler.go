@@ -468,7 +468,7 @@ func (h *Handler) GetChallengeInstance(c *gin.Context, id int, challengeId int) 
 		switch err.Error() {
 		case "game not found", "challenge not found", "challenge not in this game":
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
-		case "user has no team", "team has not joined this game", "team is not approved for this game yet", "game is not active", "game has not started yet", "game has already ended", "challenge does not support managed instances", "challenge does not define a managed runtime":
+		case "user has no team", "team has not joined this game", "team is not approved for this game yet", "game is not active", "game has not started yet", "game has already ended", "challenge does not support managed instances", "challenge does not define a managed runtime", "instance renewal is only available within 10 minutes before expiry":
 			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})

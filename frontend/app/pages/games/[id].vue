@@ -507,6 +507,15 @@ function getInstanceEntryColor(challenge: GameChallengeDetail) {
   return hasChallengeInstanceTemplate(challenge.container_spec) ? 'info' as const : 'neutral' as const
 }
 
+function getInstancePrimaryActionLabel(challengeId: number) {
+  const state = instanceStates[challengeId]
+  if (state?.status === 'running') {
+    return state.can_renew ? '续期实例' : '等待续期窗口'
+  }
+
+  return '启动实例'
+}
+
 async function syncChallengeInstances() {
   for (const challenge of challenges.value) {
     if (authState.user && supportsManagedInstance(challenge)) {
@@ -1915,6 +1924,15 @@ onMounted(async () => {
                           :description="instanceStates[ch.id]?.message || (hasChallengeInstanceTemplate(ch.container_spec) ? '当前题目支持最小实例租约，并会把模板入口解析成当前队伍可用的独立地址。' : '当前题目支持最小实例租约，启动后会返回当前队伍的运行状态。')"
                         />
 
+                        <UAlert
+                          v-if="instanceStates[ch.id]?.status === 'running' && !instanceStates[ch.id]?.can_renew"
+                          class="mb-3"
+                          color="info"
+                          variant="soft"
+                          title="当前还没到可续期时间"
+                          description="为了贴近 GZCTF 的容器续期语义，当前实例只有在到期前 10 分钟内才开放续期。"
+                        />
+
                         <div class="mb-3 rounded-md border border-default px-3 py-3">
                           <div class="mb-2 flex items-center justify-between gap-3 text-xs text-muted">
                             <span>租约剩余时间</span>
@@ -1964,10 +1982,10 @@ onMounted(async () => {
                             size="sm"
                             icon="i-lucide-play"
                             :loading="instanceStarting[ch.id]"
-                            :disabled="instanceStarting[ch.id] || instanceLoading[ch.id] || instanceDestroying[ch.id] || !authState.user"
+                            :disabled="instanceStarting[ch.id] || instanceLoading[ch.id] || instanceDestroying[ch.id] || !authState.user || (instanceStates[ch.id]?.status === 'running' && !instanceStates[ch.id]?.can_renew)"
                             @click="ensureChallengeInstance(ch.id)"
                           >
-                            {{ instanceStates[ch.id]?.can_renew ? '续期实例' : '启动实例' }}
+                            {{ getInstancePrimaryActionLabel(ch.id) }}
                           </UButton>
                           <UButton
                             v-if="instanceStates[ch.id]?.status === 'running'"
