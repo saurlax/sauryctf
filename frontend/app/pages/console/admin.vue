@@ -694,6 +694,50 @@ function handlePreflightAction(check: { actionTo?: string }) {
   }
 }
 
+function fillSmokeGameTemplate() {
+  const now = new Date()
+  const start = new Date(now.getTime() + 30 * 60 * 1000)
+  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000)
+  const freeze = new Date(end.getTime() - 30 * 60 * 1000)
+  const writeupDeadline = new Date(end.getTime() + 24 * 60 * 60 * 1000)
+
+  gameForm.name = `Smoke Flow ${start.getFullYear()}`
+  gameForm.description = '本地冒烟用最小比赛模板。建议先用它验证报名、题目显示、Flag 提交和排行榜更新。'
+  gameForm.notice = '这是本地联调用的最小模板比赛。先用普通用户走一遍注册、建队、报名和提交流程，再继续补题或调规则。'
+  gameForm.divisions_text = ''
+  gameForm.start_time = start.toISOString().slice(0, 16)
+  gameForm.end_time = end.toISOString().slice(0, 16)
+  gameForm.scoreboard_freeze_at = freeze.toISOString().slice(0, 16)
+  gameForm.registration_mode = 'auto_accept'
+  gameForm.max_team_members = 4
+  gameForm.practice_mode = true
+  gameForm.writeup_required = false
+  gameForm.writeup_deadline = writeupDeadline.toISOString().slice(0, 16)
+  gameForm.is_public = true
+
+  toast.add({ title: '已填充比赛模板', description: '这是适合本地冒烟的最小公开比赛配置。', color: 'success' })
+}
+
+function fillSmokeChallengeTemplate() {
+  challengeForm.title = 'Warmup Flag'
+  challengeForm.description = '这是一个本地冒烟用的最小题目模板。创建后把它挂到比赛里，再用普通用户提交 `flag{warmup}` 验证整条链路。'
+  challengeForm.hints = JSON.stringify([
+    '直接提交标准示例 Flag 即可。',
+    '如果提交失败，优先检查报名状态和比赛是否已开始。',
+  ])
+  challengeForm.attachments = '[]'
+  challengeForm.category = 'misc'
+  challengeForm.type = 'static'
+  challengeForm.difficulty = 'easy'
+  challengeForm.flag = 'flag{warmup}'
+  challengeForm.base_score = 100
+  challengeForm.min_score = 100
+  challengeForm.decay_rate = 0
+  challengeForm.is_visible = true
+
+  toast.add({ title: '已填充题目模板', description: '当前题目适合用来验证最小提交闭环。', color: 'success' })
+}
+
 function selectGameContext(gameId?: number) {
   attachForm.game_id = gameId
   gameSettingsForm.game_id = gameId
@@ -1415,6 +1459,17 @@ onMounted(async () => {
 
       <div class="grid gap-6 xl:grid-cols-2">
         <UPageCard id="create-game" title="创建比赛" icon="i-lucide-trophy">
+          <template #footer>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <p class="text-sm text-muted">
+                可以先填充一个本地冒烟模板，再按需要微调时间、公告和报名规则。
+              </p>
+              <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeGameTemplate">
+                填充冒烟模板
+              </UButton>
+            </div>
+          </template>
+
           <UForm :state="gameForm" class="space-y-4" @submit="createGame">
             <UFormField label="比赛名称" name="name">
               <UInput v-model="gameForm.name" class="w-full" placeholder="例如：Spring CTF 2026" />
@@ -1613,6 +1668,17 @@ onMounted(async () => {
         </UPageCard>
 
         <UPageCard id="create-challenge" title="创建题目" icon="i-lucide-flag">
+          <template #footer>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <p class="text-sm text-muted">
+                冒烟题目会直接填入一个可验证的示例 Flag，适合首次联调排行榜与提交链路。
+              </p>
+              <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeChallengeTemplate">
+                填充冒烟题目
+              </UButton>
+            </div>
+          </template>
+
           <UForm :state="challengeForm" class="space-y-4" @submit="createChallenge">
             <UFormField label="题目名称" name="title">
               <UInput v-model="challengeForm.title" class="w-full" placeholder="例如：Easy XSS" />
