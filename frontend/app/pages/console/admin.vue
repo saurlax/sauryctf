@@ -440,6 +440,19 @@ async function removeChallengeFromGame(challengeId: number) {
   }
 }
 
+function quickEditGame(gameId: number) {
+  gameEditForm.game_id = gameId
+  gameSettingsForm.game_id = gameId
+  attachForm.game_id = gameId
+  toast.add({ title: '已填充比赛管理表单', color: 'info' })
+}
+
+function quickEditChallenge(challengeId: number) {
+  challengeEditForm.challenge_id = challengeId
+  attachForm.challenge_id = challengeId
+  toast.add({ title: '已填充题目管理表单', color: 'info' })
+}
+
 watch(() => challengeEditForm.challenge_id, () => {
   if (!challengeEditForm.challenge_id) {
     challengeEditForm.title = ''
@@ -861,12 +874,37 @@ onMounted(async () => {
                 比赛列表
               </div>
               <div v-if="games.length" class="space-y-2 text-sm">
-                <div v-for="game in games" :key="game.id" class="rounded-lg border border-default px-3 py-2">
-                  <div class="font-medium">
-                    #{{ game.id }} {{ game.name }}
+                <div
+                  v-for="game in games"
+                  :key="game.id"
+                  class="flex items-start justify-between gap-3 rounded-lg border border-default px-3 py-2"
+                >
+                  <div class="min-w-0">
+                    <div class="font-medium">
+                      #{{ game.id }} {{ game.name }}
+                    </div>
+                    <div class="text-muted">
+                      {{ game.status }} · {{ new Date(game.start_time).toLocaleString() }}
+                    </div>
                   </div>
-                  <div class="text-muted">
-                    {{ game.status }} · {{ new Date(game.start_time).toLocaleString() }}
+
+                  <div class="flex shrink-0 gap-2">
+                    <UButton
+                      size="sm"
+                      variant="soft"
+                      icon="i-lucide-pencil-line"
+                      @click="quickEditGame(game.id)"
+                    >
+                      编辑
+                    </UButton>
+                    <UButton
+                      size="sm"
+                      variant="ghost"
+                      icon="i-lucide-arrow-up-right"
+                      :to="`/games/${game.id}`"
+                    >
+                      打开
+                    </UButton>
                   </div>
                 </div>
               </div>
@@ -894,16 +932,26 @@ onMounted(async () => {
                     </div>
                   </div>
 
-                  <UButton
-                    color="error"
-                    variant="soft"
-                    size="sm"
-                    icon="i-lucide-trash-2"
-                    :loading="deletingChallengeId === challenge.id"
-                    @click="deleteChallenge(challenge.id)"
-                  >
-                    删除
-                  </UButton>
+                  <div class="flex shrink-0 gap-2">
+                    <UButton
+                      size="sm"
+                      variant="soft"
+                      icon="i-lucide-pencil-line"
+                      @click="quickEditChallenge(challenge.id)"
+                    >
+                      编辑
+                    </UButton>
+                    <UButton
+                      color="error"
+                      variant="soft"
+                      size="sm"
+                      icon="i-lucide-trash-2"
+                      :loading="deletingChallengeId === challenge.id"
+                      @click="deleteChallenge(challenge.id)"
+                    >
+                      删除
+                    </UButton>
+                  </div>
                 </div>
               </div>
               <div v-else class="text-sm text-muted">
