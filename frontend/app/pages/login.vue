@@ -39,8 +39,8 @@ function resolveRedirect() {
 }
 
 const state = reactive<Partial<LoginSchema>>({
-  username: 'admin',
-  password: 'sauryctf',
+  username: setupStatus.value?.bootstrap_admin_available ? setupStatus.value.default_admin_username || 'admin' : '',
+  password: setupStatus.value?.bootstrap_admin_available ? setupStatus.value.default_admin_password || 'sauryctf' : '',
 })
 </script>
 
