@@ -39,6 +39,8 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - `pnpm smoke:local` now also provisions one minimal dynamic challenge and verifies:
   - `GET /api/games/:id/challenges/:challengeId/instance` returns `idle`
   - `POST /api/games/:id/challenges/:challengeId/instance` returns a running lease
+  - the instance response now includes explicit lease policy minutes for initial lease / extension / renewal window
+  - a freshly started lease is not immediately renewable; local smoke now checks the current GZCTF-style renewal-window gating
   - the returned launch data no longer contains unresolved `{{team_hash}}`-style placeholders
 - `/console/admin` now also exposes a one-click dynamic smoke provision flow:
   - creates one public auto-accept game

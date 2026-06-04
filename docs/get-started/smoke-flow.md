@@ -58,8 +58,9 @@ pnpm smoke:local
 8. 报名比赛
 9. 检查动态题实例初始 `idle` 状态
 10. 启动动态题实例租约，并确认模板入口已解析成当前队伍专属地址
-11. 提交静态题正确 Flag
-12. 以游客身份检查公开榜单
+11. 确认实例响应里已经带回当前 lease policy，并且刚启动时还不能立刻续期
+12. 提交静态题正确 Flag
+13. 以游客身份检查公开榜单
 
 脚本默认请求 `http://127.0.0.1:8080`，也支持覆写参数：
 
@@ -107,6 +108,11 @@ pnpm smoke:local
 - `connection.url = /mock-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}`
 
 当前这一步不会真的起容器，但比赛页会先显示模板入口，启动实例后再显示已经为当前队伍解析好的租约地址，并能直接跳到本地 mock instance 页面。
+
+当前最小动态题冒烟还会顺手确认两件事：
+
+- 实例接口已经返回 `policy.lease_duration_minutes / extension_duration_minutes / renewal_window_minutes`
+- 实例刚启动时不会立刻开放续期；只有进入续期窗口后才允许继续追加租约
 
 ## 选手最小链路
 
