@@ -24,6 +24,27 @@ const features = [
   },
 ]
 
+const firstSteps = [
+  {
+    title: '管理员首次进入',
+    description: '空库首次启动时可直接用 admin / sauryctf 登录，进入控制台创建比赛和题目。',
+    icon: 'i-lucide-shield-check',
+    to: '/login',
+  },
+  {
+    title: '普通选手报名',
+    description: '注册账号后创建或加入队伍，再进入比赛详情页完成报名和提交 Flag。',
+    icon: 'i-lucide-flag',
+    to: '/register',
+  },
+  {
+    title: '直接看比赛列表',
+    description: '公开比赛支持游客先浏览基础信息、题目标题和排行榜，再决定是否参赛。',
+    icon: 'i-lucide-list',
+    to: '/games',
+  },
+]
+
 type HeroLink = {
   label: string
   to: string
@@ -52,9 +73,36 @@ const heroLinks = computed(() => {
   <div>
     <UPageHero
       title="SauryCTF"
-      description="基于 k3s 的现代化 CTF/AWD 竞赛平台"
+      description="基于 Go + Gin + GORM + Nuxt 4 的极简 CTF/AWD 平台，优先打通可真实跑起来的比赛闭环。"
       :links="heroLinks"
-    />
+    >
+      <template #top>
+        <UBadge variant="subtle" color="info">
+          GZCTF 风格演进中
+        </UBadge>
+      </template>
+    </UPageHero>
+
+    <UPageSection title="首次使用" description="第一次把项目跑起来时，按这三个入口最省事。">
+      <UAlert
+        class="mb-6"
+        color="info"
+        variant="soft"
+        title="默认管理员仅在空库初始化"
+        description="只有在 users 表完全为空时，后端启动才会自动创建 admin / sauryctf。数据库里已有任意用户时，不会补建 admin。"
+      />
+
+      <UPageGrid>
+        <UPageCard
+          v-for="step in firstSteps"
+          :key="step.title"
+          :title="step.title"
+          :description="step.description"
+          :icon="step.icon"
+          :to="step.to"
+        />
+      </UPageGrid>
+    </UPageSection>
 
     <UPageSection id="features" title="平台特色" description="为 CTF 竞赛打造的一站式平台">
       <UPageGrid>
@@ -64,6 +112,29 @@ const heroLinks = computed(() => {
           :title="feature.title"
           :description="feature.description"
           :icon="feature.icon"
+        />
+      </UPageGrid>
+    </UPageSection>
+
+    <UPageSection title="推荐本地冒烟顺序" description="先验证管理员链路，再验证选手链路。">
+      <UPageGrid>
+        <UPageCard
+          title="1. 管理员建赛"
+          description="登录 admin，创建公开比赛、创建题目、挂载题目并激活比赛。"
+          icon="i-lucide-settings-2"
+          to="/console/admin"
+        />
+        <UPageCard
+          title="2. 选手参赛"
+          description="注册普通账号，创建队伍，进入比赛页报名并提交一条正确 Flag。"
+          icon="i-lucide-user-round-plus"
+          to="/register"
+        />
+        <UPageCard
+          title="3. 查看排行"
+          description="回到比赛详情页确认题目状态、分数变化和公开排行榜是否同步更新。"
+          icon="i-lucide-trophy"
+          to="/games"
         />
       </UPageGrid>
     </UPageSection>
