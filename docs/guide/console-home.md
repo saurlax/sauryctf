@@ -30,7 +30,7 @@
   - `GET /api/games`
   - `GET /api/games/{id}/participation`
 - 前端保持 Nuxt UI 极简卡片式布局
-- 注册后直达 `/console?onboarding=team` 时，会优先用一条顶部提示把用户带去 `/console/team`
+- 注册后会优先直达 `/console/team?onboarding=created`，避免新用户先落到控制台首页再多点一次
 - 管理员待办当前已经收敛为一个轻量聚合接口：
   - `GET /api/admin/dashboard/summary`
   - 返回最近 5 场比赛、待审核报名、待审 Writeup、最新公告、最近提交与可疑线索摘要

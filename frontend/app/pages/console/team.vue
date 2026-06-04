@@ -53,6 +53,11 @@ const joinInviteFromRoute = computed(() => {
   const invite = route.query.invite
   return typeof invite === 'string' ? invite.trim() : ''
 })
+const onboardingMode = computed(() => {
+  const onboarding = route.query.onboarding
+  return typeof onboarding === 'string' ? onboarding : ''
+})
+const showCreatedOnboarding = computed(() => onboardingMode.value === 'created' && !team.value)
 const contestRedirect = computed(() => resolveRedirect())
 const summaryCards = computed(() => [
   {
@@ -468,6 +473,15 @@ onMounted(async () => {
 
     <template v-else>
       <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1.25fr)_320px]">
+        <div v-if="showCreatedOnboarding" class="xl:col-span-3">
+          <UAlert
+            color="success"
+            variant="soft"
+            icon="i-lucide-circle-check-big"
+            title="账号已经创建完成，下一步先准备队伍"
+            description="你现在已经处于登录状态。CTF 的报名、提 Flag 和排行榜都按队伍进行，所以建议先创建自己的队伍，或者使用邀请码加入现有队伍。"
+          />
+        </div>
         <div v-if="contestRedirect" class="xl:col-span-3">
           <UAlert
             color="info"

@@ -65,9 +65,9 @@ function resolveRedirect() {
     }
   }
   return {
-    path: '/console',
+    path: '/console/team',
     query: {
-      onboarding: 'team',
+      onboarding: 'created',
     },
   }
 }

@@ -106,7 +106,7 @@ pnpm smoke:local
 1. 打开一个新的无痕窗口
 2. 访问 `http://127.0.0.1:3000/register`
 3. 注册一个普通用户
-4. 如果是直接访问注册页，注册成功后会进入 `/console?onboarding=team`
+4. 如果是直接访问注册页，注册成功后会直接进入 `/console/team?onboarding=created`
 5. 进入 `/console/team`
 6. 创建一支新队伍
 7. 返回 `/games`
