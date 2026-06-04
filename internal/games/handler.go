@@ -187,6 +187,59 @@ func (h *Handler) ExportSubmissionsPackage(c *gin.Context, id int) {
 	})
 }
 
+func (h *Handler) ListAnnouncements(c *gin.Context, id int) {
+	announcements, err := h.svc.ListAnnouncements(uint(id))
+	if err != nil {
+		switch err.Error() {
+		case "game not found":
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, announcements)
+}
+
+func (h *Handler) CreateAnnouncement(c *gin.Context, id int) {
+	var req CreateGameAnnouncementRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+
+	userID := c.MustGet("user_id").(uint)
+	announcement, err := h.svc.CreateAnnouncement(uint(id), userID, req)
+	if err != nil {
+		switch err.Error() {
+		case "game not found":
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		case "announcement content is required":
+			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusCreated, announcement)
+}
+
+func (h *Handler) DeleteAnnouncement(c *gin.Context, id int, announcementId int) {
+	if err := h.svc.DeleteAnnouncement(uint(id), uint(announcementId)); err != nil {
+		switch err.Error() {
+		case "announcement not found":
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
+}
+
 func (h *Handler) ListSubmissionRecords(c *gin.Context, id int) {
 	limit := 100
 	if value := c.Query("count"); value != "" {

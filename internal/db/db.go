@@ -51,6 +51,7 @@ func Migrate(db *gorm.DB) error {
 		&models.Game{},
 		&models.GameChallenge{},
 		&models.Participation{},
+		&models.GameAnnouncement{},
 		&models.GameWriteup{},
 		&models.GameSubmission{},
 	)
@@ -60,6 +61,7 @@ func Migrate(db *gorm.DB) error {
 // Works with both SQLite and PostgreSQL.
 func CleanTables(db *gorm.DB) {
 	db.Exec("DELETE FROM participations")
+	db.Exec("DELETE FROM game_announcements")
 	db.Exec("DELETE FROM game_writeups")
 	db.Exec("DELETE FROM game_submissions")
 	db.Exec("DELETE FROM solves")

@@ -101,6 +101,10 @@ const submissionFilters = reactive({
   count: 50,
 })
 
+const announcementForm = reactive({
+  content: '',
+})
+
 const gameSubmitting = ref(false)
 const challengeSubmitting = ref(false)
 const attachSubmitting = ref(false)
@@ -113,8 +117,11 @@ const loadingGameChallenges = ref(false)
 const loadingParticipants = ref(false)
 const loadingSubmissions = ref(false)
 const loadingCheatClues = ref(false)
+const loadingAnnouncements = ref(false)
+const announcementSubmitting = ref(false)
 const updatingParticipantId = ref<number | null>(null)
 const removingParticipantId = ref<number | null>(null)
+const deletingAnnouncementId = ref<number | null>(null)
 const removingChallengeId = ref<number | null>(null)
 const deletingGameId = ref<number | null>(null)
 const exportingGameId = ref<number | null>(null)
@@ -216,6 +223,13 @@ const cheatClues = ref<Array<{
   team_count: number
   submission_count: number
   teams: string[]
+}>>([])
+const announcements = ref<Array<{
+  id: number
+  game_id: number
+  content: string
+  created_by: number
+  created_at: string
 }>>([])
 type AdminGameSummary = (typeof games.value)[number]
 
@@ -610,12 +624,33 @@ async function loadCheatClues() {
   }
 }
 
+async function loadAnnouncements() {
+  if (!attachForm.game_id) {
+    announcements.value = []
+    return
+  }
+
+  loadingAnnouncements.value = true
+  try {
+    announcements.value = await $fetch<typeof announcements.value>(`/api/admin/games/${attachForm.game_id}/announcements`)
+  }
+  catch (e: any) {
+    announcements.value = []
+    toast.add({ title: '比赛公告加载失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    loadingAnnouncements.value = false
+  }
+}
+
 function resetSelectedGameContext() {
   selectedGameChallenges.value = []
   participants.value = []
   writeups.value = []
   submissions.value = []
   cheatClues.value = []
+  announcements.value = []
+  announcementForm.content = ''
 
   for (const key of Object.keys(participantStatusDrafts)) {
     delete participantStatusDrafts[Number(key)]
@@ -628,6 +663,58 @@ function resetSelectedGameContext() {
   }
   for (const key of Object.keys(writeupRemarkDrafts)) {
     delete writeupRemarkDrafts[Number(key)]
+  }
+}
+
+async function createAnnouncement() {
+  if (!attachForm.game_id) {
+    return
+  }
+
+  announcementSubmitting.value = true
+  try {
+    const created = await $fetch<(typeof announcements.value)[number]>(`/api/admin/games/${attachForm.game_id}/announcements`, {
+      method: 'POST',
+      body: {
+        content: announcementForm.content,
+      },
+    })
+    announcements.value = [created, ...announcements.value]
+    announcementForm.content = ''
+    toast.add({ title: '比赛公告已发布', color: 'success' })
+  }
+  catch (e: any) {
+    toast.add({ title: '发布比赛公告失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    announcementSubmitting.value = false
+  }
+}
+
+async function deleteAnnouncement(announcementId: number) {
+  if (!attachForm.game_id) {
+    return
+  }
+
+  const target = announcements.value.find(item => item.id === announcementId)
+  const confirmed = window.confirm(`确认删除这条公告吗？\n\n${target?.content || ''}`)
+  if (!confirmed) {
+    return
+  }
+
+  deletingAnnouncementId.value = announcementId
+  try {
+    await $fetch(`/api/admin/games/${attachForm.game_id}/announcements/${announcementId}`, {
+      method: 'DELETE',
+    })
+    announcements.value = announcements.value.filter(item => item.id !== announcementId)
+    toast.add({ title: '比赛公告已删除', color: 'success' })
+  }
+  catch (e: any) {
+    toast.add({ title: '删除比赛公告失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    deletingAnnouncementId.value = null
   }
 }
 
@@ -1671,6 +1758,7 @@ watch(() => attachForm.game_id, async () => {
   await loadWriteups()
   await loadSubmissions()
   await loadCheatClues()
+  await loadAnnouncements()
 })
 
 watch(() => [submissionFilters.type, submissionFilters.count], async () => {
@@ -2596,6 +2684,75 @@ onMounted(async () => {
 
             <div v-else-if="selectedGame" class="text-sm text-muted">
               这场比赛还没有队伍提交 Writeup。
+            </div>
+          </UPageCard>
+
+          <UPageCard title="比赛公告" icon="i-lucide-megaphone">
+            <div v-if="selectedGame" class="mb-3 text-sm text-muted">
+              {{ selectedGame.name }} · {{ loadingAnnouncements ? '正在加载公告...' : `${announcements.length} 条公告` }}
+            </div>
+            <div v-else class="text-sm text-muted">
+              先选择比赛，再为当前比赛发布公告。
+            </div>
+
+            <div v-if="selectedGame" class="space-y-4">
+              <UForm :state="announcementForm" class="space-y-3" @submit="createAnnouncement">
+                <UFormField
+                  label="公告内容"
+                  name="content"
+                  description="适合发布开赛提醒、规则补充、实例维护通知或 Writeup 截止提醒。"
+                >
+                  <UTextarea
+                    v-model="announcementForm.content"
+                    class="w-full"
+                    :rows="4"
+                    placeholder="例如：平台将在 10 分钟后开放，请提前确认队伍成员与网络环境。"
+                  />
+                </UFormField>
+
+                <div class="flex justify-end">
+                  <UButton
+                    type="submit"
+                    icon="i-lucide-send"
+                    :loading="announcementSubmitting"
+                  >
+                    发布公告
+                  </UButton>
+                </div>
+              </UForm>
+
+              <div v-if="announcements.length" class="space-y-2">
+                <div
+                  v-for="announcement in announcements"
+                  :key="announcement.id"
+                  class="rounded-lg border border-default px-3 py-3 text-sm"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1">
+                      <div class="text-muted text-xs">
+                        {{ new Date(announcement.created_at).toLocaleString() }}
+                      </div>
+                      <div class="mt-2 whitespace-pre-wrap leading-6">
+                        {{ announcement.content }}
+                      </div>
+                    </div>
+                    <UButton
+                      color="error"
+                      variant="soft"
+                      size="sm"
+                      icon="i-lucide-trash-2"
+                      :loading="deletingAnnouncementId === announcement.id"
+                      @click="deleteAnnouncement(announcement.id)"
+                    >
+                      删除
+                    </UButton>
+                  </div>
+                </div>
+              </div>
+
+              <div v-else-if="!loadingAnnouncements" class="text-sm text-muted">
+                当前还没有比赛公告。
+              </div>
             </div>
           </UPageCard>
 

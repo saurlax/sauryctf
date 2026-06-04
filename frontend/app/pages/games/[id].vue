@@ -24,6 +24,13 @@ const selectedDivision = ref('')
 const availableDivisions = ref<string[]>([])
 const participation = ref<GameParticipation | null>(null)
 const writeup = ref<GameWriteupView | null>(null)
+const announcements = ref<Array<{
+  id: number
+  game_id: number
+  content: string
+  created_by: number
+  created_at: string
+}>>([])
 const loading = ref(true)
 const participationLoading = ref(false)
 const joining = ref(false)
@@ -62,6 +69,7 @@ async function fetchAll() {
   try {
     const gameRequest = $api('get', '/api/games/{id}', { params: { id: Number(gameId) } })
     const challengesRequest = $api('get', '/api/games/{id}/challenges', { params: { id: Number(gameId) } })
+    const announcementsRequest = $fetch<typeof announcements.value>(`/api/games/${gameId}/announcements`)
     const participationRequest = authState.user
       ? $api('get', '/api/games/{id}/participation', { params: { id: Number(gameId) } })
       : Promise.resolve(null)
@@ -69,14 +77,16 @@ async function fetchAll() {
       ? $api('get', '/api/games/{id}/writeup', { params: { id: Number(gameId) } })
       : Promise.resolve(null)
 
-    const [gameRes, challengesRes, participationRes] = await Promise.all([
+    const [gameRes, challengesRes, announcementsRes, participationRes] = await Promise.all([
       gameRequest,
       challengesRequest,
+      announcementsRequest,
       participationRequest,
     ])
     const writeupRes = await writeupRequest
     game.value = gameRes
     challenges.value = challengesRes
+    announcements.value = announcementsRes
     participation.value = participationRes
     availableDivisions.value = gameRes.divisions || []
     if (selectedDivision.value && !availableDivisions.value.includes(selectedDivision.value)) {
@@ -1329,6 +1339,30 @@ onMounted(async () => {
                 title="比赛公告"
                 :description="game.notice"
               />
+
+              <div
+                v-if="announcements.length"
+                class="rounded-lg border border-default bg-muted/40 p-4"
+              >
+                <div class="mb-3 flex items-center gap-2 font-medium">
+                  <UIcon name="i-lucide-megaphone" class="size-4 text-info" />
+                  <span>赛时通知</span>
+                </div>
+                <div class="space-y-3">
+                  <div
+                    v-for="announcement in announcements"
+                    :key="announcement.id"
+                    class="rounded-lg border border-default bg-default px-3 py-3"
+                  >
+                    <div class="text-xs text-muted">
+                      {{ new Date(announcement.created_at).toLocaleString() }}
+                    </div>
+                    <div class="mt-2 whitespace-pre-wrap leading-6">
+                      {{ announcement.content }}
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               <div class="rounded-lg border border-default bg-muted/40 p-4">
                 <p class="mb-3 font-medium">

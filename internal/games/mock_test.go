@@ -22,6 +22,7 @@ type MockService struct {
 	Writeups         map[string]*GameWriteupResponse
 	Submissions      map[uint][]GameSubmissionRecord
 	CheatClues       map[uint][]GameSubmissionCheatClue
+	Announcements    map[uint][]GameAnnouncementResponse
 	nextID           uint
 }
 
@@ -35,6 +36,7 @@ func NewMockService() *MockService {
 		Writeups:         make(map[string]*GameWriteupResponse),
 		Submissions:      make(map[uint][]GameSubmissionRecord),
 		CheatClues:       make(map[uint][]GameSubmissionCheatClue),
+		Announcements:    make(map[uint][]GameAnnouncementResponse),
 		nextID:           1,
 	}
 }
@@ -214,6 +216,7 @@ func (m *MockService) DeleteGame(id uint) error {
 	delete(m.ChallengesByGame, id)
 	delete(m.Submissions, id)
 	delete(m.CheatClues, id)
+	delete(m.Announcements, id)
 	prefix := fmt.Sprintf("%d-", id)
 	for key := range m.Participations {
 		if strings.HasPrefix(key, prefix) {
@@ -473,6 +476,56 @@ func (m *MockService) ListSubmissionCheatClues(gameID uint, limit int) ([]GameSu
 		items = items[:limit]
 	}
 	return items, nil
+}
+
+func (m *MockService) ListAnnouncements(gameID uint) ([]GameAnnouncementResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.Games[gameID]; !ok {
+		return nil, fmt.Errorf("game not found")
+	}
+
+	return append([]GameAnnouncementResponse(nil), m.Announcements[gameID]...), nil
+}
+
+func (m *MockService) CreateAnnouncement(gameID uint, createdBy uint, req CreateGameAnnouncementRequest) (*GameAnnouncementResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.Games[gameID]; !ok {
+		return nil, fmt.Errorf("game not found")
+	}
+
+	content := strings.TrimSpace(req.Content)
+	if content == "" {
+		return nil, fmt.Errorf("announcement content is required")
+	}
+
+	announcement := GameAnnouncementResponse{
+		ID:        uint(len(m.Announcements[gameID]) + 1),
+		GameID:    gameID,
+		Content:   content,
+		CreatedBy: createdBy,
+		CreatedAt: time.Now(),
+	}
+	m.Announcements[gameID] = append([]GameAnnouncementResponse{announcement}, m.Announcements[gameID]...)
+	return &announcement, nil
+}
+
+func (m *MockService) DeleteAnnouncement(gameID uint, announcementID uint) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	items := m.Announcements[gameID]
+	for index, item := range items {
+		if item.ID == announcementID {
+			m.Announcements[gameID] = append(items[:index], items[index+1:]...)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("announcement not found")
 }
 
 func (m *MockService) ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error) {

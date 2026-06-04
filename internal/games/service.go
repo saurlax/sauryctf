@@ -756,6 +756,81 @@ func (s *Service) ExportSubmissionsPackage(id uint) ([]byte, string, error) {
 	return archive.Bytes(), filename, nil
 }
 
+func (s *Service) ListAnnouncements(gameID uint) ([]GameAnnouncementResponse, error) {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("game not found")
+		}
+		return nil, err
+	}
+
+	var rows []models.GameAnnouncement
+	if err := s.db.
+		Where("game_id = ?", gameID).
+		Order("created_at DESC, id DESC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	result := make([]GameAnnouncementResponse, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, GameAnnouncementResponse{
+			ID:        row.ID,
+			GameID:    row.GameID,
+			Content:   row.Content,
+			CreatedBy: row.CreatedBy,
+			CreatedAt: row.CreatedAt,
+		})
+	}
+
+	return result, nil
+}
+
+func (s *Service) CreateAnnouncement(gameID uint, createdBy uint, req CreateGameAnnouncementRequest) (*GameAnnouncementResponse, error) {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("game not found")
+		}
+		return nil, err
+	}
+
+	content, err := normalizeAnnouncementContent(req.Content)
+	if err != nil {
+		return nil, err
+	}
+
+	announcement := models.GameAnnouncement{
+		GameID:    gameID,
+		Content:   content,
+		CreatedBy: createdBy,
+	}
+	if err := s.db.Create(&announcement).Error; err != nil {
+		return nil, err
+	}
+
+	return &GameAnnouncementResponse{
+		ID:        announcement.ID,
+		GameID:    announcement.GameID,
+		Content:   announcement.Content,
+		CreatedBy: announcement.CreatedBy,
+		CreatedAt: announcement.CreatedAt,
+	}, nil
+}
+
+func (s *Service) DeleteAnnouncement(gameID uint, announcementID uint) error {
+	var announcement models.GameAnnouncement
+	if err := s.db.Where("game_id = ? AND id = ?", gameID, announcementID).First(&announcement).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("announcement not found")
+		}
+		return err
+	}
+
+	return s.db.Delete(&announcement).Error
+}
+
 func (s *Service) ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error) {
 	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
@@ -1771,6 +1846,14 @@ func normalizeSubmissionLimit(limit int) int {
 		return 500
 	}
 	return limit
+}
+
+func normalizeAnnouncementContent(content string) (string, error) {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return "", errors.New("announcement content is required")
+	}
+	return content, nil
 }
 
 func parseSubmissionAggregateTime(value string) (time.Time, error) {

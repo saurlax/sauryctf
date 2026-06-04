@@ -772,6 +772,40 @@ func TestService_ListSubmissionCheatClues_GroupsSharedWrongFlagsAcrossTeams(t *t
 	assert.ElementsMatch(t, []string{"Team One", "Team Two"}, clues[0].Teams)
 }
 
+func TestService_AnnouncementCRUD(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, _, _, _ := createGameChallengeFixture(t, database)
+
+	first, err := svc.CreateAnnouncement(gameID, 1, games.CreateGameAnnouncementRequest{
+		Content: "比赛将在 15 分钟后开放平台。",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "比赛将在 15 分钟后开放平台。", first.Content)
+
+	second, err := svc.CreateAnnouncement(gameID, 1, games.CreateGameAnnouncementRequest{
+		Content: "请勿共享 Flag 或队伍账号。",
+	})
+	require.NoError(t, err)
+
+	items, err := svc.ListAnnouncements(gameID)
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+	assert.Equal(t, second.ID, items[0].ID)
+	assert.Equal(t, first.ID, items[1].ID)
+
+	require.NoError(t, svc.DeleteAnnouncement(gameID, first.ID))
+
+	items, err = svc.ListAnnouncements(gameID)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, second.ID, items[0].ID)
+}
+
 func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {
 	database, err := db.ConnectTest()
 	require.NoError(t, err)

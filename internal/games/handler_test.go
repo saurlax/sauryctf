@@ -70,6 +70,22 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 		fmt.Sscan(c.Param("id"), &id)
 		h.ExportSubmissionsPackage(c, id)
 	})
+	api.GET("/admin/games/:id/announcements", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.ListAnnouncements(c, id)
+	})
+	api.POST("/admin/games/:id/announcements", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.CreateAnnouncement(c, id)
+	})
+	api.DELETE("/admin/games/:id/announcements/:announcementId", func(c *gin.Context) {
+		var id, announcementId int
+		fmt.Sscan(c.Param("id"), &id)
+		fmt.Sscan(c.Param("announcementId"), &announcementId)
+		h.DeleteAnnouncement(c, id, announcementId)
+	})
 	api.GET("/admin/games/:id/submissions", func(c *gin.Context) {
 		var id int
 		fmt.Sscan(c.Param("id"), &id)
@@ -745,6 +761,75 @@ func TestListSubmissionCheatClues_Success(t *testing.T) {
 	assert.Len(t, response, 1)
 	assert.Equal(t, "test-flag", response[0]["submitted_flag"])
 	assert.Equal(t, float64(2), response[0]["team_count"])
+}
+
+func TestCreateAnnouncement_Success(t *testing.T) {
+	svc := games.NewMockService()
+	r := setupTestRouter(svc)
+
+	public := true
+	_, _ = svc.CreateGame(games.CreateGameRequest{
+		Name: "Announcement Game", StartTime: time.Now(), EndTime: time.Now().Add(time.Hour), IsPublic: &public,
+	}, 1)
+
+	body := map[string]any{"content": "比赛将在 10 分钟后开始，请提前检查网络。"}
+	b, _ := json.Marshal(body)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/admin/games/1/announcements", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var response map[string]any
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "比赛将在 10 分钟后开始，请提前检查网络。", response["content"])
+}
+
+func TestListAnnouncements_Success(t *testing.T) {
+	svc := games.NewMockService()
+	r := setupTestRouter(svc)
+
+	public := true
+	_, _ = svc.CreateGame(games.CreateGameRequest{
+		Name: "Announcement Game", StartTime: time.Now(), EndTime: time.Now().Add(time.Hour), IsPublic: &public,
+	}, 1)
+	svc.Announcements[1] = []games.GameAnnouncementResponse{
+		{ID: 2, GameID: 1, Content: "第二条公告", CreatedBy: 1, CreatedAt: time.Now()},
+		{ID: 1, GameID: 1, Content: "第一条公告", CreatedBy: 1, CreatedAt: time.Now().Add(-time.Minute)},
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/admin/games/1/announcements", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response []map[string]any
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Len(t, response, 2)
+	assert.Equal(t, "第二条公告", response[0]["content"])
+}
+
+func TestDeleteAnnouncement_Success(t *testing.T) {
+	svc := games.NewMockService()
+	r := setupTestRouter(svc)
+
+	public := true
+	_, _ = svc.CreateGame(games.CreateGameRequest{
+		Name: "Announcement Game", StartTime: time.Now(), EndTime: time.Now().Add(time.Hour), IsPublic: &public,
+	}, 1)
+	svc.Announcements[1] = []games.GameAnnouncementResponse{
+		{ID: 1, GameID: 1, Content: "待删除公告", CreatedBy: 1, CreatedAt: time.Now()},
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("DELETE", "/api/admin/games/1/announcements/1", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, svc.Announcements[1])
 }
 
 func TestImportGamePackage_Success(t *testing.T) {

@@ -23,11 +23,12 @@ func NewServer(db *gorm.DB, jwtSecret string) *gin.Engine {
 
 	// 初始化各模块服务和 handler
 	authSvc := auth.NewService(db, jwtSecret)
+	gameSvc := games.NewService(db)
 	handler := NewHandler(
 		auth.NewHandler(authSvc),
 		teams.NewHandler(teams.NewService(db)),
 		challenges.NewHandler(challenges.NewService(db)),
-		games.NewHandler(games.NewService(db)),
+		games.NewHandler(gameSvc),
 	)
 
 	// 使用 oapi-codegen 生成的 RegisterHandlersWithOptions 注册路由，
@@ -57,11 +58,33 @@ func NewServer(db *gorm.DB, jwtSecret string) *gin.Engine {
 	admin.POST("/games/:id/submissions/export", func(c *gin.Context) {
 		handler.games.ExportSubmissionsPackage(c, mustIntParam(c, "id"))
 	})
+	admin.GET("/games/:id/announcements", func(c *gin.Context) {
+		handler.games.ListAnnouncements(c, mustIntParam(c, "id"))
+	})
+	admin.POST("/games/:id/announcements", func(c *gin.Context) {
+		handler.games.CreateAnnouncement(c, mustIntParam(c, "id"))
+	})
+	admin.DELETE("/games/:id/announcements/:announcementId", func(c *gin.Context) {
+		handler.games.DeleteAnnouncement(c, mustIntParam(c, "id"), mustIntParam(c, "announcementId"))
+	})
 	admin.GET("/games/:id/submissions", func(c *gin.Context) {
 		handler.games.ListSubmissionRecords(c, mustIntParam(c, "id"))
 	})
 	admin.GET("/games/:id/cheat-clues", func(c *gin.Context) {
 		handler.games.ListSubmissionCheatClues(c, mustIntParam(c, "id"))
+	})
+
+	engine.GET("/api/games/:id/announcements", func(c *gin.Context) {
+		id := mustIntParam(c, "id")
+		if _, err := gameSvc.GetPublicGame(uint(id)); err != nil {
+			if err.Error() == "game not found" {
+				c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+			return
+		}
+		handler.games.ListAnnouncements(c, id)
 	})
 
 	return engine
