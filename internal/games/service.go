@@ -2037,6 +2037,21 @@ func (s *Service) DestroyChallengeInstance(gameID uint, challengeID uint, userID
 		return nil, err
 	}
 
+	provider := resolveChallengeInstanceProvider(s.instanceProviders, spec.Provider)
+	if err := provider.DestroyLease(ChallengeInstanceProviderRequest{
+		GameID:            gameID,
+		ChallengeID:       challengeID,
+		TeamID:            participation.TeamID,
+		UserID:            userID,
+		Now:               time.Now(),
+		LeaseDuration:     s.instancePolicy.LeaseDuration,
+		ExtensionDuration: s.instancePolicy.ExtensionDuration,
+		Runtime:           toChallengeInstanceRuntimeSpec(spec),
+		Existing:          &lease,
+	}); err != nil {
+		return nil, err
+	}
+
 	if err := s.db.Delete(&lease).Error; err != nil {
 		return nil, err
 	}

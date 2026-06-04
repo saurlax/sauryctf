@@ -49,6 +49,7 @@ type ChallengeInstanceLeaseState struct {
 
 type ChallengeInstanceProvider interface {
 	EnsureLease(req ChallengeInstanceProviderRequest) (*ChallengeInstanceLeaseState, error)
+	DestroyLease(req ChallengeInstanceProviderRequest) error
 }
 
 type InstancePolicy struct {

@@ -75,6 +75,10 @@ func (p *leaseSkeletonProvider) EnsureLease(req ChallengeInstanceProviderRequest
 	}, nil
 }
 
+func (p *leaseSkeletonProvider) DestroyLease(req ChallengeInstanceProviderRequest) error {
+	return nil
+}
+
 func templateChallengeInstanceValue(input string, req ChallengeInstanceProviderRequest) string {
 	source := strings.TrimSpace(input)
 	if source == "" {

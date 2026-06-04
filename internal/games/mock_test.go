@@ -853,6 +853,10 @@ func (m *MockService) EnsureChallengeInstance(gameID uint, challengeID uint, use
 	return &copy, nil
 }
 
+func (m *MockService) DestroyLease(req ChallengeInstanceProviderRequest) error {
+	return nil
+}
+
 func (m *MockService) DestroyChallengeInstance(gameID uint, challengeID uint, userID uint) (*ChallengeInstanceResponse, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

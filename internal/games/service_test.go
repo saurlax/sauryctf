@@ -26,8 +26,10 @@ import (
 var lastTestDB *gorm.DB
 
 type testInstanceProvider struct {
-	called int
-	state  *games.ChallengeInstanceLeaseState
+	called        int
+	destroyCalled int
+	state         *games.ChallengeInstanceLeaseState
+	destroyErr    error
 }
 
 func (p *testInstanceProvider) EnsureLease(req games.ChallengeInstanceProviderRequest) (*games.ChallengeInstanceLeaseState, error) {
@@ -49,6 +51,11 @@ func (p *testInstanceProvider) EnsureLease(req games.ChallengeInstanceProviderRe
 		LastRenewedAt: req.Now,
 		ExpiresAt:     req.Now.Add(req.LeaseDuration),
 	}, nil
+}
+
+func (p *testInstanceProvider) DestroyLease(req games.ChallengeInstanceProviderRequest) error {
+	p.destroyCalled++
+	return p.destroyErr
 }
 
 func setupService(t *testing.T) (*games.Service, func()) {
@@ -2159,6 +2166,146 @@ func TestService_ChallengeInstanceLifecycle_UsesCustomProvider(t *testing.T) {
 	assert.Equal(t, "instance.local", running.Host)
 	assert.Equal(t, "443", running.Port)
 	assert.Equal(t, "custom provider note", running.Note)
+}
+
+func TestService_ChallengeInstanceLifecycle_DestroyUsesProvider(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	lastTestDB = database
+	db.CleanTables(database)
+
+	provider := &testInstanceProvider{}
+	svc := games.NewServiceWithOptions(database, map[string]games.ChallengeInstanceProvider{
+		"custom": provider,
+	}, games.InstancePolicy{})
+
+	user := models.User{Username: "destroy-user", Email: "destroy@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+
+	team := models.Team{Name: "Destroy Team", InviteCode: "destroy-team", CaptainID: user.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team.ID,
+		UserID: user.ID,
+		Role:   models.MemberRoleCaptain,
+	}).Error)
+
+	challenge := models.Challenge{
+		Title:         "Destroy Lease",
+		Category:      models.CategoryWeb,
+		Type:          models.TypeDynamic,
+		Flag:          "flag{destroy}",
+		BaseScore:     100,
+		MinScore:      100,
+		DecayRate:     0,
+		IsVisible:     true,
+		CreatedBy:     user.ID,
+		ContainerSpec: `{"runtime":{"provider":"custom","image":"ctf/custom:1.0"},"connection":{"url":"https://placeholder.local"}}`,
+	}
+	require.NoError(t, database.Create(&challenge).Error)
+
+	game := models.Game{
+		Name:         "Destroy Game",
+		StartTime:    time.Now().Add(-time.Hour),
+		EndTime:      time.Now().Add(time.Hour),
+		Status:       "active",
+		IsPublic:     true,
+		PracticeMode: true,
+		CreatedBy:    user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+	require.NoError(t, database.Create(&models.GameChallenge{
+		GameID: game.ID, ChallengeID: challenge.ID,
+	}).Error)
+	require.NoError(t, database.Create(&models.Participation{
+		GameID: game.ID, TeamID: team.ID, UserID: user.ID, Status: models.ParticipationAccepted,
+	}).Error)
+
+	_, err = svc.EnsureChallengeInstance(game.ID, challenge.ID, user.ID)
+	require.NoError(t, err)
+
+	destroyed, err := svc.DestroyChallengeInstance(game.ID, challenge.ID, user.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, provider.destroyCalled)
+	assert.Equal(t, "idle", destroyed.Status)
+
+	var leaseCount int64
+	require.NoError(t, database.Model(&models.GameInstanceLease{}).
+		Where("game_id = ? AND challenge_id = ? AND team_id = ?", game.ID, challenge.ID, team.ID).
+		Count(&leaseCount).Error)
+	assert.Equal(t, int64(0), leaseCount)
+}
+
+func TestService_ChallengeInstanceLifecycle_DestroyPropagatesProviderError(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	lastTestDB = database
+	db.CleanTables(database)
+
+	provider := &testInstanceProvider{
+		destroyErr: fmt.Errorf("provider destroy failed"),
+	}
+	svc := games.NewServiceWithOptions(database, map[string]games.ChallengeInstanceProvider{
+		"custom": provider,
+	}, games.InstancePolicy{})
+
+	user := models.User{Username: "destroy-fail-user", Email: "destroy-fail@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+
+	team := models.Team{Name: "Destroy Fail Team", InviteCode: "destroy-fail-team", CaptainID: user.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team.ID,
+		UserID: user.ID,
+		Role:   models.MemberRoleCaptain,
+	}).Error)
+
+	challenge := models.Challenge{
+		Title:         "Destroy Lease Fail",
+		Category:      models.CategoryWeb,
+		Type:          models.TypeDynamic,
+		Flag:          "flag{destroy-fail}",
+		BaseScore:     100,
+		MinScore:      100,
+		DecayRate:     0,
+		IsVisible:     true,
+		CreatedBy:     user.ID,
+		ContainerSpec: `{"runtime":{"provider":"custom","image":"ctf/custom:1.0"},"connection":{"url":"https://placeholder.local"}}`,
+	}
+	require.NoError(t, database.Create(&challenge).Error)
+
+	game := models.Game{
+		Name:         "Destroy Fail Game",
+		StartTime:    time.Now().Add(-time.Hour),
+		EndTime:      time.Now().Add(time.Hour),
+		Status:       "active",
+		IsPublic:     true,
+		PracticeMode: true,
+		CreatedBy:    user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+	require.NoError(t, database.Create(&models.GameChallenge{
+		GameID: game.ID, ChallengeID: challenge.ID,
+	}).Error)
+	require.NoError(t, database.Create(&models.Participation{
+		GameID: game.ID, TeamID: team.ID, UserID: user.ID, Status: models.ParticipationAccepted,
+	}).Error)
+
+	_, err = svc.EnsureChallengeInstance(game.ID, challenge.ID, user.ID)
+	require.NoError(t, err)
+
+	_, err = svc.DestroyChallengeInstance(game.ID, challenge.ID, user.ID)
+	require.Error(t, err)
+	assert.Equal(t, "provider destroy failed", err.Error())
+	assert.Equal(t, 1, provider.destroyCalled)
+
+	var leaseCount int64
+	require.NoError(t, database.Model(&models.GameInstanceLease{}).
+		Where("game_id = ? AND challenge_id = ? AND team_id = ?", game.ID, challenge.ID, team.ID).
+		Count(&leaseCount).Error)
+	assert.Equal(t, int64(1), leaseCount)
 }
 
 func svcDB(t *testing.T, svc *games.Service) *gorm.DB {
