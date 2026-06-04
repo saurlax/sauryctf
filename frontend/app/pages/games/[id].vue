@@ -11,7 +11,7 @@ type GameWriteupView = components['schemas']['GameWriteup']
 const route = useRoute()
 const toast = useToast()
 const { authState, ensureInitialized } = useAuth()
-const { resolveParticipationHints } = usePublicGameParticipationState()
+const { resolveParticipationHints, resolveParticipationMeta } = usePublicGameParticipationState()
 const isAdmin = computed(() => ['admin', 'super_admin'].includes(authState.user?.role || ''))
 
 const game = ref<Game | null>(null)
@@ -372,6 +372,15 @@ const publicParticipationHints = computed(() => resolveParticipationHints({
   maxTeamMembers: game.value?.max_team_members,
 }))
 
+const participationMeta = computed(() => resolveParticipationMeta({
+  gameId: Number(gameId),
+  gamePhase: publicGamePhase.value,
+  isLoggedIn: !!authState.user,
+  participation: participation.value,
+  registrationMode: game.value?.registration_mode,
+  maxTeamMembers: game.value?.max_team_members,
+}))
+
 const participationHint = computed(() => {
   if (participation.value?.participated && canLeaveGame.value) {
     return {
@@ -391,6 +400,83 @@ const participationHint = computed(() => {
 const submitHint = computed(() => publicParticipationHints.value.submitHint)
 
 const challengeVisibilityHint = computed(() => publicParticipationHints.value.visibilityHint)
+
+const detailPrimaryAction = computed(() => {
+  if (!authState.user) {
+    return {
+      mode: 'link' as const,
+      label: participationMeta.value.actionLabel,
+      to: '/login',
+      icon: 'i-lucide-log-in',
+      color: 'primary' as const,
+      variant: 'solid' as const,
+    }
+  }
+
+  if (participation.value?.has_team && !participation.value?.participated) {
+    return {
+      mode: 'button' as const,
+      label: '报名比赛',
+      icon: 'i-lucide-badge-plus',
+      color: 'primary' as const,
+      variant: 'solid' as const,
+      loading: joining.value,
+      disabled: !canJoinGame.value,
+      onClick: joinGame,
+    }
+  }
+
+  if (participation.value?.participated) {
+    return {
+      mode: 'button' as const,
+      label: canLeaveGame.value ? '退出比赛' : participationMeta.value.actionLabel,
+      icon: canLeaveGame.value ? 'i-lucide-log-out' : 'i-lucide-arrow-right',
+      color: canLeaveGame.value ? 'error' as const : 'primary' as const,
+      variant: canLeaveGame.value ? 'outline' as const : 'solid' as const,
+      loading: canLeaveGame.value ? leaving.value : false,
+      disabled: canLeaveGame.value ? !canLeaveGame.value : false,
+      onClick: canLeaveGame.value ? leaveGame : undefined,
+      to: canLeaveGame.value ? undefined : participationMeta.value.actionTo,
+    }
+  }
+
+  return {
+    mode: 'link' as const,
+    label: participationMeta.value.actionLabel,
+    to: participationMeta.value.actionTo,
+    icon: 'i-lucide-arrow-right',
+    color: 'primary' as const,
+    variant: 'solid' as const,
+  }
+})
+
+const detailSecondaryAction = computed(() => {
+  if (!authState.user) {
+    return {
+      label: '创建账号',
+      to: '/register',
+      icon: 'i-lucide-user-plus',
+    }
+  }
+
+  if (!participation.value?.has_team) {
+    return {
+      label: '去加入队伍',
+      to: '/console/team',
+      icon: 'i-lucide-users',
+    }
+  }
+
+  if (participation.value?.participated && !canLeaveGame.value) {
+    return {
+      label: '查看队伍',
+      to: '/console/team',
+      icon: 'i-lucide-users',
+    }
+  }
+
+  return null
+})
 
 const overviewStats = computed(() => {
   if (!game.value) {
@@ -623,39 +709,33 @@ onMounted(async () => {
 
           <div class="flex gap-2">
             <UButton
-              v-if="!authState.user"
-              to="/login"
-              icon="i-lucide-log-in"
+              v-if="detailPrimaryAction.mode === 'link'"
+              :to="detailPrimaryAction.to"
+              :icon="detailPrimaryAction.icon"
+              :color="detailPrimaryAction.color"
+              :variant="detailPrimaryAction.variant"
             >
-              登录后报名
-            </UButton>
-            <UButton
-              v-if="participation?.has_team && !participation?.participated"
-              icon="i-lucide-badge-plus"
-              :loading="joining"
-              :disabled="!canJoinGame"
-              @click="joinGame"
-            >
-              报名比赛
-            </UButton>
-            <UButton
-              v-else-if="participation?.participated"
-              color="error"
-              variant="outline"
-              icon="i-lucide-log-out"
-              :loading="leaving"
-              :disabled="!canLeaveGame"
-              @click="leaveGame"
-            >
-              退出比赛
+              {{ detailPrimaryAction.label }}
             </UButton>
             <UButton
               v-else
-              :to="authState.user ? '/console/team' : '/register'"
-              variant="outline"
-              :icon="authState.user ? 'i-lucide-users' : 'i-lucide-user-plus'"
+              :icon="detailPrimaryAction.icon"
+              :color="detailPrimaryAction.color"
+              :variant="detailPrimaryAction.variant"
+              :loading="detailPrimaryAction.loading"
+              :disabled="detailPrimaryAction.disabled"
+              :to="detailPrimaryAction.to"
+              @click="detailPrimaryAction.onClick?.()"
             >
-              {{ authState.user ? '去加入队伍' : '创建账号' }}
+              {{ detailPrimaryAction.label }}
+            </UButton>
+            <UButton
+              v-if="detailSecondaryAction"
+              :to="detailSecondaryAction.to"
+              variant="outline"
+              :icon="detailSecondaryAction.icon"
+            >
+              {{ detailSecondaryAction.label }}
             </UButton>
           </div>
         </div>
