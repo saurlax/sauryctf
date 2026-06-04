@@ -16,6 +16,8 @@ const game = ref<Game | null>(null)
 const challenges = ref<GameChallengeDetail[]>([])
 const scoreboard = ref<ScoreboardEntry[]>([])
 const scoreboardChallenges = ref<ScoreboardChallengeStat[]>([])
+const scoreboardFrozen = ref(false)
+const scoreboardFreezeTime = ref<string | null>(null)
 const participation = ref<GameParticipation | null>(null)
 const loading = ref(true)
 const participationLoading = ref(false)
@@ -80,6 +82,8 @@ async function fetchScoreboard() {
     const res = await $api('get', '/api/games/{id}/scoreboard', { params: { id: Number(gameId) } })
     scoreboard.value = res.entries || []
     scoreboardChallenges.value = res.challenges || []
+    scoreboardFrozen.value = !!res.is_frozen
+    scoreboardFreezeTime.value = res.freeze_time || null
   }
   catch (e: any) {
     toast.add({ title: '获取排行榜失败', description: e.data?.message || e.message, color: 'error' })
@@ -585,10 +589,10 @@ onMounted(async () => {
 
       <div v-if="activeTab === 'overview'" class="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
         <UPageCard title="比赛规则" icon="i-lucide-scroll-text">
-          <div class="space-y-4 text-sm leading-7">
-            <p class="text-default">
-              {{ game.description || '当前比赛暂未填写详细规则。你可以先完成队伍准备与比赛报名。' }}
-            </p>
+            <div class="space-y-4 text-sm leading-7">
+              <p class="text-default">
+                {{ game.description || '当前比赛暂未填写详细规则。你可以先完成队伍准备与比赛报名。' }}
+              </p>
             <UAlert
               v-if="game.notice"
               color="info"
@@ -604,8 +608,9 @@ onMounted(async () => {
                 <li>1. 先在控制台创建或加入队伍，再报名比赛。</li>
                 <li>2. 当前比赛报名方式：{{ game.registration_mode === 'auto_accept' ? '自动通过' : '人工审核' }}。</li>
                 <li>3. {{ game.max_team_members ? `当前队伍人数上限为 ${game.max_team_members} 人，超出将无法报名。` : '当前比赛不限制队伍人数。' }}</li>
-                <li>4. 题目页会根据你当前队伍显示已解状态和一血队伍。</li>
-                <li>5. 比赛开始后不可退出比赛，比赛结束后将无法继续得分。</li>
+                <li>4. {{ game.scoreboard_freeze_at ? `公开榜单将于 ${new Date(game.scoreboard_freeze_at).toLocaleString()} 封榜。` : '当前比赛不启用封榜。' }}</li>
+                <li>5. 题目页会根据你当前队伍显示已解状态和一血队伍。</li>
+                <li>6. 比赛开始后不可退出比赛，比赛结束后将无法继续得分。</li>
               </ul>
             </div>
           </div>
@@ -801,6 +806,14 @@ onMounted(async () => {
       <div v-else-if="activeTab === 'scoreboard'">
         <div class="space-y-6">
           <UPageCard title="队伍总榜" icon="i-lucide-trophy">
+            <UAlert
+              v-if="scoreboardFrozen && scoreboardFreezeTime"
+              class="mb-4"
+              color="warning"
+              variant="soft"
+              title="排行榜已封榜"
+              :description="`公开榜单当前冻结在 ${new Date(scoreboardFreezeTime).toLocaleString()}，后续解题不会继续显示在公开排名中。`"
+            />
             <UTable
               :data="scoreboard"
               :columns="[

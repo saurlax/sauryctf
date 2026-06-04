@@ -231,6 +231,35 @@ func TestUpdateGame_Success(t *testing.T) {
 	assert.Equal(t, float64(2), game["max_team_members"])
 }
 
+func TestUpdateGame_ClearScoreboardFreeze_Success(t *testing.T) {
+	svc := games.NewMockService()
+	r := setupTestRouter(svc)
+
+	public := true
+	freezeAt := time.Now().Add(time.Hour)
+	svc.CreateGame(games.CreateGameRequest{
+		Name:              "Game",
+		StartTime:         time.Now(),
+		EndTime:           time.Now().Add(time.Hour),
+		ScoreboardFreezeAt: &freezeAt,
+		IsPublic:          &public,
+	}, 1)
+
+	body := map[string]any{"scoreboard_freeze_at": nil}
+	b, _ := json.Marshal(body)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/games/1", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var game map[string]any
+	json.Unmarshal(w.Body.Bytes(), &game)
+	assert.Nil(t, game["scoreboard_freeze_at"])
+}
+
 func TestAddChallenge_Success(t *testing.T) {
 	svc := games.NewMockService()
 	r := setupTestRouter(svc)

@@ -69,6 +69,7 @@ type Game struct {
 	Notice           string    `gorm:"type:text" json:"notice"`
 	StartTime        time.Time `gorm:"not null" json:"start_time"`
 	EndTime          time.Time `gorm:"not null" json:"end_time"`
+	ScoreboardFreezeAt *time.Time `json:"scoreboard_freeze_at"`
 	Status           string    `gorm:"size:32;not null;default:draft" json:"status"`              // draft, active, ended
 	RegistrationMode string    `gorm:"size:32;not null;default:review" json:"registration_mode"` // review, auto_accept
 	MaxTeamMembers   int       `gorm:"not null;default:0" json:"max_team_members"`                // 0 = unlimited

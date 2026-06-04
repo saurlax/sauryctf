@@ -15,6 +15,7 @@ const gameForm = reactive({
   notice: '',
   start_time: '',
   end_time: '',
+  scoreboard_freeze_at: '',
   registration_mode: 'review' as 'review' | 'auto_accept',
   max_team_members: 0,
   is_public: true,
@@ -44,6 +45,7 @@ const attachForm = reactive({
 const gameSettingsForm = reactive({
   game_id: undefined as number | undefined,
   status: 'draft' as 'draft' | 'active' | 'ended',
+  scoreboard_freeze_at: '',
   registration_mode: 'review' as 'review' | 'auto_accept',
   max_team_members: 0,
   is_public: true,
@@ -92,6 +94,7 @@ const games = ref<Array<{
   description?: string
   notice?: string
   status: 'draft' | 'active' | 'ended'
+  scoreboard_freeze_at?: string | null
   registration_mode?: 'review' | 'auto_accept'
   max_team_members?: number
   start_time: string
@@ -365,6 +368,7 @@ async function createGame() {
         notice: gameForm.notice,
         start_time: new Date(gameForm.start_time).toISOString(),
         end_time: new Date(gameForm.end_time).toISOString(),
+        ...(gameForm.scoreboard_freeze_at ? { scoreboard_freeze_at: new Date(gameForm.scoreboard_freeze_at).toISOString() } : {}),
         registration_mode: gameForm.registration_mode,
         max_team_members: gameForm.max_team_members,
         is_public: gameForm.is_public,
@@ -376,6 +380,7 @@ async function createGame() {
     gameForm.notice = ''
     gameForm.start_time = ''
     gameForm.end_time = ''
+    gameForm.scoreboard_freeze_at = ''
     gameForm.registration_mode = 'review'
     gameForm.max_team_members = 0
     gameForm.is_public = true
@@ -510,16 +515,27 @@ async function updateGameSettings() {
 
   settingsSubmitting.value = true
   try {
+    const body: {
+      status: 'draft' | 'active' | 'ended'
+      registration_mode: 'review' | 'auto_accept'
+      max_team_members: number
+      is_public: boolean
+      scoreboard_freeze_at?: string | null
+    } = {
+      status: gameSettingsForm.status,
+      registration_mode: gameSettingsForm.registration_mode,
+      max_team_members: gameSettingsForm.max_team_members,
+      is_public: gameSettingsForm.is_public,
+      scoreboard_freeze_at: gameSettingsForm.scoreboard_freeze_at
+        ? new Date(gameSettingsForm.scoreboard_freeze_at).toISOString()
+        : null,
+    }
+
     await $api('put', '/api/games/{id}', {
       params: {
         id: gameSettingsForm.game_id,
       },
-      body: {
-        status: gameSettingsForm.status,
-        registration_mode: gameSettingsForm.registration_mode,
-        max_team_members: gameSettingsForm.max_team_members,
-        is_public: gameSettingsForm.is_public,
-      },
+      body,
     })
 
     toast.add({ title: '比赛设置已更新', color: 'success' })
@@ -693,6 +709,7 @@ watch(() => gameEditForm.game_id, () => {
 watch(() => gameSettingsForm.game_id, () => {
   if (!gameSettingsForm.game_id) {
     gameSettingsForm.status = 'draft'
+    gameSettingsForm.scoreboard_freeze_at = ''
     gameSettingsForm.registration_mode = 'review'
     gameSettingsForm.max_team_members = 0
     gameSettingsForm.is_public = true
@@ -705,6 +722,7 @@ watch(() => gameSettingsForm.game_id, () => {
   }
 
   gameSettingsForm.status = game.status
+  gameSettingsForm.scoreboard_freeze_at = game.scoreboard_freeze_at ? game.scoreboard_freeze_at.slice(0, 16) : ''
   gameSettingsForm.registration_mode = game.registration_mode || 'review'
   gameSettingsForm.max_team_members = game.max_team_members || 0
   gameSettingsForm.is_public = game.is_public ?? true
@@ -789,6 +807,10 @@ onMounted(async () => {
               </UFormField>
             </div>
 
+            <UFormField label="封榜时间" name="scoreboard_freeze_at" description="留空表示不封榜">
+              <UInput v-model="gameForm.scoreboard_freeze_at" type="datetime-local" class="w-full" />
+            </UFormField>
+
             <UFormField label="报名模式" name="registration_mode">
               <USelect v-model="gameForm.registration_mode" :items="registrationModeOptions" class="w-full" />
             </UFormField>
@@ -871,6 +893,10 @@ onMounted(async () => {
               />
             </UFormField>
 
+            <UFormField label="封榜时间" name="scoreboard_freeze_at" description="留空表示不封榜">
+              <UInput v-model="gameSettingsForm.scoreboard_freeze_at" type="datetime-local" class="w-full" />
+            </UFormField>
+
             <UFormField label="报名模式" name="registration_mode">
               <USelect
                 v-model="gameSettingsForm.registration_mode"
@@ -888,7 +914,7 @@ onMounted(async () => {
             </UFormField>
 
             <div v-if="selectedSettingsGame" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              当前比赛：{{ selectedSettingsGame.name }} · {{ new Date(selectedSettingsGame.start_time).toLocaleString() }} · {{ getRegistrationModeLabel(selectedSettingsGame.registration_mode) }} · {{ selectedSettingsGame.max_team_members ? `最多 ${selectedSettingsGame.max_team_members} 人` : '人数不限' }}
+              当前比赛：{{ selectedSettingsGame.name }} · {{ new Date(selectedSettingsGame.start_time).toLocaleString() }} · {{ getRegistrationModeLabel(selectedSettingsGame.registration_mode) }} · {{ selectedSettingsGame.max_team_members ? `最多 ${selectedSettingsGame.max_team_members} 人` : '人数不限' }} · {{ selectedSettingsGame.scoreboard_freeze_at ? `封榜于 ${new Date(selectedSettingsGame.scoreboard_freeze_at).toLocaleString()}` : '不封榜' }}
             </div>
 
             <UButton type="submit" :loading="settingsSubmitting">
@@ -1203,6 +1229,9 @@ onMounted(async () => {
                     </div>
                     <div class="text-muted">
                       {{ game.max_team_members ? `队伍上限 ${game.max_team_members} 人` : '队伍人数不限' }}
+                    </div>
+                    <div class="text-muted">
+                      {{ game.scoreboard_freeze_at ? `封榜时间 ${new Date(game.scoreboard_freeze_at).toLocaleString()}` : '不封榜' }}
                     </div>
                     <div v-if="game.notice" class="text-muted line-clamp-2">
                       公告：{{ game.notice }}

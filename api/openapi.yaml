@@ -286,6 +286,11 @@ components:
         end_time:
           type: string
           format: date-time
+        scoreboard_freeze_at:
+          type:
+            - string
+            - "null"
+          format: date-time
         status:
           type: string
           enum: [draft, active, ended]
@@ -318,6 +323,11 @@ components:
         end_time:
           type: string
           format: date-time
+        scoreboard_freeze_at:
+          type:
+            - string
+            - "null"
+          format: date-time
         registration_mode:
           type: string
           enum: [review, auto_accept]
@@ -340,6 +350,11 @@ components:
           format: date-time
         end_time:
           type: string
+          format: date-time
+        scoreboard_freeze_at:
+          type:
+            - string
+            - "null"
           format: date-time
         status:
           type: string
@@ -449,6 +464,11 @@ components:
       properties:
         game_id:
           type: integer
+        is_frozen:
+          type: boolean
+        freeze_time:
+          type: string
+          format: date-time
         entries:
           type: array
           items:

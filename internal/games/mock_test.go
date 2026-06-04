@@ -42,6 +42,7 @@ func (m *MockService) CreateGame(req CreateGameRequest, createdBy uint) (*GameRe
 		Notice:           req.Notice,
 		StartTime:        req.StartTime,
 		EndTime:          req.EndTime,
+		ScoreboardFreezeAt: req.ScoreboardFreezeAt,
 		Status:           "draft",
 		RegistrationMode: RegistrationModeReview,
 		MaxTeamMembers:   req.MaxTeamMembers,
@@ -101,6 +102,12 @@ func (m *MockService) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse,
 	}
 	if req.Status != nil {
 		game.Status = *req.Status
+	}
+	if req.ScoreboardFreezeAt != nil {
+		game.ScoreboardFreezeAt = req.ScoreboardFreezeAt
+	}
+	if req.ClearScoreboardFreeze {
+		game.ScoreboardFreezeAt = nil
 	}
 	if req.RegistrationMode != nil {
 		game.RegistrationMode = *req.RegistrationMode

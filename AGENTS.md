@@ -123,6 +123,9 @@ internal/<module>/
 - Games can now choose a registration strategy:
   - `review` keeps the lightweight approval flow above
   - `auto_accept` turns join requests directly into accepted participations for faster local events
+- Games can now optionally configure `scoreboard_freeze_at`:
+  - the public scoreboard freezes after that time
+  - submissions after freeze still score normally, but no longer affect the public ranking view
 - Challenge content delivery is now expected to use:
   - `description` for the main statement
   - `hints` as a JSON string array

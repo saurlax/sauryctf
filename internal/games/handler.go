@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 )
 
 type Handler struct {
@@ -59,9 +60,15 @@ func (h *Handler) ListGames(c *gin.Context, showAll bool) {
 
 func (h *Handler) UpdateGame(c *gin.Context, id int) {
 	var req UpdateGameRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindBodyWith(&req, binding.JSON); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
+	}
+	var raw map[string]any
+	if err := c.ShouldBindBodyWith(&raw, binding.JSON); err == nil {
+		if value, ok := raw["scoreboard_freeze_at"]; ok && value == nil {
+			req.ClearScoreboardFreeze = true
+		}
 	}
 
 	game, err := h.svc.UpdateGame(uint(id), req)

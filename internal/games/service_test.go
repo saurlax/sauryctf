@@ -95,6 +95,7 @@ func TestService_CreateGame(t *testing.T) {
 	assert.Equal(t, "draft", game.Status)
 	assert.Equal(t, games.RegistrationModeReview, game.RegistrationMode)
 	assert.Equal(t, 5, game.MaxTeamMembers)
+	assert.Nil(t, game.ScoreboardFreezeAt)
 	assert.True(t, game.IsPublic)
 }
 
@@ -154,9 +155,11 @@ func TestService_UpdateGame(t *testing.T) {
 	newNotice := "Updated notice"
 	newRegistrationMode := games.RegistrationModeAutoAccept
 	newMaxTeamMembers := 3
+	freezeAt := time.Now().Add(30 * time.Minute)
 	updated, err := svc.UpdateGame(game.ID, games.UpdateGameRequest{
 		Name:             &newName,
 		Notice:           &newNotice,
+		ScoreboardFreezeAt: &freezeAt,
 		Status:           &newStatus,
 		RegistrationMode: &newRegistrationMode,
 		MaxTeamMembers:   &newMaxTeamMembers,
@@ -167,6 +170,7 @@ func TestService_UpdateGame(t *testing.T) {
 	assert.Equal(t, "active", updated.Status)
 	assert.Equal(t, games.RegistrationModeAutoAccept, updated.RegistrationMode)
 	assert.Equal(t, 3, updated.MaxTeamMembers)
+	require.NotNil(t, updated.ScoreboardFreezeAt)
 }
 
 func TestService_AddChallenge(t *testing.T) {
@@ -234,6 +238,43 @@ func TestService_GetScoreboard_IncludesChallengeStats(t *testing.T) {
 	assert.Equal(t, challengeID, scoreboard.Challenges[0].ID)
 	assert.Equal(t, 2, scoreboard.Challenges[0].SolvedCount)
 	assert.Equal(t, "Team One", scoreboard.Challenges[0].BloodTeam)
+	assert.False(t, scoreboard.IsFrozen)
+	assert.Nil(t, scoreboard.FreezeTime)
+}
+
+func TestService_GetScoreboard_FreezesPublicRanking(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, team1ID, team2ID := createGameChallengeFixture(t, database)
+
+	freezeAt := time.Now().Add(-20 * time.Minute)
+	require.NoError(t, database.Model(&models.Game{}).Where("id = ?", gameID).Update("scoreboard_freeze_at", freezeAt).Error)
+
+	first, err := svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
+	require.NoError(t, err)
+	require.NoError(t, database.Model(&models.Solve{}).Where("team_id = ?", team1ID).Update("solved_at", freezeAt.Add(-10*time.Minute)).Error)
+
+	second, err := svc.SubmitFlag(gameID, challengeID, 2, team2ID, "flag{fixture}")
+	require.NoError(t, err)
+	require.NoError(t, database.Model(&models.Solve{}).Where("team_id = ?", team2ID).Update("solved_at", freezeAt.Add(10*time.Minute)).Error)
+
+	scoreboard, err := svc.GetScoreboard(gameID)
+	require.NoError(t, err)
+	require.True(t, scoreboard.IsFrozen)
+	require.NotNil(t, scoreboard.FreezeTime)
+	require.Len(t, scoreboard.Entries, 2)
+	assert.Equal(t, team1ID, scoreboard.Entries[0].TeamID)
+	assert.Equal(t, first.Score, scoreboard.Entries[0].Score)
+	assert.Equal(t, team2ID, scoreboard.Entries[1].TeamID)
+	assert.Equal(t, 0, scoreboard.Entries[1].Score)
+	require.Len(t, scoreboard.Challenges, 1)
+	assert.Equal(t, 1, scoreboard.Challenges[0].SolvedCount)
+
+	_ = second
 }
 
 func TestService_JoinGame_CreatesPendingParticipation(t *testing.T) {

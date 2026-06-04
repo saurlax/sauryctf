@@ -37,6 +37,7 @@ type CreateGameRequest struct {
 	Notice           string    `json:"notice"`
 	StartTime        time.Time `json:"start_time" binding:"required"`
 	EndTime          time.Time `json:"end_time" binding:"required"`
+	ScoreboardFreezeAt *time.Time `json:"scoreboard_freeze_at"`
 	RegistrationMode string    `json:"registration_mode"`
 	MaxTeamMembers   int       `json:"max_team_members"`
 	IsPublic         *bool     `json:"is_public"`
@@ -48,6 +49,8 @@ type UpdateGameRequest struct {
 	Notice           *string    `json:"notice"`
 	StartTime        *time.Time `json:"start_time"`
 	EndTime          *time.Time `json:"end_time"`
+	ClearScoreboardFreeze bool  `json:"-"`
+	ScoreboardFreezeAt *time.Time `json:"scoreboard_freeze_at"`
 	Status           *string    `json:"status"`
 	RegistrationMode *string    `json:"registration_mode"`
 	MaxTeamMembers   *int       `json:"max_team_members"`
@@ -61,6 +64,7 @@ type GameResponse struct {
 	Notice           string    `json:"notice"`
 	StartTime        time.Time `json:"start_time"`
 	EndTime          time.Time `json:"end_time"`
+	ScoreboardFreezeAt *time.Time `json:"scoreboard_freeze_at"`
 	Status           string    `json:"status"`
 	RegistrationMode string    `json:"registration_mode"`
 	MaxTeamMembers   int       `json:"max_team_members"`
@@ -118,9 +122,11 @@ type ScoreboardChallengeStat struct {
 }
 
 type ScoreboardResponse struct {
-	GameID     uint                      `json:"game_id"`
-	Entries    []ScoreboardEntry         `json:"entries"`
-	Challenges []ScoreboardChallengeStat `json:"challenges"`
+	GameID            uint                      `json:"game_id"`
+	IsFrozen          bool                      `json:"is_frozen"`
+	FreezeTime        *time.Time                `json:"freeze_time,omitempty"`
+	Entries           []ScoreboardEntry         `json:"entries"`
+	Challenges        []ScoreboardChallengeStat `json:"challenges"`
 }
 
 type GameParticipantEntry struct {

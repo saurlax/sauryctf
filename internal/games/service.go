@@ -57,6 +57,7 @@ func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameRespon
 		Notice:           req.Notice,
 		StartTime:        req.StartTime,
 		EndTime:          req.EndTime,
+		ScoreboardFreezeAt: req.ScoreboardFreezeAt,
 		Status:           "draft",
 		RegistrationMode: registrationMode,
 		MaxTeamMembers:   maxTeamMembers,
@@ -67,7 +68,7 @@ func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameRespon
 	}
 
 	if err := s.db.Select(
-		"Name", "Description", "Notice", "StartTime", "EndTime", "Status", "RegistrationMode", "MaxTeamMembers", "IsPublic", "CreatedBy",
+		"Name", "Description", "Notice", "StartTime", "EndTime", "ScoreboardFreezeAt", "Status", "RegistrationMode", "MaxTeamMembers", "IsPublic", "CreatedBy",
 	).Create(game).Error; err != nil {
 		return nil, err
 	}
@@ -127,6 +128,12 @@ func (s *Service) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, err
 	}
 	if req.EndTime != nil {
 		updates["end_time"] = *req.EndTime
+	}
+	if req.ClearScoreboardFreeze {
+		updates["scoreboard_freeze_at"] = nil
+	}
+	if req.ScoreboardFreezeAt != nil {
+		updates["scoreboard_freeze_at"] = *req.ScoreboardFreezeAt
 	}
 	if req.Status != nil {
 		updates["status"] = *req.Status
@@ -524,10 +531,18 @@ func (s *Service) GetScoreboard(gameID uint) (*ScoreboardResponse, error) {
 		SolvedAt time.Time
 	}
 
-	if err := s.db.Table("solves").
+	scoreRowsQuery := s.db.Table("solves").
 		Select("solves.team_id, teams.name as team_name, solves.score, solves.solved_at").
 		Joins("JOIN teams ON teams.id = solves.team_id").
-		Where("solves.game_id = ?", gameID).
+		Where("solves.game_id = ?", gameID)
+
+	isFrozen := false
+	if game.ScoreboardFreezeAt != nil && time.Now().After(*game.ScoreboardFreezeAt) {
+		isFrozen = true
+		scoreRowsQuery = scoreRowsQuery.Where("solves.solved_at <= ?", *game.ScoreboardFreezeAt)
+	}
+
+	if err := scoreRowsQuery.
 		Order("solves.solved_at ASC").
 		Scan(&rows).Error; err != nil {
 		return nil, err
@@ -594,7 +609,7 @@ func (s *Service) GetScoreboard(gameID uint) (*ScoreboardResponse, error) {
 	}
 
 	var challengeRows []challengeRow
-	if err := s.db.Table("game_challenges").
+	challengeStatsQuery := s.db.Table("game_challenges").
 		Select(`
 			game_challenges.challenge_id as id,
 			challenges.title,
@@ -607,7 +622,11 @@ func (s *Service) GetScoreboard(gameID uint) (*ScoreboardResponse, error) {
 		Joins("JOIN challenges ON challenges.id = game_challenges.challenge_id").
 		Joins("LEFT JOIN solves ON solves.challenge_id = game_challenges.challenge_id AND solves.game_id = game_challenges.game_id").
 		Joins("LEFT JOIN teams ON teams.id = solves.team_id").
-		Where("game_challenges.game_id = ? AND challenges.is_visible = ?", gameID, true).
+		Where("game_challenges.game_id = ? AND challenges.is_visible = ?", gameID, true)
+	if isFrozen && game.ScoreboardFreezeAt != nil {
+		challengeStatsQuery = challengeStatsQuery.Where("(solves.id IS NULL OR solves.solved_at <= ?)", *game.ScoreboardFreezeAt)
+	}
+	if err := challengeStatsQuery.
 		Group("game_challenges.challenge_id, challenges.title, challenges.category, challenges.base_score, game_challenges.score_override").
 		Order("challenges.category ASC, game_challenges.challenge_id ASC").
 		Scan(&challengeRows).Error; err != nil {
@@ -632,6 +651,8 @@ func (s *Service) GetScoreboard(gameID uint) (*ScoreboardResponse, error) {
 
 	return &ScoreboardResponse{
 		GameID:     gameID,
+		IsFrozen:   isFrozen,
+		FreezeTime: game.ScoreboardFreezeAt,
 		Entries:    entries,
 		Challenges: challengeStats,
 	}, nil
@@ -746,6 +767,7 @@ func toResponse(g *models.Game) *GameResponse {
 		Notice:           g.Notice,
 		StartTime:        g.StartTime,
 		EndTime:          g.EndTime,
+		ScoreboardFreezeAt: g.ScoreboardFreezeAt,
 		Status:           g.Status,
 		RegistrationMode: g.RegistrationMode,
 		MaxTeamMembers:   g.MaxTeamMembers,

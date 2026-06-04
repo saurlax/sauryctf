@@ -249,6 +249,8 @@ export interface components {
       start_time: string;
       /** Format: date-time */
       end_time: string;
+      /** Format: date-time */
+      scoreboard_freeze_at?: string | null;
       /** @enum {string} */
       status: "draft" | "active" | "ended";
       /** @enum {string} */
@@ -267,6 +269,8 @@ export interface components {
       start_time: string;
       /** Format: date-time */
       end_time: string;
+      /** Format: date-time */
+      scoreboard_freeze_at?: string | null;
       /** @enum {string} */
       registration_mode?: "review" | "auto_accept";
       max_team_members?: number;
@@ -280,6 +284,8 @@ export interface components {
       start_time?: string;
       /** Format: date-time */
       end_time?: string;
+      /** Format: date-time */
+      scoreboard_freeze_at?: string | null;
       /** @enum {string} */
       status?: "draft" | "active" | "ended";
       /** @enum {string} */
@@ -333,6 +339,9 @@ export interface components {
     };
     Scoreboard: {
       game_id: number;
+      is_frozen?: boolean;
+      /** Format: date-time */
+      freeze_time?: string;
       entries: components["schemas"]["ScoreboardEntry"][];
       challenges?: components["schemas"]["ScoreboardChallengeStat"][];
     };

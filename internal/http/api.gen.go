@@ -431,6 +431,7 @@ type CreateGameRequest struct {
 	Name             string                `json:"name"`
 	Notice           *string               `json:"notice,omitempty"`
 	RegistrationMode *GameRegistrationMode `json:"registration_mode,omitempty"`
+	ScoreboardFreezeAt *time.Time          `json:"scoreboard_freeze_at,omitempty"`
 	StartTime        time.Time             `json:"start_time"`
 }
 
@@ -456,6 +457,7 @@ type Game struct {
 	Name             string                `json:"name"`
 	Notice           *string               `json:"notice,omitempty"`
 	RegistrationMode *GameRegistrationMode `json:"registration_mode,omitempty"`
+	ScoreboardFreezeAt *time.Time          `json:"scoreboard_freeze_at,omitempty"`
 	StartTime        time.Time             `json:"start_time"`
 	Status           GameStatus            `json:"status"`
 }
@@ -529,8 +531,10 @@ type RegisterRequest struct {
 
 // Scoreboard defines model for Scoreboard.
 type Scoreboard struct {
-	Entries []ScoreboardEntry `json:"entries"`
-	GameId  int               `json:"game_id"`
+	Entries    []ScoreboardEntry `json:"entries"`
+	FreezeTime *time.Time        `json:"freeze_time,omitempty"`
+	GameId     int               `json:"game_id"`
+	IsFrozen   *bool             `json:"is_frozen,omitempty"`
 }
 
 // GameParticipation defines model for GameParticipation.
@@ -623,6 +627,7 @@ type UpdateGameRequest struct {
 	Name             *string                            `json:"name,omitempty"`
 	Notice           *string                            `json:"notice,omitempty"`
 	RegistrationMode *UpdateGameRequestRegistrationMode `json:"registration_mode,omitempty"`
+	ScoreboardFreezeAt *time.Time                       `json:"scoreboard_freeze_at,omitempty"`
 	StartTime        *time.Time                         `json:"start_time,omitempty"`
 	Status           *UpdateGameRequestStatus           `json:"status,omitempty"`
 }
