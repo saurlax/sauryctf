@@ -31,15 +31,19 @@ func TestService_CreateChallenge(t *testing.T) {
 
 	visible := true
 	ch, err := svc.CreateChallenge(challenges.CreateChallengeRequest{
-		Title:     "XSS Challenge",
-		Category:  "web",
-		Flag:      "flag{xss}",
-		IsVisible: &visible,
+		Title:       "XSS Challenge",
+		Category:    "web",
+		Flag:        "flag{xss}",
+		Hints:       `["先看源码","观察回显"]`,
+		Attachments: `["https://example.com/files/xss.zip"]`,
+		IsVisible:   &visible,
 	}, 1)
 	assert.NoError(t, err)
 	assert.Equal(t, "XSS Challenge", ch.Title)
 	assert.Equal(t, models.ChallengeCategory("web"), ch.Category)
 	assert.Equal(t, 100, ch.BaseScore)
+	assert.Equal(t, `["先看源码","观察回显"]`, ch.Hints)
+	assert.Equal(t, `["https://example.com/files/xss.zip"]`, ch.Attachments)
 	assert.True(t, ch.IsVisible)
 }
 
@@ -137,11 +141,17 @@ func TestService_UpdateChallenge(t *testing.T) {
 	}, 1)
 
 	newTitle := "Updated"
+	newHints := `["更新后的提示"]`
+	newAttachments := `["https://example.com/files/updated.zip"]`
 	updated, err := svc.UpdateChallenge(ch.ID, challenges.UpdateChallengeRequest{
-		Title: &newTitle,
+		Title:       &newTitle,
+		Hints:       &newHints,
+		Attachments: &newAttachments,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, "Updated", updated.Title)
+	assert.Equal(t, newHints, updated.Hints)
+	assert.Equal(t, newAttachments, updated.Attachments)
 }
 
 func TestService_DeleteChallenge(t *testing.T) {

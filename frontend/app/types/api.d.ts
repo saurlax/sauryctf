@@ -219,9 +219,14 @@ export interface components {
       type?: string;
       difficulty?: string;
       flag?: string;
+      flag_format?: string;
       base_score?: number;
       min_score?: number;
       decay_rate?: number;
+      max_attempts?: number;
+      hints?: string;
+      attachments?: string;
+      container_spec?: string;
       is_visible?: boolean;
     };
     SubmitFlagRequest: {
@@ -280,11 +285,14 @@ export interface components {
     GameChallengeDetail: {
       id: number;
       title: string;
+      description?: string;
       /** @enum {string} */
       category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics" | "awd";
       /** @enum {string} */
       type: "static" | "dynamic";
       difficulty?: string;
+      hints?: string;
+      attachments?: string;
       score: number;
       solved?: boolean;
       solve_count?: number;

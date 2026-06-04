@@ -185,6 +185,24 @@ function getDifficultyColor(d: string): 'success' | 'warning' | 'error' | 'neutr
   return map[d] || 'neutral'
 }
 
+function parseStringList(raw?: string) {
+  if (!raw) {
+    return []
+  }
+
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) {
+      return parsed.filter(item => typeof item === 'string' && item.trim().length > 0)
+    }
+  }
+  catch {
+    // Fall back to plain text when the field is not valid JSON yet.
+  }
+
+  return raw.split('\n').map(item => item.trim()).filter(Boolean)
+}
+
 const gameStatusMeta = computed(() => {
   if (!game.value) {
     return { label: '未知', color: 'neutral' as const, description: '' }
@@ -641,14 +659,56 @@ onMounted(async () => {
                 </UBadge>
                 <span>{{ ch.score }} pts</span>
               </div>
-              <span class="flex items-center gap-1">
-                <UIcon name="i-lucide-users" class="size-3" />
-                {{ ch.solve_count }}
-              </span>
-            </div>
+                <span class="flex items-center gap-1">
+                  <UIcon name="i-lucide-users" class="size-3" />
+                  {{ ch.solve_count }}
+                </span>
+              </div>
 
-            <div v-if="!ch.solved" class="space-y-2">
-              <p v-if="!canSubmitFlag" class="text-xs text-muted leading-5">
+              <div class="space-y-3 mb-4 text-sm">
+                <p class="text-muted leading-6 whitespace-pre-wrap">
+                  {{ ch.description || '当前题目暂未填写详细题面。' }}
+                </p>
+
+                <div v-if="parseStringList(ch.hints).length" class="rounded-lg border border-default bg-muted/40 px-3 py-3">
+                  <div class="mb-2 flex items-center gap-2 text-sm font-medium">
+                    <UIcon name="i-lucide-lightbulb" class="size-4 text-warning" />
+                    <span>提示</span>
+                  </div>
+                  <ul class="space-y-2 text-muted">
+                    <li
+                      v-for="(hint, hintIndex) in parseStringList(ch.hints)"
+                      :key="`${ch.id}-hint-${hintIndex}`"
+                    >
+                      {{ hintIndex + 1 }}. {{ hint }}
+                    </li>
+                  </ul>
+                </div>
+
+                <div v-if="parseStringList(ch.attachments).length" class="rounded-lg border border-default bg-muted/40 px-3 py-3">
+                  <div class="mb-2 flex items-center gap-2 text-sm font-medium">
+                    <UIcon name="i-lucide-paperclip" class="size-4 text-info" />
+                    <span>附件</span>
+                  </div>
+                  <div class="flex flex-col gap-2">
+                    <UButton
+                      v-for="(attachment, attachmentIndex) in parseStringList(ch.attachments)"
+                      :key="`${ch.id}-attachment-${attachmentIndex}`"
+                      :to="attachment"
+                      target="_blank"
+                      variant="outline"
+                      size="sm"
+                      icon="i-lucide-download"
+                      class="justify-start"
+                    >
+                      附件 {{ attachmentIndex + 1 }}
+                    </UButton>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="!ch.solved" class="space-y-2">
+                <p v-if="!canSubmitFlag" class="text-xs text-muted leading-5">
                 {{ submitHint }}
               </p>
               <div class="flex gap-2">

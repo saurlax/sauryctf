@@ -253,9 +253,12 @@ func (s *Service) GetGameChallenges(gameID uint) ([]GameChallengeDetail, error) 
 		ChallengeID   uint
 		ScoreOverride int
 		Title         string
+		Description   string
 		Category      string
 		Type          string
 		Difficulty    string
+		Hints         string
+		Attachments   string
 		BaseScore     int
 		IsVisible     bool
 	}
@@ -263,7 +266,8 @@ func (s *Service) GetGameChallenges(gameID uint) ([]GameChallengeDetail, error) 
 	var rows []row
 	if err := s.db.Table("game_challenges").
 		Select("game_challenges.challenge_id, game_challenges.score_override, "+
-			"challenges.title, challenges.category, challenges.type, challenges.difficulty, "+
+			"challenges.title, challenges.description, challenges.category, challenges.type, challenges.difficulty, "+
+			"challenges.hints, challenges.attachments, "+
 			"challenges.base_score, challenges.is_visible").
 		Joins("JOIN challenges ON challenges.id = game_challenges.challenge_id").
 		Where("game_challenges.game_id = ? AND challenges.is_visible = ?", gameID, true).
@@ -295,13 +299,16 @@ func (s *Service) GetGameChallenges(gameID uint) ([]GameChallengeDetail, error) 
 			score = r.ScoreOverride
 		}
 		result = append(result, GameChallengeDetail{
-			ID:         r.ChallengeID,
-			Title:      r.Title,
-			Category:   r.Category,
-			Type:       r.Type,
-			Difficulty: r.Difficulty,
-			Score:      score,
-			SolveCount: countMap[r.ChallengeID],
+			ID:          r.ChallengeID,
+			Title:       r.Title,
+			Description: r.Description,
+			Category:    r.Category,
+			Type:        r.Type,
+			Difficulty:  r.Difficulty,
+			Hints:       r.Hints,
+			Attachments: r.Attachments,
+			Score:       score,
+			SolveCount:  countMap[r.ChallengeID],
 		})
 	}
 	return result, nil

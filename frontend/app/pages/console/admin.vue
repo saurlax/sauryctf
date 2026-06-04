@@ -21,6 +21,8 @@ const gameForm = reactive({
 const challengeForm = reactive({
   title: '',
   description: '',
+  hints: '[]',
+  attachments: '[]',
   category: 'web',
   type: 'static',
   difficulty: 'easy',
@@ -56,6 +58,8 @@ const challengeEditForm = reactive({
   challenge_id: undefined as number | undefined,
   title: '',
   description: '',
+  hints: '[]',
+  attachments: '[]',
   category: 'web',
   type: 'static',
   difficulty: 'easy',
@@ -92,6 +96,8 @@ const challenges = ref<Array<{
   id: number
   title: string
   description?: string
+  hints?: string
+  attachments?: string
   category: 'web' | 'pwn' | 'crypto' | 'reverse' | 'misc' | 'forensics' | 'awd'
   type?: 'static' | 'dynamic'
   difficulty?: 'easy' | 'medium' | 'hard'
@@ -371,6 +377,8 @@ async function createChallenge() {
       body: {
         title: challengeForm.title,
         description: challengeForm.description,
+        hints: challengeForm.hints,
+        attachments: challengeForm.attachments,
         category: challengeForm.category as 'web',
         type: challengeForm.type as 'static',
         difficulty: challengeForm.difficulty as 'easy',
@@ -384,6 +392,8 @@ async function createChallenge() {
     toast.add({ title: '题目创建成功', color: 'success' })
     challengeForm.title = ''
     challengeForm.description = ''
+    challengeForm.hints = '[]'
+    challengeForm.attachments = '[]'
     challengeForm.category = 'web'
     challengeForm.type = 'static'
     challengeForm.difficulty = 'easy'
@@ -417,6 +427,8 @@ async function updateChallengeDetails() {
       body: {
         title: challengeEditForm.title,
         description: challengeEditForm.description,
+        hints: challengeEditForm.hints,
+        attachments: challengeEditForm.attachments,
         category: challengeEditForm.category,
         type: challengeEditForm.type,
         difficulty: challengeEditForm.difficulty,
@@ -605,6 +617,8 @@ watch(() => challengeEditForm.challenge_id, () => {
   if (!challengeEditForm.challenge_id) {
     challengeEditForm.title = ''
     challengeEditForm.description = ''
+    challengeEditForm.hints = '[]'
+    challengeEditForm.attachments = '[]'
     challengeEditForm.category = 'web'
     challengeEditForm.type = 'static'
     challengeEditForm.difficulty = 'easy'
@@ -622,6 +636,8 @@ watch(() => challengeEditForm.challenge_id, () => {
 
   challengeEditForm.title = challenge.title
   challengeEditForm.description = challenge.description || ''
+  challengeEditForm.hints = challenge.hints || '[]'
+  challengeEditForm.attachments = challenge.attachments || '[]'
   challengeEditForm.category = challenge.category
   challengeEditForm.type = challenge.type || 'static'
   challengeEditForm.difficulty = challenge.difficulty || 'easy'
@@ -846,6 +862,22 @@ onMounted(async () => {
               <UTextarea v-model="challengeForm.description" class="w-full" :rows="4" placeholder="题目简介、提示或附件说明" />
             </UFormField>
 
+            <UFormField
+              label="提示列表"
+              name="hints"
+              description='使用 JSON 数组，例如 ["先看首页","再看接口返回"]'
+            >
+              <UTextarea v-model="challengeForm.hints" class="w-full" :rows="3" placeholder='["提示 1","提示 2"]' />
+            </UFormField>
+
+            <UFormField
+              label="附件链接"
+              name="attachments"
+              description='使用 JSON 数组，例如 ["https://example.com/files/web.zip"]'
+            >
+              <UTextarea v-model="challengeForm.attachments" class="w-full" :rows="3" placeholder='["https://example.com/files/challenge.zip"]' />
+            </UFormField>
+
             <div class="grid gap-4 md:grid-cols-3">
               <UFormField label="分类" name="category">
                 <USelect v-model="challengeForm.category" :items="categoryOptions" class="w-full" />
@@ -905,6 +937,22 @@ onMounted(async () => {
 
             <UFormField label="题目描述" name="description">
               <UTextarea v-model="challengeEditForm.description" class="w-full" :rows="4" placeholder="题目简介、提示或附件说明" />
+            </UFormField>
+
+            <UFormField
+              label="提示列表"
+              name="hints"
+              description='使用 JSON 数组，例如 ["先看首页","再看接口返回"]'
+            >
+              <UTextarea v-model="challengeEditForm.hints" class="w-full" :rows="3" placeholder='["提示 1","提示 2"]' />
+            </UFormField>
+
+            <UFormField
+              label="附件链接"
+              name="attachments"
+              description='使用 JSON 数组，例如 ["https://example.com/files/web.zip"]'
+            >
+              <UTextarea v-model="challengeEditForm.attachments" class="w-full" :rows="3" placeholder='["https://example.com/files/challenge.zip"]' />
             </UFormField>
 
             <div class="grid gap-4 md:grid-cols-3">
@@ -1154,6 +1202,9 @@ onMounted(async () => {
                     </div>
                     <div class="text-muted">
                       {{ challenge.category }} · {{ challenge.is_visible ? 'visible' : 'hidden' }}
+                    </div>
+                    <div v-if="challenge.hints" class="text-muted line-clamp-2">
+                      提示：{{ challenge.hints }}
                     </div>
                   </div>
 

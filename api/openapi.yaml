@@ -225,12 +225,22 @@ components:
           type: string
         flag:
           type: string
+        flag_format:
+          type: string
         base_score:
           type: integer
         min_score:
           type: integer
         decay_rate:
           type: number
+        max_attempts:
+          type: integer
+        hints:
+          type: string
+        attachments:
+          type: string
+        container_spec:
+          type: string
         is_visible:
           type: boolean
 
@@ -344,6 +354,8 @@ components:
           type: integer
         title:
           type: string
+        description:
+          type: string
         category:
           type: string
           enum: [web, pwn, crypto, reverse, misc, forensics, awd]
@@ -351,6 +363,10 @@ components:
           type: string
           enum: [static, dynamic]
         difficulty:
+          type: string
+        hints:
+          type: string
+        attachments:
           type: string
         score:
           type: integer

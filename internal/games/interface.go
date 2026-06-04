@@ -71,15 +71,18 @@ type ChallengeInGame struct {
 
 // GameChallengeDetail is returned to players: challenge info + their solve status.
 type GameChallengeDetail struct {
-	ID         uint   `json:"id"`
-	Title      string `json:"title"`
-	Category   string `json:"category"`
-	Type       string `json:"type"`
-	Difficulty string `json:"difficulty"`
-	Score      int    `json:"score"`  // effective score (override or base)
-	Solved     bool   `json:"solved"` // whether this team solved it
-	SolveCount int    `json:"solve_count"`
-	BloodTeam  string `json:"blood_team,omitempty"` // first blood team name
+	ID          uint   `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Category    string `json:"category"`
+	Type        string `json:"type"`
+	Difficulty  string `json:"difficulty"`
+	Hints       string `json:"hints"`
+	Attachments string `json:"attachments"`
+	Score       int    `json:"score"`  // effective score (override or base)
+	Solved      bool   `json:"solved"` // whether this team solved it
+	SolveCount  int    `json:"solve_count"`
+	BloodTeam   string `json:"blood_team,omitempty"` // first blood team name
 }
 
 type SubmitResult struct {

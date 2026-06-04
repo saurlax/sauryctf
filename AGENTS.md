@@ -120,6 +120,10 @@ internal/<module>/
   - player join requests create `pending` participations
   - admins can change participant status to `accepted` or `rejected` from the admin contest page
   - only `accepted` teams can submit flags during an active game
+- Challenge content delivery is now expected to use:
+  - `description` for the main statement
+  - `hints` as a JSON string array
+  - `attachments` as a JSON string array of downloadable URLs
 
 ## Makefile (legacy — prefer pnpm scripts above)
 
