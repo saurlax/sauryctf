@@ -54,6 +54,9 @@ func NewServer(db *gorm.DB, jwtSecret string) *gin.Engine {
 	admin.POST("/games/:id/writeups/export", func(c *gin.Context) {
 		handler.games.ExportWriteupsPackage(c, mustIntParam(c, "id"))
 	})
+	admin.POST("/games/:id/submissions/export", func(c *gin.Context) {
+		handler.games.ExportSubmissionsPackage(c, mustIntParam(c, "id"))
+	})
 
 	return engine
 }

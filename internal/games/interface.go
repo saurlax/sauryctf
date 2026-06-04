@@ -22,6 +22,7 @@ type ServiceInterface interface {
 	ExportGamePackage(id uint) ([]byte, string, error)
 	ExportScoreboardPackage(id uint, division string) ([]byte, string, error)
 	ExportWriteupsPackage(id uint) ([]byte, string, error)
+	ExportSubmissionsPackage(id uint) ([]byte, string, error)
 	ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error)
 	AddChallenge(gameID uint, challengeID uint, scoreOverride int) error
 	RemoveChallenge(gameID uint, challengeID uint) error
@@ -221,6 +222,22 @@ type GameWriteupResponse struct {
 	SubmittedAt  time.Time  `json:"submitted_at"`
 	ReviewedAt   *time.Time `json:"reviewed_at,omitempty"`
 	CanSubmit    bool       `json:"can_submit"`
+}
+
+type GameSubmissionRecord struct {
+	ID             uint      `json:"id"`
+	GameID         uint      `json:"game_id"`
+	ChallengeID    uint      `json:"challenge_id"`
+	ChallengeTitle string    `json:"challenge_title"`
+	Category       string    `json:"category"`
+	UserID         uint      `json:"user_id"`
+	Username       string    `json:"username"`
+	TeamID         uint      `json:"team_id"`
+	TeamName       string    `json:"team_name"`
+	IsPractice     bool      `json:"is_practice"`
+	Score          int       `json:"score"`
+	BloodType      string    `json:"blood_type"`
+	SolvedAt       time.Time `json:"solved_at"`
 }
 
 type ExportGamePackage struct {

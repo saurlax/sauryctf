@@ -65,6 +65,11 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 		fmt.Sscan(c.Param("id"), &id)
 		h.ExportWriteupsPackage(c, id)
 	})
+	api.POST("/admin/games/:id/submissions/export", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.ExportSubmissionsPackage(c, id)
+	})
 	api.GET("/games/:id/challenges", func(c *gin.Context) {
 		var id int
 		fmt.Sscan(c.Param("id"), &id)
@@ -613,6 +618,39 @@ func TestExportWriteupsPackage_Success(t *testing.T) {
 	assert.Contains(t, fileNames, "writeups.json")
 	assert.Contains(t, fileNames, "writeups.csv")
 	assert.Contains(t, fileNames, "writeups/team-7-blue-team.md")
+}
+
+func TestExportSubmissionsPackage_Success(t *testing.T) {
+	svc := games.NewMockService()
+	_, _ = svc.CreateGame(games.CreateGameRequest{
+		Name:      "Submission Export Game",
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(time.Hour),
+	}, 1)
+
+	r := setupTestRouter(svc)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/admin/games/1/submissions/export", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/zip", w.Header().Get("Content-Type"))
+	assert.Contains(t, w.Header().Get("Content-Disposition"), "submissions-export.zip")
+
+	reader, err := zip.NewReader(bytes.NewReader(w.Body.Bytes()), int64(w.Body.Len()))
+	assert.NoError(t, err)
+	if err != nil {
+		return
+	}
+
+	fileNames := make([]string, 0, len(reader.File))
+	for _, file := range reader.File {
+		fileNames = append(fileNames, file.Name)
+	}
+
+	assert.Contains(t, fileNames, "submissions.json")
+	assert.Contains(t, fileNames, "submissions.csv")
 }
 
 func TestImportGamePackage_Success(t *testing.T) {

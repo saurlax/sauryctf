@@ -390,6 +390,49 @@ func (m *MockService) ExportWriteupsPackage(id uint) ([]byte, string, error) {
 	return archive.Bytes(), fmt.Sprintf("game-%d-%s-writeups-export.zip", game.ID, sanitizeExportName(game.Name)), nil
 }
 
+func (m *MockService) ExportSubmissionsPackage(id uint) ([]byte, string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	game, ok := m.Games[id]
+	if !ok {
+		return nil, "", fmt.Errorf("game not found")
+	}
+
+	submissions := []GameSubmissionRecord{}
+	submissionsJSON, err := json.MarshalIndent(submissions, "", "  ")
+	if err != nil {
+		return nil, "", err
+	}
+	submissionsCSV, err := buildSubmissionsCSV(submissions)
+	if err != nil {
+		return nil, "", err
+	}
+
+	var archive bytes.Buffer
+	writer := zip.NewWriter(&archive)
+	for _, file := range []struct {
+		name string
+		data []byte
+	}{
+		{name: "submissions.json", data: submissionsJSON},
+		{name: "submissions.csv", data: submissionsCSV},
+	} {
+		entry, err := writer.Create(file.name)
+		if err != nil {
+			return nil, "", err
+		}
+		if _, err := entry.Write(file.data); err != nil {
+			return nil, "", err
+		}
+	}
+	if err := writer.Close(); err != nil {
+		return nil, "", err
+	}
+
+	return archive.Bytes(), fmt.Sprintf("game-%d-%s-submissions-export.zip", game.ID, sanitizeExportName(game.Name)), nil
+}
+
 func (m *MockService) ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error) {
 	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {

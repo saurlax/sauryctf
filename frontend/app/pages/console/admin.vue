@@ -113,6 +113,7 @@ const deletingGameId = ref<number | null>(null)
 const exportingGameId = ref<number | null>(null)
 const exportingScoreboardGameId = ref<number | null>(null)
 const exportingWriteupsGameId = ref<number | null>(null)
+const exportingSubmissionsGameId = ref<number | null>(null)
 const importingGame = ref(false)
 const deletingChallengeId = ref<number | null>(null)
 const games = ref<Array<{
@@ -1318,6 +1319,37 @@ async function exportWriteups(gameId: number) {
   }
 }
 
+async function exportSubmissions(gameId: number) {
+  exportingSubmissionsGameId.value = gameId
+  try {
+    const response = await $fetch.raw(`/api/admin/games/${gameId}/submissions/export`, {
+      method: 'POST',
+      responseType: 'blob',
+    })
+
+    const blob = response._data as Blob
+    const contentDisposition = response.headers.get('content-disposition') || ''
+    const match = contentDisposition.match(/filename="([^"]+)"/)
+    const filename = match?.[1] || `game-${gameId}-submissions-export.zip`
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+
+    toast.add({ title: '提交记录导出成功', description: `已下载 ${filename}`, color: 'success' })
+  }
+  catch (e: any) {
+    toast.add({ title: '提交记录导出失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    exportingSubmissionsGameId.value = null
+  }
+}
+
 async function importGamePackage() {
   if (!importForm.file) {
     toast.add({ title: '请先选择导入文件', color: 'warning' })
@@ -2356,15 +2388,26 @@ onMounted(async () => {
               <div class="text-sm text-muted">
                 {{ selectedGame.name }} · {{ writeups.length }} 份 Writeup
               </div>
-              <UButton
-                size="sm"
-                variant="ghost"
-                icon="i-lucide-download"
-                :loading="exportingWriteupsGameId === selectedGame.id"
-                @click="exportWriteups(selectedGame.id)"
-              >
-                导出 Writeup
-              </UButton>
+              <div class="flex items-center gap-2">
+                <UButton
+                  size="sm"
+                  variant="ghost"
+                  icon="i-lucide-file-stack"
+                  :loading="exportingSubmissionsGameId === selectedGame.id"
+                  @click="exportSubmissions(selectedGame.id)"
+                >
+                  导出提交记录
+                </UButton>
+                <UButton
+                  size="sm"
+                  variant="ghost"
+                  icon="i-lucide-download"
+                  :loading="exportingWriteupsGameId === selectedGame.id"
+                  @click="exportWriteups(selectedGame.id)"
+                >
+                  导出 Writeup
+                </UButton>
+              </div>
             </div>
             <div v-else class="text-sm text-muted">
               先选择比赛，再查看当前比赛的 Writeup。

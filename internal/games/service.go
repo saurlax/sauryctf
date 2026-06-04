@@ -702,6 +702,57 @@ func (s *Service) ExportWriteupsPackage(id uint) ([]byte, string, error) {
 	return archive.Bytes(), filename, nil
 }
 
+func (s *Service) ExportSubmissionsPackage(id uint) ([]byte, string, error) {
+	var game models.Game
+	if err := s.db.First(&game, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, "", errors.New("game not found")
+		}
+		return nil, "", err
+	}
+
+	submissions, err := s.ListSubmissionRecords(id)
+	if err != nil {
+		return nil, "", err
+	}
+
+	submissionsJSON, err := json.MarshalIndent(submissions, "", "  ")
+	if err != nil {
+		return nil, "", err
+	}
+
+	submissionsCSV, err := buildSubmissionsCSV(submissions)
+	if err != nil {
+		return nil, "", err
+	}
+
+	var archive bytes.Buffer
+	writer := zip.NewWriter(&archive)
+
+	for _, file := range []struct {
+		name string
+		data []byte
+	}{
+		{name: "submissions.json", data: submissionsJSON},
+		{name: "submissions.csv", data: submissionsCSV},
+	} {
+		archiveFile, err := writer.Create(file.name)
+		if err != nil {
+			return nil, "", err
+		}
+		if _, err := archiveFile.Write(file.data); err != nil {
+			return nil, "", err
+		}
+	}
+
+	if err := writer.Close(); err != nil {
+		return nil, "", err
+	}
+
+	filename := fmt.Sprintf("game-%d-%s-submissions-export.zip", game.ID, sanitizeExportName(game.Name))
+	return archive.Bytes(), filename, nil
+}
+
 func (s *Service) ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error) {
 	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
@@ -1672,6 +1723,79 @@ func (s *Service) GetParticipants(gameID uint) ([]GameParticipantEntry, error) {
 	return result, nil
 }
 
+func (s *Service) ListSubmissionRecords(gameID uint) ([]GameSubmissionRecord, error) {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("game not found")
+		}
+		return nil, err
+	}
+
+	type submissionRow struct {
+		ID             uint
+		GameID         uint
+		ChallengeID    uint
+		ChallengeTitle string
+		Category       string
+		UserID         uint
+		Username       string
+		TeamID         uint
+		TeamName       string
+		IsPractice     bool
+		Score          int
+		BloodType      string
+		SolvedAt       time.Time
+	}
+
+	var rows []submissionRow
+	if err := s.db.Table("solves").
+		Select(`
+			solves.id,
+			solves.game_id,
+			solves.challenge_id,
+			challenges.title as challenge_title,
+			challenges.category,
+			solves.user_id,
+			users.username,
+			solves.team_id,
+			teams.name as team_name,
+			solves.is_practice,
+			solves.score,
+			solves.blood_type,
+			solves.solved_at
+		`).
+		Joins("JOIN challenges ON challenges.id = solves.challenge_id").
+		Joins("JOIN users ON users.id = solves.user_id").
+		Joins("JOIN teams ON teams.id = solves.team_id").
+		Where("solves.game_id = ?", gameID).
+		Order("solves.solved_at ASC, solves.id ASC").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	result := make([]GameSubmissionRecord, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, GameSubmissionRecord{
+			ID:             row.ID,
+			GameID:         row.GameID,
+			ChallengeID:    row.ChallengeID,
+			ChallengeTitle: row.ChallengeTitle,
+			Category:       row.Category,
+			UserID:         row.UserID,
+			Username:       row.Username,
+			TeamID:         row.TeamID,
+			TeamName:       row.TeamName,
+			IsPractice:     row.IsPractice,
+			Score:          row.Score,
+			BloodType:      row.BloodType,
+			SolvedAt:       row.SolvedAt,
+		})
+	}
+
+	return result, nil
+}
+
 func (s *Service) UpdateParticipationStatus(gameID uint, teamID uint, status string, division *string) (*GameParticipantEntry, error) {
 	var game models.Game
 	if err := s.db.First(&game, gameID).Error; err != nil {
@@ -2050,6 +2174,41 @@ func buildWriteupsCSV(writeups []GameWriteupResponse) ([]byte, error) {
 			writeup.SubmittedAt.UTC().Format(time.RFC3339),
 			reviewedAt,
 			fmt.Sprintf("%t", writeup.CanSubmit),
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+func buildSubmissionsCSV(submissions []GameSubmissionRecord) ([]byte, error) {
+	var buffer bytes.Buffer
+	writer := csv.NewWriter(&buffer)
+
+	if err := writer.Write([]string{"id", "game_id", "challenge_id", "challenge_title", "category", "user_id", "username", "team_id", "team_name", "is_practice", "score", "blood_type", "solved_at"}); err != nil {
+		return nil, err
+	}
+
+	for _, submission := range submissions {
+		if err := writer.Write([]string{
+			fmt.Sprintf("%d", submission.ID),
+			fmt.Sprintf("%d", submission.GameID),
+			fmt.Sprintf("%d", submission.ChallengeID),
+			submission.ChallengeTitle,
+			submission.Category,
+			fmt.Sprintf("%d", submission.UserID),
+			submission.Username,
+			fmt.Sprintf("%d", submission.TeamID),
+			submission.TeamName,
+			fmt.Sprintf("%t", submission.IsPractice),
+			fmt.Sprintf("%d", submission.Score),
+			submission.BloodType,
+			submission.SolvedAt.UTC().Format(time.RFC3339),
 		}); err != nil {
 			return nil, err
 		}

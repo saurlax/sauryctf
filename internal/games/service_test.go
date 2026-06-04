@@ -646,6 +646,43 @@ func TestService_ExportWriteupsPackage_IncludesJSONCSVAndMarkdownFiles(t *testin
 	assert.Contains(t, files["writeups/team-1-team-one.md"], "# Team One")
 }
 
+func TestService_ExportSubmissionsPackage_IncludesJSONAndCSV(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, team1ID, _ := createGameChallengeFixture(t, database)
+
+	_, err = svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
+	require.NoError(t, err)
+
+	archiveBytes, filename, err := svc.ExportSubmissionsPackage(gameID)
+	require.NoError(t, err)
+	assert.Contains(t, filename, "submissions-export.zip")
+
+	reader, err := zip.NewReader(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	require.NoError(t, err)
+	require.Len(t, reader.File, 2)
+
+	files := map[string]string{}
+	for _, file := range reader.File {
+		fileReader, err := file.Open()
+		require.NoError(t, err)
+		data, err := io.ReadAll(fileReader)
+		_ = fileReader.Close()
+		require.NoError(t, err)
+		files[file.Name] = string(data)
+	}
+
+	assert.Contains(t, files["submissions.json"], `"challenge_title": "Fixture Challenge"`)
+	assert.Contains(t, files["submissions.json"], `"team_name": "Team One"`)
+	assert.Contains(t, files["submissions.csv"], "id,game_id,challenge_id,challenge_title,category,user_id,username,team_id,team_name,is_practice,score,blood_type,solved_at")
+	assert.Contains(t, files["submissions.csv"], "Fixture Challenge")
+	assert.Contains(t, files["submissions.csv"], "Team One")
+}
+
 func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {
 	database, err := db.ConnectTest()
 	require.NoError(t, err)
