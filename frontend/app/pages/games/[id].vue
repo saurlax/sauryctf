@@ -38,6 +38,12 @@ const writeupForm = reactive({
 const now = ref(Date.now())
 
 const gameId = route.params.id as string
+const currentGameRedirect = computed(() => {
+  const target = route.fullPath || `/games/${gameId}`
+  return encodeURIComponent(target)
+})
+const loginEntry = computed(() => `/login?redirect=${currentGameRedirect.value}`)
+const registerEntry = computed(() => `/register?redirect=${currentGameRedirect.value}`)
 
 const hasChallengeContent = computed(() =>
   challenges.value.some(ch =>
@@ -423,9 +429,9 @@ const nextStepMeta = computed(() => {
       description: '登录后就能看到你自己的队伍状态，并决定是先组队还是直接进入比赛详情继续操作。',
       color: 'info' as const,
       actionLabel: '去登录',
-      actionTo: '/login',
+      actionTo: loginEntry.value,
       secondaryLabel: '创建账号',
-      secondaryTo: '/register',
+      secondaryTo: registerEntry.value,
     }
   }
 
@@ -532,7 +538,7 @@ const detailPrimaryAction = computed(() => {
     return {
       mode: 'link' as const,
       label: participationMeta.value.actionLabel,
-      to: '/login',
+      to: loginEntry.value,
       icon: 'i-lucide-log-in',
       color: 'primary' as const,
       variant: 'solid' as const,
@@ -580,7 +586,7 @@ const detailSecondaryAction = computed(() => {
   if (!authState.user) {
     return {
       label: '创建账号',
-      to: '/register',
+      to: registerEntry.value,
       icon: 'i-lucide-user-plus',
     }
   }
