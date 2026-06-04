@@ -38,6 +38,7 @@ type CreateGameRequest struct {
 	StartTime        time.Time `json:"start_time" binding:"required"`
 	EndTime          time.Time `json:"end_time" binding:"required"`
 	RegistrationMode string    `json:"registration_mode"`
+	MaxTeamMembers   int       `json:"max_team_members"`
 	IsPublic         *bool     `json:"is_public"`
 }
 
@@ -49,6 +50,7 @@ type UpdateGameRequest struct {
 	EndTime          *time.Time `json:"end_time"`
 	Status           *string    `json:"status"`
 	RegistrationMode *string    `json:"registration_mode"`
+	MaxTeamMembers   *int       `json:"max_team_members"`
 	IsPublic         *bool      `json:"is_public"`
 }
 
@@ -61,6 +63,7 @@ type GameResponse struct {
 	EndTime          time.Time `json:"end_time"`
 	Status           string    `json:"status"`
 	RegistrationMode string    `json:"registration_mode"`
+	MaxTeamMembers   int       `json:"max_team_members"`
 	IsPublic         bool      `json:"is_public"`
 	CreatedBy        uint      `json:"created_by"`
 	CreatedAt        time.Time `json:"created_at"`

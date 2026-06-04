@@ -24,7 +24,12 @@ func (h *Handler) CreateGame(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	game, err := h.svc.CreateGame(req, userID.(uint))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		switch err.Error() {
+		case "invalid registration mode", "invalid max team members":
+			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
 		return
 	}
 	c.JSON(http.StatusCreated, game)
@@ -61,11 +66,14 @@ func (h *Handler) UpdateGame(c *gin.Context, id int) {
 
 	game, err := h.svc.UpdateGame(uint(id), req)
 	if err != nil {
-		if err.Error() == "game not found" {
+		switch err.Error() {
+		case "game not found":
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
-			return
+		case "invalid registration mode", "invalid max team members":
+			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, game)

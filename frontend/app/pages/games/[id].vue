@@ -323,8 +323,8 @@ const participationHint = computed(() => {
   return {
     title: '当前可报名',
     description: registrationMode === 'auto_accept'
-      ? '当前队伍尚未报名，这场比赛会自动通过报名，确认后即可直接进入参赛状态。'
-      : '当前队伍尚未报名，进入本场比赛前请确认队伍成员已准备完成。',
+      ? `当前队伍尚未报名，这场比赛会自动通过报名，确认后即可直接进入参赛状态${game.value?.max_team_members ? `。注意队伍人数不能超过 ${game.value.max_team_members} 人` : ''}。`
+      : `当前队伍尚未报名，进入本场比赛前请确认队伍成员已准备完成${game.value?.max_team_members ? `，且队伍人数不超过 ${game.value.max_team_members} 人` : ''}。`,
     color: 'info' as const,
   }
 })
@@ -603,8 +603,9 @@ onMounted(async () => {
               <ul class="space-y-2 text-muted">
                 <li>1. 先在控制台创建或加入队伍，再报名比赛。</li>
                 <li>2. 当前比赛报名方式：{{ game.registration_mode === 'auto_accept' ? '自动通过' : '人工审核' }}。</li>
-                <li>3. 题目页会根据你当前队伍显示已解状态和一血队伍。</li>
-                <li>4. 比赛开始后不可退出比赛，比赛结束后将无法继续得分。</li>
+                <li>3. {{ game.max_team_members ? `当前队伍人数上限为 ${game.max_team_members} 人，超出将无法报名。` : '当前比赛不限制队伍人数。' }}</li>
+                <li>4. 题目页会根据你当前队伍显示已解状态和一血队伍。</li>
+                <li>5. 比赛开始后不可退出比赛，比赛结束后将无法继续得分。</li>
               </ul>
             </div>
           </div>
@@ -659,6 +660,10 @@ onMounted(async () => {
               <div class="flex items-center justify-between gap-3">
                 <span class="text-muted">报名方式</span>
                 <span>{{ game.registration_mode === 'auto_accept' ? '自动通过' : '人工审核' }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-muted">队伍人数限制</span>
+                <span>{{ game.max_team_members ? `${game.max_team_members} 人` : '不限' }}</span>
               </div>
               <div class="flex items-center justify-between gap-3">
                 <span class="text-muted">可提交 Flag</span>

@@ -196,6 +196,9 @@ onMounted(async () => {
         <p class="mt-2 text-xs text-muted">
           报名方式：{{ game.registration_mode === 'auto_accept' ? '自动通过' : '人工审核' }}
         </p>
+        <p class="mt-1 text-xs text-muted">
+          {{ game.max_team_members ? `队伍人数上限：${game.max_team_members} 人` : '队伍人数不限' }}
+        </p>
         <div class="mt-4 rounded-lg border border-default bg-elevated/50 px-3 py-3">
           <div class="mb-2 flex items-center justify-between gap-2">
             <span class="text-sm font-medium">我的参赛状态</span>

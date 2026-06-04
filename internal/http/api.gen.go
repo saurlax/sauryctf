@@ -427,6 +427,7 @@ type CreateGameRequest struct {
 	Description      *string               `json:"description,omitempty"`
 	EndTime          time.Time             `json:"end_time"`
 	IsPublic         *bool                 `json:"is_public,omitempty"`
+	MaxTeamMembers   *int                  `json:"max_team_members,omitempty"`
 	Name             string                `json:"name"`
 	Notice           *string               `json:"notice,omitempty"`
 	RegistrationMode *GameRegistrationMode `json:"registration_mode,omitempty"`
@@ -451,6 +452,7 @@ type Game struct {
 	EndTime          time.Time             `json:"end_time"`
 	Id               int                   `json:"id"`
 	IsPublic         *bool                 `json:"is_public,omitempty"`
+	MaxTeamMembers   *int                  `json:"max_team_members,omitempty"`
 	Name             string                `json:"name"`
 	Notice           *string               `json:"notice,omitempty"`
 	RegistrationMode *GameRegistrationMode `json:"registration_mode,omitempty"`
@@ -617,6 +619,7 @@ type UpdateGameRequest struct {
 	Description      *string                            `json:"description,omitempty"`
 	EndTime          *time.Time                         `json:"end_time,omitempty"`
 	IsPublic         *bool                              `json:"is_public,omitempty"`
+	MaxTeamMembers   *int                               `json:"max_team_members,omitempty"`
 	Name             *string                            `json:"name,omitempty"`
 	Notice           *string                            `json:"notice,omitempty"`
 	RegistrationMode *UpdateGameRequestRegistrationMode `json:"registration_mode,omitempty"`

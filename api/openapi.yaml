@@ -292,6 +292,8 @@ components:
         registration_mode:
           type: string
           enum: [review, auto_accept]
+        max_team_members:
+          type: integer
         is_public:
           type: boolean
         created_by:
@@ -319,6 +321,8 @@ components:
         registration_mode:
           type: string
           enum: [review, auto_accept]
+        max_team_members:
+          type: integer
         is_public:
           type: boolean
 
@@ -343,6 +347,8 @@ components:
         registration_mode:
           type: string
           enum: [review, auto_accept]
+        max_team_members:
+          type: integer
         is_public:
           type: boolean
 

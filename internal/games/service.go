@@ -34,8 +34,19 @@ func normalizeRegistrationMode(mode string) (string, error) {
 	}
 }
 
+func normalizeMaxTeamMembers(limit int) (int, error) {
+	if limit < 0 {
+		return 0, errors.New("invalid max team members")
+	}
+	return limit, nil
+}
+
 func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameResponse, error) {
 	registrationMode, err := normalizeRegistrationMode(req.RegistrationMode)
+	if err != nil {
+		return nil, err
+	}
+	maxTeamMembers, err := normalizeMaxTeamMembers(req.MaxTeamMembers)
 	if err != nil {
 		return nil, err
 	}
@@ -48,6 +59,7 @@ func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameRespon
 		EndTime:          req.EndTime,
 		Status:           "draft",
 		RegistrationMode: registrationMode,
+		MaxTeamMembers:   maxTeamMembers,
 		CreatedBy:        createdBy,
 	}
 	if req.IsPublic != nil {
@@ -55,7 +67,7 @@ func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameRespon
 	}
 
 	if err := s.db.Select(
-		"Name", "Description", "Notice", "StartTime", "EndTime", "Status", "RegistrationMode", "IsPublic", "CreatedBy",
+		"Name", "Description", "Notice", "StartTime", "EndTime", "Status", "RegistrationMode", "MaxTeamMembers", "IsPublic", "CreatedBy",
 	).Create(game).Error; err != nil {
 		return nil, err
 	}
@@ -126,6 +138,13 @@ func (s *Service) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, err
 		}
 		updates["registration_mode"] = registrationMode
 	}
+	if req.MaxTeamMembers != nil {
+		maxTeamMembers, err := normalizeMaxTeamMembers(*req.MaxTeamMembers)
+		if err != nil {
+			return nil, err
+		}
+		updates["max_team_members"] = maxTeamMembers
+	}
 	if req.IsPublic != nil {
 		updates["is_public"] = *req.IsPublic
 	}
@@ -184,6 +203,16 @@ func (s *Service) JoinGame(gameID uint, teamID uint, userID uint) error {
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
+	}
+
+	if game.MaxTeamMembers > 0 {
+		var memberCount int64
+		if err := s.db.Model(&models.TeamMember{}).Where("team_id = ?", teamID).Count(&memberCount).Error; err != nil {
+			return err
+		}
+		if memberCount > int64(game.MaxTeamMembers) {
+			return errors.New("team exceeds the maximum member limit for this game")
+		}
 	}
 
 	status := models.ParticipationPending
@@ -719,6 +748,7 @@ func toResponse(g *models.Game) *GameResponse {
 		EndTime:          g.EndTime,
 		Status:           g.Status,
 		RegistrationMode: g.RegistrationMode,
+		MaxTeamMembers:   g.MaxTeamMembers,
 		IsPublic:         g.IsPublic,
 		CreatedBy:        g.CreatedBy,
 		CreatedAt:        g.CreatedAt,

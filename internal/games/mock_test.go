@@ -44,6 +44,7 @@ func (m *MockService) CreateGame(req CreateGameRequest, createdBy uint) (*GameRe
 		EndTime:          req.EndTime,
 		Status:           "draft",
 		RegistrationMode: RegistrationModeReview,
+		MaxTeamMembers:   req.MaxTeamMembers,
 		IsPublic:         isPublic,
 		CreatedBy:        createdBy,
 		CreatedAt:        time.Now(),
@@ -103,6 +104,9 @@ func (m *MockService) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse,
 	}
 	if req.RegistrationMode != nil {
 		game.RegistrationMode = *req.RegistrationMode
+	}
+	if req.MaxTeamMembers != nil {
+		game.MaxTeamMembers = *req.MaxTeamMembers
 	}
 	if req.IsPublic != nil {
 		game.IsPublic = *req.IsPublic

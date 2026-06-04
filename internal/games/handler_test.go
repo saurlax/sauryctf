@@ -113,6 +113,7 @@ func TestCreateGame_Success(t *testing.T) {
 		"start_time":        time.Now().Add(24 * time.Hour).Format(time.RFC3339),
 		"end_time":          time.Now().Add(48 * time.Hour).Format(time.RFC3339),
 		"registration_mode": "auto_accept",
+		"max_team_members":  4,
 	}
 	b, _ := json.Marshal(body)
 
@@ -128,6 +129,7 @@ func TestCreateGame_Success(t *testing.T) {
 	assert.Equal(t, "Spring CTF", game["name"])
 	assert.Equal(t, "draft", game["status"])
 	assert.Equal(t, "auto_accept", game["registration_mode"])
+	assert.Equal(t, float64(4), game["max_team_members"])
 }
 
 func TestCreateGame_MissingName(t *testing.T) {
@@ -211,7 +213,8 @@ func TestUpdateGame_Success(t *testing.T) {
 
 	newName := "New Name"
 	newMode := games.RegistrationModeAutoAccept
-	body := games.UpdateGameRequest{Name: &newName, RegistrationMode: &newMode}
+	newLimit := 2
+	body := games.UpdateGameRequest{Name: &newName, RegistrationMode: &newMode, MaxTeamMembers: &newLimit}
 	b, _ := json.Marshal(body)
 
 	w := httptest.NewRecorder()
@@ -225,6 +228,7 @@ func TestUpdateGame_Success(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &game)
 	assert.Equal(t, "New Name", game["name"])
 	assert.Equal(t, "auto_accept", game["registration_mode"])
+	assert.Equal(t, float64(2), game["max_team_members"])
 }
 
 func TestAddChallenge_Success(t *testing.T) {

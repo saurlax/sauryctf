@@ -16,6 +16,7 @@ const gameForm = reactive({
   start_time: '',
   end_time: '',
   registration_mode: 'review' as 'review' | 'auto_accept',
+  max_team_members: 0,
   is_public: true,
 })
 
@@ -44,6 +45,7 @@ const gameSettingsForm = reactive({
   game_id: undefined as number | undefined,
   status: 'draft' as 'draft' | 'active' | 'ended',
   registration_mode: 'review' as 'review' | 'auto_accept',
+  max_team_members: 0,
   is_public: true,
 })
 
@@ -91,6 +93,7 @@ const games = ref<Array<{
   notice?: string
   status: 'draft' | 'active' | 'ended'
   registration_mode?: 'review' | 'auto_accept'
+  max_team_members?: number
   start_time: string
   end_time: string
   is_public?: boolean
@@ -363,6 +366,7 @@ async function createGame() {
         start_time: new Date(gameForm.start_time).toISOString(),
         end_time: new Date(gameForm.end_time).toISOString(),
         registration_mode: gameForm.registration_mode,
+        max_team_members: gameForm.max_team_members,
         is_public: gameForm.is_public,
       },
     })
@@ -373,6 +377,7 @@ async function createGame() {
     gameForm.start_time = ''
     gameForm.end_time = ''
     gameForm.registration_mode = 'review'
+    gameForm.max_team_members = 0
     gameForm.is_public = true
     await loadAdminResources()
   }
@@ -512,6 +517,7 @@ async function updateGameSettings() {
       body: {
         status: gameSettingsForm.status,
         registration_mode: gameSettingsForm.registration_mode,
+        max_team_members: gameSettingsForm.max_team_members,
         is_public: gameSettingsForm.is_public,
       },
     })
@@ -688,6 +694,7 @@ watch(() => gameSettingsForm.game_id, () => {
   if (!gameSettingsForm.game_id) {
     gameSettingsForm.status = 'draft'
     gameSettingsForm.registration_mode = 'review'
+    gameSettingsForm.max_team_members = 0
     gameSettingsForm.is_public = true
     return
   }
@@ -699,6 +706,7 @@ watch(() => gameSettingsForm.game_id, () => {
 
   gameSettingsForm.status = game.status
   gameSettingsForm.registration_mode = game.registration_mode || 'review'
+  gameSettingsForm.max_team_members = game.max_team_members || 0
   gameSettingsForm.is_public = game.is_public ?? true
 })
 
@@ -785,6 +793,10 @@ onMounted(async () => {
               <USelect v-model="gameForm.registration_mode" :items="registrationModeOptions" class="w-full" />
             </UFormField>
 
+            <UFormField label="队伍人数上限" name="max_team_members" description="0 表示不限制">
+              <UInput v-model.number="gameForm.max_team_members" type="number" min="0" class="w-full" />
+            </UFormField>
+
             <UFormField label="公开比赛" name="is_public">
               <USwitch v-model="gameForm.is_public" />
             </UFormField>
@@ -867,12 +879,16 @@ onMounted(async () => {
               />
             </UFormField>
 
+            <UFormField label="队伍人数上限" name="max_team_members" description="0 表示不限制">
+              <UInput v-model.number="gameSettingsForm.max_team_members" type="number" min="0" class="w-full" />
+            </UFormField>
+
             <UFormField label="公开比赛" name="is_public">
               <USwitch v-model="gameSettingsForm.is_public" />
             </UFormField>
 
             <div v-if="selectedSettingsGame" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              当前比赛：{{ selectedSettingsGame.name }} · {{ new Date(selectedSettingsGame.start_time).toLocaleString() }} · {{ getRegistrationModeLabel(selectedSettingsGame.registration_mode) }}
+              当前比赛：{{ selectedSettingsGame.name }} · {{ new Date(selectedSettingsGame.start_time).toLocaleString() }} · {{ getRegistrationModeLabel(selectedSettingsGame.registration_mode) }} · {{ selectedSettingsGame.max_team_members ? `最多 ${selectedSettingsGame.max_team_members} 人` : '人数不限' }}
             </div>
 
             <UButton type="submit" :loading="settingsSubmitting">
@@ -1184,6 +1200,9 @@ onMounted(async () => {
                     </div>
                     <div class="text-muted">
                       {{ game.status }} · {{ getRegistrationModeLabel(game.registration_mode) }} · {{ new Date(game.start_time).toLocaleString() }}
+                    </div>
+                    <div class="text-muted">
+                      {{ game.max_team_members ? `队伍上限 ${game.max_team_members} 人` : '队伍人数不限' }}
                     </div>
                     <div v-if="game.notice" class="text-muted line-clamp-2">
                       公告：{{ game.notice }}

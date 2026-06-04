@@ -71,6 +71,7 @@ type Game struct {
 	EndTime          time.Time `gorm:"not null" json:"end_time"`
 	Status           string    `gorm:"size:32;not null;default:draft" json:"status"`              // draft, active, ended
 	RegistrationMode string    `gorm:"size:32;not null;default:review" json:"registration_mode"` // review, auto_accept
+	MaxTeamMembers   int       `gorm:"not null;default:0" json:"max_team_members"`                // 0 = unlimited
 	IsPublic         bool      `gorm:"not null;default:false" json:"is_public"`
 	CreatedBy        uint      `gorm:"index" json:"created_by"`
 	CreatedAt        time.Time `json:"created_at"`

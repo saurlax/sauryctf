@@ -12,6 +12,7 @@
   - 需要管理员在管理端审核为 `accepted`
   - `rejected` 状态下队伍可以根据提示重新提交报名
   - 如果比赛使用 `auto_accept`，报名后会直接进入 `accepted`
+  - 如果比赛设置了 `max_team_members`，超过人数上限的队伍不能报名
 - `GET /api/games/{id}/challenges`
   - 如果当前用户所属队伍已报名，会返回队伍视角的题目状态
   - 包括 `solved` 和 `blood_team`
@@ -19,6 +20,7 @@
   - 会包含已报名但暂未出分的队伍
 - `GET /api/games/{id}`
   - 会返回比赛当前的 `registration_mode`
+  - 会返回比赛当前的 `max_team_members`
 
 ## 前端行为
 
@@ -51,6 +53,7 @@
 - `pending` / `rejected` 队伍不会获得正式参赛资格
 - 已通过的队伍仍然只能在开赛前退赛
 - `auto_accept` 模式只跳过审核，不会绕过比赛开始/结束时间限制
+- 队伍人数上限只在比赛报名时生效，不影响队伍平时的创建、加入和成员调整
 
 ## 题目内容格式
 

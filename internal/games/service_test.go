@@ -86,6 +86,7 @@ func TestService_CreateGame(t *testing.T) {
 		Notice:      "notice",
 		StartTime:   time.Now().Add(24 * time.Hour),
 		EndTime:     time.Now().Add(48 * time.Hour),
+		MaxTeamMembers: 5,
 		IsPublic:    &public,
 	}, 1)
 	assert.NoError(t, err)
@@ -93,6 +94,7 @@ func TestService_CreateGame(t *testing.T) {
 	assert.Equal(t, "notice", game.Notice)
 	assert.Equal(t, "draft", game.Status)
 	assert.Equal(t, games.RegistrationModeReview, game.RegistrationMode)
+	assert.Equal(t, 5, game.MaxTeamMembers)
 	assert.True(t, game.IsPublic)
 }
 
@@ -151,17 +153,20 @@ func TestService_UpdateGame(t *testing.T) {
 	newStatus := "active"
 	newNotice := "Updated notice"
 	newRegistrationMode := games.RegistrationModeAutoAccept
+	newMaxTeamMembers := 3
 	updated, err := svc.UpdateGame(game.ID, games.UpdateGameRequest{
 		Name:             &newName,
 		Notice:           &newNotice,
 		Status:           &newStatus,
 		RegistrationMode: &newRegistrationMode,
+		MaxTeamMembers:   &newMaxTeamMembers,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, "Updated", updated.Name)
 	assert.Equal(t, "Updated notice", updated.Notice)
 	assert.Equal(t, "active", updated.Status)
 	assert.Equal(t, games.RegistrationModeAutoAccept, updated.RegistrationMode)
+	assert.Equal(t, 3, updated.MaxTeamMembers)
 }
 
 func TestService_AddChallenge(t *testing.T) {
@@ -288,6 +293,45 @@ func TestService_JoinGame_AutoAcceptsWhenConfigured(t *testing.T) {
 	participation, err := svc.GetParticipation(game.ID, team.ID)
 	require.NoError(t, err)
 	assert.Equal(t, models.ParticipationAccepted, participation.Status)
+}
+
+func TestService_JoinGame_RejectsTeamExceedingGameMemberLimit(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+
+	captain := models.User{Username: "limit-captain", Email: "limit-captain@example.com", PasswordHash: "hash"}
+	member := models.User{Username: "limit-member", Email: "limit-member@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&captain).Error)
+	require.NoError(t, database.Create(&member).Error)
+
+	team := models.Team{Name: "Limit Team", InviteCode: "limit01", CaptainID: captain.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team.ID, UserID: captain.ID, Role: models.MemberRoleCaptain,
+	}).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team.ID, UserID: member.ID, Role: models.MemberRoleMember,
+	}).Error)
+
+	game := models.Game{
+		Name:             "Limited Game",
+		StartTime:        time.Now().Add(time.Hour),
+		EndTime:          time.Now().Add(2 * time.Hour),
+		Status:           "draft",
+		RegistrationMode: games.RegistrationModeReview,
+		MaxTeamMembers:   1,
+		IsPublic:         true,
+		CreatedBy:        captain.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+
+	err = svc.JoinGame(game.ID, team.ID, captain.ID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "maximum member limit")
 }
 
 func TestService_UpdateParticipationStatus(t *testing.T) {
