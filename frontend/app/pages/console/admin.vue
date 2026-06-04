@@ -50,11 +50,25 @@ const gameEditForm = reactive({
   end_time: '',
 })
 
+const challengeEditForm = reactive({
+  challenge_id: undefined as number | undefined,
+  title: '',
+  description: '',
+  category: 'web',
+  type: 'static',
+  difficulty: 'easy',
+  base_score: 100,
+  min_score: 10,
+  decay_rate: 0.1,
+  is_visible: true,
+})
+
 const gameSubmitting = ref(false)
 const challengeSubmitting = ref(false)
 const attachSubmitting = ref(false)
 const settingsSubmitting = ref(false)
 const gameEditing = ref(false)
+const challengeEditing = ref(false)
 const loadingResources = ref(false)
 const loadingGameChallenges = ref(false)
 const removingChallengeId = ref<number | null>(null)
@@ -122,6 +136,7 @@ const challengeOptions = computed(() => challenges.value.map(challenge => ({
 const selectedGame = computed(() => games.value.find(game => game.id === attachForm.game_id) || null)
 const selectedSettingsGame = computed(() => games.value.find(game => game.id === gameSettingsForm.game_id) || null)
 const selectedEditableGame = computed(() => games.value.find(game => game.id === gameEditForm.game_id) || null)
+const selectedEditableChallenge = computed(() => challenges.value.find(challenge => challenge.id === challengeEditForm.challenge_id) || null)
 
 async function loadAdminResources() {
   loadingResources.value = true
@@ -236,6 +251,42 @@ async function createChallenge() {
   }
   finally {
     challengeSubmitting.value = false
+  }
+}
+
+async function updateChallengeDetails() {
+  if (!challengeEditForm.challenge_id) {
+    toast.add({ title: '请先选择题目', color: 'warning' })
+    return
+  }
+
+  challengeEditing.value = true
+  try {
+    await $api('put', '/api/challenges/{id}', {
+      params: {
+        id: challengeEditForm.challenge_id,
+      },
+      body: {
+        title: challengeEditForm.title,
+        description: challengeEditForm.description,
+        category: challengeEditForm.category,
+        type: challengeEditForm.type,
+        difficulty: challengeEditForm.difficulty,
+        base_score: challengeEditForm.base_score,
+        min_score: challengeEditForm.min_score,
+        decay_rate: challengeEditForm.decay_rate,
+        is_visible: challengeEditForm.is_visible,
+      },
+    })
+
+    toast.add({ title: '题目信息已更新', color: 'success' })
+    await loadAdminResources()
+  }
+  catch (e: any) {
+    toast.add({ title: '题目信息更新失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    challengeEditing.value = false
   }
 }
 
@@ -354,6 +405,36 @@ async function removeChallengeFromGame(challengeId: number) {
     removingChallengeId.value = null
   }
 }
+
+watch(() => challengeEditForm.challenge_id, () => {
+  if (!challengeEditForm.challenge_id) {
+    challengeEditForm.title = ''
+    challengeEditForm.description = ''
+    challengeEditForm.category = 'web'
+    challengeEditForm.type = 'static'
+    challengeEditForm.difficulty = 'easy'
+    challengeEditForm.base_score = 100
+    challengeEditForm.min_score = 10
+    challengeEditForm.decay_rate = 0.1
+    challengeEditForm.is_visible = true
+    return
+  }
+
+  const challenge = challenges.value.find(item => item.id === challengeEditForm.challenge_id)
+  if (!challenge) {
+    return
+  }
+
+  challengeEditForm.title = challenge.title
+  challengeEditForm.description = challenge.description || ''
+  challengeEditForm.category = challenge.category
+  challengeEditForm.type = challenge.type || 'static'
+  challengeEditForm.difficulty = challenge.difficulty || 'easy'
+  challengeEditForm.base_score = challenge.base_score || 100
+  challengeEditForm.min_score = challenge.min_score || 10
+  challengeEditForm.decay_rate = challenge.decay_rate || 0.1
+  challengeEditForm.is_visible = challenge.is_visible ?? true
+})
 
 watch(() => gameEditForm.game_id, () => {
   if (!gameEditForm.game_id) {
@@ -597,6 +678,67 @@ onMounted(async () => {
 
             <UButton type="submit" :loading="challengeSubmitting">
               创建题目
+            </UButton>
+          </UForm>
+        </UPageCard>
+
+        <UPageCard title="编辑题目" icon="i-lucide-file-pen-line">
+          <UForm :state="challengeEditForm" class="space-y-4" @submit="updateChallengeDetails">
+            <UFormField label="选择题目" name="challenge_id">
+              <USelect
+                v-model="challengeEditForm.challenge_id"
+                :items="challengeOptions"
+                class="w-full"
+                placeholder="选择一个题目"
+              />
+            </UFormField>
+
+            <UFormField label="题目名称" name="title">
+              <UInput v-model="challengeEditForm.title" class="w-full" placeholder="例如：Easy XSS" />
+            </UFormField>
+
+            <UFormField label="题目描述" name="description">
+              <UTextarea v-model="challengeEditForm.description" class="w-full" :rows="4" placeholder="题目简介、提示或附件说明" />
+            </UFormField>
+
+            <div class="grid gap-4 md:grid-cols-3">
+              <UFormField label="分类" name="category">
+                <USelect v-model="challengeEditForm.category" :items="categoryOptions" class="w-full" />
+              </UFormField>
+
+              <UFormField label="类型" name="type">
+                <USelect v-model="challengeEditForm.type" :items="typeOptions" class="w-full" />
+              </UFormField>
+
+              <UFormField label="难度" name="difficulty">
+                <USelect v-model="challengeEditForm.difficulty" :items="difficultyOptions" class="w-full" />
+              </UFormField>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-3">
+              <UFormField label="基础分值" name="base_score">
+                <UInput v-model.number="challengeEditForm.base_score" type="number" class="w-full" />
+              </UFormField>
+
+              <UFormField label="最低分值" name="min_score">
+                <UInput v-model.number="challengeEditForm.min_score" type="number" class="w-full" />
+              </UFormField>
+
+              <UFormField label="衰减率" name="decay_rate">
+                <UInput v-model.number="challengeEditForm.decay_rate" type="number" step="0.1" class="w-full" />
+              </UFormField>
+            </div>
+
+            <UFormField label="是否可见" name="is_visible">
+              <USwitch v-model="challengeEditForm.is_visible" />
+            </UFormField>
+
+            <div v-if="selectedEditableChallenge" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+              正在编辑：{{ selectedEditableChallenge.title }} · {{ selectedEditableChallenge.category }}
+            </div>
+
+            <UButton type="submit" :loading="challengeEditing">
+              保存题目信息
             </UButton>
           </UForm>
         </UPageCard>
