@@ -83,27 +83,6 @@ async function fetchAll() {
   }
 }
 
-async function fetchParticipation() {
-  if (!authState.user) {
-    participation.value = null
-    return
-  }
-
-  participationLoading.value = true
-  try {
-    participation.value = await $api('get', '/api/games/{id}/participation', {
-      params: { id: Number(gameId) },
-    })
-  }
-  catch (e: any) {
-    participation.value = null
-    toast.add({ title: '获取报名状态失败', description: e.data?.message || e.message, color: 'error' })
-  }
-  finally {
-    participationLoading.value = false
-  }
-}
-
 async function fetchWriteup() {
   if (!authState.user) {
     writeup.value = null
@@ -119,6 +98,16 @@ async function fetchWriteup() {
   }
   catch (e: any) {
     toast.add({ title: '获取 Writeup 失败', description: e.data?.message || e.message, color: 'error' })
+  }
+}
+
+async function refreshParticipationView() {
+  participationLoading.value = true
+  try {
+    await fetchAll()
+  }
+  finally {
+    participationLoading.value = false
   }
 }
 
@@ -199,7 +188,7 @@ async function joinGame() {
         : '等待管理员审核通过后即可正式参赛。',
       color: 'success',
     })
-    await Promise.all([fetchParticipation(), fetchAll()])
+    await refreshParticipationView()
   }
   catch (e: any) {
     toast.add({ title: '报名失败', description: e.data?.message || e.message, color: 'error' })
@@ -222,7 +211,7 @@ async function leaveGame() {
       body: { team_id: teamId },
     })
     toast.add({ title: '已退出比赛', color: 'success' })
-    await Promise.all([fetchParticipation(), fetchAll()])
+    await refreshParticipationView()
   }
   catch (e: any) {
     toast.add({ title: '退出失败', description: e.data?.message || e.message, color: 'error' })
