@@ -119,6 +119,27 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 		fmt.Sscan(c.Param("teamId"), &teamId)
 		h.RemoveParticipant(c, id, teamId)
 	})
+	api.GET("/games/:id/writeup", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.GetWriteup(c, id)
+	})
+	api.PUT("/games/:id/writeup", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.SubmitWriteup(c, id)
+	})
+	api.GET("/admin/games/:id/writeups", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.ListWriteups(c, id)
+	})
+	api.PUT("/admin/games/:id/writeups/:teamId", func(c *gin.Context) {
+		var id, teamId int
+		fmt.Sscan(c.Param("id"), &id)
+		fmt.Sscan(c.Param("teamId"), &teamId)
+		h.ReviewWriteup(c, id, teamId)
+	})
 	return r
 }
 
@@ -827,4 +848,67 @@ func TestGetAdminGameChallenges_ExposesFullContentForManagement(t *testing.T) {
 	assert.Equal(t, "full statement", response[0]["description"])
 	assert.Equal(t, "[\"hint\"]", response[0]["hints"])
 	assert.Equal(t, "[\"https://example.com/web.zip\"]", response[0]["attachments"])
+}
+
+func TestSubmitWriteup_Success(t *testing.T) {
+	svc := games.NewMockService()
+	svc.UserTeams[1] = &games.GameParticipationTeam{ID: 7, Name: "Blue Team"}
+	svc.Participations["1-7"] = "accepted"
+	r := setupTestRouter(svc)
+
+	public := true
+	svc.CreateGame(games.CreateGameRequest{
+		Name:            "Writeup Game",
+		StartTime:       time.Now(),
+		EndTime:         time.Now().Add(time.Hour),
+		WriteupRequired: true,
+		IsPublic:        &public,
+	}, 1)
+
+	body := map[string]string{"content": "our writeup"}
+	b, _ := json.Marshal(body)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/games/1/writeup", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &response)
+	assert.Equal(t, "submitted", response["status"])
+	assert.Equal(t, "our writeup", response["content"])
+}
+
+func TestReviewWriteup_Success(t *testing.T) {
+	svc := games.NewMockService()
+	svc.UserTeams[1] = &games.GameParticipationTeam{ID: 7, Name: "Blue Team"}
+	svc.Participations["1-7"] = "accepted"
+	r := setupTestRouter(svc)
+
+	public := true
+	svc.CreateGame(games.CreateGameRequest{
+		Name:            "Writeup Review Game",
+		StartTime:       time.Now(),
+		EndTime:         time.Now().Add(time.Hour),
+		WriteupRequired: true,
+		IsPublic:        &public,
+	}, 1)
+	_, _ = svc.SubmitWriteup(1, 1, games.SubmitGameWriteupRequest{Content: "initial writeup"})
+
+	body := map[string]string{"status": "approved", "remark": "looks good"}
+	b, _ := json.Marshal(body)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/admin/games/1/writeups/7", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &response)
+	assert.Equal(t, "approved", response["status"])
+	assert.Equal(t, "looks good", response["review_remark"])
 }

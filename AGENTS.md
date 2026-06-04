@@ -180,6 +180,10 @@ internal/<module>/
   - `writeup_required` marks contests that expect a post-contest writeup submission
   - `writeup_deadline` can be left empty, but when set it must not be earlier than `end_time`
   - these fields now round-trip through game create/update, public/admin reads, and contest import/export packages
+- A minimal writeup workflow now exists for contests that require it:
+  - accepted teams can submit or overwrite their contest writeup from the game detail page
+  - writeups are blocked when the contest does not require them or the deadline has passed
+  - admins can list submitted writeups per contest and mark them `approved` or `rejected`
 - Challenge content delivery is now expected to use:
   - `description` for the main statement
   - `hints` as a JSON string array

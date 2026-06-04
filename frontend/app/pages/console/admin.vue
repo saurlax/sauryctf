@@ -152,9 +152,22 @@ const participants = ref<Array<{
   score: number
   solve_count: number
 }>>([])
+const writeups = ref<Array<{
+  game_id: number
+  team_id: number
+  team_name: string
+  submitted_by: number
+  content: string
+  status: 'submitted' | 'approved' | 'rejected'
+  review_remark?: string
+  submitted_at: string
+  reviewed_at?: string | null
+}>>([])
 type AdminGameSummary = (typeof games.value)[number]
 
 const participantStatusDrafts = reactive<Record<number, 'pending' | 'accepted' | 'rejected'>>({})
+const writeupReviewDrafts = reactive<Record<number, 'approved' | 'rejected'>>({})
+const writeupRemarkDrafts = reactive<Record<number, string>>({})
 
 const categoryOptions = [
   { label: 'Web', value: 'web' },
@@ -281,6 +294,25 @@ async function loadParticipants() {
   }
 }
 
+async function loadWriteups() {
+  if (!attachForm.game_id) {
+    writeups.value = []
+    return
+  }
+
+  try {
+    writeups.value = await $fetch(`/api/admin/games/${attachForm.game_id}/writeups`)
+    for (const writeup of writeups.value) {
+      writeupReviewDrafts[writeup.team_id] = writeup.status === 'rejected' ? 'rejected' : 'approved'
+      writeupRemarkDrafts[writeup.team_id] = writeup.review_remark || ''
+    }
+  }
+  catch (e: any) {
+    writeups.value = []
+    toast.add({ title: 'Writeup 列表加载失败', description: e.data?.message || e.message, color: 'error' })
+  }
+}
+
 async function updateParticipantStatus(teamId: number) {
   if (!attachForm.game_id) {
     return
@@ -347,6 +379,30 @@ async function removeParticipant(teamId: number) {
   }
   finally {
     removingParticipantId.value = null
+  }
+}
+
+async function reviewWriteup(teamId: number) {
+  if (!attachForm.game_id) {
+    return
+  }
+
+  try {
+    const updated = await $fetch(`/api/admin/games/${attachForm.game_id}/writeups/${teamId}`, {
+      method: 'PUT',
+      body: {
+        status: writeupReviewDrafts[teamId],
+        remark: writeupRemarkDrafts[teamId] || '',
+      },
+    })
+    const index = writeups.value.findIndex(item => item.team_id === teamId)
+    if (index >= 0) {
+      writeups.value[index] = updated as typeof writeups.value[number]
+    }
+    toast.add({ title: 'Writeup 审核已更新', color: 'success' })
+  }
+  catch (e: any) {
+    toast.add({ title: 'Writeup 审核失败', description: e.data?.message || e.message, color: 'error' })
   }
 }
 
@@ -877,6 +933,7 @@ watch(() => gameSettingsForm.game_id, () => {
 watch(() => attachForm.game_id, async () => {
   await loadSelectedGameChallenges()
   await loadParticipants()
+  await loadWriteups()
 })
 
 onMounted(async () => {
@@ -1425,6 +1482,74 @@ onMounted(async () => {
 
             <div v-else-if="selectedGame && !loadingParticipants" class="text-sm text-muted">
               这场比赛还没有参赛队伍。
+            </div>
+          </UPageCard>
+
+          <UPageCard title="Writeup 审核" icon="i-lucide-file-check">
+            <div v-if="selectedGame" class="mb-3 text-sm text-muted">
+              {{ selectedGame.name }} · {{ writeups.length }} 份 Writeup
+            </div>
+            <div v-else class="text-sm text-muted">
+              先选择比赛，再查看当前比赛的 Writeup。
+            </div>
+
+            <div v-if="writeups.length" class="space-y-3">
+              <div
+                v-for="writeup in writeups"
+                :key="`${writeup.game_id}-${writeup.team_id}`"
+                class="rounded-lg border border-default px-3 py-3 text-sm space-y-3"
+              >
+                <div class="flex items-center justify-between gap-3">
+                  <div class="font-medium">
+                    {{ writeup.team_name }}
+                  </div>
+                  <UBadge :color="writeup.status === 'approved' ? 'success' : writeup.status === 'rejected' ? 'error' : 'warning'" variant="soft">
+                    {{ writeup.status }}
+                  </UBadge>
+                </div>
+
+                <div class="text-muted leading-6 whitespace-pre-wrap">
+                  {{ writeup.content }}
+                </div>
+
+                <div class="grid gap-2 text-muted md:grid-cols-2">
+                  <div>提交时间：{{ new Date(writeup.submitted_at).toLocaleString() }}</div>
+                  <div>审核时间：{{ writeup.reviewed_at ? new Date(writeup.reviewed_at).toLocaleString() : '未审核' }}</div>
+                </div>
+
+                <div class="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_auto] md:items-end">
+                  <UFormField label="审核结果" :name="`writeup-status-${writeup.team_id}`">
+                    <USelect
+                      v-model="writeupReviewDrafts[writeup.team_id]"
+                      :items="[
+                        { label: '通过', value: 'approved' },
+                        { label: '驳回', value: 'rejected' },
+                      ]"
+                      class="w-full"
+                    />
+                  </UFormField>
+
+                  <UFormField label="审核备注" :name="`writeup-remark-${writeup.team_id}`">
+                    <UInput
+                      v-model="writeupRemarkDrafts[writeup.team_id]"
+                      class="w-full"
+                      placeholder="可选，例如：请补充关键截图"
+                    />
+                  </UFormField>
+
+                  <UButton
+                    size="sm"
+                    icon="i-lucide-file-check-2"
+                    @click="reviewWriteup(writeup.team_id)"
+                  >
+                    保存审核
+                  </UButton>
+                </div>
+              </div>
+            </div>
+
+            <div v-else-if="selectedGame" class="text-sm text-muted">
+              这场比赛还没有队伍提交 Writeup。
             </div>
           </UPageCard>
 

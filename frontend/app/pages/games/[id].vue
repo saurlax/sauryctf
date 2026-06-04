@@ -6,6 +6,17 @@ type GameChallengeDetail = components['schemas']['GameChallengeDetail']
 type ScoreboardEntry = components['schemas']['ScoreboardEntry']
 type GameParticipation = components['schemas']['GameParticipation']
 type ScoreboardChallengeStat = components['schemas']['ScoreboardChallengeStat']
+type GameWriteupView = {
+  game_id: number
+  team_id: number
+  team_name: string
+  content?: string
+  status?: 'submitted' | 'approved' | 'rejected'
+  review_remark?: string
+  submitted_at?: string
+  reviewed_at?: string | null
+  can_submit?: boolean
+}
 
 const route = useRoute()
 const toast = useToast()
@@ -19,13 +30,18 @@ const scoreboardChallenges = ref<ScoreboardChallengeStat[]>([])
 const scoreboardFrozen = ref(false)
 const scoreboardFreezeTime = ref<string | null>(null)
 const participation = ref<GameParticipation | null>(null)
+const writeup = ref<GameWriteupView | null>(null)
 const loading = ref(true)
 const participationLoading = ref(false)
 const joining = ref(false)
 const leaving = ref(false)
 const activeTab = ref('challenges')
 const submitting = ref<number | null>(null) // challenge id being submitted
+const writeupSubmitting = ref(false)
 const flagInputs = reactive<Record<number, string>>({})
+const writeupForm = reactive({
+  content: '',
+})
 const now = ref(Date.now())
 
 const gameId = route.params.id as string
@@ -46,15 +62,21 @@ async function fetchAll() {
     const participationRequest = authState.user
       ? $api('get', '/api/games/{id}/participation', { params: { id: Number(gameId) } })
       : Promise.resolve(null)
+    const writeupRequest = authState.user
+      ? $fetch<GameWriteupView>(`/api/games/${gameId}/writeup`)
+      : Promise.resolve(null)
 
     const [gameRes, challengesRes, participationRes] = await Promise.all([
       gameRequest,
       challengesRequest,
       participationRequest,
     ])
+    const writeupRes = await writeupRequest
     game.value = gameRes
     challenges.value = challengesRes
     participation.value = participationRes
+    writeup.value = writeupRes
+    writeupForm.content = writeupRes?.content || ''
   }
   catch (e: any) {
     toast.add({ title: '获取比赛信息失败', description: e.data?.message || e.message, color: 'error' })
@@ -82,6 +104,22 @@ async function fetchParticipation() {
   }
   finally {
     participationLoading.value = false
+  }
+}
+
+async function fetchWriteup() {
+  if (!authState.user) {
+    writeup.value = null
+    writeupForm.content = ''
+    return
+  }
+
+  try {
+    writeup.value = await $fetch<GameWriteupView>(`/api/games/${gameId}/writeup`)
+    writeupForm.content = writeup.value?.content || ''
+  }
+  catch (e: any) {
+    toast.add({ title: '获取 Writeup 失败', description: e.data?.message || e.message, color: 'error' })
   }
 }
 
@@ -185,6 +223,25 @@ async function leaveGame() {
   }
   finally {
     leaving.value = false
+  }
+}
+
+async function submitWriteup() {
+  writeupSubmitting.value = true
+  try {
+    writeup.value = await $fetch<GameWriteupView>(`/api/games/${gameId}/writeup`, {
+      method: 'PUT',
+      body: {
+        content: writeupForm.content,
+      },
+    })
+    toast.add({ title: 'Writeup 已提交', color: 'success' })
+  }
+  catch (e: any) {
+    toast.add({ title: 'Writeup 提交失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    writeupSubmitting.value = false
   }
 }
 
@@ -516,6 +573,7 @@ const tabItems = [
   { label: '概览', value: 'overview', icon: 'i-lucide-layout-template' },
   { label: '题目', value: 'challenges', icon: 'i-lucide-flag' },
   { label: '排行榜', value: 'scoreboard', icon: 'i-lucide-trophy' },
+  { label: 'Writeup', value: 'writeup', icon: 'i-lucide-file-text' },
 ]
 
 watch(activeTab, (v) => {
@@ -974,6 +1032,57 @@ onMounted(async () => {
             </div>
           </UPageCard>
         </div>
+      </div>
+
+      <div v-else-if="activeTab === 'writeup'">
+        <UPageCard title="赛后 Writeup" icon="i-lucide-file-text">
+          <div class="space-y-4">
+            <UAlert
+              :color="game.writeup_required ? 'info' : 'neutral'"
+              variant="soft"
+              :title="game.writeup_required ? '当前比赛要求 Writeup' : '当前比赛不强制要求 Writeup'"
+              :description="game.writeup_required
+                ? (game.writeup_deadline ? `截止时间：${new Date(game.writeup_deadline).toLocaleString()}` : '当前未设置单独截止时间。')
+                : '你仍然可以在这里沉淀复盘内容，但不会作为强制参赛要求。'"
+            />
+
+            <div v-if="writeup?.status" class="grid gap-3 md:grid-cols-3 text-sm">
+              <div class="rounded-lg border border-default px-3 py-3">
+                <div class="text-muted">当前状态</div>
+                <div class="mt-1 font-medium">{{ writeup.status }}</div>
+              </div>
+              <div class="rounded-lg border border-default px-3 py-3">
+                <div class="text-muted">提交时间</div>
+                <div class="mt-1 font-medium">{{ writeup.submitted_at ? new Date(writeup.submitted_at).toLocaleString() : '未提交' }}</div>
+              </div>
+              <div class="rounded-lg border border-default px-3 py-3">
+                <div class="text-muted">审核备注</div>
+                <div class="mt-1 font-medium">{{ writeup.review_remark || '暂无' }}</div>
+              </div>
+            </div>
+
+            <UForm :state="writeupForm" class="space-y-4" @submit="submitWriteup">
+              <UFormField
+                label="Writeup 内容"
+                name="content"
+                :description="writeup?.can_submit ? '支持重复提交，重新提交后会回到 submitted 状态。' : '当前还不满足提交条件，通常需要已通过报名且比赛配置要求 Writeup。'"
+              >
+                <UTextarea v-model="writeupForm.content" class="w-full" :rows="12" placeholder="记录解题思路、复盘总结、关键截图或附件说明。" />
+              </UFormField>
+
+              <div class="flex justify-end">
+                <UButton
+                  type="submit"
+                  icon="i-lucide-file-up"
+                  :loading="writeupSubmitting"
+                  :disabled="!writeup?.can_submit"
+                >
+                  提交 Writeup
+                </UButton>
+              </div>
+            </UForm>
+          </div>
+        </UPageCard>
       </div>
     </template>
 

@@ -407,3 +407,84 @@ func (h *Handler) GetGameParticipation(c *gin.Context, id int) {
 
 	c.JSON(http.StatusOK, participation)
 }
+
+func (h *Handler) GetWriteup(c *gin.Context, id int) {
+	userID := c.MustGet("user_id").(uint)
+
+	writeup, err := h.svc.GetWriteup(uint(id), userID)
+	if err != nil {
+		switch err.Error() {
+		case "game not found":
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		case "team not found":
+			c.JSON(http.StatusConflict, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, writeup)
+}
+
+func (h *Handler) SubmitWriteup(c *gin.Context, id int) {
+	var req SubmitGameWriteupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+
+	userID := c.MustGet("user_id").(uint)
+	writeup, err := h.svc.SubmitWriteup(uint(id), userID, req)
+	if err != nil {
+		switch err.Error() {
+		case "game not found":
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		case "writeup is not required for this game", "writeup deadline has passed", "team not found", "team is not approved for this game yet", "writeup content is required":
+			c.JSON(http.StatusConflict, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, writeup)
+}
+
+func (h *Handler) ListWriteups(c *gin.Context, id int) {
+	writeups, err := h.svc.ListWriteups(uint(id))
+	if err != nil {
+		if err.Error() == "game not found" {
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, writeups)
+}
+
+func (h *Handler) ReviewWriteup(c *gin.Context, id int, teamId int) {
+	var req ReviewGameWriteupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+
+	reviewerID := c.MustGet("user_id").(uint)
+	writeup, err := h.svc.ReviewWriteup(uint(id), uint(teamId), reviewerID, req)
+	if err != nil {
+		switch err.Error() {
+		case "game not found", "writeup not found":
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		case "invalid writeup status":
+			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, writeup)
+}

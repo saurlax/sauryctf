@@ -176,6 +176,12 @@ func (h *Handler) LeaveGame(c *gin.Context, id int) { h.games.LeaveGame(c, id) }
 func (h *Handler) GetGameParticipation(c *gin.Context, id int) {
 	h.games.GetGameParticipation(c, id)
 }
+func (h *Handler) GetGameWriteup(c *gin.Context, id int) {
+	h.games.GetWriteup(c, id)
+}
+func (h *Handler) SubmitGameWriteup(c *gin.Context, id int) {
+	h.games.SubmitWriteup(c, id)
+}
 func (h *Handler) GetScoreboard(c *gin.Context, id int) {
 	h.games.GetScoreboard(c, id)
 }
@@ -206,4 +212,18 @@ func (h *Handler) DeleteGameParticipant(c *gin.Context, id int, teamId int) {
 		return
 	}
 	h.games.RemoveParticipant(c, id, teamId)
+}
+func (h *Handler) GetGameWriteups(c *gin.Context, id int) {
+	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
+	if c.IsAborted() {
+		return
+	}
+	h.games.ListWriteups(c, id)
+}
+func (h *Handler) UpdateGameWriteup(c *gin.Context, id int, teamId int) {
+	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
+	if c.IsAborted() {
+		return
+	}
+	h.games.ReviewWriteup(c, id, teamId)
 }

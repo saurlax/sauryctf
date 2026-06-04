@@ -19,6 +19,7 @@ type MockService struct {
 	ChallengesByGame map[uint][]GameChallengeDetail
 	Participations   map[string]models.ParticipationStatus // "gameID-teamID"
 	UserTeams        map[uint]*GameParticipationTeam
+	Writeups         map[string]*GameWriteupResponse
 	nextID           uint
 }
 
@@ -29,6 +30,7 @@ func NewMockService() *MockService {
 		ChallengesByGame: make(map[uint][]GameChallengeDetail),
 		Participations:   make(map[string]models.ParticipationStatus),
 		UserTeams:        make(map[uint]*GameParticipationTeam),
+		Writeups:         make(map[string]*GameWriteupResponse),
 		nextID:           1,
 	}
 }
@@ -528,6 +530,119 @@ func (m *MockService) RemoveParticipation(gameID uint, teamID uint) error {
 
 	delete(m.Participations, key)
 	return nil
+}
+
+func (m *MockService) GetWriteup(gameID uint, userID uint) (*GameWriteupResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	game, ok := m.Games[gameID]
+	if !ok {
+		return nil, fmt.Errorf("game not found")
+	}
+	team := m.UserTeams[userID]
+	if team == nil {
+		return nil, fmt.Errorf("team not found")
+	}
+	key := fmt.Sprintf("%d-%d", gameID, team.ID)
+	if writeup, ok := m.Writeups[key]; ok {
+		copy := *writeup
+		copy.CanSubmit = game.WriteupRequired && m.Participations[key] == models.ParticipationAccepted
+		return &copy, nil
+	}
+	return &GameWriteupResponse{
+		GameID:    gameID,
+		TeamID:    team.ID,
+		TeamName:  team.Name,
+		CanSubmit: game.WriteupRequired && m.Participations[key] == models.ParticipationAccepted,
+	}, nil
+}
+
+func (m *MockService) SubmitWriteup(gameID uint, userID uint, req SubmitGameWriteupRequest) (*GameWriteupResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	game, ok := m.Games[gameID]
+	if !ok {
+		return nil, fmt.Errorf("game not found")
+	}
+	if !game.WriteupRequired {
+		return nil, fmt.Errorf("writeup is not required for this game")
+	}
+	team := m.UserTeams[userID]
+	if team == nil {
+		return nil, fmt.Errorf("team not found")
+	}
+	key := fmt.Sprintf("%d-%d", gameID, team.ID)
+	if m.Participations[key] != models.ParticipationAccepted {
+		return nil, fmt.Errorf("team is not approved for this game yet")
+	}
+	if strings.TrimSpace(req.Content) == "" {
+		return nil, fmt.Errorf("writeup content is required")
+	}
+
+	now := time.Now()
+	writeup := &GameWriteupResponse{
+		GameID:       gameID,
+		TeamID:       team.ID,
+		TeamName:     team.Name,
+		SubmittedBy:  userID,
+		Content:      strings.TrimSpace(req.Content),
+		Status:       string(models.WriteupStatusSubmitted),
+		ReviewRemark: "",
+		SubmittedAt:  now,
+		CanSubmit:    true,
+	}
+	m.Writeups[key] = writeup
+	copy := *writeup
+	return &copy, nil
+}
+
+func (m *MockService) ListWriteups(gameID uint) ([]GameWriteupResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	game, ok := m.Games[gameID]
+	if !ok {
+		return nil, fmt.Errorf("game not found")
+	}
+	_ = game
+
+	result := make([]GameWriteupResponse, 0)
+	prefix := fmt.Sprintf("%d-", gameID)
+	for key, writeup := range m.Writeups {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		copy := *writeup
+		result = append(result, copy)
+	}
+	return result, nil
+}
+
+func (m *MockService) ReviewWriteup(gameID uint, teamID uint, reviewerID uint, req ReviewGameWriteupRequest) (*GameWriteupResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.Games[gameID]; !ok {
+		return nil, fmt.Errorf("game not found")
+	}
+	if req.Status != string(models.WriteupStatusApproved) && req.Status != string(models.WriteupStatusRejected) {
+		return nil, fmt.Errorf("invalid writeup status")
+	}
+	key := fmt.Sprintf("%d-%d", gameID, teamID)
+	writeup, ok := m.Writeups[key]
+	if !ok {
+		return nil, fmt.Errorf("writeup not found")
+	}
+
+	now := time.Now()
+	writeup.Status = req.Status
+	writeup.ReviewerID = &reviewerID
+	writeup.ReviewRemark = req.Remark
+	writeup.ReviewedAt = &now
+	copy := *writeup
+	return &copy, nil
 }
 
 func (m *MockService) exportChallenges(gameID uint) []ExportedGameChallenge {

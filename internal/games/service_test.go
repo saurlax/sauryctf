@@ -46,6 +46,16 @@ func createGameChallengeFixture(t *testing.T, database *gorm.DB) (uint, uint, ui
 	team2 := models.Team{Name: "Team Two", InviteCode: "team02", CaptainID: user2.ID, Status: models.TeamStatusActive}
 	require.NoError(t, database.Create(&team1).Error)
 	require.NoError(t, database.Create(&team2).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team1.ID,
+		UserID: user1.ID,
+		Role:   models.MemberRoleCaptain,
+	}).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team2.ID,
+		UserID: user2.ID,
+		Role:   models.MemberRoleCaptain,
+	}).Error)
 
 	challenge := models.Challenge{
 		Title:     "Fixture Challenge",
@@ -1153,4 +1163,83 @@ func TestService_GetAdminGameChallenges_IncludesHiddenMountedChallenges(t *testi
 	assert.Equal(t, "internal statement", adminItems[0].Description)
 	assert.Equal(t, "[\"private hint\"]", adminItems[0].Hints)
 	assert.Equal(t, "[\"https://example.com/private.zip\"]", adminItems[0].Attachments)
+}
+
+func TestService_SubmitWriteup_RequiresAcceptedParticipation(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, _, team1ID, _ := createGameChallengeFixture(t, database)
+	writeupDeadline := time.Now().Add(time.Hour)
+	require.NoError(t, database.Model(&models.Game{}).Where("id = ?", gameID).Updates(map[string]any{
+		"writeup_required": true,
+		"writeup_deadline": writeupDeadline,
+	}).Error)
+	require.NoError(t, database.Model(&models.Participation{}).
+		Where("game_id = ? AND team_id = ?", gameID, team1ID).
+		Update("status", models.ParticipationPending).Error)
+
+	_, err = svc.SubmitWriteup(gameID, 1, games.SubmitGameWriteupRequest{Content: "writeup body"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not approved")
+}
+
+func TestService_SubmitWriteup_UpsertsTeamWriteup(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, _, _, _ := createGameChallengeFixture(t, database)
+	writeupDeadline := time.Now().Add(time.Hour)
+	require.NoError(t, database.Model(&models.Game{}).Where("id = ?", gameID).Updates(map[string]any{
+		"writeup_required": true,
+		"writeup_deadline": writeupDeadline,
+	}).Error)
+
+	first, err := svc.SubmitWriteup(gameID, 1, games.SubmitGameWriteupRequest{Content: "first draft"})
+	require.NoError(t, err)
+	assert.Equal(t, "submitted", first.Status)
+	assert.Equal(t, "first draft", first.Content)
+
+	second, err := svc.SubmitWriteup(gameID, 1, games.SubmitGameWriteupRequest{Content: "updated draft"})
+	require.NoError(t, err)
+	assert.Equal(t, "submitted", second.Status)
+	assert.Equal(t, "updated draft", second.Content)
+
+	var count int64
+	require.NoError(t, database.Model(&models.GameWriteup{}).Where("game_id = ? AND team_id = ?", gameID, first.TeamID).Count(&count).Error)
+	assert.EqualValues(t, 1, count)
+}
+
+func TestService_ReviewWriteup_UpdatesStatus(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, _, _, _ := createGameChallengeFixture(t, database)
+	writeupDeadline := time.Now().Add(time.Hour)
+	require.NoError(t, database.Model(&models.Game{}).Where("id = ?", gameID).Updates(map[string]any{
+		"writeup_required": true,
+		"writeup_deadline": writeupDeadline,
+	}).Error)
+	_, err = svc.SubmitWriteup(gameID, 1, games.SubmitGameWriteupRequest{Content: "team writeup"})
+	require.NoError(t, err)
+
+	reviewed, err := svc.ReviewWriteup(gameID, 1, 99, games.ReviewGameWriteupRequest{
+		Status: "approved",
+		Remark: "looks good",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "approved", reviewed.Status)
+	require.NotNil(t, reviewed.ReviewerID)
+	assert.Equal(t, uint(99), *reviewed.ReviewerID)
+	assert.Equal(t, "looks good", reviewed.ReviewRemark)
+	require.NotNil(t, reviewed.ReviewedAt)
 }

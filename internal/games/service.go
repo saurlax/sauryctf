@@ -1396,6 +1396,201 @@ func (s *Service) RemoveParticipation(gameID uint, teamID uint) error {
 	return result.Error
 }
 
+func normalizeWriteupStatus(status string) (models.WriteupStatus, error) {
+	switch models.WriteupStatus(status) {
+	case models.WriteupStatusSubmitted, models.WriteupStatusApproved, models.WriteupStatusRejected:
+		return models.WriteupStatus(status), nil
+	default:
+		return "", errors.New("invalid writeup status")
+	}
+}
+
+func (s *Service) GetWriteup(gameID uint, userID uint) (*GameWriteupResponse, error) {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("game not found")
+		}
+		return nil, err
+	}
+
+	participation, err := s.GetParticipationStatus(gameID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !participation.HasTeam || participation.Team == nil {
+		return nil, errors.New("team not found")
+	}
+
+	var writeup models.GameWriteup
+	if err := s.db.Where("game_id = ? AND team_id = ?", gameID, participation.Team.ID).First(&writeup).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &GameWriteupResponse{
+				GameID:    gameID,
+				TeamID:    participation.Team.ID,
+				TeamName:  participation.Team.Name,
+				CanSubmit: game.WriteupRequired && participation.Status == string(models.ParticipationAccepted),
+			}, nil
+		}
+		return nil, err
+	}
+
+	return toWriteupResponse(&writeup, participation.Team.Name, game.WriteupRequired && participation.Status == string(models.ParticipationAccepted)), nil
+}
+
+func (s *Service) SubmitWriteup(gameID uint, userID uint, req SubmitGameWriteupRequest) (*GameWriteupResponse, error) {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("game not found")
+		}
+		return nil, err
+	}
+	if !game.WriteupRequired {
+		return nil, errors.New("writeup is not required for this game")
+	}
+	if game.WriteupDeadline != nil && time.Now().After(*game.WriteupDeadline) {
+		return nil, errors.New("writeup deadline has passed")
+	}
+
+	participation, err := s.GetParticipationStatus(gameID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !participation.HasTeam || participation.Team == nil {
+		return nil, errors.New("team not found")
+	}
+	if !participation.Participated || participation.Status != string(models.ParticipationAccepted) {
+		return nil, errors.New("team is not approved for this game yet")
+	}
+
+	content := strings.TrimSpace(req.Content)
+	if content == "" {
+		return nil, errors.New("writeup content is required")
+	}
+
+	var writeup models.GameWriteup
+	err = s.db.Where("game_id = ? AND team_id = ?", gameID, participation.Team.ID).First(&writeup).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	now := time.Now()
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		writeup = models.GameWriteup{
+			GameID:      gameID,
+			TeamID:      participation.Team.ID,
+			SubmittedBy: userID,
+			Content:     content,
+			Status:      models.WriteupStatusSubmitted,
+			SubmittedAt: now,
+		}
+		if err := s.db.Create(&writeup).Error; err != nil {
+			return nil, err
+		}
+		return toWriteupResponse(&writeup, participation.Team.Name, true), nil
+	}
+
+	updates := map[string]any{
+		"content":       content,
+		"submitted_by":  userID,
+		"status":        models.WriteupStatusSubmitted,
+		"reviewer_id":   nil,
+		"review_remark": "",
+		"reviewed_at":   nil,
+		"submitted_at":  now,
+	}
+	if err := s.db.Model(&writeup).Updates(updates).Error; err != nil {
+		return nil, err
+	}
+	writeup.Content = content
+	writeup.SubmittedBy = userID
+	writeup.Status = models.WriteupStatusSubmitted
+	writeup.ReviewerID = nil
+	writeup.ReviewRemark = ""
+	writeup.ReviewedAt = nil
+	writeup.SubmittedAt = now
+	return toWriteupResponse(&writeup, participation.Team.Name, true), nil
+}
+
+func (s *Service) ListWriteups(gameID uint) ([]GameWriteupResponse, error) {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("game not found")
+		}
+		return nil, err
+	}
+
+	type row struct {
+		models.GameWriteup
+		TeamName string
+	}
+	var rows []row
+	if err := s.db.Table("game_writeups").
+		Select("game_writeups.*, teams.name as team_name").
+		Joins("JOIN teams ON teams.id = game_writeups.team_id").
+		Where("game_writeups.game_id = ?", gameID).
+		Order("game_writeups.submitted_at DESC").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	result := make([]GameWriteupResponse, 0, len(rows))
+	for _, row := range rows {
+		item := row.GameWriteup
+		result = append(result, *toWriteupResponse(&item, row.TeamName, game.WriteupRequired))
+	}
+	return result, nil
+}
+
+func (s *Service) ReviewWriteup(gameID uint, teamID uint, reviewerID uint, req ReviewGameWriteupRequest) (*GameWriteupResponse, error) {
+	status, err := normalizeWriteupStatus(req.Status)
+	if err != nil {
+		return nil, err
+	}
+	if status == models.WriteupStatusSubmitted {
+		return nil, errors.New("invalid writeup status")
+	}
+
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("game not found")
+		}
+		return nil, err
+	}
+
+	var writeup models.GameWriteup
+	if err := s.db.Where("game_id = ? AND team_id = ?", gameID, teamID).First(&writeup).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("writeup not found")
+		}
+		return nil, err
+	}
+
+	var team models.Team
+	if err := s.db.First(&team, teamID).Error; err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	if err := s.db.Model(&writeup).Updates(map[string]any{
+		"status":        status,
+		"reviewer_id":   reviewerID,
+		"review_remark": strings.TrimSpace(req.Remark),
+		"reviewed_at":   now,
+	}).Error; err != nil {
+		return nil, err
+	}
+	writeup.Status = status
+	writeup.ReviewerID = &reviewerID
+	writeup.ReviewRemark = strings.TrimSpace(req.Remark)
+	writeup.ReviewedAt = &now
+
+	return toWriteupResponse(&writeup, team.Name, game.WriteupRequired), nil
+}
+
 func toResponse(g *models.Game) *GameResponse {
 	return &GameResponse{
 		ID:                 g.ID,
@@ -1414,5 +1609,21 @@ func toResponse(g *models.Game) *GameResponse {
 		IsPublic:           g.IsPublic,
 		CreatedBy:          g.CreatedBy,
 		CreatedAt:          g.CreatedAt,
+	}
+}
+
+func toWriteupResponse(writeup *models.GameWriteup, teamName string, canSubmit bool) *GameWriteupResponse {
+	return &GameWriteupResponse{
+		GameID:       writeup.GameID,
+		TeamID:       writeup.TeamID,
+		TeamName:     teamName,
+		SubmittedBy:  writeup.SubmittedBy,
+		Content:      writeup.Content,
+		Status:       string(writeup.Status),
+		ReviewerID:   writeup.ReviewerID,
+		ReviewRemark: writeup.ReviewRemark,
+		SubmittedAt:  writeup.SubmittedAt,
+		ReviewedAt:   writeup.ReviewedAt,
+		CanSubmit:    canSubmit,
 	}
 }

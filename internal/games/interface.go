@@ -39,6 +39,10 @@ type ServiceInterface interface {
 	GetParticipants(gameID uint) ([]GameParticipantEntry, error)
 	UpdateParticipationStatus(gameID uint, teamID uint, status string) (*GameParticipantEntry, error)
 	RemoveParticipation(gameID uint, teamID uint) error
+	GetWriteup(gameID uint, userID uint) (*GameWriteupResponse, error)
+	SubmitWriteup(gameID uint, userID uint, req SubmitGameWriteupRequest) (*GameWriteupResponse, error)
+	ListWriteups(gameID uint) ([]GameWriteupResponse, error)
+	ReviewWriteup(gameID uint, teamID uint, reviewerID uint, req ReviewGameWriteupRequest) (*GameWriteupResponse, error)
 }
 
 type CreateGameRequest struct {
@@ -168,6 +172,29 @@ type GameParticipationResponse struct {
 	Participated bool                   `json:"participated"`
 	Status       string                 `json:"status,omitempty"`
 	Team         *GameParticipationTeam `json:"team,omitempty"`
+}
+
+type SubmitGameWriteupRequest struct {
+	Content string `json:"content" binding:"required"`
+}
+
+type ReviewGameWriteupRequest struct {
+	Status string `json:"status" binding:"required"`
+	Remark string `json:"remark"`
+}
+
+type GameWriteupResponse struct {
+	GameID       uint       `json:"game_id"`
+	TeamID       uint       `json:"team_id"`
+	TeamName     string     `json:"team_name"`
+	SubmittedBy  uint       `json:"submitted_by"`
+	Content      string     `json:"content"`
+	Status       string     `json:"status"`
+	ReviewerID   *uint      `json:"reviewer_id,omitempty"`
+	ReviewRemark string     `json:"review_remark"`
+	SubmittedAt  time.Time  `json:"submitted_at"`
+	ReviewedAt   *time.Time `json:"reviewed_at,omitempty"`
+	CanSubmit    bool       `json:"can_submit"`
 }
 
 type ExportGamePackage struct {
