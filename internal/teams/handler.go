@@ -25,7 +25,7 @@ type JoinTeamRequest struct {
 func (h *Handler) CreateTeam(c *gin.Context) {
 	var req CreateTeamRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
 
@@ -33,7 +33,7 @@ func (h *Handler) CreateTeam(c *gin.Context) {
 
 	team, err := h.svc.CreateTeam(req.Name, userID)
 	if err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		c.JSON(http.StatusConflict, gin.H{"message": err.Error()})
 		return
 	}
 
@@ -43,14 +43,14 @@ func (h *Handler) CreateTeam(c *gin.Context) {
 func (h *Handler) JoinTeam(c *gin.Context) {
 	var req JoinTeamRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
 
 	userID := c.MustGet("user_id").(uint)
 
 	if err := h.svc.JoinTeam(req.InviteCode, userID); err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		c.JSON(http.StatusConflict, gin.H{"message": err.Error()})
 		return
 	}
 
@@ -62,12 +62,12 @@ func (h *Handler) LeaveTeam(c *gin.Context) {
 
 	team, err := h.svc.GetUserTeam(userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not in any team"})
+		c.JSON(http.StatusNotFound, gin.H{"message": "not in any team"})
 		return
 	}
 
 	if err := h.svc.LeaveTeam(team.ID, userID); err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		c.JSON(http.StatusConflict, gin.H{"message": err.Error()})
 		return
 	}
 
@@ -79,7 +79,7 @@ func (h *Handler) GetMyTeam(c *gin.Context) {
 
 	team, err := h.svc.GetUserTeam(userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not in any team"})
+		c.JSON(http.StatusNotFound, gin.H{"message": "not in any team"})
 		return
 	}
 
@@ -90,7 +90,7 @@ func (h *Handler) RemoveTeamMember(c *gin.Context, teamId int, memberId int) {
 	userID := c.MustGet("user_id").(uint)
 
 	if err := h.svc.RemoveMember(uint(teamId), uint(memberId), userID); err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		c.JSON(http.StatusConflict, gin.H{"message": err.Error()})
 		return
 	}
 

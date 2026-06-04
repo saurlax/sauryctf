@@ -89,6 +89,11 @@ func (s *Service) CreateTeam(name string, captainID uint) (*models.Team, error) 
 	if err != nil {
 		return nil, err
 	}
+
+	if err := s.db.Preload("Captain").Preload("Members").Preload("Members.User").First(team, team.ID).Error; err != nil {
+		return nil, err
+	}
+
 	return team, nil
 }
 

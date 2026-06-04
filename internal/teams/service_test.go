@@ -44,6 +44,11 @@ func TestCreateTeam(t *testing.T) {
 		assert.Equal(t, "AlphaTeam", team.Name)
 		assert.Equal(t, user.ID, team.CaptainID)
 		assert.NotEmpty(t, team.InviteCode)
+		assert.Equal(t, user.ID, team.Captain.ID)
+		assert.Equal(t, user.Username, team.Captain.Username)
+		require.Len(t, team.Members, 1)
+		assert.Equal(t, user.ID, team.Members[0].UserID)
+		assert.Equal(t, user.Username, team.Members[0].User.Username)
 
 		// Check captain is also a member
 		var member models.TeamMember
