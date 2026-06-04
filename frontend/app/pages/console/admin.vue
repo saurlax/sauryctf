@@ -411,6 +411,25 @@ async function loadWriteups() {
   }
 }
 
+function resetSelectedGameContext() {
+  selectedGameChallenges.value = []
+  participants.value = []
+  writeups.value = []
+
+  for (const key of Object.keys(participantStatusDrafts)) {
+    delete participantStatusDrafts[Number(key)]
+  }
+  for (const key of Object.keys(participantDivisionDrafts)) {
+    delete participantDivisionDrafts[Number(key)]
+  }
+  for (const key of Object.keys(writeupReviewDrafts)) {
+    delete writeupReviewDrafts[Number(key)]
+  }
+  for (const key of Object.keys(writeupRemarkDrafts)) {
+    delete writeupRemarkDrafts[Number(key)]
+  }
+}
+
 async function updateParticipantStatus(teamId: number) {
   if (!attachForm.game_id) {
     return
@@ -793,7 +812,7 @@ async function updateGameDetails() {
 
 async function deleteGame(gameId: number) {
   const game = games.value.find(item => item.id === gameId)
-  const confirmed = window.confirm(`确认删除比赛「${game?.name || `#${gameId}`}」吗？这会清理该比赛的报名、解题记录和挂题关系。`)
+  const confirmed = window.confirm(`确认删除比赛「${game?.name || `#${gameId}`}」吗？这会清理该比赛的报名、解题、Writeup 和挂题关系。`)
   if (!confirmed) {
     return
   }
@@ -808,8 +827,7 @@ async function deleteGame(gameId: number) {
 
     if (attachForm.game_id === gameId) {
       attachForm.game_id = undefined
-      selectedGameChallenges.value = []
-      participants.value = []
+      resetSelectedGameContext()
     }
     if (gameSettingsForm.game_id === gameId) {
       gameSettingsForm.game_id = undefined
@@ -877,8 +895,11 @@ async function importGamePackage() {
     })
 
     importForm.file = undefined
-    toast.add({ title: '比赛导入成功', description: `已创建 ${game.name}`, color: 'success' })
     await loadAdminResources()
+    attachForm.game_id = game.id
+    gameSettingsForm.game_id = game.id
+    gameEditForm.game_id = game.id
+    toast.add({ title: '比赛导入成功', description: `已创建 ${game.name}，当前保持 draft，可继续在管理端核对挂题和配置。`, color: 'success' })
   }
   catch (e: any) {
     toast.add({ title: '比赛导入失败', description: e.data?.message || e.message, color: 'error' })
