@@ -11,6 +11,7 @@ type GameWriteupView = components['schemas']['GameWriteup']
 const route = useRoute()
 const toast = useToast()
 const { authState, ensureInitialized } = useAuth()
+const { resolveParticipationHints } = usePublicGameParticipationState()
 const isAdmin = computed(() => ['admin', 'super_admin'].includes(authState.user?.role || ''))
 
 const game = ref<Game | null>(null)
@@ -349,156 +350,47 @@ const canSubmitFlag = computed(() =>
   && gameStatusMeta.value.label === '进行中',
 )
 
+const publicGamePhase = computed<PublicGamePhase>(() => {
+  if (gameStatusMeta.value.label === '草稿') {
+    return 'draft'
+  }
+  if (gameStatusMeta.value.label === '未开始') {
+    return 'before_start'
+  }
+  if (gameStatusMeta.value.label === '已结束') {
+    return 'ended'
+  }
+  return 'active'
+})
+
+const publicParticipationHints = computed(() => resolveParticipationHints({
+  gameId: Number(gameId),
+  gamePhase: publicGamePhase.value,
+  isLoggedIn: !!authState.user,
+  participation: participation.value,
+  registrationMode: game.value?.registration_mode,
+  maxTeamMembers: game.value?.max_team_members,
+}))
+
 const participationHint = computed(() => {
-  const registrationMode = game.value?.registration_mode || 'review'
-
-  if (!authState.user) {
+  if (participation.value?.participated && canLeaveGame.value) {
     return {
-      title: '当前为公开浏览模式',
-      description: '未登录时仍可浏览公开比赛的基础信息、题目标题和排行榜。登录后才会显示你的队伍状态，并继续报名比赛。',
-      color: 'info' as const,
-    }
-  }
-
-  if (!participation.value?.has_team) {
-    return {
-      title: '需要先加入队伍',
-      description: '当前比赛以内队形式参赛。请先创建或加入队伍，再返回此页面报名。',
-      color: 'warning' as const,
-    }
-  }
-
-  if (participation.value.participated) {
-    if (participation.value.missing_writeup) {
-      return {
-        title: '需要补交 Writeup',
-        description: participation.value.writeup_deadline
-          ? `当前队伍已通过比赛报名，但在 ${new Date(participation.value.writeup_deadline).toLocaleString()} 前还没有提交 Writeup，请尽快前往 Writeup 标签补交。`
-          : '当前队伍已通过比赛报名，但这场比赛要求提交 Writeup，请尽快前往 Writeup 标签补交。',
-        color: 'warning' as const,
-      }
-    }
-
-    if (participation.value.status === 'pending') {
-      return {
-        title: '报名待审核',
-        description: '当前队伍已经提交报名，等待管理员审核通过后才能正式参赛与提交 Flag。',
-        color: 'warning' as const,
-      }
-    }
-
-    if (participation.value.status === 'rejected') {
-      return {
-        title: '报名已被拒绝',
-        description: '当前队伍的报名未通过。你可以根据比赛公告调整后重新提交报名申请。',
-        color: 'error' as const,
-      }
-    }
-
-    if (canLeaveGame.value) {
-      return {
-        title: '当前报名可撤回',
-        description: '待审核或已拒绝的报名可以直接撤回，调整队伍后再重新提交。',
-        color: 'success' as const,
-      }
-    }
-
-    if (participation.value.writeup_required && participation.value.writeup_submitted && participation.value.writeup_status === 'submitted') {
-      return {
-        title: 'Writeup 待审核',
-        description: '当前队伍已经提交 Writeup，等待管理员审核。比赛侧的报名资格不受影响，但你可以继续回到 Writeup 标签更新内容。',
-        color: 'info' as const,
-      }
-    }
-
-    return {
-      title: '当前已报名',
-      description: participation.value.status === 'accepted'
-        ? '当前队伍报名已通过。根据当前赛事规则，已通过的报名不会再开放撤回。'
-        : gameStatusMeta.value.label === '进行中'
-            ? '比赛进行中，当前队伍可以直接前往题目区提交 Flag。'
-            : '比赛结束后也无法继续提交 Flag。',
+      title: '当前报名可撤回',
+      description: '待审核或已拒绝的报名可以直接撤回，调整队伍后再重新提交。',
       color: 'success' as const,
     }
   }
 
-  if (gameStatusMeta.value.label === '已结束') {
-    return {
-      title: '比赛已结束，无法再报名',
-      description: '你仍然可以查看比赛信息、题目和排行榜，但不能再加入本场比赛。',
-      color: 'error' as const,
-    }
-  }
-
-  if (gameStatusMeta.value.label === '草稿') {
-    return {
-      title: '比赛尚未开放',
-      description: '当前比赛还在准备阶段。管理员切换为可用状态后，队伍才可以开始报名。',
-      color: 'neutral' as const,
-    }
-  }
-
   return {
-    title: '当前可报名',
-    description: registrationMode === 'auto_accept'
-      ? `当前队伍尚未报名，这场比赛会自动通过报名，确认后即可直接进入参赛状态${game.value?.max_team_members ? `。注意队伍人数不能超过 ${game.value.max_team_members} 人` : ''}。`
-      : `当前队伍尚未报名，进入本场比赛前请确认队伍成员已准备完成${game.value?.max_team_members ? `，且队伍人数不超过 ${game.value.max_team_members} 人` : ''}。`,
-    color: 'info' as const,
+    title: publicParticipationHints.value.title,
+    description: publicParticipationHints.value.description,
+    color: publicParticipationHints.value.color,
   }
 })
 
-const submitHint = computed(() => {
-  if (!authState.user) {
-    return '请先登录后再参与比赛。'
-  }
-  if (!participation.value?.has_team) {
-    return '当前需要先加入队伍，才能报名比赛并提交 Flag。'
-  }
-  if (!participation.value.participated) {
-    return '当前队伍尚未报名本场比赛，请先在上方完成报名。'
-  }
-  if (participation.value.status === 'pending') {
-    return '当前报名还在等待管理员审核，审核通过后才可以提交 Flag。'
-  }
-  if (participation.value.status === 'rejected') {
-    return '当前报名已被拒绝，请重新报名或联系管理员确认参赛资格。'
-  }
-  if (participation.value.missing_writeup) {
-    return '当前比赛要求 Writeup，且截止时间已过，但你的队伍还没有提交。'
-  }
-  if (participation.value.status === 'accepted' && gameStatusMeta.value.label !== '进行中') {
-    return '当前报名已通过。根据当前赛事规则，已通过的报名不能再撤回。'
-  }
-  if (gameStatusMeta.value.label === '未开始') {
-    return '比赛尚未开始，当前暂时不能提交 Flag。'
-  }
-  if (gameStatusMeta.value.label === '已结束') {
-    return '比赛已结束，当前不能继续提交 Flag。'
-  }
-  return '当前队伍已具备提交资格。'
-})
+const submitHint = computed(() => publicParticipationHints.value.submitHint)
 
-const challengeVisibilityHint = computed(() => {
-  if (!authState.user) {
-    return '当前公开页已向访客开放题目标题、分类、分值和解题统计。登录、组队并通过报名后，才会继续开放完整题面、提示和附件。'
-  }
-  if (!participation.value?.has_team) {
-    return '当前比赛以内队形式参赛。先加入队伍并完成报名后，才会逐步开放完整题面内容。'
-  }
-  if (!participation.value.participated) {
-    return '当前队伍还没有报名这场比赛。你现在可以先看题目标题、分类和分值，完整题面会在通过报名后开放。'
-  }
-  if (participation.value.status === 'pending') {
-    return '当前报名正在审核中。审核通过前，题目详情、提示和附件会继续隐藏。'
-  }
-  if (participation.value.status === 'rejected') {
-    return '当前报名未通过。重新调整队伍并再次报名后，审核通过才会开放完整题面。'
-  }
-  if (gameStatusMeta.value.label === '未开始') {
-    return '当前队伍已通过报名，但比赛尚未开始。为了避免提前泄题，完整题面会在开赛后自动开放。'
-  }
-  return '当前已开放完整题面，你可以查看提示、附件并按比赛规则提交 Flag。'
-})
+const challengeVisibilityHint = computed(() => publicParticipationHints.value.visibilityHint)
 
 const overviewStats = computed(() => {
   if (!game.value) {

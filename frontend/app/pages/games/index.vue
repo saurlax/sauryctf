@@ -7,6 +7,7 @@ type GameParticipation = components['schemas']['GameParticipation']
 const toast = useToast()
 const { authState, ensureInitialized } = useAuth()
 const { fetchParticipationMap } = useGameParticipationMap()
+const { resolveParticipationMeta } = usePublicGameParticipationState()
 const games = ref<Game[]>([])
 const participationMap = ref<Record<number, GameParticipation>>({})
 const loading = ref(true)
@@ -49,98 +50,14 @@ function getStatusLabel(status: string) {
 }
 
 function getParticipationMeta(game: Game) {
-  const participation = participationMap.value[game.id]
-  const registrationMode = game.registration_mode || 'review'
-
-  if (!authState.user) {
-    return {
-      label: '登录后可查看报名状态',
-      color: 'neutral' as const,
-      description: '先登录，再决定创建队伍或直接进入比赛详情页。',
-      actionLabel: '去登录',
-      actionTo: '/login',
-    }
-  }
-
-  if (!participation?.has_team) {
-    return {
-      label: '未加入队伍',
-      color: 'warning' as const,
-      description: '需要先创建或加入队伍，才能报名比赛并提交 Flag。',
-      actionLabel: '去队伍页',
-      actionTo: '/console/team',
-    }
-  }
-
-  if (participation.participated) {
-    if (participation.missing_writeup) {
-      return {
-        label: '待补 Writeup',
-        color: 'warning' as const,
-        description: `当前队伍 ${participation.team?.name || ''} 已通过比赛报名，但在截止时间前还没有提交 Writeup。`,
-        actionLabel: '去补交',
-        actionTo: `/games/${game.id}`,
-      }
-    }
-
-    if (participation.status === 'pending') {
-      return {
-        label: '待审核',
-        color: 'warning' as const,
-        description: `当前队伍 ${participation.team?.name || ''} 已提交报名，等待管理员审核。`,
-        actionLabel: '查看详情',
-        actionTo: `/games/${game.id}`,
-      }
-    }
-
-    if (participation.status === 'rejected') {
-      return {
-        label: '已拒绝',
-        color: 'error' as const,
-        description: `当前队伍 ${participation.team?.name || ''} 的报名未通过，可进入详情页重新确认。`,
-        actionLabel: '重新报名',
-        actionTo: `/games/${game.id}`,
-      }
-    }
-
-    if (participation.writeup_required && participation.writeup_submitted && participation.writeup_status === 'submitted') {
-      return {
-        label: 'Writeup 待审',
-        color: 'info' as const,
-        description: `当前队伍 ${participation.team?.name || ''} 已提交 Writeup，等待管理员审核。`,
-        actionLabel: '查看详情',
-        actionTo: `/games/${game.id}`,
-      }
-    }
-
-    return {
-      label: '已报名',
-      color: 'success' as const,
-      description: `当前队伍 ${participation.team?.name || ''} 已进入该比赛。`,
-      actionLabel: '进入比赛',
-      actionTo: `/games/${game.id}`,
-    }
-  }
-
-  if (game.status === 'ended') {
-    return {
-      label: '比赛已结束',
-      color: 'error' as const,
-      description: '当前无法再报名，但仍可进入查看题目与排行榜。',
-      actionLabel: '查看详情',
-      actionTo: `/games/${game.id}`,
-    }
-  }
-
-  return {
-    label: '可报名',
-    color: 'info' as const,
-    description: registrationMode === 'auto_accept'
-      ? `当前队伍 ${participation.team?.name || ''} 尚未报名，进入详情页后可直接完成参赛确认。`
-      : `当前队伍 ${participation.team?.name || ''} 尚未报名，可进入详情页完成操作。`,
-    actionLabel: '前往报名',
-    actionTo: `/games/${game.id}`,
-  }
+  return resolveParticipationMeta({
+    gameId: game.id,
+    gamePhase: game.status === 'ended' ? 'ended' : game.status === 'draft' ? 'draft' : 'active',
+    isLoggedIn: !!authState.user,
+    participation: participationMap.value[game.id],
+    registrationMode: game.registration_mode,
+    maxTeamMembers: game.max_team_members,
+  })
 }
 
 onMounted(async () => {
