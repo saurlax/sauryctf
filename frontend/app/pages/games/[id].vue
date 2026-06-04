@@ -7,26 +7,7 @@ type ScoreboardEntry = components['schemas']['ScoreboardEntry']
 type GameParticipation = components['schemas']['GameParticipation']
 type ScoreboardChallengeStat = components['schemas']['ScoreboardChallengeStat']
 type GameWriteupView = components['schemas']['GameWriteup']
-type ChallengeInstanceState = {
-  game_id: number
-  challenge_id: number
-  team_id: number
-  status: string
-  provider?: string
-  image?: string
-  launch_url?: string
-  host?: string
-  port?: string
-  command?: string
-  note?: string
-  started_at?: string
-  last_renewed_at?: string
-  expires_at?: string
-  seconds_left: number
-  can_start: boolean
-  can_renew: boolean
-  message: string
-}
+type ChallengeInstanceState = components['schemas']['ChallengeInstance']
 
 const route = useRoute()
 const toast = useToast()
@@ -182,7 +163,12 @@ async function fetchChallengeInstance(challengeId: number) {
 
   instanceLoading[challengeId] = true
   try {
-    instanceStates[challengeId] = await $fetch<ChallengeInstanceState>(`/api/games/${gameId}/challenges/${challengeId}/instance`)
+    instanceStates[challengeId] = await $api('get', '/api/games/{id}/challenges/{challengeId}/instance', {
+      params: {
+        id: Number(gameId),
+        challengeId,
+      },
+    })
   }
   catch (e: any) {
     instanceStates[challengeId] = null
@@ -195,8 +181,11 @@ async function fetchChallengeInstance(challengeId: number) {
 async function ensureChallengeInstance(challengeId: number) {
   instanceStarting[challengeId] = true
   try {
-    instanceStates[challengeId] = await $fetch<ChallengeInstanceState>(`/api/games/${gameId}/challenges/${challengeId}/instance`, {
-      method: 'POST',
+    instanceStates[challengeId] = await $api('post', '/api/games/{id}/challenges/{challengeId}/instance', {
+      params: {
+        id: Number(gameId),
+        challengeId,
+      },
     })
     toast.add({ title: '实例已准备', description: instanceStates[challengeId]?.message || '当前队伍实例已启动或续期。', color: 'success' })
   }

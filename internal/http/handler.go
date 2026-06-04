@@ -197,6 +197,12 @@ func (h *Handler) RemoveChallengeFromGame(c *gin.Context, id int, challengeId in
 func (h *Handler) SubmitGameFlag(c *gin.Context, id int, challengeId int) {
 	h.games.SubmitGameFlag(c, id, challengeId)
 }
+func (h *Handler) GetChallengeInstance(c *gin.Context, id int, challengeId int) {
+	h.games.GetChallengeInstance(c, id, challengeId)
+}
+func (h *Handler) EnsureChallengeInstance(c *gin.Context, id int, challengeId int) {
+	h.games.EnsureChallengeInstance(c, id, challengeId)
+}
 func (h *Handler) JoinGame(c *gin.Context, id int)  { h.games.JoinGame(c, id) }
 func (h *Handler) LeaveGame(c *gin.Context, id int) { h.games.LeaveGame(c, id) }
 func (h *Handler) GetGameParticipation(c *gin.Context, id int) {

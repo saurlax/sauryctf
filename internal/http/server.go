@@ -90,15 +90,6 @@ func NewServer(db *gorm.DB, jwtSecret string) *gin.Engine {
 		handler.games.ListAnnouncements(c, id)
 	})
 
-	protectedGame := engine.Group("/api/games")
-	protectedGame.Use(rbac.AuthMiddleware(authSvc))
-	protectedGame.GET("/:id/challenges/:challengeId/instance", func(c *gin.Context) {
-		handler.games.GetChallengeInstance(c, mustIntParam(c, "id"), mustIntParam(c, "challengeId"))
-	})
-	protectedGame.POST("/:id/challenges/:challengeId/instance", func(c *gin.Context) {
-		handler.games.EnsureChallengeInstance(c, mustIntParam(c, "id"), mustIntParam(c, "challengeId"))
-	})
-
 	return engine
 }
 

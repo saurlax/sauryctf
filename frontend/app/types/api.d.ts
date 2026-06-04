@@ -111,6 +111,12 @@ export interface paths {
     /** Submit flag for a challenge in a game */
     post: operations["submitGameFlag"];
   };
+  "/api/games/{id}/challenges/{challengeId}/instance": {
+    /** Get current team challenge instance lease */
+    get: operations["getChallengeInstance"];
+    /** Start or renew current team challenge instance lease */
+    post: operations["ensureChallengeInstance"];
+  };
   "/api/games/{id}/scoreboard": {
     /** Get game scoreboard */
     get: operations["getScoreboard"];
@@ -388,6 +394,30 @@ export interface components {
       blood_team?: string;
       second_blood_team?: string;
       third_blood_team?: string;
+    };
+    ChallengeInstance: {
+      game_id: number;
+      challenge_id: number;
+      team_id: number;
+      /** @enum {string} */
+      status: "idle" | "running";
+      provider?: string;
+      image?: string;
+      launch_url?: string;
+      host?: string;
+      port?: string;
+      command?: string;
+      note?: string;
+      /** Format: date-time */
+      started_at?: string | null;
+      /** Format: date-time */
+      last_renewed_at?: string | null;
+      /** Format: date-time */
+      expires_at?: string | null;
+      seconds_left: number;
+      can_start: boolean;
+      can_renew: boolean;
+      message: string;
     };
     JoinGameRequest: {
       team_id: number;
@@ -1108,6 +1138,64 @@ export interface operations {
       403: {
         content: {
           "application/json": components["schemas"]["SubmitResult"];
+        };
+      };
+    };
+  };
+  /** Get current team challenge instance lease */
+  getChallengeInstance: {
+    parameters: {
+      path: {
+        id: number;
+        challengeId: number;
+      };
+    };
+    responses: {
+      /** @description Current challenge instance lease */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ChallengeInstance"];
+        };
+      };
+      /** @description Instance lease unavailable in current state */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Game or challenge not found */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /** Start or renew current team challenge instance lease */
+  ensureChallengeInstance: {
+    parameters: {
+      path: {
+        id: number;
+        challengeId: number;
+      };
+    };
+    responses: {
+      /** @description Lease started or renewed */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ChallengeInstance"];
+        };
+      };
+      /** @description Instance lease unavailable in current state */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Game or challenge not found */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };

@@ -89,6 +89,24 @@ func (e ChallengeType) Valid() bool {
 	}
 }
 
+// Defines values for ChallengeInstanceStatus.
+const (
+	Idle    ChallengeInstanceStatus = "idle"
+	Running ChallengeInstanceStatus = "running"
+)
+
+// Valid indicates whether the value is a known member of the ChallengeInstanceStatus enum.
+func (e ChallengeInstanceStatus) Valid() bool {
+	switch e {
+	case Idle:
+		return true
+	case Running:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateChallengeRequestCategory.
 const (
 	CreateChallengeRequestCategoryAwd       CreateChallengeRequestCategory = "awd"
@@ -542,6 +560,31 @@ type ChallengeDifficulty string
 // ChallengeType defines model for Challenge.Type.
 type ChallengeType string
 
+// ChallengeInstance defines model for ChallengeInstance.
+type ChallengeInstance struct {
+	CanRenew      bool                    `json:"can_renew"`
+	CanStart      bool                    `json:"can_start"`
+	ChallengeId   int                     `json:"challenge_id"`
+	Command       *string                 `json:"command,omitempty"`
+	ExpiresAt     *time.Time              `json:"expires_at,omitempty"`
+	GameId        int                     `json:"game_id"`
+	Host          *string                 `json:"host,omitempty"`
+	Image         *string                 `json:"image,omitempty"`
+	LastRenewedAt *time.Time              `json:"last_renewed_at,omitempty"`
+	LaunchUrl     *string                 `json:"launch_url,omitempty"`
+	Message       string                  `json:"message"`
+	Note          *string                 `json:"note,omitempty"`
+	Port          *string                 `json:"port,omitempty"`
+	Provider      *string                 `json:"provider,omitempty"`
+	SecondsLeft   int                     `json:"seconds_left"`
+	StartedAt     *time.Time              `json:"started_at,omitempty"`
+	Status        ChallengeInstanceStatus `json:"status"`
+	TeamId        int                     `json:"team_id"`
+}
+
+// ChallengeInstanceStatus defines model for ChallengeInstance.Status.
+type ChallengeInstanceStatus string
+
 // CreateChallengeRequest defines model for CreateChallengeRequest.
 type CreateChallengeRequest struct {
 	Attachments   *string                           `json:"attachments,omitempty"`
@@ -575,6 +618,7 @@ type CreateGameRequest struct {
 	Description        *string                            `json:"description,omitempty"`
 	Divisions          *[]string                          `json:"divisions,omitempty"`
 	EndTime            time.Time                          `json:"end_time"`
+	InvitationCode     *string                            `json:"invitation_code,omitempty"`
 	IsPublic           *bool                              `json:"is_public,omitempty"`
 	MaxTeamMembers     *int                               `json:"max_team_members,omitempty"`
 	Name               string                             `json:"name"`
@@ -608,6 +652,8 @@ type Game struct {
 	Divisions          *[]string             `json:"divisions,omitempty"`
 	EndTime            time.Time             `json:"end_time"`
 	Id                 int                   `json:"id"`
+	InvitationCode     *string               `json:"invitation_code,omitempty"`
+	InvitationRequired *bool                 `json:"invitation_required,omitempty"`
 	IsPublic           *bool                 `json:"is_public,omitempty"`
 	MaxTeamMembers     *int                  `json:"max_team_members,omitempty"`
 	Name               string                `json:"name"`
@@ -723,7 +769,8 @@ type HealthResponse struct {
 
 // JoinGameRequest defines model for JoinGameRequest.
 type JoinGameRequest struct {
-	TeamId int `json:"team_id"`
+	InvitationCode *string `json:"invitation_code,omitempty"`
+	TeamId         int     `json:"team_id"`
 }
 
 // JoinTeamRequest defines model for JoinTeamRequest.
@@ -806,10 +853,11 @@ type SubmitGameWriteupRequest struct {
 
 // SubmitResult defines model for SubmitResult.
 type SubmitResult struct {
-	BloodType *SubmitResultBloodType `json:"blood_type,omitempty"`
-	Correct   bool                   `json:"correct"`
-	Message   string                 `json:"message"`
-	Score     *int                   `json:"score,omitempty"`
+	BloodType  *SubmitResultBloodType `json:"blood_type,omitempty"`
+	Correct    bool                   `json:"correct"`
+	IsPractice *bool                  `json:"is_practice,omitempty"`
+	Message    string                 `json:"message"`
+	Score      *int                   `json:"score,omitempty"`
 }
 
 // SubmitResultBloodType defines model for SubmitResult.BloodType.
@@ -872,6 +920,7 @@ type UpdateGameRequest struct {
 	Description        *string                            `json:"description,omitempty"`
 	Divisions          *[]string                          `json:"divisions,omitempty"`
 	EndTime            *time.Time                         `json:"end_time,omitempty"`
+	InvitationCode     *string                            `json:"invitation_code,omitempty"`
 	IsPublic           *bool                              `json:"is_public,omitempty"`
 	MaxTeamMembers     *int                               `json:"max_team_members,omitempty"`
 	Name               *string                            `json:"name,omitempty"`
@@ -1014,9 +1063,6 @@ type ServerInterface interface {
 	// Login with username or email
 	// (POST /api/auth/login)
 	Login(c *gin.Context)
-	// Get auth bootstrap setup status
-	// (GET /api/auth/setup-status)
-	GetAuthSetupStatus(c *gin.Context)
 	// Invalidate session
 	// (POST /api/auth/logout)
 	Logout(c *gin.Context)
@@ -1026,6 +1072,9 @@ type ServerInterface interface {
 	// Register a new user
 	// (POST /api/auth/register)
 	Register(c *gin.Context)
+	// Get auth bootstrap setup status
+	// (GET /api/auth/setup-status)
+	GetAuthSetupStatus(c *gin.Context)
 	// List challenges
 	// (GET /api/challenges)
 	ListChallenges(c *gin.Context, params ListChallengesParams)
@@ -1065,6 +1114,12 @@ type ServerInterface interface {
 	// Remove a challenge from a game (admin)
 	// (DELETE /api/games/{id}/challenges/{challengeId})
 	RemoveChallengeFromGame(c *gin.Context, id int, challengeId int)
+	// Get current team challenge instance lease
+	// (GET /api/games/{id}/challenges/{challengeId}/instance)
+	GetChallengeInstance(c *gin.Context, id int, challengeId int)
+	// Start or renew current team challenge instance lease
+	// (POST /api/games/{id}/challenges/{challengeId}/instance)
+	EnsureChallengeInstance(c *gin.Context, id int, challengeId int)
 	// Submit flag for a challenge in a game
 	// (POST /api/games/{id}/challenges/{challengeId}/submit)
 	SubmitGameFlag(c *gin.Context, id int, challengeId int)
@@ -1311,19 +1366,6 @@ func (siw *ServerInterfaceWrapper) Logout(c *gin.Context) {
 	siw.Handler.Logout(c)
 }
 
-// GetAuthSetupStatus operation middleware
-func (siw *ServerInterfaceWrapper) GetAuthSetupStatus(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetAuthSetupStatus(c)
-}
-
 // GetMe operation middleware
 func (siw *ServerInterfaceWrapper) GetMe(c *gin.Context) {
 
@@ -1350,6 +1392,19 @@ func (siw *ServerInterfaceWrapper) Register(c *gin.Context) {
 	}
 
 	siw.Handler.Register(c)
+}
+
+// GetAuthSetupStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetAuthSetupStatus(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAuthSetupStatus(c)
 }
 
 // ListChallenges operation middleware
@@ -1692,6 +1747,78 @@ func (siw *ServerInterfaceWrapper) RemoveChallengeFromGame(c *gin.Context) {
 	}
 
 	siw.Handler.RemoveChallengeFromGame(c, id, challengeId)
+}
+
+// GetChallengeInstance operation middleware
+func (siw *ServerInterfaceWrapper) GetChallengeInstance(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "challengeId" -------------
+	var challengeId int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "challengeId", c.Param("challengeId"), &challengeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter challengeId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetChallengeInstance(c, id, challengeId)
+}
+
+// EnsureChallengeInstance operation middleware
+func (siw *ServerInterfaceWrapper) EnsureChallengeInstance(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "challengeId" -------------
+	var challengeId int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "challengeId", c.Param("challengeId"), &challengeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter challengeId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.EnsureChallengeInstance(c, id, challengeId)
 }
 
 // SubmitGameFlag operation middleware
@@ -2143,10 +2270,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/api/admin/games/:id/writeups", wrapper.GetAdminGameWriteups)
 	router.PUT(options.BaseURL+"/api/admin/games/:id/writeups/:teamId", wrapper.UpdateAdminGameWriteup)
 	router.POST(options.BaseURL+"/api/auth/login", wrapper.Login)
-	router.GET(options.BaseURL+"/api/auth/setup-status", wrapper.GetAuthSetupStatus)
 	router.POST(options.BaseURL+"/api/auth/logout", wrapper.Logout)
 	router.GET(options.BaseURL+"/api/auth/me", wrapper.GetMe)
 	router.POST(options.BaseURL+"/api/auth/register", wrapper.Register)
+	router.GET(options.BaseURL+"/api/auth/setup-status", wrapper.GetAuthSetupStatus)
 	router.GET(options.BaseURL+"/api/challenges", wrapper.ListChallenges)
 	router.POST(options.BaseURL+"/api/challenges", wrapper.CreateChallenge)
 	router.DELETE(options.BaseURL+"/api/challenges/:id", wrapper.DeleteChallenge)
@@ -2160,6 +2287,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/api/games/:id/challenges", wrapper.GetGameChallenges)
 	router.POST(options.BaseURL+"/api/games/:id/challenges", wrapper.AddChallengeToGame)
 	router.DELETE(options.BaseURL+"/api/games/:id/challenges/:challengeId", wrapper.RemoveChallengeFromGame)
+	router.GET(options.BaseURL+"/api/games/:id/challenges/:challengeId/instance", wrapper.GetChallengeInstance)
+	router.POST(options.BaseURL+"/api/games/:id/challenges/:challengeId/instance", wrapper.EnsureChallengeInstance)
 	router.POST(options.BaseURL+"/api/games/:id/challenges/:challengeId/submit", wrapper.SubmitGameFlag)
 	router.POST(options.BaseURL+"/api/games/:id/join", wrapper.JoinGame)
 	router.DELETE(options.BaseURL+"/api/games/:id/leave", wrapper.LeaveGame)
