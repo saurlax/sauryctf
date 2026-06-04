@@ -844,6 +844,51 @@ const contestGuideItems = computed(() => [
   '待审核或已拒绝的报名可以撤回；已通过报名后队伍将锁定，不能再撤回。',
 ])
 
+const scoreboardSummaryCards = computed(() => [
+  {
+    label: '当前榜单',
+    value: selectedDivision.value || '全部队伍',
+    hint: selectedDivision.value ? '当前按分组筛选公开榜单' : '当前展示全部公开队伍',
+    icon: 'i-lucide-filter',
+    color: selectedDivision.value ? 'warning' as const : 'info' as const,
+  },
+  {
+    label: '公开排名',
+    value: String(scoreboard.value.length),
+    hint: '当前榜单中可见的队伍数量',
+    icon: 'i-lucide-users',
+    color: 'neutral' as const,
+  },
+  {
+    label: '题目统计',
+    value: String(scoreboardChallenges.value.length),
+    hint: '当前分题统计中可见的题目数量',
+    icon: 'i-lucide-chart-column-big',
+    color: 'success' as const,
+  },
+  {
+    label: '封榜状态',
+    value: scoreboardFrozen.value ? '已封榜' : '未封榜',
+    hint: scoreboardFrozen.value
+      ? (scoreboardFreezeTime.value ? `冻结于 ${new Date(scoreboardFreezeTime.value).toLocaleString()}` : '公开榜单已冻结')
+      : (game.value?.scoreboard_freeze_at ? `将于 ${new Date(game.value.scoreboard_freeze_at).toLocaleString()} 封榜` : '当前比赛不启用封榜'),
+    icon: 'i-lucide-lock',
+    color: scoreboardFrozen.value ? 'warning' as const : 'neutral' as const,
+  },
+])
+
+const scoreboardViewDescription = computed(() => {
+  if (scoreboardFrozen.value && scoreboardFreezeTime.value) {
+    return `当前看到的是冻结在 ${new Date(scoreboardFreezeTime.value).toLocaleString()} 的公开榜单视图。封榜后的新解题不会继续显示在公开排名中。`
+  }
+
+  if (selectedDivision.value) {
+    return `当前只显示 ${selectedDivision.value} 的公开队伍排名和分题统计。`
+  }
+
+  return '当前显示全部公开队伍的实时排名和分题统计。'
+})
+
 function formatDuration(ms: number) {
   if (ms <= 0) {
     return '0 分钟'
@@ -1317,7 +1362,33 @@ onMounted(async () => {
       <!-- Scoreboard Tab -->
       <div v-else-if="activeTab === 'scoreboard'">
         <div class="space-y-6">
+          <UPageGrid :cols="{ default: 1, sm: 2, xl: 4 }">
+            <UPageCard
+              v-for="card in scoreboardSummaryCards"
+              :key="card.label"
+              :title="card.value"
+              :description="card.label"
+              :icon="card.icon"
+            >
+              <template #footer>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-xs text-muted">{{ card.hint }}</span>
+                  <UBadge :color="card.color" variant="subtle" size="sm">
+                    {{ card.label }}
+                  </UBadge>
+                </div>
+              </template>
+            </UPageCard>
+          </UPageGrid>
+
           <UPageCard title="队伍总榜" icon="i-lucide-trophy">
+            <UAlert
+              class="mb-4"
+              :color="scoreboardFrozen ? 'warning' : 'info'"
+              variant="soft"
+              title="当前榜单视图"
+              :description="scoreboardViewDescription"
+            />
             <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <UFormField label="查看分组" name="division" class="max-w-sm">
                 <USelect
@@ -1361,6 +1432,13 @@ onMounted(async () => {
           </UPageCard>
 
           <UPageCard title="分题统计" icon="i-lucide-chart-column-big">
+            <UAlert
+              class="mb-4"
+              color="info"
+              variant="soft"
+              title="分题统计说明"
+              description="这里展示的是当前公开榜单口径下的题目分值、解出队伍数和前三血信息。赛后练习解题不会计入这些正式统计。"
+            />
             <div v-if="scoreboardChallenges.length === 0" class="text-sm text-muted">
               暂无题目统计
             </div>
