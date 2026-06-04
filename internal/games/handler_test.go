@@ -152,15 +152,59 @@ func TestGetGame_Success(t *testing.T) {
 	r := setupTestRouter(svc)
 
 	public := true
-	svc.CreateGame(games.CreateGameRequest{
+	created, _ := svc.CreateGame(games.CreateGameRequest{
 		Name:      "Test Game",
 		StartTime: time.Now(),
 		EndTime:   time.Now().Add(time.Hour),
 		IsPublic:  &public,
 	}, 1)
+	active := "active"
+	_, _ = svc.UpdateGame(created.ID, games.UpdateGameRequest{Status: &active})
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/games/1", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestGetGame_HidesDraftGameFromPublic(t *testing.T) {
+	svc := games.NewMockService()
+	r := setupTestRouter(svc)
+
+	public := true
+	created, _ := svc.CreateGame(games.CreateGameRequest{
+		Name:      "Draft Game",
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(time.Hour),
+		IsPublic:  &public,
+	}, 1)
+	draft := "draft"
+	_, _ = svc.UpdateGame(created.ID, games.UpdateGameRequest{Status: &draft})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/games/1", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestGetGame_AllowsAdminStyleLookupWithAllQuery(t *testing.T) {
+	svc := games.NewMockService()
+	r := setupTestRouter(svc)
+
+	public := false
+	created, _ := svc.CreateGame(games.CreateGameRequest{
+		Name:      "Private Draft Game",
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(time.Hour),
+		IsPublic:  &public,
+	}, 1)
+	draft := "draft"
+	_, _ = svc.UpdateGame(created.ID, games.UpdateGameRequest{Status: &draft})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/games/1?all=true", nil)
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -189,6 +233,14 @@ func TestListGames_Filtered(t *testing.T) {
 	svc.CreateGame(games.CreateGameRequest{
 		Name: "Private Game", StartTime: time.Now(), EndTime: time.Now().Add(time.Hour), IsPublic: &private,
 	}, 1)
+	created, _ := svc.CreateGame(games.CreateGameRequest{
+		Name: "Draft Public Game", StartTime: time.Now(), EndTime: time.Now().Add(time.Hour), IsPublic: &public,
+	}, 1)
+	draft := "draft"
+	_, _ = svc.UpdateGame(created.ID, games.UpdateGameRequest{Status: &draft})
+	active := "active"
+	_, _ = svc.UpdateGame(1, games.UpdateGameRequest{Status: &active})
+	_, _ = svc.UpdateGame(2, games.UpdateGameRequest{Status: &active})
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/games", nil)

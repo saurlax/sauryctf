@@ -134,11 +134,59 @@ func TestService_ListGames_Filtered(t *testing.T) {
 	svc.CreateGame(games.CreateGameRequest{
 		Name: "Private", StartTime: time.Now(), EndTime: time.Now().Add(time.Hour), IsPublic: &private,
 	}, 1)
+	draft, _ := svc.CreateGame(games.CreateGameRequest{
+		Name: "Draft Public", StartTime: time.Now(), EndTime: time.Now().Add(time.Hour), IsPublic: &public,
+	}, 1)
+	active := "active"
+	_, _ = svc.UpdateGame(1, games.UpdateGameRequest{Status: &active})
+	_, _ = svc.UpdateGame(2, games.UpdateGameRequest{Status: &active})
+	_, _ = svc.UpdateGame(draft.ID, games.UpdateGameRequest{Status: nil})
 
 	gamesList, err := svc.ListGames(false)
 	assert.NoError(t, err)
 	assert.Len(t, gamesList, 1)
 	assert.Equal(t, "Public", gamesList[0].Name)
+}
+
+func TestService_GetPublicGame_HidesPrivateAndDraftGames(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	public := true
+	private := false
+	draftGame, _ := svc.CreateGame(games.CreateGameRequest{
+		Name: "Draft Public", StartTime: time.Now(), EndTime: time.Now().Add(time.Hour), IsPublic: &public,
+	}, 1)
+	privateGame, _ := svc.CreateGame(games.CreateGameRequest{
+		Name: "Private Active", StartTime: time.Now(), EndTime: time.Now().Add(time.Hour), IsPublic: &private,
+	}, 1)
+	active := "active"
+	_, _ = svc.UpdateGame(privateGame.ID, games.UpdateGameRequest{Status: &active})
+
+	_, err := svc.GetPublicGame(draftGame.ID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+
+	_, err = svc.GetPublicGame(privateGame.ID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestService_GetPublicGame_ReturnsActivePublicGame(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	public := true
+	game, _ := svc.CreateGame(games.CreateGameRequest{
+		Name: "Public Active", StartTime: time.Now(), EndTime: time.Now().Add(time.Hour), IsPublic: &public,
+	}, 1)
+	active := "active"
+	updated, err := svc.UpdateGame(game.ID, games.UpdateGameRequest{Status: &active})
+	require.NoError(t, err)
+
+	fetched, err := svc.GetPublicGame(updated.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Public Active", fetched.Name)
 }
 
 func TestService_UpdateGame(t *testing.T) {

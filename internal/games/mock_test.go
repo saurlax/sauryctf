@@ -69,13 +69,24 @@ func (m *MockService) GetGame(id uint) (*GameResponse, error) {
 	return game, nil
 }
 
+func (m *MockService) GetPublicGame(id uint) (*GameResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	game, ok := m.Games[id]
+	if !ok || !game.IsPublic || game.Status == "draft" {
+		return nil, fmt.Errorf("game not found")
+	}
+	return game, nil
+}
+
 func (m *MockService) ListGames(showAll bool) ([]GameResponse, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	var result []GameResponse
 	for _, g := range m.Games {
-		if !showAll && !g.IsPublic {
+		if !showAll && (!g.IsPublic || g.Status == "draft") {
 			continue
 		}
 		result = append(result, *g)

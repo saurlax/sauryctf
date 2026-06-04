@@ -37,7 +37,17 @@ func (h *Handler) CreateGame(c *gin.Context) {
 }
 
 func (h *Handler) GetGame(c *gin.Context, id int) {
-	game, err := h.svc.GetGame(uint(id))
+	showAll := c.Query("all") == "true"
+
+	var (
+		game *GameResponse
+		err  error
+	)
+	if showAll {
+		game, err = h.svc.GetGame(uint(id))
+	} else {
+		game, err = h.svc.GetPublicGame(uint(id))
+	}
 	if err != nil {
 		if err.Error() == "game not found" {
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})

@@ -10,6 +10,7 @@ import (
 type ServiceInterface interface {
 	CreateGame(req CreateGameRequest, createdBy uint) (*GameResponse, error)
 	GetGame(id uint) (*GameResponse, error)
+	GetPublicGame(id uint) (*GameResponse, error)
 	ListGames(showAll bool) ([]GameResponse, error)
 	UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, error)
 	AddChallenge(gameID uint, challengeID uint, scoreOverride int) error

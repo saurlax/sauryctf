@@ -60,7 +60,7 @@ function getStatusColor(status: string) {
 function getStatusLabel(status: string) {
   switch (status) {
     case 'active': return '进行中'
-    case 'draft': return '未开始'
+    case 'draft': return '草稿'
     case 'ended': return '已结束'
     default: return status
   }
@@ -158,7 +158,7 @@ onMounted(async () => {
           比赛列表
         </h1>
         <p class="text-muted">
-          浏览所有进行中和即将开始的比赛
+          浏览所有公开且已开放展示的比赛
         </p>
       </div>
     </div>

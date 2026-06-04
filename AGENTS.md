@@ -130,6 +130,10 @@ internal/<module>/
   - only `active` games accept registrations
   - only `active` games within `start_time` / `end_time` accept flag submissions
   - ended games stay browsable, but no longer allow registration or scoring
+- Public contest visibility is now tighter:
+  - public game lists hide `draft` contests
+  - direct public detail lookup also hides private or draft contests
+  - admins can still inspect them through the `all=true` management path
 - Challenge content delivery is now expected to use:
   - `description` for the main statement
   - `hints` as a JSON string array

@@ -91,7 +91,7 @@ func (s *Service) ListGames(showAll bool) ([]GameResponse, error) {
 	var games []models.Game
 	q := s.db.Model(&models.Game{})
 	if !showAll {
-		q = q.Where("is_public = ?", true)
+		q = q.Where("is_public = ? AND status <> ?", true, "draft")
 	}
 	if err := q.Order("start_time DESC").Find(&games).Error; err != nil {
 		return nil, err
@@ -102,6 +102,17 @@ func (s *Service) ListGames(showAll bool) ([]GameResponse, error) {
 		result[i] = *toResponse(&g)
 	}
 	return result, nil
+}
+
+func (s *Service) GetPublicGame(id uint) (*GameResponse, error) {
+	game, err := s.GetGame(id)
+	if err != nil {
+		return nil, err
+	}
+	if !game.IsPublic || game.Status == "draft" {
+		return nil, errors.New("game not found")
+	}
+	return game, nil
 }
 
 func (s *Service) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, error) {
