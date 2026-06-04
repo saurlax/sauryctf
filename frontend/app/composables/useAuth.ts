@@ -4,11 +4,15 @@ type UserInfo = components['schemas']['UserInfo']
 
 interface AuthState {
   user: UserInfo | null
+  initialized: boolean
 }
 
 const authState = reactive<AuthState>({
   user: null,
+  initialized: false,
 })
+
+let fetchUserPromise: Promise<UserInfo | null> | null = null
 
 export function useAuth() {
   const router = useRouter()
@@ -19,16 +23,32 @@ export function useAuth() {
     authState.user = null
   }
 
-  async function fetchUser() {
-    try {
-      const res = await $api('get', '/api/auth/me')
-      authState.user = res.user
-      return res.user
+  async function fetchUser(options?: { force?: boolean }) {
+    if (!options?.force && authState.initialized) {
+      return authState.user
     }
-    catch {
-      clearAuth()
-      return null
+
+    if (fetchUserPromise) {
+      return fetchUserPromise
     }
+
+    fetchUserPromise = (async () => {
+      try {
+        const res = await $api('get', '/api/auth/me')
+        authState.user = res.user
+        return res.user
+      }
+      catch {
+        clearAuth()
+        return null
+      }
+      finally {
+        authState.initialized = true
+        fetchUserPromise = null
+      }
+    })()
+
+    return fetchUserPromise
   }
 
   async function login(username: string, password: string) {
@@ -36,6 +56,7 @@ export function useAuth() {
       body: { username, password },
     })
     authState.user = res.user
+    authState.initialized = true
   }
 
   async function register(username: string, email: string, password: string) {
@@ -43,6 +64,7 @@ export function useAuth() {
       body: { username, email, password },
     })
     authState.user = res.user
+    authState.initialized = true
   }
 
   async function logout() {
@@ -51,6 +73,7 @@ export function useAuth() {
     }
     catch {}
     clearAuth()
+    authState.initialized = true
     router.push('/login')
   }
 

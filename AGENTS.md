@@ -33,8 +33,9 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - `app/pages/console/index.vue` — Console dashboard (protected)
 - `app/pages/console/team.vue` — Team management (protected)
 - `app/layouts/default.vue` — Global layout (Header/Footer/Navigation)
-- `app/composables/useAuth.ts` — Auth state management (JWT token, localStorage persistence)
+- `app/composables/useAuth.ts` — Auth state management with client-side session restore and request deduping
 - `app/middleware/auth.ts` — Route guard (protects /console/* routes)
+- `app/plugins/auth-init.client.ts` — Restore current user once on client startup
 - `app/assets/css/main.css` — Global styles
 
 **Conventions:**
