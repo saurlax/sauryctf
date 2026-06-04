@@ -39,7 +39,12 @@ async function onRegister(payload: FormSubmitEvent<RegisterSchema>) {
 function resolveRedirect() {
   const redirect = route.query.redirect
   if (typeof redirect === 'string' && redirect.startsWith('/')) {
-    return redirect
+    return {
+      path: '/console/team',
+      query: {
+        redirect,
+      },
+    }
   }
   return '/console'
 }
@@ -50,7 +55,7 @@ function resolveRedirect() {
     <UPageCard
       class="w-full max-w-md"
       title="注册"
-      description="创建一个新的选手账号，注册成功后会直接登录。"
+      description="创建一个新的选手账号，注册成功后会直接登录；如果你是从比赛页进来的，接下来会先带你去准备队伍。"
       icon="i-lucide-user-plus"
     >
       <UForm :schema="registerSchema" :state="state" class="space-y-4" @submit="onRegister">

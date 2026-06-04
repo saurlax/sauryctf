@@ -34,7 +34,7 @@ const firstSteps = [
   },
   {
     title: '普通选手报名',
-    description: '注册账号后创建或加入队伍，再进入比赛详情页完成报名和提交 Flag。',
+    description: '注册账号后会先进入队伍页，创建或加入队伍后再回到比赛详情继续报名和提交 Flag。',
     icon: 'i-lucide-flag',
     to: '/register',
   },
@@ -129,7 +129,7 @@ const heroLinks = computed(() => {
         />
         <UPageCard
           title="2. 选手参赛"
-          description="注册普通账号，创建队伍，进入比赛页报名并提交一条正确 Flag。"
+          description="注册普通账号后先创建队伍，再进入比赛页报名并提交一条正确 Flag。"
           icon="i-lucide-user-round-plus"
           to="/register"
         />
