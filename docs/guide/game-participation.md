@@ -176,6 +176,16 @@
   - 前端比赛页已改为走统一 `$api` 类型化调用
   - 后续如果替换成真实容器 provider，前后端字段可以继续沿用这一层响应结构
 
+## Provider 抽象
+
+- 当前后端已经把“实例续租/启动”逻辑从比赛服务里抽成了一个最小 provider 接口
+- 现在默认还是占位实现：
+  - 只负责生成租约状态
+  - 不会真的起 Docker / K8s 容器
+- 这样做是为了向 GZCTF 的 `ContainerProvider` 模型靠拢
+  - 后续可以按 `runtime.provider` 继续接 `docker`、`k8s` 或代理型 provider
+  - 当前 `docker`、`k8s`、`proxy` 等名称都会先落到同一套占位 provider
+
 ## 题目内容格式
 
 - 当前管理员通过题目表单直接维护：

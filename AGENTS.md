@@ -167,6 +167,7 @@ internal/<module>/
   - current endpoints are `GET/POST /api/games/:id/challenges/:challengeId/instance`
   - only `accepted` teams after contest start can use them; post-contest renewals remain available only when `practice_mode` is enabled
   - this is intentionally a database-backed lease skeleton for now, not a real container orchestrator yet
+  - the backend now routes lease creation/renewal through a small provider abstraction so future Docker/K8s integrations can replace the skeleton behavior without rewriting the game service
 - Registration withdrawal now follows the current GZCTF-style rule:
   - `pending` / `rejected` participations can be withdrawn
   - `accepted` participations are locked and can no longer be withdrawn

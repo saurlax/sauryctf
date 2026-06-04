@@ -22,6 +22,32 @@ import (
 
 var lastTestDB *gorm.DB
 
+type testInstanceProvider struct {
+	called int
+	state  *games.ChallengeInstanceLeaseState
+}
+
+func (p *testInstanceProvider) EnsureLease(req games.ChallengeInstanceProviderRequest) (*games.ChallengeInstanceLeaseState, error) {
+	p.called++
+	if p.state != nil {
+		return p.state, nil
+	}
+
+	return &games.ChallengeInstanceLeaseState{
+		Status:        "running",
+		Provider:      req.Runtime.Provider,
+		Image:         req.Runtime.Image,
+		LaunchURL:     req.Runtime.LaunchURL,
+		Host:          req.Runtime.Host,
+		Port:          req.Runtime.Port,
+		Command:       req.Runtime.Command,
+		Note:          req.Runtime.Note,
+		StartedAt:     req.Now,
+		LastRenewedAt: req.Now,
+		ExpiresAt:     req.Now.Add(req.LeaseDuration),
+	}, nil
+}
+
 func setupService(t *testing.T) (*games.Service, func()) {
 	database, err := db.ConnectTest()
 	require.NoError(t, err)
@@ -1753,6 +1779,85 @@ func TestService_ChallengeInstanceLifecycle_ForAcceptedTeam(t *testing.T) {
 	assert.Equal(t, "docker", running.Provider)
 	assert.Equal(t, "ctf/example:latest", running.Image)
 	assert.Equal(t, "http://127.0.0.1:8081", running.LaunchURL)
+}
+
+func TestService_ChallengeInstanceLifecycle_UsesCustomProvider(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	lastTestDB = database
+	db.CleanTables(database)
+
+	provider := &testInstanceProvider{
+		state: &games.ChallengeInstanceLeaseState{
+			Status:        "running",
+			Provider:      "custom",
+			Image:         "ctf/custom:1.0",
+			LaunchURL:     "https://instance.local/start",
+			Host:          "instance.local",
+			Port:          "443",
+			Command:       "nc instance.local 443",
+			Note:          "custom provider note",
+			StartedAt:     time.Now().Add(-time.Minute),
+			LastRenewedAt: time.Now(),
+			ExpiresAt:     time.Now().Add(45 * time.Minute),
+		},
+	}
+	svc := games.NewServiceWithInstanceProviders(database, map[string]games.ChallengeInstanceProvider{
+		"custom": provider,
+	})
+
+	user := models.User{Username: "provider-user", Email: "provider@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+
+	team := models.Team{Name: "Provider Team", InviteCode: "provider-team", CaptainID: user.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team.ID,
+		UserID: user.ID,
+		Role:   models.MemberRoleCaptain,
+	}).Error)
+
+	challenge := models.Challenge{
+		Title:         "Provider Lease",
+		Category:      models.CategoryWeb,
+		Type:          models.TypeDynamic,
+		Flag:          "flag{provider}",
+		BaseScore:     100,
+		MinScore:      100,
+		DecayRate:     0,
+		IsVisible:     true,
+		CreatedBy:     user.ID,
+		ContainerSpec: `{"runtime":{"provider":"custom","image":"ctf/custom:1.0"},"connection":{"url":"https://placeholder.local"}}`,
+	}
+	require.NoError(t, database.Create(&challenge).Error)
+
+	game := models.Game{
+		Name:         "Provider Game",
+		StartTime:    time.Now().Add(-time.Hour),
+		EndTime:      time.Now().Add(time.Hour),
+		Status:       "active",
+		IsPublic:     true,
+		PracticeMode: true,
+		CreatedBy:    user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+	require.NoError(t, database.Create(&models.GameChallenge{
+		GameID: game.ID, ChallengeID: challenge.ID,
+	}).Error)
+	require.NoError(t, database.Create(&models.Participation{
+		GameID: game.ID, TeamID: team.ID, UserID: user.ID, Status: models.ParticipationAccepted,
+	}).Error)
+
+	running, err := svc.EnsureChallengeInstance(game.ID, challenge.ID, user.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, provider.called)
+	assert.Equal(t, "custom", running.Provider)
+	assert.Equal(t, "ctf/custom:1.0", running.Image)
+	assert.Equal(t, "https://instance.local/start", running.LaunchURL)
+	assert.Equal(t, "instance.local", running.Host)
+	assert.Equal(t, "443", running.Port)
+	assert.Equal(t, "custom provider note", running.Note)
 }
 
 func svcDB(t *testing.T, svc *games.Service) *gorm.DB {

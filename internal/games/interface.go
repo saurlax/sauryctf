@@ -11,6 +11,45 @@ const (
 	ExportPackageVersionV2 = "sauryctf.export.v2"
 )
 
+type ChallengeInstanceRuntimeSpec struct {
+	Provider  string
+	Image     string
+	LaunchURL string
+	Host      string
+	Port      string
+	Command   string
+	Note      string
+}
+
+type ChallengeInstanceProviderRequest struct {
+	GameID        uint
+	ChallengeID   uint
+	TeamID        uint
+	UserID        uint
+	Now           time.Time
+	LeaseDuration time.Duration
+	Runtime       ChallengeInstanceRuntimeSpec
+	Existing      *models.GameInstanceLease
+}
+
+type ChallengeInstanceLeaseState struct {
+	Status        string
+	Provider      string
+	Image         string
+	LaunchURL     string
+	Host          string
+	Port          string
+	Command       string
+	Note          string
+	StartedAt     time.Time
+	LastRenewedAt time.Time
+	ExpiresAt     time.Time
+}
+
+type ChallengeInstanceProvider interface {
+	EnsureLease(req ChallengeInstanceProviderRequest) (*ChallengeInstanceLeaseState, error)
+}
+
 // ServiceInterface defines the game management contract.
 type ServiceInterface interface {
 	CreateGame(req CreateGameRequest, createdBy uint) (*GameResponse, error)

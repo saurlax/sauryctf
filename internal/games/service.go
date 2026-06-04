@@ -30,7 +30,8 @@ const (
 )
 
 type Service struct {
-	db *gorm.DB
+	db                *gorm.DB
+	instanceProviders map[string]ChallengeInstanceProvider
 }
 
 type exportedAttachmentPayload struct {
@@ -49,7 +50,14 @@ type parsedInstanceSpec struct {
 }
 
 func NewService(db *gorm.DB) *Service {
-	return &Service{db: db}
+	return NewServiceWithInstanceProviders(db, nil)
+}
+
+func NewServiceWithInstanceProviders(db *gorm.DB, providers map[string]ChallengeInstanceProvider) *Service {
+	return &Service{
+		db:                db,
+		instanceProviders: cloneChallengeInstanceProviders(providers),
+	}
 }
 
 func effectiveGameStatus(game *models.Game) string {
@@ -114,13 +122,29 @@ func parseManagedInstanceSpec(raw string) *parsedInstanceSpec {
 	runtime, _ := parsed["runtime"].(map[string]any)
 
 	return &parsedInstanceSpec{
-		Provider: normalizeStringValue(runtime["provider"]),
-		Image:    normalizeStringValue(runtime["image"]),
+		Provider:  normalizeStringValue(runtime["provider"]),
+		Image:     normalizeStringValue(runtime["image"]),
 		LaunchURL: normalizeStringValue(connection["url"]),
-		Host:     normalizeStringValue(connection["host"]),
-		Port:     normalizeStringValue(connection["port"]),
-		Command:  normalizeStringValue(connection["command"]),
-		Note:     normalizeStringValue(connection["note"]),
+		Host:      normalizeStringValue(connection["host"]),
+		Port:      normalizeStringValue(connection["port"]),
+		Command:   normalizeStringValue(connection["command"]),
+		Note:      normalizeStringValue(connection["note"]),
+	}
+}
+
+func toChallengeInstanceRuntimeSpec(spec *parsedInstanceSpec) ChallengeInstanceRuntimeSpec {
+	if spec == nil {
+		return ChallengeInstanceRuntimeSpec{}
+	}
+
+	return ChallengeInstanceRuntimeSpec{
+		Provider:  spec.Provider,
+		Image:     spec.Image,
+		LaunchURL: spec.LaunchURL,
+		Host:      spec.Host,
+		Port:      spec.Port,
+		Command:   spec.Command,
+		Note:      spec.Note,
 	}
 }
 
@@ -1894,7 +1918,6 @@ func (s *Service) EnsureChallengeInstance(gameID uint, challengeID uint, userID 
 	}
 
 	now := time.Now()
-	expiresAt := now.Add(instanceLeaseDuration)
 
 	var lease models.GameInstanceLease
 	findErr := s.db.Where("game_id = ? AND challenge_id = ? AND team_id = ?", gameID, challengeID, participation.TeamID).First(&lease).Error
@@ -1902,43 +1925,37 @@ func (s *Service) EnsureChallengeInstance(gameID uint, challengeID uint, userID 
 		return nil, findErr
 	}
 
+	var existingLease *models.GameInstanceLease
+	if !errors.Is(findErr, gorm.ErrRecordNotFound) {
+		existingLease = &lease
+	}
+	provider := resolveChallengeInstanceProvider(s.instanceProviders, spec.Provider)
+	leaseState, err := provider.EnsureLease(ChallengeInstanceProviderRequest{
+		GameID:        gameID,
+		ChallengeID:   challengeID,
+		TeamID:        participation.TeamID,
+		UserID:        userID,
+		Now:           now,
+		LeaseDuration: instanceLeaseDuration,
+		Runtime:       toChallengeInstanceRuntimeSpec(spec),
+		Existing:      existingLease,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	if errors.Is(findErr, gorm.ErrRecordNotFound) {
 		lease = models.GameInstanceLease{
 			GameID:        gameID,
 			ChallengeID:   challengeID,
 			TeamID:        participation.TeamID,
-			UserID:        userID,
-			Status:        "running",
-			Provider:      spec.Provider,
-			Image:         spec.Image,
-			LaunchURL:     spec.LaunchURL,
-			Host:          spec.Host,
-			Port:          spec.Port,
-			Command:       spec.Command,
-			Note:          spec.Note,
-			StartedAt:     now,
-			LastRenewedAt: now,
-			ExpiresAt:     expiresAt,
 		}
+		applyLeaseState(&lease, leaseState, userID)
 		if err := s.db.Create(&lease).Error; err != nil {
 			return nil, err
 		}
 	} else {
-		lease.Status = "running"
-		lease.UserID = userID
-		lease.Provider = spec.Provider
-		lease.Image = spec.Image
-		lease.LaunchURL = spec.LaunchURL
-		lease.Host = spec.Host
-		lease.Port = spec.Port
-		lease.Command = spec.Command
-		lease.Note = spec.Note
-		lease.LastRenewedAt = now
-		lease.ExpiresAt = expiresAt
-		lease.StoppedAt = nil
-		if lease.StartedAt.IsZero() {
-			lease.StartedAt = now
-		}
+		applyLeaseState(&lease, leaseState, userID)
 		if err := s.db.Save(&lease).Error; err != nil {
 			return nil, err
 		}
