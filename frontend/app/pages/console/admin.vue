@@ -36,9 +36,16 @@ const attachForm = reactive({
   score_override: undefined as number | undefined,
 })
 
+const gameSettingsForm = reactive({
+  game_id: undefined as number | undefined,
+  status: 'draft' as 'draft' | 'active' | 'ended',
+  is_public: true,
+})
+
 const gameSubmitting = ref(false)
 const challengeSubmitting = ref(false)
 const attachSubmitting = ref(false)
+const settingsSubmitting = ref(false)
 const loadingResources = ref(false)
 const loadingGameChallenges = ref(false)
 const removingChallengeId = ref<number | null>(null)
@@ -87,6 +94,12 @@ const typeOptions = [
   { label: 'Dynamic', value: 'dynamic' },
 ]
 
+const gameStatusOptions = [
+  { label: 'Draft', value: 'draft' },
+  { label: 'Active', value: 'active' },
+  { label: 'Ended', value: 'ended' },
+]
+
 const gameOptions = computed(() => games.value.map(game => ({
   label: `#${game.id} ${game.name}`,
   value: game.id,
@@ -98,6 +111,7 @@ const challengeOptions = computed(() => challenges.value.map(challenge => ({
 })))
 
 const selectedGame = computed(() => games.value.find(game => game.id === attachForm.game_id) || null)
+const selectedSettingsGame = computed(() => games.value.find(game => game.id === gameSettingsForm.game_id) || null)
 
 async function loadAdminResources() {
   loadingResources.value = true
@@ -215,6 +229,35 @@ async function createChallenge() {
   }
 }
 
+async function updateGameSettings() {
+  if (!gameSettingsForm.game_id) {
+    toast.add({ title: '请先选择比赛', color: 'warning' })
+    return
+  }
+
+  settingsSubmitting.value = true
+  try {
+    await $api('put', '/api/games/{id}', {
+      params: {
+        id: gameSettingsForm.game_id,
+      },
+      body: {
+        status: gameSettingsForm.status,
+        is_public: gameSettingsForm.is_public,
+      },
+    })
+
+    toast.add({ title: '比赛设置已更新', color: 'success' })
+    await loadAdminResources()
+  }
+  catch (e: any) {
+    toast.add({ title: '比赛设置更新失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    settingsSubmitting.value = false
+  }
+}
+
 async function attachChallengeToGame() {
   if (!attachForm.game_id || !attachForm.challenge_id) {
     toast.add({ title: '请先选择比赛和题目', color: 'warning' })
@@ -270,6 +313,22 @@ async function removeChallengeFromGame(challengeId: number) {
     removingChallengeId.value = null
   }
 }
+
+watch(() => gameSettingsForm.game_id, () => {
+  if (!gameSettingsForm.game_id) {
+    gameSettingsForm.status = 'draft'
+    gameSettingsForm.is_public = true
+    return
+  }
+
+  const game = games.value.find(item => item.id === gameSettingsForm.game_id)
+  if (!game) {
+    return
+  }
+
+  gameSettingsForm.status = game.status
+  gameSettingsForm.is_public = game.is_public ?? true
+})
 
 watch(() => attachForm.game_id, async () => {
   await loadSelectedGameChallenges()
@@ -355,6 +414,41 @@ onMounted(async () => {
           </UForm>
         </UPageCard>
 
+        <UPageCard title="比赛设置" icon="i-lucide-sliders-horizontal">
+          <UForm :state="gameSettingsForm" class="space-y-4" @submit="updateGameSettings">
+            <UFormField label="选择比赛" name="game_id">
+              <USelect
+                v-model="gameSettingsForm.game_id"
+                :items="gameOptions"
+                class="w-full"
+                placeholder="选择一个比赛"
+              />
+            </UFormField>
+
+            <UFormField label="比赛状态" name="status">
+              <USelect
+                v-model="gameSettingsForm.status"
+                :items="gameStatusOptions"
+                class="w-full"
+              />
+            </UFormField>
+
+            <UFormField label="公开比赛" name="is_public">
+              <USwitch v-model="gameSettingsForm.is_public" />
+            </UFormField>
+
+            <div v-if="selectedSettingsGame" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+              当前比赛：{{ selectedSettingsGame.name }} · {{ new Date(selectedSettingsGame.start_time).toLocaleString() }}
+            </div>
+
+            <UButton type="submit" :loading="settingsSubmitting">
+              保存比赛设置
+            </UButton>
+          </UForm>
+        </UPageCard>
+      </div>
+
+      <div class="grid gap-6 xl:grid-cols-2">
         <UPageCard title="创建题目" icon="i-lucide-flag">
           <UForm :state="challengeForm" class="space-y-4" @submit="createChallenge">
             <UFormField label="题目名称" name="title">
