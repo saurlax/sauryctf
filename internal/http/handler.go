@@ -50,6 +50,9 @@ func (h *Handler) Register(c *gin.Context) { h.auth.Register(c) }
 func (h *Handler) Login(c *gin.Context)    { h.auth.Login(c) }
 func (h *Handler) Logout(c *gin.Context)   { h.auth.Logout(c) }
 func (h *Handler) GetMe(c *gin.Context)    { h.auth.GetMe(c) }
+func (h *Handler) GetAuthSetupStatus(c *gin.Context) {
+	h.auth.SetupStatus(c)
+}
 
 // ── Teams ───────────────────────────────────────────────────────────────────
 

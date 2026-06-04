@@ -22,10 +22,11 @@ func newMockAuth() *mockAuth {
 	return &mockAuth{users: make(map[string]*models.User)}
 }
 
-func (m *mockAuth) Register(_, _, _ string) (*models.User, error)   { return nil, nil }
+func (m *mockAuth) Register(_, _, _ string) (*models.User, error) { return nil, nil }
 func (m *mockAuth) EnsureBootstrapAdmin() (*models.User, bool, error) {
 	return nil, false, nil
 }
+func (m *mockAuth) BootstrapAdminAvailable() (bool, error)          { return false, nil }
 func (m *mockAuth) Login(_, _ string) (string, *models.User, error) { return "", nil, nil }
 func (m *mockAuth) Logout(_ string) error                           { return nil }
 func (m *mockAuth) GetUserByID(_ uint) (*models.User, error)        { return nil, nil }

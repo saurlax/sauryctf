@@ -82,6 +82,15 @@ func (s *Service) EnsureBootstrapAdmin() (*models.User, bool, error) {
 	return user, true, nil
 }
 
+func (s *Service) BootstrapAdminAvailable() (bool, error) {
+	var count int64
+	if err := s.db.Model(&models.User{}).Count(&count).Error; err != nil {
+		return false, err
+	}
+
+	return count == 0, nil
+}
+
 func (s *Service) Login(username, password string) (string, *models.User, error) {
 	var user models.User
 	if err := s.db.Where("username = ? OR email = ?", username, username).First(&user).Error; err != nil {

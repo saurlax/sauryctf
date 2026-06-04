@@ -6,6 +6,7 @@ import "github.com/saurlax/sauryctf/internal/models"
 type ServiceInterface interface {
 	Register(username, email, password string) (*models.User, error)
 	EnsureBootstrapAdmin() (*models.User, bool, error)
+	BootstrapAdminAvailable() (bool, error)
 	Login(username, password string) (string, *models.User, error)
 	ValidateToken(token string) (*models.User, error)
 	Logout(token string) error

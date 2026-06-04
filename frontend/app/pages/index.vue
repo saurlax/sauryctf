@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const { isLoggedIn } = useAuth()
+const { data: setupStatus } = await useAPI('landing-auth-setup-status', 'get', '/api/auth/setup-status')
 
 const features = [
   {
@@ -27,7 +28,7 @@ const features = [
 const firstSteps = [
   {
     title: '管理员首次进入',
-    description: '空库首次启动时可直接用 admin / sauryctf 登录，进入控制台创建比赛和题目。',
+    description: '空库首次启动时会开放默认管理员入口；库里已有任意用户后，就只使用现有账号登录管理后台。',
     icon: 'i-lucide-shield-check',
     to: '/login',
   },
@@ -88,8 +89,10 @@ const heroLinks = computed(() => {
         class="mb-6"
         color="info"
         variant="soft"
-        title="默认管理员仅在空库初始化"
-        description="只有在 users 表完全为空时，后端启动才会自动创建 admin / sauryctf。数据库里已有任意用户时，不会补建 admin。"
+        :title="setupStatus?.bootstrap_admin_available ? '当前可使用默认管理员' : '默认管理员仅在空库初始化'"
+        :description="setupStatus?.bootstrap_admin_available
+          ? `当前库为空，可直接使用 ${setupStatus.default_admin_username} / ${setupStatus.default_admin_password} 登录。`
+          : '数据库里已有任意用户，后端不会补建 admin。请使用已有账号登录。'"
       />
 
       <UPageGrid>

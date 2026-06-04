@@ -509,6 +509,13 @@ type AuthResponse struct {
 	User  UserInfo `json:"user"`
 }
 
+// AuthSetupStatusResponse defines model for AuthSetupStatusResponse.
+type AuthSetupStatusResponse struct {
+	BootstrapAdminAvailable bool    `json:"bootstrap_admin_available"`
+	DefaultAdminPassword    *string `json:"default_admin_password,omitempty"`
+	DefaultAdminUsername    *string `json:"default_admin_username,omitempty"`
+}
+
 // Challenge defines model for Challenge.
 type Challenge struct {
 	Attachments *string              `json:"attachments,omitempty"`
@@ -1007,6 +1014,9 @@ type ServerInterface interface {
 	// Login with username or email
 	// (POST /api/auth/login)
 	Login(c *gin.Context)
+	// Get auth bootstrap setup status
+	// (GET /api/auth/setup-status)
+	GetAuthSetupStatus(c *gin.Context)
 	// Invalidate session
 	// (POST /api/auth/logout)
 	Logout(c *gin.Context)
@@ -1299,6 +1309,19 @@ func (siw *ServerInterfaceWrapper) Logout(c *gin.Context) {
 	}
 
 	siw.Handler.Logout(c)
+}
+
+// GetAuthSetupStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetAuthSetupStatus(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAuthSetupStatus(c)
 }
 
 // GetMe operation middleware
@@ -2122,6 +2145,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/api/admin/games/:id/writeups", wrapper.GetAdminGameWriteups)
 	router.PUT(options.BaseURL+"/api/admin/games/:id/writeups/:teamId", wrapper.UpdateAdminGameWriteup)
 	router.POST(options.BaseURL+"/api/auth/login", wrapper.Login)
+	router.GET(options.BaseURL+"/api/auth/setup-status", wrapper.GetAuthSetupStatus)
 	router.POST(options.BaseURL+"/api/auth/logout", wrapper.Logout)
 	router.GET(options.BaseURL+"/api/auth/me", wrapper.GetMe)
 	router.POST(options.BaseURL+"/api/auth/register", wrapper.Register)

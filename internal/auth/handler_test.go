@@ -20,6 +20,7 @@ func setupAuthRouter(mock *MockService) *gin.Engine {
 
 	api := r.Group("/api")
 	// Public routes
+	api.GET("/auth/setup-status", h.SetupStatus)
 	api.POST("/auth/register", h.Register)
 	api.POST("/auth/login", h.Login)
 
@@ -158,5 +159,36 @@ func TestHandler_Me(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	})
+}
+
+func TestHandler_SetupStatus(t *testing.T) {
+	t.Run("bootstrap admin available on empty state", func(t *testing.T) {
+		mock := NewMockService()
+		r := setupAuthRouter(mock)
+
+		req := httptest.NewRequest("GET", "/api/auth/setup-status", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), `"bootstrap_admin_available":true`)
+		assert.Contains(t, w.Body.String(), `"default_admin_username":"admin"`)
+		assert.Contains(t, w.Body.String(), `"default_admin_password":"sauryctf"`)
+	})
+
+	t.Run("bootstrap admin hidden after users exist", func(t *testing.T) {
+		mock := NewMockService()
+		mock.Users["alice@test.com"] = &models.User{ID: 1, Username: "alice", Email: "alice@test.com", Role: models.RoleUser, Status: models.StatusActive}
+		r := setupAuthRouter(mock)
+
+		req := httptest.NewRequest("GET", "/api/auth/setup-status", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), `"bootstrap_admin_available":false`)
+		assert.NotContains(t, w.Body.String(), `"default_admin_username"`)
+		assert.NotContains(t, w.Body.String(), `"default_admin_password"`)
 	})
 }

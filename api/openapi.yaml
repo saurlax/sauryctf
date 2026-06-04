@@ -88,6 +88,17 @@ components:
         user:
           $ref: "#/components/schemas/UserInfo"
 
+    AuthSetupStatusResponse:
+      type: object
+      required: [bootstrap_admin_available]
+      properties:
+        bootstrap_admin_available:
+          type: boolean
+        default_admin_username:
+          type: string
+        default_admin_password:
+          type: string
+
     # ── Teams ──────────────────────────────────────────────
     Team:
       type: object
@@ -761,6 +772,25 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/auth/setup-status:
+    get:
+      operationId: getAuthSetupStatus
+      summary: Get auth bootstrap setup status
+      tags: [auth]
+      responses:
+        "200":
+          description: Current bootstrap auth availability
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSetupStatusResponse"
+        "500":
+          description: Failed to inspect auth setup status
           content:
             application/json:
               schema:

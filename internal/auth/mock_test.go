@@ -64,6 +64,14 @@ func (m *MockService) EnsureBootstrapAdmin() (*models.User, bool, error) {
 	return user, true, nil
 }
 
+func (m *MockService) BootstrapAdminAvailable() (bool, error) {
+	if m.FailWith != nil {
+		return false, m.FailWith
+	}
+
+	return len(m.Users) == 0, nil
+}
+
 func (m *MockService) Login(username, password string) (string, *models.User, error) {
 	if m.FailWith != nil {
 		return "", nil, m.FailWith

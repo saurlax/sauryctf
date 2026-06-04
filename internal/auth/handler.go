@@ -38,6 +38,12 @@ type UserInfo struct {
 	Status   string `json:"status"`
 }
 
+type AuthSetupStatusResponse struct {
+	BootstrapAdminAvailable bool   `json:"bootstrap_admin_available"`
+	DefaultAdminUsername    string `json:"default_admin_username,omitempty"`
+	DefaultAdminPassword    string `json:"default_admin_password,omitempty"`
+}
+
 type ErrorResponse struct {
 	Message string `json:"message"`
 }
@@ -149,9 +155,28 @@ func (h *Handler) GetMe(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": user})
 }
 
+func (h *Handler) SetupStatus(c *gin.Context) {
+	available, err := h.svc.BootstrapAdminAvailable()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+
+	resp := AuthSetupStatusResponse{
+		BootstrapAdminAvailable: available,
+	}
+	if available {
+		resp.DefaultAdminUsername = defaultAdminUsername
+		resp.DefaultAdminPassword = defaultAdminPassword
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	auth := rg.Group("/auth")
 	{
+		auth.GET("/setup-status", h.SetupStatus)
 		auth.POST("/register", h.Register)
 		auth.POST("/login", h.Login)
 		auth.POST("/logout", h.Logout)

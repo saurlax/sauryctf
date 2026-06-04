@@ -24,6 +24,8 @@ SauryCTF 是一个对标 GZCTF 的 Go + Gin + GORM + Nuxt SSG CTF 平台。
 - 用户名：`admin`
 - 密码：`sauryctf`
 
+首页和 `/login` 页面现在会先读取 `/api/auth/setup-status`，只有在默认管理员仍然有效时才显示这对账号。
+
 前端当前提供独立的 `/login` 与 `/register` 页面，右上角导航也固定提供两个按钮入口：
 
 - `登录`

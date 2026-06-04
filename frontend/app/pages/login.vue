@@ -10,6 +10,7 @@ const { login } = useAuth()
 const router = useRouter()
 const route = useRoute()
 const toast = useToast()
+const { data: setupStatus } = await useAPI('auth-setup-status', 'get', '/api/auth/setup-status')
 
 const loginSchema = z.object({
   username: z.string().min(1, '请输入用户名'),
@@ -52,11 +53,21 @@ const state = reactive<Partial<LoginSchema>>({
       icon="i-lucide-lock"
     >
       <UAlert
+        v-if="setupStatus?.bootstrap_admin_available"
         class="mb-4"
         color="info"
         variant="soft"
         title="默认管理员入口"
-        description="只有在系统首次启动且 users 表为空时，后端才会初始化 admin / sauryctf。"
+        :description="`当前库为空，可直接使用 ${setupStatus.default_admin_username} / ${setupStatus.default_admin_password} 登录。`"
+      />
+
+      <UAlert
+        v-else
+        class="mb-4"
+        color="neutral"
+        variant="soft"
+        title="默认管理员已关闭"
+        description="当前数据库里已经有用户，后端不会再补建默认 admin 账号。请使用现有账号登录。"
       />
 
       <UForm :schema="loginSchema" :state="state" class="space-y-4" @submit="onLogin">

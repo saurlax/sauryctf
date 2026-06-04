@@ -17,6 +17,10 @@ export interface paths {
     /** Login with username or email */
     post: operations["login"];
   };
+  "/api/auth/setup-status": {
+    /** Get auth bootstrap setup status */
+    get: operations["getAuthSetupStatus"];
+  };
   "/api/auth/logout": {
     /** Invalidate session */
     post: operations["logout"];
@@ -182,6 +186,11 @@ export interface components {
     AuthResponse: {
       token: string;
       user: components["schemas"]["UserInfo"];
+    };
+    AuthSetupStatusResponse: {
+      bootstrap_admin_available: boolean;
+      default_admin_username?: string;
+      default_admin_password?: string;
     };
     Team: {
       id: number;
@@ -551,6 +560,23 @@ export interface operations {
       };
       /** @description Invalid credentials */
       401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /** Get auth bootstrap setup status */
+  getAuthSetupStatus: {
+    responses: {
+      /** @description Current bootstrap auth availability */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AuthSetupStatusResponse"];
+        };
+      };
+      /** @description Failed to inspect auth setup status */
+      500: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };
