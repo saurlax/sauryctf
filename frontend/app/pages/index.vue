@@ -40,8 +40,8 @@ const heroLinks = computed(() => {
     links.push({ label: '进入控制台', to: '/console', icon: 'i-lucide-layout-dashboard', variant: 'outline' })
   }
   else {
-    links.push({ label: '登录', to: '/login', icon: 'i-lucide-log-in', variant: 'outline' })
-    links.push({ label: '注册', to: '/register', icon: 'i-lucide-user-round-plus', variant: 'subtle' })
+    links.push({ label: '前往登录', to: '/login', icon: 'i-lucide-log-in', variant: 'outline' })
+    links.push({ label: '创建账号', to: '/register', icon: 'i-lucide-user-round-plus', variant: 'subtle' })
   }
 
   return links
