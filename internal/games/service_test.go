@@ -99,6 +99,40 @@ func TestService_CreateGame(t *testing.T) {
 	assert.True(t, game.IsPublic)
 }
 
+func TestService_CreateGame_RejectsInvalidTimeline(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	public := true
+	_, err := svc.CreateGame(games.CreateGameRequest{
+		Name:      "Broken Timeline",
+		StartTime: time.Now().Add(2 * time.Hour),
+		EndTime:   time.Now().Add(time.Hour),
+		IsPublic:  &public,
+	}, 1)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid game timeline")
+}
+
+func TestService_CreateGame_RejectsFreezeOutsideTimeline(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	public := true
+	start := time.Now().Add(time.Hour)
+	end := start.Add(2 * time.Hour)
+	freezeAt := end.Add(time.Minute)
+	_, err := svc.CreateGame(games.CreateGameRequest{
+		Name:               "Broken Freeze",
+		StartTime:          start,
+		EndTime:            end,
+		ScoreboardFreezeAt: &freezeAt,
+		IsPublic:           &public,
+	}, 1)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid scoreboard freeze time")
+}
+
 func TestService_GetGame(t *testing.T) {
 	svc, cleanup := setupService(t)
 	defer cleanup()
@@ -219,6 +253,46 @@ func TestService_UpdateGame(t *testing.T) {
 	assert.Equal(t, games.RegistrationModeAutoAccept, updated.RegistrationMode)
 	assert.Equal(t, 3, updated.MaxTeamMembers)
 	require.NotNil(t, updated.ScoreboardFreezeAt)
+}
+
+func TestService_UpdateGame_RejectsInvalidTimeline(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	public := true
+	game, _ := svc.CreateGame(games.CreateGameRequest{
+		Name:      "Timeline Guard",
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(time.Hour),
+		IsPublic:  &public,
+	}, 1)
+
+	newEnd := time.Now().Add(-time.Hour)
+	_, err := svc.UpdateGame(game.ID, games.UpdateGameRequest{
+		EndTime: &newEnd,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid game timeline")
+}
+
+func TestService_UpdateGame_RejectsFreezeOutsideTimeline(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	public := true
+	game, _ := svc.CreateGame(games.CreateGameRequest{
+		Name:      "Freeze Guard",
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(2 * time.Hour),
+		IsPublic:  &public,
+	}, 1)
+
+	freezeAt := time.Now().Add(3 * time.Hour)
+	_, err := svc.UpdateGame(game.ID, games.UpdateGameRequest{
+		ScoreboardFreezeAt: &freezeAt,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid scoreboard freeze time")
 }
 
 func TestService_AddChallenge(t *testing.T) {

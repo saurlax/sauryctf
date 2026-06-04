@@ -133,6 +133,9 @@ internal/<module>/
 - Registration withdrawal now follows the current GZCTF-style rule:
   - `pending` / `rejected` participations can be withdrawn
   - `accepted` participations are locked and can no longer be withdrawn
+- Game configuration now validates key contest times:
+  - `end_time` must be later than `start_time`
+  - `scoreboard_freeze_at` must stay within the contest window when configured
 - Public contest visibility is now tighter:
   - public game lists hide `draft` contests
   - direct public detail lookup also hides private or draft contests

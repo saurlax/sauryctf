@@ -31,6 +31,10 @@ func (m *MockService) CreateGame(req CreateGameRequest, createdBy uint) (*GameRe
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if err := validateGameTimeline(req.StartTime, req.EndTime, req.ScoreboardFreezeAt); err != nil {
+		return nil, err
+	}
+
 	isPublic := false
 	if req.IsPublic != nil {
 		isPublic = *req.IsPublic
@@ -101,6 +105,24 @@ func (m *MockService) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse,
 	game, ok := m.Games[id]
 	if !ok {
 		return nil, fmt.Errorf("game not found")
+	}
+	nextStartTime := game.StartTime
+	if req.StartTime != nil {
+		nextStartTime = *req.StartTime
+	}
+	nextEndTime := game.EndTime
+	if req.EndTime != nil {
+		nextEndTime = *req.EndTime
+	}
+	nextFreezeAt := game.ScoreboardFreezeAt
+	if req.ClearScoreboardFreeze {
+		nextFreezeAt = nil
+	}
+	if req.ScoreboardFreezeAt != nil {
+		nextFreezeAt = req.ScoreboardFreezeAt
+	}
+	if err := validateGameTimeline(nextStartTime, nextEndTime, nextFreezeAt); err != nil {
+		return nil, err
 	}
 	if req.Name != nil {
 		game.Name = *req.Name

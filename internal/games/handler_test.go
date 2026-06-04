@@ -147,6 +147,25 @@ func TestCreateGame_MissingName(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestCreateGame_InvalidTimeline(t *testing.T) {
+	svc := games.NewMockService()
+	r := setupTestRouter(svc)
+
+	body := map[string]any{
+		"name":       "Broken Timeline",
+		"start_time": time.Now().Add(2 * time.Hour).Format(time.RFC3339),
+		"end_time":   time.Now().Add(time.Hour).Format(time.RFC3339),
+	}
+	b, _ := json.Marshal(body)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/games", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestGetGame_Success(t *testing.T) {
 	svc := games.NewMockService()
 	r := setupTestRouter(svc)

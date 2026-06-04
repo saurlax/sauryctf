@@ -41,6 +41,18 @@ func normalizeMaxTeamMembers(limit int) (int, error) {
 	return limit, nil
 }
 
+func validateGameTimeline(startTime, endTime time.Time, freezeAt *time.Time) error {
+	if !endTime.After(startTime) {
+		return errors.New("invalid game timeline")
+	}
+	if freezeAt != nil {
+		if freezeAt.Before(startTime) || freezeAt.After(endTime) {
+			return errors.New("invalid scoreboard freeze time")
+		}
+	}
+	return nil
+}
+
 func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameResponse, error) {
 	registrationMode, err := normalizeRegistrationMode(req.RegistrationMode)
 	if err != nil {
@@ -48,6 +60,9 @@ func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameRespon
 	}
 	maxTeamMembers, err := normalizeMaxTeamMembers(req.MaxTeamMembers)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateGameTimeline(req.StartTime, req.EndTime, req.ScoreboardFreezeAt); err != nil {
 		return nil, err
 	}
 
@@ -121,6 +136,25 @@ func (s *Service) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, err
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("game not found")
 		}
+		return nil, err
+	}
+
+	nextStartTime := game.StartTime
+	if req.StartTime != nil {
+		nextStartTime = *req.StartTime
+	}
+	nextEndTime := game.EndTime
+	if req.EndTime != nil {
+		nextEndTime = *req.EndTime
+	}
+	nextFreezeAt := game.ScoreboardFreezeAt
+	if req.ClearScoreboardFreeze {
+		nextFreezeAt = nil
+	}
+	if req.ScoreboardFreezeAt != nil {
+		nextFreezeAt = req.ScoreboardFreezeAt
+	}
+	if err := validateGameTimeline(nextStartTime, nextEndTime, nextFreezeAt); err != nil {
 		return nil, err
 	}
 
