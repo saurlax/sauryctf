@@ -23,6 +23,9 @@ func newMockAuth() *mockAuth {
 }
 
 func (m *mockAuth) Register(_, _, _ string) (*models.User, error)   { return nil, nil }
+func (m *mockAuth) EnsureBootstrapAdmin() (*models.User, bool, error) {
+	return nil, false, nil
+}
 func (m *mockAuth) Login(_, _ string) (string, *models.User, error) { return "", nil, nil }
 func (m *mockAuth) Logout(_ string) error                           { return nil }
 func (m *mockAuth) GetUserByID(_ uint) (*models.User, error)        { return nil, nil }

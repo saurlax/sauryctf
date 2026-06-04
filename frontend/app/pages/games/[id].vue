@@ -31,19 +31,20 @@ const gameId = route.params.id as string
 async function fetchAll() {
   loading.value = true
   try {
-    const tasks: Promise<unknown>[] = [
-      $api('get', '/api/games/{id}', { params: { id: Number(gameId) } }),
-      $api('get', '/api/games/{id}/challenges', { params: { id: Number(gameId) } }),
-    ]
+    const gameRequest = $api('get', '/api/games/{id}', { params: { id: Number(gameId) } })
+    const challengesRequest = $api('get', '/api/games/{id}/challenges', { params: { id: Number(gameId) } })
+    const participationRequest = authState.user
+      ? $api('get', '/api/games/{id}/participation', { params: { id: Number(gameId) } })
+      : Promise.resolve(null)
 
-    if (authState.user) {
-      tasks.push($api('get', '/api/games/{id}/participation', { params: { id: Number(gameId) } }))
-    }
-
-    const [gameRes, challengesRes, participationRes] = await Promise.all(tasks)
+    const [gameRes, challengesRes, participationRes] = await Promise.all([
+      gameRequest,
+      challengesRequest,
+      participationRequest,
+    ])
     game.value = gameRes
-    challenges.value = challengesRes || []
-    participation.value = (participationRes as GameParticipation | undefined) || null
+    challenges.value = challengesRes
+    participation.value = participationRes
   }
   catch (e: any) {
     toast.add({ title: '获取比赛信息失败', description: e.data?.message || e.message, color: 'error' })

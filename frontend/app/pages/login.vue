@@ -1,18 +1,10 @@
 <script setup lang="ts">
 import * as z from 'zod'
-import type { FormSubmitEvent, AuthFormField } from '@nuxt/ui'
+import type { FormSubmitEvent } from '@nuxt/ui'
 
-const { login, register } = useAuth()
+const { authState, fetchUser, login } = useAuth()
 const router = useRouter()
 const toast = useToast()
-
-const tab = ref('login')
-
-// --- Login ---
-const loginFields: AuthFormField[] = [
-  { name: 'username', label: '用户名', type: 'text', placeholder: '请输入用户名', required: true },
-  { name: 'password', label: '密码', type: 'password', placeholder: '请输入密码', required: true },
-]
 
 const loginSchema = z.object({
   username: z.string().min(1, '请输入用户名'),
@@ -32,65 +24,49 @@ async function onLogin(payload: FormSubmitEvent<LoginSchema>) {
   }
 }
 
-// --- Register ---
-const registerFields: AuthFormField[] = [
-  { name: 'username', label: '用户名', type: 'text', placeholder: '请输入用户名', required: true },
-  { name: 'email', label: '邮箱', type: 'email', placeholder: '请输入邮箱', required: true },
-  { name: 'password', label: '密码', type: 'password', placeholder: '请输入密码（至少 6 位）', required: true },
-  { name: 'confirmPassword', label: '确认密码', type: 'password', placeholder: '请再次输入密码', required: true },
-]
-
-const registerSchema = z.object({
-  username: z.string().min(1, '请输入用户名'),
-  email: z.string().email('邮箱格式不正确'),
-  password: z.string().min(6, '密码至少 6 位'),
-  confirmPassword: z.string().min(1, '请确认密码'),
-}).refine(data => data.password === data.confirmPassword, {
-  message: '两次密码不一致',
-  path: ['confirmPassword'],
+const state = reactive<Partial<LoginSchema>>({
+  username: 'admin',
+  password: 'sauryctf',
 })
 
-type RegisterSchema = z.output<typeof registerSchema>
-
-async function onRegister(payload: FormSubmitEvent<RegisterSchema>) {
-  try {
-    await register(payload.data.username, payload.data.email, payload.data.password)
-    toast.add({ title: '注册成功', color: 'success' })
-    router.push('/console')
+onMounted(async () => {
+  if (!authState.user) {
+    await fetchUser()
   }
-  catch (e: any) {
-    toast.add({ title: '注册失败', description: e.data?.message || e.message, color: 'error' })
-  }
-}
 
-const tabs = [
-  { label: '登录', value: 'login' },
-  { label: '注册', value: 'register' },
-]
+  if (authState.user) {
+    await router.push('/console')
+  }
+})
 </script>
 
 <template>
-  <div class="flex justify-center items-center min-h-[60vh]">
-    <UPageCard class="w-full max-w-md">
-      <UTabs v-model="tab" :items="tabs" class="mb-4" />
-
-      <UAuthForm
-        v-if="tab === 'login'"
-        :schema="loginSchema"
-        :fields="loginFields"
-        title="登录"
-        icon="i-lucide-lock"
-        @submit="onLogin"
+  <div class="flex min-h-[70vh] items-center justify-center">
+    <UPageCard
+      class="w-full max-w-md"
+      title="登录/注册"
+      description="当前版本优先提供开箱即用的默认管理员账号。"
+      icon="i-lucide-lock"
+    >
+      <UAlert
+        class="mb-4"
+        color="info"
+        variant="soft"
+        title="默认管理员"
+        description="用户名 admin，密码 sauryctf。首次启动空库时会自动创建。"
       />
 
-      <UAuthForm
-        v-else
-        :schema="registerSchema"
-        :fields="registerFields"
-        title="注册"
-        icon="i-lucide-user-plus"
-        @submit="onRegister"
-      />
+      <UForm :schema="loginSchema" :state="state" class="space-y-4" @submit="onLogin">
+        <UFormField name="username" label="用户名或邮箱" required>
+          <UInput v-model="state.username" class="w-full" placeholder="请输入用户名或邮箱" />
+        </UFormField>
+
+        <UFormField name="password" label="密码" required>
+          <UInput v-model="state.password" class="w-full" type="password" placeholder="请输入密码" />
+        </UFormField>
+
+        <UButton type="submit" block label="进入控制台" icon="i-lucide-log-in" />
+      </UForm>
     </UPageCard>
   </div>
 </template>

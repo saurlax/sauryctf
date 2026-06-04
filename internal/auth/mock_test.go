@@ -44,6 +44,26 @@ func (m *MockService) Register(username, email, password string) (*models.User, 
 	return user, nil
 }
 
+func (m *MockService) EnsureBootstrapAdmin() (*models.User, bool, error) {
+	if m.FailWith != nil {
+		return nil, false, m.FailWith
+	}
+	for _, user := range m.Users {
+		_ = user
+		return nil, false, nil
+	}
+	user := &models.User{
+		ID:       m.NextID,
+		Username: defaultAdminUsername,
+		Email:    defaultAdminEmail,
+		Role:     models.RoleAdmin,
+		Status:   models.StatusActive,
+	}
+	m.NextID++
+	m.Users[user.Email] = user
+	return user, true, nil
+}
+
 func (m *MockService) Login(username, password string) (string, *models.User, error) {
 	if m.FailWith != nil {
 		return "", nil, m.FailWith

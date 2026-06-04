@@ -11,6 +11,12 @@ import (
 	"github.com/saurlax/sauryctf/internal/models"
 )
 
+const (
+	defaultAdminUsername = "admin"
+	defaultAdminEmail    = "admin@sauryctf.local"
+	defaultAdminPassword = "sauryctf"
+)
+
 type Service struct {
 	db        *gorm.DB
 	jwtSecret string
@@ -43,6 +49,36 @@ func (s *Service) Register(username, email, password string) (*models.User, erro
 		return nil, err
 	}
 	return user, nil
+}
+
+func (s *Service) EnsureBootstrapAdmin() (*models.User, bool, error) {
+	var count int64
+	if err := s.db.Model(&models.User{}).Count(&count).Error; err != nil {
+		return nil, false, err
+	}
+
+	if count > 0 {
+		return nil, false, nil
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(defaultAdminPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, false, err
+	}
+
+	user := &models.User{
+		Username:     defaultAdminUsername,
+		Email:        defaultAdminEmail,
+		PasswordHash: string(hash),
+		Role:         models.RoleAdmin,
+		Status:       models.StatusActive,
+	}
+
+	if err := s.db.Create(user).Error; err != nil {
+		return nil, false, err
+	}
+
+	return user, true, nil
 }
 
 func (s *Service) Login(username, password string) (string, *models.User, error) {

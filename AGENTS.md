@@ -27,7 +27,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 
 **Directory structure:**
 - `app/pages/index.vue` — Home / landing page
-- `app/pages/login.vue` — Login + Registration (tab switch)
+- `app/pages/login.vue` — Unified login entry with bootstrap admin hint
 - `app/pages/games/index.vue` — Games list
 - `app/pages/games/[id].vue` — Game detail + challenges
 - `app/pages/console/index.vue` — Console dashboard (protected)
@@ -114,6 +114,7 @@ internal/<module>/
 - Dynamic container management must be idempotent; Kubernetes resources must be uniformly labeled.
 - Dynamic scoring is shared across standalone challenge submission and game-scoped submission.
 - Current blood metadata (`first`, `second`, `third`) is retained for display, but does not apply an extra score multiplier.
+- On a fresh database, backend startup auto-creates a bootstrap admin user: `admin / sauryctf`.
 
 ## Makefile (legacy — prefer pnpm scripts above)
 

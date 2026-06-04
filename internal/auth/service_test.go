@@ -46,6 +46,36 @@ func TestRegister(t *testing.T) {
 	})
 }
 
+func TestEnsureBootstrapAdmin(t *testing.T) {
+	database := setupTestDB(t)
+	svc := NewService(database, "test-secret")
+
+	t.Run("creates default admin for empty database", func(t *testing.T) {
+		user, created, err := svc.EnsureBootstrapAdmin()
+		require.NoError(t, err)
+		require.True(t, created)
+		require.NotNil(t, user)
+		assert.Equal(t, defaultAdminUsername, user.Username)
+		assert.Equal(t, defaultAdminEmail, user.Email)
+		assert.Equal(t, models.RoleAdmin, user.Role)
+
+		_, loggedInUser, err := svc.Login(defaultAdminUsername, defaultAdminPassword)
+		require.NoError(t, err)
+		assert.Equal(t, user.ID, loggedInUser.ID)
+	})
+
+	t.Run("does not create a second bootstrap admin", func(t *testing.T) {
+		user, created, err := svc.EnsureBootstrapAdmin()
+		require.NoError(t, err)
+		assert.False(t, created)
+		assert.Nil(t, user)
+
+		var count int64
+		require.NoError(t, database.Model(&models.User{}).Count(&count).Error)
+		assert.EqualValues(t, 1, count)
+	})
+}
+
 func TestLogin(t *testing.T) {
 	database := setupTestDB(t)
 	svc := NewService(database, "test-secret")

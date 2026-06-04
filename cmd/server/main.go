@@ -29,6 +29,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/saurlax/sauryctf/internal/auth"
 	"github.com/saurlax/sauryctf/internal/config"
 	"github.com/saurlax/sauryctf/internal/db"
 	httphandler "github.com/saurlax/sauryctf/internal/http"
@@ -46,6 +47,14 @@ func main() {
 	if err := db.Migrate(database); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to migrate database: %v\n", err)
 		os.Exit(1)
+	}
+
+	authSvc := auth.NewService(database, cfg.JWTSecret)
+	if user, created, err := authSvc.EnsureBootstrapAdmin(); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to ensure bootstrap admin: %v\n", err)
+		os.Exit(1)
+	} else if created {
+		fmt.Printf("Bootstrap admin created: %s / %s\n", user.Username, "sauryctf")
 	}
 
 	engine := httphandler.NewServer(database, cfg.JWTSecret)
