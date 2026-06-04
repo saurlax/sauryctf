@@ -4,6 +4,7 @@
 
 - 路径：`/console/admin`
 - 仅 `admin` / `super_admin` 角色可见
+- 非管理员访问时会直接跳回 `/console`
 - 能力：
   - 创建比赛
   - 修改比赛名称、描述、公告、时间
