@@ -1,4 +1,6 @@
 <script setup lang="ts">
+const { isLoggedIn } = useAuth()
+
 const features = [
   {
     title: '动态容器',
@@ -21,6 +23,29 @@ const features = [
     icon: 'i-lucide-shield',
   },
 ]
+
+type HeroLink = {
+  label: string
+  to: string
+  icon: string
+  variant?: 'outline' | 'subtle'
+}
+
+const heroLinks = computed(() => {
+  const links: HeroLink[] = [
+    { label: '开始比赛', to: '/games', icon: 'i-lucide-rocket' },
+  ]
+
+  if (isLoggedIn.value) {
+    links.push({ label: '进入控制台', to: '/console', icon: 'i-lucide-layout-dashboard', variant: 'outline' })
+  }
+  else {
+    links.push({ label: '登录', to: '/login', icon: 'i-lucide-log-in', variant: 'outline' })
+    links.push({ label: '注册', to: '/register', icon: 'i-lucide-user-round-plus', variant: 'subtle' })
+  }
+
+  return links
+})
 </script>
 
 <template>
@@ -28,10 +53,7 @@ const features = [
     <UPageHero
       title="SauryCTF"
       description="基于 k3s 的现代化 CTF/AWD 竞赛平台"
-      :links="[
-        { label: '开始比赛', to: '/games', icon: 'i-lucide-rocket' },
-        { label: '了解更多', to: '#features', variant: 'outline', icon: 'i-lucide-info' },
-      ]"
+      :links="heroLinks"
     />
 
     <UPageSection id="features" title="平台特色" description="为 CTF 竞赛打造的一站式平台">
