@@ -34,6 +34,7 @@ SauryCTF 是一个对标 GZCTF 的 Go + Gin + GORM + Nuxt SSG CTF 平台。
 - 默认管理员：`admin / sauryctf`
 - 只有在 `users` 表为空时，后端才会创建这组账号
 - 登录成功后，浏览器会收到 `token` Cookie；随后刷新页面或访问 `/api/auth/me` 都应仍能识别当前登录态
+- 重复登录会生成新的独立会话，不需要手动清理旧会话或重置数据库
 
 一个最小的本地冒烟流程可以是：
 

@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"time"
 
@@ -160,12 +162,27 @@ func (s *Service) GetUserByID(id uint) (*models.User, error) {
 }
 
 func (s *Service) generateToken(user *models.User) (string, error) {
+	jti, err := newTokenID()
+	if err != nil {
+		return "", err
+	}
+
 	claims := jwt.MapClaims{
 		"user_id":  user.ID,
 		"username": user.Username,
 		"role":     user.Role,
+		"jti":      jti,
+		"iat":      time.Now().Unix(),
 		"exp":      time.Now().Add(s.tokenTTL).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(s.jwtSecret))
+}
+
+func newTokenID() (string, error) {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf), nil
 }

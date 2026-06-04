@@ -107,6 +107,20 @@ func TestLogin(t *testing.T) {
 		assert.Equal(t, "alice", user.Username)
 	})
 
+	t.Run("repeat login generates unique session token", func(t *testing.T) {
+		firstToken, _, err := svc.Login("alice@example.com", "password123")
+		require.NoError(t, err)
+
+		secondToken, _, err := svc.Login("alice@example.com", "password123")
+		require.NoError(t, err)
+
+		assert.NotEqual(t, firstToken, secondToken)
+
+		var sessionCount int64
+		require.NoError(t, database.Model(&models.Session{}).Where("user_id = ?", 1).Count(&sessionCount).Error)
+		assert.GreaterOrEqual(t, sessionCount, int64(2))
+	})
+
 	t.Run("wrong password", func(t *testing.T) {
 		_, _, err := svc.Login("alice@example.com", "wrongpassword")
 		assert.Error(t, err)
