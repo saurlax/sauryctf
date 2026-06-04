@@ -30,6 +30,14 @@ const now = ref(Date.now())
 
 const gameId = route.params.id as string
 
+const hasChallengeContent = computed(() =>
+  challenges.value.some(ch =>
+    Boolean(ch.description)
+    || parseStringList(ch.hints).length > 0
+    || parseStringList(ch.attachments).length > 0,
+  ),
+)
+
 async function fetchAll() {
   loading.value = true
   try {
@@ -387,6 +395,28 @@ const submitHint = computed(() => {
   return '当前队伍已具备提交资格。'
 })
 
+const challengeVisibilityHint = computed(() => {
+  if (!authState.user) {
+    return '登录后可以查看当前队伍的报名状态。只有比赛开始后，且已通过报名的队伍，才会看到完整题面、提示和附件。'
+  }
+  if (!participation.value?.has_team) {
+    return '当前比赛以内队形式参赛。先加入队伍并完成报名后，才会逐步开放完整题面内容。'
+  }
+  if (!participation.value.participated) {
+    return '当前队伍还没有报名这场比赛。你现在可以先看题目标题、分类和分值，完整题面会在通过报名后开放。'
+  }
+  if (participation.value.status === 'pending') {
+    return '当前报名正在审核中。审核通过前，题目详情、提示和附件会继续隐藏。'
+  }
+  if (participation.value.status === 'rejected') {
+    return '当前报名未通过。重新调整队伍并再次报名后，审核通过才会开放完整题面。'
+  }
+  if (gameStatusMeta.value.label === '未开始') {
+    return '当前队伍已通过报名，但比赛尚未开始。为了避免提前泄题，完整题面会在开赛后自动开放。'
+  }
+  return '当前已开放完整题面，你可以查看提示、附件并按比赛规则提交 Flag。'
+})
+
 const overviewStats = computed(() => {
   if (!game.value) {
     return []
@@ -715,6 +745,14 @@ onMounted(async () => {
 
       <!-- Challenges Tab -->
       <div v-else-if="activeTab === 'challenges'">
+        <UAlert
+          class="mb-6"
+          :color="hasChallengeContent ? 'success' : 'warning'"
+          variant="soft"
+          :title="hasChallengeContent ? '题目内容已开放' : '题目内容暂未完全开放'"
+          :description="challengeVisibilityHint"
+        />
+
         <div v-if="challenges.length === 0" class="text-center py-12">
           <UIcon name="i-lucide-file-question" class="size-10 text-muted mx-auto mb-2" />
           <p class="text-muted">
@@ -765,7 +803,7 @@ onMounted(async () => {
 
                 <div class="space-y-3 mb-4 text-sm">
                   <p class="text-muted leading-6 whitespace-pre-wrap">
-                    {{ ch.description || '当前题目暂未填写详细题面。' }}
+                    {{ ch.description || '当前题面内容暂未开放，待报名通过并开赛后会自动显示。' }}
                   </p>
 
                   <div v-if="parseStringList(ch.hints).length" class="rounded-lg border border-default bg-muted/40 px-3 py-3">
@@ -803,6 +841,14 @@ onMounted(async () => {
                       </UButton>
                     </div>
                   </div>
+
+                  <UAlert
+                    v-else-if="!ch.description"
+                    color="warning"
+                    variant="subtle"
+                    title="题面暂未开放"
+                    description="当前只能查看题目基础信息。提示与附件会在具备参赛资格后自动显示。"
+                  />
                 </div>
 
                 <div v-if="!ch.solved" class="space-y-2">

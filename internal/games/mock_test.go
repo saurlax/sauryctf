@@ -12,6 +12,7 @@ type MockService struct {
 	mu             sync.Mutex
 	Games          map[uint]*GameResponse
 	GameChs        map[string]bool                       // "gameID-challengeID"
+	ChallengesByGame map[uint][]GameChallengeDetail
 	Participations map[string]models.ParticipationStatus // "gameID-teamID"
 	UserTeams      map[uint]*GameParticipationTeam
 	nextID         uint
@@ -21,6 +22,7 @@ func NewMockService() *MockService {
 	return &MockService{
 		Games:          make(map[uint]*GameResponse),
 		GameChs:        make(map[string]bool),
+		ChallengesByGame: make(map[uint][]GameChallengeDetail),
 		Participations: make(map[string]models.ParticipationStatus),
 		UserTeams:      make(map[uint]*GameParticipationTeam),
 		nextID:         1,
@@ -254,7 +256,7 @@ func (m *MockService) GetGameChallenges(gameID uint) ([]GameChallengeDetail, err
 	if _, ok := m.Games[gameID]; !ok {
 		return nil, fmt.Errorf("game not found")
 	}
-	return []GameChallengeDetail{}, nil
+	return append([]GameChallengeDetail(nil), m.ChallengesByGame[gameID]...), nil
 }
 
 func (m *MockService) GetGameChallengesForTeam(gameID uint, teamID uint) ([]GameChallengeDetail, error) {

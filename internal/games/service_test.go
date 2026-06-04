@@ -681,3 +681,52 @@ func TestService_SubmitFlag_RejectsDraftGame(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not active")
 }
+
+func TestService_GetGameChallenges_ReturnsChallengeContent(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+
+	user := models.User{Username: "viewer", Email: "viewer@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+
+	challenge := models.Challenge{
+		Title:       "Visible Challenge",
+		Description: "challenge body",
+		Category:    models.CategoryWeb,
+		Type:        models.TypeStatic,
+		Difficulty:  "easy",
+		Hints:       "[\"hint\"]",
+		Attachments: "[\"https://example.com/file.zip\"]",
+		Flag:        "flag{visible}",
+		BaseScore:   100,
+		MinScore:    10,
+		DecayRate:   0.1,
+		IsVisible:   true,
+		CreatedBy:   user.ID,
+	}
+	require.NoError(t, database.Create(&challenge).Error)
+
+	game := models.Game{
+		Name:      "Challenge View Game",
+		StartTime: time.Now().Add(-time.Hour),
+		EndTime:   time.Now().Add(time.Hour),
+		Status:    "active",
+		IsPublic:  true,
+		CreatedBy: user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+	require.NoError(t, database.Create(&models.GameChallenge{
+		GameID: game.ID, ChallengeID: challenge.ID,
+	}).Error)
+
+	items, err := svc.GetGameChallenges(game.ID)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, "challenge body", items[0].Description)
+	assert.Equal(t, "[\"hint\"]", items[0].Hints)
+	assert.Equal(t, "[\"https://example.com/file.zip\"]", items[0].Attachments)
+}

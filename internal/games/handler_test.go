@@ -461,3 +461,95 @@ func TestRemoveParticipant_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 }
+
+func TestGetGameChallenges_RedactsContentBeforeAcceptedStart(t *testing.T) {
+	svc := games.NewMockService()
+	svc.UserTeams[1] = &games.GameParticipationTeam{ID: 7, Name: "Blue Team"}
+	svc.Participations["1-7"] = "pending"
+	svc.ChallengesByGame = map[uint][]games.GameChallengeDetail{
+		1: {
+			{
+				ID:          11,
+				Title:       "Web 101",
+				Description: "full statement",
+				Category:    "web",
+				Hints:       "[\"hint\"]",
+				Attachments: "[\"https://example.com/web.zip\"]",
+				Score:       100,
+			},
+		},
+	}
+
+	r := setupTestRouter(svc)
+
+	public := true
+	start := time.Now().Add(time.Hour)
+	end := start.Add(time.Hour)
+	active := "active"
+	created, _ := svc.CreateGame(games.CreateGameRequest{
+		Name:      "Upcoming Game",
+		StartTime: start,
+		EndTime:   end,
+		IsPublic:  &public,
+	}, 1)
+	_, _ = svc.UpdateGame(created.ID, games.UpdateGameRequest{Status: &active})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/games/1/challenges", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response []map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &response)
+	assert.Len(t, response, 1)
+	assert.Equal(t, "", response[0]["description"])
+	assert.Equal(t, "", response[0]["hints"])
+	assert.Equal(t, "", response[0]["attachments"])
+}
+
+func TestGetGameChallenges_ExposesContentForAcceptedTeamAfterStart(t *testing.T) {
+	svc := games.NewMockService()
+	svc.UserTeams[1] = &games.GameParticipationTeam{ID: 7, Name: "Blue Team"}
+	svc.Participations["1-7"] = "accepted"
+	svc.ChallengesByGame = map[uint][]games.GameChallengeDetail{
+		1: {
+			{
+				ID:          11,
+				Title:       "Web 101",
+				Description: "full statement",
+				Category:    "web",
+				Hints:       "[\"hint\"]",
+				Attachments: "[\"https://example.com/web.zip\"]",
+				Score:       100,
+			},
+		},
+	}
+
+	r := setupTestRouter(svc)
+
+	public := true
+	start := time.Now().Add(-time.Hour)
+	end := time.Now().Add(time.Hour)
+	active := "active"
+	created, _ := svc.CreateGame(games.CreateGameRequest{
+		Name:      "Running Game",
+		StartTime: start,
+		EndTime:   end,
+		IsPublic:  &public,
+	}, 1)
+	_, _ = svc.UpdateGame(created.ID, games.UpdateGameRequest{Status: &active})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/games/1/challenges", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response []map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &response)
+	assert.Len(t, response, 1)
+	assert.Equal(t, "full statement", response[0]["description"])
+	assert.Equal(t, "[\"hint\"]", response[0]["hints"])
+	assert.Equal(t, "[\"https://example.com/web.zip\"]", response[0]["attachments"])
+}

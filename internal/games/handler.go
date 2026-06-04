@@ -2,6 +2,7 @@ package games
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
@@ -159,7 +160,18 @@ func (h *Handler) GetGameChallenges(c *gin.Context, id int) {
 	var challenges []GameChallengeDetail
 	var err error
 
+	game, gameErr := h.svc.GetGame(uint(id))
+	if gameErr != nil {
+		if gameErr.Error() == "game not found" {
+			c.JSON(http.StatusNotFound, gin.H{"message": gameErr.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"message": gameErr.Error()})
+		return
+	}
+
 	userID := c.MustGet("user_id").(uint)
+	userRole, _ := c.Get("user_role")
 	participation, statusErr := h.svc.GetParticipationStatus(uint(id), userID)
 	if statusErr != nil {
 		if statusErr.Error() == "game not found" {
@@ -179,7 +191,30 @@ func (h *Handler) GetGameChallenges(c *gin.Context, id int) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
 	}
+
+	canViewContent := false
+	if role, ok := userRole.(string); ok && (role == "admin" || role == "super_admin") {
+		canViewContent = true
+	}
+	if participation.Status == "accepted" && !time.Now().Before(game.StartTime) {
+		canViewContent = true
+	}
+	if !canViewContent {
+		challenges = redactChallengeContent(challenges)
+	}
+
 	c.JSON(http.StatusOK, challenges)
+}
+
+func redactChallengeContent(challenges []GameChallengeDetail) []GameChallengeDetail {
+	result := make([]GameChallengeDetail, len(challenges))
+	copy(result, challenges)
+	for i := range result {
+		result[i].Description = ""
+		result[i].Hints = ""
+		result[i].Attachments = ""
+	}
+	return result
 }
 
 func (h *Handler) SubmitGameFlag(c *gin.Context, id int, challengeId int) {
