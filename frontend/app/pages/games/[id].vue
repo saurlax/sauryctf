@@ -21,6 +21,7 @@ const leaving = ref(false)
 const activeTab = ref('challenges')
 const submitting = ref<number | null>(null) // challenge id being submitted
 const flagInputs = reactive<Record<number, string>>({})
+const now = ref(Date.now())
 
 const gameId = route.params.id as string
 
@@ -175,7 +176,93 @@ function getDifficultyColor(d: string): 'success' | 'warning' | 'error' | 'neutr
   return map[d] || 'neutral'
 }
 
+const gameStatusMeta = computed(() => {
+  if (!game.value) {
+    return { label: '未知', color: 'neutral' as const, description: '' }
+  }
+
+  const start = new Date(game.value.start_time).getTime()
+  const end = new Date(game.value.end_time).getTime()
+
+  if (now.value < start) {
+    return {
+      label: '未开始',
+      color: 'warning' as const,
+      description: `距离开始还有 ${formatDuration(start - now.value)}`,
+    }
+  }
+
+  if (now.value > end) {
+    return {
+      label: '已结束',
+      color: 'error' as const,
+      description: `比赛已于 ${new Date(game.value.end_time).toLocaleString()} 结束`,
+    }
+  }
+
+  return {
+    label: '进行中',
+    color: 'success' as const,
+    description: `距离结束还有 ${formatDuration(end - now.value)}`,
+  }
+})
+
+const overviewStats = computed(() => {
+  if (!game.value) {
+    return []
+  }
+
+  return [
+    {
+      label: '比赛状态',
+      value: gameStatusMeta.value.label,
+      hint: gameStatusMeta.value.description,
+      icon: 'i-lucide-activity',
+      color: gameStatusMeta.value.color,
+    },
+    {
+      label: '开始时间',
+      value: new Date(game.value.start_time).toLocaleString(),
+      hint: '开赛时间',
+      icon: 'i-lucide-clock-3',
+      color: 'neutral' as const,
+    },
+    {
+      label: '结束时间',
+      value: new Date(game.value.end_time).toLocaleString(),
+      hint: '封榜或比赛结束前请及时提交',
+      icon: 'i-lucide-flag',
+      color: 'neutral' as const,
+    },
+    {
+      label: '题目数量',
+      value: String(challenges.value.length),
+      hint: '当前可见题目数',
+      icon: 'i-lucide-file-stack',
+      color: 'info' as const,
+    },
+  ]
+})
+
+function formatDuration(ms: number) {
+  if (ms <= 0) {
+    return '0 分钟'
+  }
+
+  const totalMinutes = Math.floor(ms / 1000 / 60)
+  const days = Math.floor(totalMinutes / (60 * 24))
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60)
+  const minutes = totalMinutes % 60
+
+  const parts = []
+  if (days) parts.push(`${days} 天`)
+  if (hours) parts.push(`${hours} 小时`)
+  if (minutes || parts.length === 0) parts.push(`${minutes} 分钟`)
+  return parts.join(' ')
+}
+
 const tabItems = [
+  { label: '概览', value: 'overview', icon: 'i-lucide-layout-template' },
   { label: '题目', value: 'challenges', icon: 'i-lucide-flag' },
   { label: '排行榜', value: 'scoreboard', icon: 'i-lucide-trophy' },
 ]
@@ -188,7 +275,14 @@ onMounted(async () => {
   if (!authState.user) {
     await fetchUser()
   }
+  const timer = window.setInterval(() => {
+    now.value = Date.now()
+  }, 60_000)
   await fetchAll()
+
+  onBeforeUnmount(() => {
+    window.clearInterval(timer)
+  })
 })
 </script>
 
@@ -203,10 +297,15 @@ onMounted(async () => {
         <UButton to="/games" variant="ghost" icon="i-lucide-arrow-left" label="返回比赛列表" size="sm" class="mb-4" />
         <div class="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 class="text-3xl font-bold mb-1">
-              {{ game.name }}
-            </h1>
-            <p class="text-muted">
+            <div class="flex items-center gap-3 mb-2 flex-wrap">
+              <h1 class="text-3xl font-bold">
+                {{ game.name }}
+              </h1>
+              <UBadge :color="gameStatusMeta.color" variant="soft" size="lg">
+                {{ gameStatusMeta.label }}
+              </UBadge>
+            </div>
+            <p class="text-muted max-w-3xl">
               {{ game.description }}
             </p>
           </div>
@@ -222,6 +321,25 @@ onMounted(async () => {
           </div>
         </div>
       </div>
+
+      <UPageGrid :cols="{ default: 1, sm: 2, xl: 4 }" class="mb-6">
+        <UPageCard
+          v-for="stat in overviewStats"
+          :key="stat.label"
+          :title="stat.value"
+          :description="stat.label"
+          :icon="stat.icon"
+        >
+          <template #footer>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs text-muted">{{ stat.hint }}</span>
+              <UBadge :color="stat.color" variant="subtle" size="sm">
+                {{ stat.label }}
+              </UBadge>
+            </div>
+          </template>
+        </UPageCard>
+      </UPageGrid>
 
       <UPageCard v-if="authState.user" class="mb-6">
         <div class="flex items-center justify-between gap-4 flex-wrap">
@@ -279,8 +397,66 @@ onMounted(async () => {
 
       <UTabs v-model="activeTab" :items="tabItems" class="mb-6" />
 
+      <div v-if="activeTab === 'overview'" class="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
+        <UPageCard title="比赛规则" icon="i-lucide-scroll-text">
+          <div class="space-y-4 text-sm leading-7">
+            <p class="text-default">
+              {{ game.description || '当前比赛暂未填写详细规则。你可以先完成队伍准备与比赛报名。' }}
+            </p>
+            <div class="rounded-lg border border-default bg-muted/40 p-4">
+              <p class="font-medium mb-2">
+                参赛提示
+              </p>
+              <ul class="space-y-2 text-muted">
+                <li>1. 先在控制台创建或加入队伍，再报名比赛。</li>
+                <li>2. 题目页会根据你当前队伍显示已解状态和一血队伍。</li>
+                <li>3. 比赛结束后将无法继续得分，请留意结束时间。</li>
+              </ul>
+            </div>
+          </div>
+        </UPageCard>
+
+        <div class="space-y-6">
+          <UPageCard title="快速入口" icon="i-lucide-rocket">
+            <div class="flex flex-col gap-3">
+              <UButton icon="i-lucide-flag" variant="outline" @click="activeTab = 'challenges'">
+                浏览题目
+              </UButton>
+              <UButton icon="i-lucide-trophy" variant="outline" @click="activeTab = 'scoreboard'">
+                查看排行榜
+              </UButton>
+              <UButton icon="i-lucide-users" variant="outline" to="/console/team">
+                管理我的队伍
+              </UButton>
+            </div>
+          </UPageCard>
+
+          <UPageCard title="当前报名情况" icon="i-lucide-badge-check">
+            <div class="space-y-3 text-sm">
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-muted">队伍状态</span>
+                <span>{{ participation?.team?.name || '未加入队伍' }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-muted">比赛报名</span>
+                <UBadge
+                  :color="participation?.participated ? 'success' : 'warning'"
+                  variant="soft"
+                >
+                  {{ participation?.participated ? '已报名' : '未报名' }}
+                </UBadge>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-muted">可提交 Flag</span>
+                <span>{{ participation?.participated ? '是' : '否' }}</span>
+              </div>
+            </div>
+          </UPageCard>
+        </div>
+      </div>
+
       <!-- Challenges Tab -->
-      <div v-if="activeTab === 'challenges'">
+      <div v-else-if="activeTab === 'challenges'">
         <div v-if="challenges.length === 0" class="text-center py-12">
           <UIcon name="i-lucide-file-question" class="size-10 text-muted mx-auto mb-2" />
           <p class="text-muted">
