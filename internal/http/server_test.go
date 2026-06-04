@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -96,6 +97,110 @@ func TestServer_BootstrapAdminLoginFlow(t *testing.T) {
 	defer meAfterLogoutResp.Body.Close()
 
 	assert.Equal(t, http.StatusUnauthorized, meAfterLogoutResp.StatusCode)
+}
+
+func TestServer_BootstrapAdminCanCreateGame(t *testing.T) {
+	server := setupHTTPTestServer(t)
+	defer server.Close()
+
+	loginBody := bytes.NewBufferString(`{"username":"admin","password":"sauryctf"}`)
+	loginReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/auth/login", loginBody)
+	require.NoError(t, err)
+	loginReq.Header.Set("Content-Type", "application/json")
+
+	loginResp, err := http.DefaultClient.Do(loginReq)
+	require.NoError(t, err)
+	defer loginResp.Body.Close()
+	require.Equal(t, http.StatusOK, loginResp.StatusCode)
+	require.NotEmpty(t, loginResp.Cookies())
+
+	var tokenCookie *http.Cookie
+	for _, cookie := range loginResp.Cookies() {
+		if cookie.Name == "token" {
+			tokenCookie = cookie
+			break
+		}
+	}
+	require.NotNil(t, tokenCookie)
+
+	start := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
+	end := start.Add(24 * time.Hour)
+	payload := map[string]any{
+		"name":       "Bootstrap Smoke Game",
+		"start_time": start.Format(time.RFC3339),
+		"end_time":   end.Format(time.RFC3339),
+		"is_public":  true,
+	}
+	body, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	createReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/games", bytes.NewReader(body))
+	require.NoError(t, err)
+	createReq.Header.Set("Content-Type", "application/json")
+	createReq.AddCookie(tokenCookie)
+
+	createResp, err := http.DefaultClient.Do(createReq)
+	require.NoError(t, err)
+	defer createResp.Body.Close()
+
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
+
+	var gamePayload struct {
+		ID        uint   `json:"id"`
+		Name      string `json:"name"`
+		CreatedBy uint   `json:"created_by"`
+		Status    string `json:"status"`
+	}
+	require.NoError(t, json.NewDecoder(createResp.Body).Decode(&gamePayload))
+	assert.NotZero(t, gamePayload.ID)
+	assert.Equal(t, "Bootstrap Smoke Game", gamePayload.Name)
+	assert.Equal(t, uint(1), gamePayload.CreatedBy)
+	assert.Equal(t, "draft", gamePayload.Status)
+}
+
+func TestServer_NormalUserCannotCreateGame(t *testing.T) {
+	server := setupHTTPTestServer(t)
+	defer server.Close()
+
+	registerBody := bytes.NewBufferString(`{"username":"alice","email":"alice@example.com","password":"password123"}`)
+	registerReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/auth/register", registerBody)
+	require.NoError(t, err)
+	registerReq.Header.Set("Content-Type", "application/json")
+
+	registerResp, err := http.DefaultClient.Do(registerReq)
+	require.NoError(t, err)
+	defer registerResp.Body.Close()
+	require.Equal(t, http.StatusCreated, registerResp.StatusCode)
+
+	var tokenCookie *http.Cookie
+	for _, cookie := range registerResp.Cookies() {
+		if cookie.Name == "token" {
+			tokenCookie = cookie
+			break
+		}
+	}
+	require.NotNil(t, tokenCookie)
+
+	start := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
+	end := start.Add(2 * time.Hour)
+	payload := map[string]any{
+		"name":       "Forbidden Game",
+		"start_time": start.Format(time.RFC3339),
+		"end_time":   end.Format(time.RFC3339),
+	}
+	body, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	createReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/games", bytes.NewReader(body))
+	require.NoError(t, err)
+	createReq.Header.Set("Content-Type", "application/json")
+	createReq.AddCookie(tokenCookie)
+
+	createResp, err := http.DefaultClient.Do(createReq)
+	require.NoError(t, err)
+	defer createResp.Body.Close()
+
+	assert.Equal(t, http.StatusForbidden, createResp.StatusCode)
 }
 
 func TestServer_DoesNotBootstrapAdminWhenUsersExist(t *testing.T) {

@@ -35,6 +35,12 @@ SauryCTF 是一个对标 GZCTF 的 Go + Gin + GORM + Nuxt SSG CTF 平台。
 - 只有在 `users` 表为空时，后端才会创建这组账号
 - 登录成功后，浏览器会收到 `token` Cookie；随后刷新页面或访问 `/api/auth/me` 都应仍能识别当前登录态
 
+一个最小的本地冒烟流程可以是：
+
+1. 空库启动后端，确认控制台没有 bootstrap admin 报错
+2. 用 `admin / sauryctf` 登录 `http://127.0.0.1:3000/login`
+3. 进入 `/console/admin` 创建一场最小比赛，验证管理员鉴权和 Cookie 会话都正常
+
 ## 本地开发
 
 后端：
