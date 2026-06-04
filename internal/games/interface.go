@@ -57,6 +57,12 @@ type InstancePolicy struct {
 	RenewalWindow     time.Duration
 }
 
+type ChallengeInstancePolicyResponse struct {
+	LeaseDurationMinutes     int `json:"lease_duration_minutes"`
+	ExtensionDurationMinutes int `json:"extension_duration_minutes"`
+	RenewalWindowMinutes     int `json:"renewal_window_minutes"`
+}
+
 // ServiceInterface defines the game management contract.
 type ServiceInterface interface {
 	CreateGame(req CreateGameRequest, createdBy uint) (*GameResponse, error)
@@ -188,24 +194,25 @@ type GameChallengeDetail struct {
 }
 
 type ChallengeInstanceResponse struct {
-	GameID        uint       `json:"game_id"`
-	ChallengeID   uint       `json:"challenge_id"`
-	TeamID        uint       `json:"team_id"`
-	Status        string     `json:"status"`
-	Provider      string     `json:"provider,omitempty"`
-	Image         string     `json:"image,omitempty"`
-	LaunchURL     string     `json:"launch_url,omitempty"`
-	Host          string     `json:"host,omitempty"`
-	Port          string     `json:"port,omitempty"`
-	Command       string     `json:"command,omitempty"`
-	Note          string     `json:"note,omitempty"`
-	StartedAt     *time.Time `json:"started_at,omitempty"`
-	LastRenewedAt *time.Time `json:"last_renewed_at,omitempty"`
-	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
-	SecondsLeft   int        `json:"seconds_left"`
-	CanStart      bool       `json:"can_start"`
-	CanRenew      bool       `json:"can_renew"`
-	Message       string     `json:"message"`
+	GameID        uint                            `json:"game_id"`
+	ChallengeID   uint                            `json:"challenge_id"`
+	TeamID        uint                            `json:"team_id"`
+	Status        string                          `json:"status"`
+	Policy        ChallengeInstancePolicyResponse `json:"policy"`
+	Provider      string                          `json:"provider,omitempty"`
+	Image         string                          `json:"image,omitempty"`
+	LaunchURL     string                          `json:"launch_url,omitempty"`
+	Host          string                          `json:"host,omitempty"`
+	Port          string                          `json:"port,omitempty"`
+	Command       string                          `json:"command,omitempty"`
+	Note          string                          `json:"note,omitempty"`
+	StartedAt     *time.Time                      `json:"started_at,omitempty"`
+	LastRenewedAt *time.Time                      `json:"last_renewed_at,omitempty"`
+	ExpiresAt     *time.Time                      `json:"expires_at,omitempty"`
+	SecondsLeft   int                             `json:"seconds_left"`
+	CanStart      bool                            `json:"can_start"`
+	CanRenew      bool                            `json:"can_renew"`
+	Message       string                          `json:"message"`
 }
 
 type SubmitResult struct {

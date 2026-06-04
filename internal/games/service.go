@@ -238,9 +238,14 @@ func (s *Service) buildInstanceResponse(gameID uint, challengeID uint, teamID ui
 		ChallengeID: challengeID,
 		TeamID:      teamID,
 		Status:      "idle",
-		CanStart:    true,
-		CanRenew:    false,
-		Message:     "当前还没有运行中的实例。",
+		Policy: ChallengeInstancePolicyResponse{
+			LeaseDurationMinutes:     int(s.instancePolicy.LeaseDuration / time.Minute),
+			ExtensionDurationMinutes: int(s.instancePolicy.ExtensionDuration / time.Minute),
+			RenewalWindowMinutes:     int(s.instancePolicy.RenewalWindow / time.Minute),
+		},
+		CanStart: true,
+		CanRenew: false,
+		Message:  "当前还没有运行中的实例。",
 	}
 	if spec != nil {
 		response.Provider = spec.Provider

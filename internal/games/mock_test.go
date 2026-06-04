@@ -289,10 +289,10 @@ func (m *MockService) ExportScoreboardPackage(id uint, division string) ([]byte,
 	}
 
 	scoreboard := &ScoreboardResponse{
-		GameID:    id,
-		Division:  division,
-		Divisions: append([]string(nil), game.Divisions...),
-		Entries:   []ScoreboardEntry{},
+		GameID:     id,
+		Division:   division,
+		Divisions:  append([]string(nil), game.Divisions...),
+		Entries:    []ScoreboardEntry{},
 		Challenges: []ScoreboardChallengeStat{},
 	}
 
@@ -808,8 +808,13 @@ func (m *MockService) GetChallengeInstance(gameID uint, challengeID uint, userID
 		ChallengeID: challengeID,
 		TeamID:      1,
 		Status:      "idle",
-		CanStart:    true,
-		Message:     "当前还没有运行中的实例。",
+		Policy: ChallengeInstancePolicyResponse{
+			LeaseDurationMinutes:     30,
+			ExtensionDurationMinutes: 30,
+			RenewalWindowMinutes:     10,
+		},
+		CanStart: true,
+		Message:  "当前还没有运行中的实例。",
 	}, nil
 }
 
@@ -821,10 +826,15 @@ func (m *MockService) EnsureChallengeInstance(gameID uint, challengeID uint, use
 	expires := now.Add(30 * time.Minute)
 	key := fmt.Sprintf("%d-%d-%d", gameID, challengeID, userID)
 	result := &ChallengeInstanceResponse{
-		GameID:        gameID,
-		ChallengeID:   challengeID,
-		TeamID:        1,
-		Status:        "running",
+		GameID:      gameID,
+		ChallengeID: challengeID,
+		TeamID:      1,
+		Status:      "running",
+		Policy: ChallengeInstancePolicyResponse{
+			LeaseDurationMinutes:     30,
+			ExtensionDurationMinutes: 30,
+			RenewalWindowMinutes:     10,
+		},
 		Provider:      "docker",
 		Image:         "ctf/example:latest",
 		LaunchURL:     "http://127.0.0.1:8081",
@@ -853,8 +863,13 @@ func (m *MockService) DestroyChallengeInstance(gameID uint, challengeID uint, us
 		ChallengeID: challengeID,
 		TeamID:      1,
 		Status:      "idle",
-		CanStart:    true,
-		Message:     "当前队伍实例已销毁。",
+		Policy: ChallengeInstancePolicyResponse{
+			LeaseDurationMinutes:     30,
+			ExtensionDurationMinutes: 30,
+			RenewalWindowMinutes:     10,
+		},
+		CanStart: true,
+		Message:  "当前队伍实例已销毁。",
 	}, nil
 }
 
@@ -959,10 +974,15 @@ func (m *MockService) UpdateParticipationStatus(gameID uint, teamID uint, status
 	for _, team := range m.UserTeams {
 		if team.ID == teamID {
 			return &GameParticipantEntry{
-				TeamID:     team.ID,
-				TeamName:   team.Name,
-				Status:     string(nextStatus),
-				Division:   func() string { if division != nil { return *division }; return "" }(),
+				TeamID:   team.ID,
+				TeamName: team.Name,
+				Status:   string(nextStatus),
+				Division: func() string {
+					if division != nil {
+						return *division
+					}
+					return ""
+				}(),
 				JoinedAt:   time.Now(),
 				Score:      0,
 				SolveCount: 0,

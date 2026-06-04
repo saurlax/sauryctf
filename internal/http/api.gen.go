@@ -574,6 +574,7 @@ type ChallengeInstance struct {
 	LaunchUrl     *string                 `json:"launch_url,omitempty"`
 	Message       string                  `json:"message"`
 	Note          *string                 `json:"note,omitempty"`
+	Policy        ChallengeInstancePolicy `json:"policy"`
 	Port          *string                 `json:"port,omitempty"`
 	Provider      *string                 `json:"provider,omitempty"`
 	SecondsLeft   int                     `json:"seconds_left"`
@@ -584,6 +585,13 @@ type ChallengeInstance struct {
 
 // ChallengeInstanceStatus defines model for ChallengeInstance.Status.
 type ChallengeInstanceStatus string
+
+// ChallengeInstancePolicy defines model for ChallengeInstancePolicy.
+type ChallengeInstancePolicy struct {
+	ExtensionDurationMinutes int `json:"extension_duration_minutes"`
+	LeaseDurationMinutes     int `json:"lease_duration_minutes"`
+	RenewalWindowMinutes     int `json:"renewal_window_minutes"`
+}
 
 // CreateChallengeRequest defines model for CreateChallengeRequest.
 type CreateChallengeRequest struct {

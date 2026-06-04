@@ -209,16 +209,16 @@ func TestCreateGame_Success(t *testing.T) {
 
 	writeupDeadline := time.Now().Add(72 * time.Hour).Format(time.RFC3339)
 	body := map[string]interface{}{
-		"name":               "Spring CTF",
-		"description":        "A fun CTF",
-		"divisions":          []string{"student", "open"},
-		"start_time":         time.Now().Add(24 * time.Hour).Format(time.RFC3339),
-		"end_time":           time.Now().Add(48 * time.Hour).Format(time.RFC3339),
-		"registration_mode":  "auto_accept",
-		"max_team_members":   4,
-		"practice_mode":      true,
-		"writeup_required":   true,
-		"writeup_deadline":   writeupDeadline,
+		"name":              "Spring CTF",
+		"description":       "A fun CTF",
+		"divisions":         []string{"student", "open"},
+		"start_time":        time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+		"end_time":          time.Now().Add(48 * time.Hour).Format(time.RFC3339),
+		"registration_mode": "auto_accept",
+		"max_team_members":  4,
+		"practice_mode":     true,
+		"writeup_required":  true,
+		"writeup_deadline":  writeupDeadline,
 	}
 	b, _ := json.Marshal(body)
 
@@ -427,12 +427,12 @@ func TestUpdateGame_Success(t *testing.T) {
 	writeupRequired := true
 	writeupDeadline := time.Now().Add(2 * time.Hour).UTC().Truncate(time.Second)
 	body := games.UpdateGameRequest{
-		Name:            &newName,
+		Name:             &newName,
 		RegistrationMode: &newMode,
-		MaxTeamMembers:  &newLimit,
-		PracticeMode:    &practiceMode,
-		WriteupRequired: &writeupRequired,
-		WriteupDeadline: &writeupDeadline,
+		MaxTeamMembers:   &newLimit,
+		PracticeMode:     &practiceMode,
+		WriteupRequired:  &writeupRequired,
+		WriteupDeadline:  &writeupDeadline,
 	}
 	b, _ := json.Marshal(body)
 
@@ -707,12 +707,14 @@ func TestChallengeInstanceLifecycle_Success(t *testing.T) {
 	r.ServeHTTP(w1, req1)
 	assert.Equal(t, http.StatusOK, w1.Code)
 	assert.Contains(t, w1.Body.String(), `"status":"idle"`)
+	assert.Contains(t, w1.Body.String(), `"policy":{"lease_duration_minutes":30,"extension_duration_minutes":30,"renewal_window_minutes":10}`)
 
 	w2 := httptest.NewRecorder()
 	req2, _ := http.NewRequest("POST", "/api/games/1/challenges/2/instance", nil)
 	r.ServeHTTP(w2, req2)
 	assert.Equal(t, http.StatusOK, w2.Code)
 	assert.Contains(t, w2.Body.String(), `"status":"running"`)
+	assert.Contains(t, w2.Body.String(), `"policy":{"lease_duration_minutes":30,"extension_duration_minutes":30,"renewal_window_minutes":10}`)
 
 	w3 := httptest.NewRecorder()
 	req3, _ := http.NewRequest("DELETE", "/api/games/1/challenges/2/instance", nil)
@@ -1168,14 +1170,14 @@ func TestGetGameChallenges_RedactsContentBeforeAcceptedStart(t *testing.T) {
 	svc.ChallengesByGame = map[uint][]games.GameChallengeDetail{
 		1: {
 			{
-				ID:          11,
-				Title:       "Web 101",
-				Description: "full statement",
-				Category:    "web",
-				Hints:       "[\"hint\"]",
-				Attachments: "[\"https://example.com/web.zip\"]",
+				ID:            11,
+				Title:         "Web 101",
+				Description:   "full statement",
+				Category:      "web",
+				Hints:         "[\"hint\"]",
+				Attachments:   "[\"https://example.com/web.zip\"]",
 				ContainerSpec: "{\"connection\":{\"url\":\"http://127.0.0.1:8081\"}}",
-				Score:       100,
+				Score:         100,
 			},
 		},
 	}
@@ -1216,14 +1218,14 @@ func TestGetGameChallenges_ExposesContentForAcceptedTeamAfterStart(t *testing.T)
 	svc.ChallengesByGame = map[uint][]games.GameChallengeDetail{
 		1: {
 			{
-				ID:          11,
-				Title:       "Web 101",
-				Description: "full statement",
-				Category:    "web",
-				Hints:       "[\"hint\"]",
-				Attachments: "[\"https://example.com/web.zip\"]",
+				ID:            11,
+				Title:         "Web 101",
+				Description:   "full statement",
+				Category:      "web",
+				Hints:         "[\"hint\"]",
+				Attachments:   "[\"https://example.com/web.zip\"]",
 				ContainerSpec: "{\"connection\":{\"url\":\"http://127.0.0.1:8081\"}}",
-				Score:       100,
+				Score:         100,
 			},
 		},
 	}
@@ -1262,14 +1264,14 @@ func TestGetAdminGameChallenges_ExposesFullContentForManagement(t *testing.T) {
 	svc.ChallengesByGame = map[uint][]games.GameChallengeDetail{
 		1: {
 			{
-				ID:          11,
-				Title:       "Hidden Admin Challenge",
-				Description: "full statement",
-				Category:    "web",
-				Hints:       "[\"hint\"]",
-				Attachments: "[\"https://example.com/web.zip\"]",
+				ID:            11,
+				Title:         "Hidden Admin Challenge",
+				Description:   "full statement",
+				Category:      "web",
+				Hints:         "[\"hint\"]",
+				Attachments:   "[\"https://example.com/web.zip\"]",
 				ContainerSpec: "{\"connection\":{\"url\":\"http://127.0.0.1:8081\"}}",
-				Score:       100,
+				Score:         100,
 			},
 		},
 	}

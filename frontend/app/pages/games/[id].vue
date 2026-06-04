@@ -518,6 +518,23 @@ function getInstancePrimaryActionLabel(challengeId: number) {
 
 function getInstancePolicyHint(challengeId: number) {
   const state = instanceStates[challengeId]
+  const policy = state?.policy
+  const leaseDuration = policy?.lease_duration_minutes
+  const extensionDuration = policy?.extension_duration_minutes
+  const renewalWindow = policy?.renewal_window_minutes
+
+  if (leaseDuration && extensionDuration && renewalWindow) {
+    if (state?.status === 'running') {
+      if (state.can_renew) {
+        return `当前实例已经进入续期窗口；现在续期会在现有未过期租约后追加 ${extensionDuration} 分钟。`
+      }
+
+      return `当前实例采用 ${leaseDuration} 分钟初始租约，只有在到期前 ${renewalWindow} 分钟内才开放续期；每次成功续期会额外追加 ${extensionDuration} 分钟。`
+    }
+
+    return `首次启动会创建 ${leaseDuration} 分钟初始租约；之后每次成功续期会额外追加 ${extensionDuration} 分钟，并且只有在到期前 ${renewalWindow} 分钟内开放续期。`
+  }
+
   if (state?.status === 'running') {
     if (state.can_renew) {
       return '当前实例已经进入续期窗口；现在续期会在现有未过期租约后追加新的时长。'

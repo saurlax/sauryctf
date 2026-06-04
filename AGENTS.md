@@ -183,6 +183,7 @@ internal/<module>/
   - local smoke-oriented dynamic templates now point to a frontend `/mock-instance/...` page so the resolved launch URL can be opened directly during local verification
 - the public game page now presents managed instances more like an operator-facing panel: lease countdown, progress bar, mock-vs-real entry hint, and a lightweight auto-refresh for running leases
 - the public game page now also summarizes the current lease policy in-place, so players can distinguish "initial lease" from "renewal adds more time" without guessing from backend behavior
+- the managed instance API now also returns an explicit `policy` object with initial lease / extension / renewal-window minutes, so frontend panels can render the real current strategy instead of inferring it from messages
   - managed instances now also support a minimal player-side destroy flow so the current team can reset an active local/mock lease without touching the admin side
   - managed instance renewal is now gated by a minimal GZCTF-style renewal window: the current lease only becomes renewable within 10 minutes before expiry
 - the current local container policy is now env-configurable via:

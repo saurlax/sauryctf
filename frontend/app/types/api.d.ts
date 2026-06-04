@@ -403,6 +403,7 @@ export interface components {
       team_id: number;
       /** @enum {string} */
       status: "idle" | "running";
+      policy: components["schemas"]["ChallengeInstancePolicy"];
       provider?: string;
       image?: string;
       launch_url?: string;
@@ -420,6 +421,11 @@ export interface components {
       can_start: boolean;
       can_renew: boolean;
       message: string;
+    };
+    ChallengeInstancePolicy: {
+      lease_duration_minutes: number;
+      extension_duration_minutes: number;
+      renewal_window_minutes: number;
     };
     JoinGameRequest: {
       team_id: number;

@@ -499,7 +499,7 @@ components:
 
     ChallengeInstance:
       type: object
-      required: [game_id, challenge_id, team_id, status, seconds_left, can_start, can_renew, message]
+      required: [game_id, challenge_id, team_id, status, policy, seconds_left, can_start, can_renew, message]
       properties:
         game_id:
           type: integer
@@ -510,6 +510,8 @@ components:
         status:
           type: string
           enum: [idle, running]
+        policy:
+          $ref: "#/components/schemas/ChallengeInstancePolicy"
         provider:
           type: string
         image:
@@ -544,6 +546,17 @@ components:
           type: boolean
         message:
           type: string
+
+    ChallengeInstancePolicy:
+      type: object
+      required: [lease_duration_minutes, extension_duration_minutes, renewal_window_minutes]
+      properties:
+        lease_duration_minutes:
+          type: integer
+        extension_duration_minutes:
+          type: integer
+        renewal_window_minutes:
+          type: integer
 
     JoinGameRequest:
       type: object
