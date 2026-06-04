@@ -476,6 +476,22 @@ func (h *Handler) ListInstanceLeases(c *gin.Context, id int) {
 	c.JSON(http.StatusOK, leases)
 }
 
+func (h *Handler) DestroyInstanceLease(c *gin.Context, id int, leaseId int) {
+	if err := h.svc.DestroyInstanceLease(uint(id), uint(leaseId)); err != nil {
+		switch err.Error() {
+		case "instance lease not found", "challenge not found":
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		case "challenge does not define a managed runtime":
+			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
+}
+
 func (h *Handler) GetChallengeInstance(c *gin.Context, id int, challengeId int) {
 	userID := c.MustGet("user_id").(uint)
 

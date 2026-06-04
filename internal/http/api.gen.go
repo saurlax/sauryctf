@@ -1086,6 +1086,9 @@ type ServerInterface interface {
 	// List current instance leases for a game (admin)
 	// (GET /api/admin/games/{id}/instances)
 	GetAdminGameInstances(c *gin.Context, id int)
+	// Destroy a game instance lease (admin)
+	// (DELETE /api/admin/games/{id}/instances/{leaseId})
+	DeleteAdminGameInstance(c *gin.Context, id int, leaseId int)
 	// List game writeups for review (admin)
 	// (GET /api/admin/games/{id}/writeups)
 	GetAdminGameWriteups(c *gin.Context, id int)
@@ -1335,6 +1338,42 @@ func (siw *ServerInterfaceWrapper) GetAdminGameInstances(c *gin.Context) {
 	}
 
 	siw.Handler.GetAdminGameInstances(c, id)
+}
+
+// DeleteAdminGameInstance operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminGameInstance(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "leaseId" -------------
+	var leaseId int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "leaseId", c.Param("leaseId"), &leaseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter leaseId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteAdminGameInstance(c, id, leaseId)
 }
 
 // GetAdminGameWriteups operation middleware
@@ -2366,6 +2405,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/api/admin/games/:id/challenges", wrapper.GetAdminGameChallenges)
 	router.POST(options.BaseURL+"/api/admin/games/:id/export", wrapper.ExportAdminGamePackage)
 	router.GET(options.BaseURL+"/api/admin/games/:id/instances", wrapper.GetAdminGameInstances)
+	router.DELETE(options.BaseURL+"/api/admin/games/:id/instances/:leaseId", wrapper.DeleteAdminGameInstance)
 	router.GET(options.BaseURL+"/api/admin/games/:id/writeups", wrapper.GetAdminGameWriteups)
 	router.PUT(options.BaseURL+"/api/admin/games/:id/writeups/:teamId", wrapper.UpdateAdminGameWriteup)
 	router.POST(options.BaseURL+"/api/auth/login", wrapper.Login)

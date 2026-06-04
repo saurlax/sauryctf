@@ -107,6 +107,17 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 		fmt.Sscan(c.Param("id"), &id)
 		h.GetAdminGameChallenges(c, id)
 	})
+	api.GET("/admin/games/:id/instances", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.ListInstanceLeases(c, id)
+	})
+	api.DELETE("/admin/games/:id/instances/:leaseId", func(c *gin.Context) {
+		var id, leaseId int
+		fmt.Sscan(c.Param("id"), &id)
+		fmt.Sscan(c.Param("leaseId"), &leaseId)
+		h.DestroyInstanceLease(c, id, leaseId)
+	})
 	api.POST("/games/:id/challenges", func(c *gin.Context) {
 		var id int
 		fmt.Sscan(c.Param("id"), &id)

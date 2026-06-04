@@ -241,6 +241,13 @@ func (h *Handler) GetAdminGameInstances(c *gin.Context, id int) {
 	}
 	h.games.ListInstanceLeases(c, id)
 }
+func (h *Handler) DeleteAdminGameInstance(c *gin.Context, id int, leaseId int) {
+	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
+	if c.IsAborted() {
+		return
+	}
+	h.games.DestroyInstanceLease(c, id, leaseId)
+}
 func (h *Handler) GetAdminGameWriteups(c *gin.Context, id int) {
 	h.GetGameWriteups(c, id)
 }

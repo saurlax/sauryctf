@@ -125,6 +125,7 @@ const announcementSubmitting = ref(false)
 const updatingParticipantId = ref<number | null>(null)
 const removingParticipantId = ref<number | null>(null)
 const deletingAnnouncementId = ref<number | null>(null)
+const deletingInstanceLeaseId = ref<number | null>(null)
 const removingChallengeId = ref<number | null>(null)
 const deletingGameId = ref<number | null>(null)
 const exportingGameId = ref<number | null>(null)
@@ -853,6 +854,36 @@ async function loadInstanceLeases() {
   }
   finally {
     loadingInstances.value = false
+  }
+}
+
+async function destroyInstanceLease(leaseId: number) {
+  if (!attachForm.game_id) {
+    return
+  }
+
+  const lease = instanceLeases.value.find(item => item.id === leaseId)
+  const confirmed = window.confirm(`确认销毁实例租约吗？\n\n${lease?.team_name || '未知队伍'} · ${lease?.challenge_title || `#${leaseId}`}`)
+  if (!confirmed) {
+    return
+  }
+
+  deletingInstanceLeaseId.value = leaseId
+  try {
+    await $api('delete', '/api/admin/games/{id}/instances/{leaseId}', {
+      params: {
+        id: attachForm.game_id,
+        leaseId,
+      },
+    })
+    instanceLeases.value = instanceLeases.value.filter(item => item.id !== leaseId)
+    toast.add({ title: '实例租约已销毁', color: 'success' })
+  }
+  catch (e: any) {
+    toast.add({ title: '销毁实例租约失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    deletingInstanceLeaseId.value = null
   }
 }
 
@@ -2689,9 +2720,21 @@ onMounted(async () => {
                         入口：{{ lease.launch_url }}
                       </div>
                     </div>
-                    <UBadge :color="getInstanceLeaseStatusColor(lease)" variant="soft">
-                      {{ getInstanceLeaseStatusLabel(lease) }}
-                    </UBadge>
+                    <div class="flex shrink-0 flex-col items-end gap-2">
+                      <UBadge :color="getInstanceLeaseStatusColor(lease)" variant="soft">
+                        {{ getInstanceLeaseStatusLabel(lease) }}
+                      </UBadge>
+                      <UButton
+                        size="xs"
+                        color="error"
+                        variant="soft"
+                        icon="i-lucide-trash-2"
+                        :loading="deletingInstanceLeaseId === lease.id"
+                        @click="destroyInstanceLease(lease.id)"
+                      >
+                        销毁
+                      </UButton>
+                    </div>
                   </div>
                 </div>
               </div>

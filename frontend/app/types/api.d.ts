@@ -153,6 +153,10 @@ export interface paths {
     /** List current instance leases for a game (admin) */
     get: operations["getAdminGameInstances"];
   };
+  "/api/admin/games/{id}/instances/{leaseId}": {
+    /** Destroy a game instance lease (admin) */
+    delete: operations["deleteAdminGameInstance"];
+  };
   "/api/admin/games/{id}/writeups": {
     /** List game writeups for review (admin) */
     get: operations["getAdminGameWriteups"];
@@ -1435,6 +1439,23 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["AdminGameInstanceLease"][];
+        };
+      };
+    };
+  };
+  /** Destroy a game instance lease (admin) */
+  deleteAdminGameInstance: {
+    parameters: {
+      path: {
+        id: number;
+        leaseId: number;
+      };
+    };
+    responses: {
+      /** @description Lease destroyed */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MessageResponse"];
         };
       };
     };

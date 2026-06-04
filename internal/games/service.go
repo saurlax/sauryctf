@@ -2144,6 +2144,46 @@ func (s *Service) DestroyChallengeInstance(gameID uint, challengeID uint, userID
 	return result, nil
 }
 
+func (s *Service) DestroyInstanceLease(gameID uint, leaseID uint) error {
+	var lease models.GameInstanceLease
+	if err := s.db.Where("game_id = ? AND id = ?", gameID, leaseID).First(&lease).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("instance lease not found")
+		}
+		return err
+	}
+
+	var challenge models.Challenge
+	if err := s.db.First(&challenge, lease.ChallengeID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("challenge not found")
+		}
+		return err
+	}
+
+	spec := parseManagedInstanceSpec(challenge.ContainerSpec)
+	if challenge.Type != models.TypeDynamic || spec == nil || (spec.Provider == "" && spec.Image == "") {
+		return errors.New("challenge does not define a managed runtime")
+	}
+
+	provider := resolveChallengeInstanceProvider(s.instanceProviders, spec.Provider)
+	if err := provider.DestroyLease(ChallengeInstanceProviderRequest{
+		GameID:            lease.GameID,
+		ChallengeID:       lease.ChallengeID,
+		TeamID:            lease.TeamID,
+		UserID:            lease.UserID,
+		Now:               time.Now(),
+		LeaseDuration:     s.instancePolicy.LeaseDuration,
+		ExtensionDuration: s.instancePolicy.ExtensionDuration,
+		Runtime:           toChallengeInstanceRuntimeSpec(spec),
+		Existing:          &lease,
+	}); err != nil {
+		return err
+	}
+
+	return s.db.Delete(&lease).Error
+}
+
 func (s *Service) CleanupExpiredChallengeInstances(now time.Time) (int, error) {
 	var leases []models.GameInstanceLease
 	if err := s.db.Where("expires_at <= ?", now).Find(&leases).Error; err != nil {

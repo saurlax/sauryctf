@@ -1933,6 +1933,31 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AdminGameInstanceLease"
+  /api/admin/games/{id}/instances/{leaseId}:
+    delete:
+      operationId: deleteAdminGameInstance
+      summary: Destroy a game instance lease (admin)
+      tags: [games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: leaseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lease destroyed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
 
   /api/admin/games/{id}/writeups:
     get:

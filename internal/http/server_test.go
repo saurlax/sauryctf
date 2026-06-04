@@ -845,6 +845,28 @@ func TestServer_AdminCanListGameInstances(t *testing.T) {
 	assert.Equal(t, "Admin Instance Challenge", payload[0].ChallengeTitle)
 	assert.False(t, payload[0].IsExpired)
 	assert.Greater(t, payload[0].SecondsLeft, 0)
+
+	deleteReq, err := http.NewRequest(http.MethodDelete, server.URL+"/api/admin/games/"+idPath(game.ID)+"/instances/"+idPath(payload[0].ID), nil)
+	require.NoError(t, err)
+	deleteReq.AddCookie(adminCookie)
+
+	deleteResp, err := http.DefaultClient.Do(deleteReq)
+	require.NoError(t, err)
+	defer deleteResp.Body.Close()
+	require.Equal(t, http.StatusOK, deleteResp.StatusCode)
+
+	adminListReqAfterDelete, err := http.NewRequest(http.MethodGet, server.URL+"/api/admin/games/"+idPath(game.ID)+"/instances", nil)
+	require.NoError(t, err)
+	adminListReqAfterDelete.AddCookie(adminCookie)
+
+	adminListRespAfterDelete, err := http.DefaultClient.Do(adminListReqAfterDelete)
+	require.NoError(t, err)
+	defer adminListRespAfterDelete.Body.Close()
+	require.Equal(t, http.StatusOK, adminListRespAfterDelete.StatusCode)
+
+	var payloadAfterDelete []games.GameInstanceLeaseEntry
+	require.NoError(t, json.NewDecoder(adminListRespAfterDelete.Body).Decode(&payloadAfterDelete))
+	require.Len(t, payloadAfterDelete, 0)
 }
 
 func TestServer_NormalUserCannotCreateGame(t *testing.T) {

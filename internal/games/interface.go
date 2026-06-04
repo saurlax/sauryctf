@@ -85,6 +85,7 @@ type ServiceInterface interface {
 	ListSubmissionCheatClues(gameID uint, limit int) ([]GameSubmissionCheatClue, error)
 	GetAdminDashboardSummary(limit int) (*AdminDashboardSummaryResponse, error)
 	ListInstanceLeases(gameID uint) ([]GameInstanceLeaseEntry, error)
+	DestroyInstanceLease(gameID uint, leaseID uint) error
 	ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error)
 	AddChallenge(gameID uint, challengeID uint, scoreOverride int) error
 	RemoveChallenge(gameID uint, challengeID uint) error

@@ -2253,6 +2253,70 @@ func TestService_ListInstanceLeases_ForAdminMonitoring(t *testing.T) {
 	assert.Equal(t, "docker", leases[1].Provider)
 }
 
+func TestService_DestroyInstanceLease_ForAdmin(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	lastTestDB = database
+	db.CleanTables(database)
+
+	provider := &testInstanceProvider{}
+	svc := games.NewServiceWithOptions(database, map[string]games.ChallengeInstanceProvider{
+		"custom": provider,
+	}, games.InstancePolicy{})
+
+	user := models.User{Username: "admin-destroy-user", Email: "admin-destroy@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+
+	challenge := models.Challenge{
+		Title:         "Admin Destroy Lease",
+		Category:      models.CategoryWeb,
+		Type:          models.TypeDynamic,
+		Flag:          "flag{admin-destroy}",
+		BaseScore:     100,
+		MinScore:      100,
+		DecayRate:     0,
+		IsVisible:     true,
+		CreatedBy:     user.ID,
+		ContainerSpec: `{"runtime":{"provider":"custom","image":"ctf/custom:1.0"},"connection":{"url":"https://placeholder.local"}}`,
+	}
+	require.NoError(t, database.Create(&challenge).Error)
+
+	game := models.Game{
+		Name:         "Admin Destroy Game",
+		StartTime:    time.Now().Add(-time.Hour),
+		EndTime:      time.Now().Add(time.Hour),
+		Status:       "active",
+		IsPublic:     true,
+		PracticeMode: true,
+		CreatedBy:    user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+
+	lease := models.GameInstanceLease{
+		GameID:        game.ID,
+		ChallengeID:   challenge.ID,
+		TeamID:        7,
+		UserID:        user.ID,
+		Status:        "running",
+		Provider:      "custom",
+		Image:         "ctf/custom:1.0",
+		LaunchURL:     "https://placeholder.local",
+		StartedAt:     time.Now().Add(-10 * time.Minute),
+		LastRenewedAt: time.Now().Add(-2 * time.Minute),
+		ExpiresAt:     time.Now().Add(20 * time.Minute),
+	}
+	require.NoError(t, database.Create(&lease).Error)
+
+	err = svc.DestroyInstanceLease(game.ID, lease.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, provider.destroyCalled)
+
+	var leaseCount int64
+	require.NoError(t, database.Model(&models.GameInstanceLease{}).Where("id = ?", lease.ID).Count(&leaseCount).Error)
+	assert.Equal(t, int64(0), leaseCount)
+}
+
 func TestService_ChallengeInstanceLifecycle_DestroyUsesProvider(t *testing.T) {
 	database, err := db.ConnectTest()
 	require.NoError(t, err)

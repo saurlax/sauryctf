@@ -832,6 +832,29 @@ func (m *MockService) ListInstanceLeases(gameID uint) ([]GameInstanceLeaseEntry,
 	return result, nil
 }
 
+func (m *MockService) DestroyInstanceLease(gameID uint, leaseID uint) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.Games[gameID]; !ok {
+		return fmt.Errorf("game not found")
+	}
+
+	index := uint(1)
+	for key, lease := range m.InstanceLeases {
+		if lease.GameID != gameID {
+			continue
+		}
+		if index == leaseID {
+			delete(m.InstanceLeases, key)
+			return nil
+		}
+		index++
+	}
+
+	return fmt.Errorf("instance lease not found")
+}
+
 func (m *MockService) GetGameChallengesForTeam(gameID uint, teamID uint) ([]GameChallengeDetail, error) {
 	return m.GetGameChallenges(gameID)
 }
