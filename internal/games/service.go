@@ -83,6 +83,95 @@ func validateWriteupDeadline(endTime time.Time, deadline *time.Time) error {
 	return nil
 }
 
+func normalizeDivisions(divisions []string) ([]string, error) {
+	if len(divisions) == 0 {
+		return nil, nil
+	}
+
+	result := make([]string, 0, len(divisions))
+	seen := make(map[string]struct{}, len(divisions))
+	for _, division := range divisions {
+		name := strings.TrimSpace(division)
+		if name == "" {
+			continue
+		}
+		if len(name) > 64 {
+			return nil, errors.New("invalid divisions")
+		}
+		key := strings.ToLower(name)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, name)
+	}
+
+	if len(result) == 0 {
+		return nil, nil
+	}
+	return result, nil
+}
+
+func encodeDivisions(divisions []string) (string, error) {
+	normalized, err := normalizeDivisions(divisions)
+	if err != nil {
+		return "", err
+	}
+	if len(normalized) == 0 {
+		return "", nil
+	}
+	payload, err := json.Marshal(normalized)
+	if err != nil {
+		return "", err
+	}
+	return string(payload), nil
+}
+
+func decodeDivisions(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+
+	var divisions []string
+	if err := json.Unmarshal([]byte(raw), &divisions); err != nil {
+		return nil
+	}
+	normalized, err := normalizeDivisions(divisions)
+	if err != nil {
+		return nil
+	}
+	return normalized
+}
+
+func divisionAllowed(available []string, division string) bool {
+	division = strings.TrimSpace(division)
+	if division == "" {
+		return true
+	}
+	for _, item := range available {
+		if strings.EqualFold(item, division) {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeParticipationDivision(available []string, division string) (string, error) {
+	name := strings.TrimSpace(division)
+	if name == "" {
+		return "", nil
+	}
+	if !divisionAllowed(available, name) {
+		return "", errors.New("invalid participation division")
+	}
+	for _, item := range available {
+		if strings.EqualFold(item, name) {
+			return item, nil
+		}
+	}
+	return name, nil
+}
+
 func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameResponse, error) {
 	registrationMode, err := normalizeRegistrationMode(req.RegistrationMode)
 	if err != nil {
@@ -98,11 +187,16 @@ func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameRespon
 	if err := validateWriteupDeadline(req.EndTime, req.WriteupDeadline); err != nil {
 		return nil, err
 	}
+	divisions, err := encodeDivisions(req.Divisions)
+	if err != nil {
+		return nil, err
+	}
 
 	game := &models.Game{
 		Name:               req.Name,
 		Description:        req.Description,
 		Notice:             req.Notice,
+		Divisions:          divisions,
 		StartTime:          req.StartTime,
 		EndTime:            req.EndTime,
 		ScoreboardFreezeAt: req.ScoreboardFreezeAt,
@@ -119,7 +213,7 @@ func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameRespon
 	}
 
 	if err := s.db.Select(
-		"Name", "Description", "Notice", "StartTime", "EndTime", "ScoreboardFreezeAt", "Status", "RegistrationMode", "MaxTeamMembers", "PracticeMode", "WriteupRequired", "WriteupDeadline", "IsPublic", "CreatedBy",
+		"Name", "Description", "Notice", "Divisions", "StartTime", "EndTime", "ScoreboardFreezeAt", "Status", "RegistrationMode", "MaxTeamMembers", "PracticeMode", "WriteupRequired", "WriteupDeadline", "IsPublic", "CreatedBy",
 	).Create(game).Error; err != nil {
 		return nil, err
 	}
@@ -197,10 +291,18 @@ func (s *Service) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, err
 	if req.WriteupDeadline != nil {
 		nextWriteupDeadline = req.WriteupDeadline
 	}
+	nextDivisions := decodeDivisions(game.Divisions)
+	if req.Divisions != nil {
+		nextDivisions = *req.Divisions
+	}
 	if err := validateGameTimeline(nextStartTime, nextEndTime, nextFreezeAt); err != nil {
 		return nil, err
 	}
 	if err := validateWriteupDeadline(nextEndTime, nextWriteupDeadline); err != nil {
+		return nil, err
+	}
+	encodedDivisions, err := encodeDivisions(nextDivisions)
+	if err != nil {
 		return nil, err
 	}
 
@@ -213,6 +315,9 @@ func (s *Service) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, err
 	}
 	if req.Notice != nil {
 		updates["notice"] = *req.Notice
+	}
+	if req.Divisions != nil {
+		updates["divisions"] = encodedDivisions
 	}
 	if req.StartTime != nil {
 		updates["start_time"] = *req.StartTime
@@ -359,6 +464,7 @@ func (s *Service) ExportGamePackage(id uint) ([]byte, string, error) {
 			Name:               game.Name,
 			Description:        game.Description,
 			Notice:             game.Notice,
+			Divisions:          decodeDivisions(game.Divisions),
 			StartTime:          game.StartTime,
 			EndTime:            game.EndTime,
 			ScoreboardFreezeAt: game.ScoreboardFreezeAt,
@@ -489,6 +595,10 @@ func (s *Service) ImportGamePackage(data []byte, createdBy uint) (*GameResponse,
 	if err != nil {
 		return nil, err
 	}
+	divisions, err := encodeDivisions(pkg.Game.Divisions)
+	if err != nil {
+		return nil, err
+	}
 
 	var importedGame *GameResponse
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
@@ -496,6 +606,7 @@ func (s *Service) ImportGamePackage(data []byte, createdBy uint) (*GameResponse,
 			Name:               pkg.Game.Name,
 			Description:        pkg.Game.Description,
 			Notice:             pkg.Game.Notice,
+			Divisions:          divisions,
 			StartTime:          pkg.Game.StartTime,
 			EndTime:            pkg.Game.EndTime,
 			ScoreboardFreezeAt: pkg.Game.ScoreboardFreezeAt,
@@ -510,7 +621,7 @@ func (s *Service) ImportGamePackage(data []byte, createdBy uint) (*GameResponse,
 		}
 
 		if err := tx.Select(
-			"Name", "Description", "Notice", "StartTime", "EndTime", "ScoreboardFreezeAt", "Status", "RegistrationMode", "MaxTeamMembers", "PracticeMode", "WriteupRequired", "WriteupDeadline", "IsPublic", "CreatedBy",
+			"Name", "Description", "Notice", "Divisions", "StartTime", "EndTime", "ScoreboardFreezeAt", "Status", "RegistrationMode", "MaxTeamMembers", "PracticeMode", "WriteupRequired", "WriteupDeadline", "IsPublic", "CreatedBy",
 		).Create(game).Error; err != nil {
 			return err
 		}
@@ -837,11 +948,18 @@ func (s *Service) JoinGame(gameID uint, teamID uint, userID uint) error {
 		status = models.ParticipationAccepted
 	}
 
+	defaultDivision := ""
+	divisions := decodeDivisions(game.Divisions)
+	if len(divisions) == 1 {
+		defaultDivision = divisions[0]
+	}
+
 	part := &models.Participation{
 		GameID: gameID,
 		TeamID: teamID,
 		UserID: userID,
 		Status: status,
+		Division: defaultDivision,
 	}
 	return s.db.Create(part).Error
 }
@@ -911,9 +1029,10 @@ func (s *Service) GetParticipationStatus(gameID uint, userID uint) (*GamePartici
 	}
 
 	response := &GameParticipationResponse{
-		HasTeam:         true,
-		WriteupRequired: game.WriteupRequired,
-		WriteupDeadline: game.WriteupDeadline,
+		HasTeam:              true,
+		Divisions:            decodeDivisions(game.Divisions),
+		WriteupRequired:      game.WriteupRequired,
+		WriteupDeadline:      game.WriteupDeadline,
 		WriteupDeadlinePassed: game.WriteupDeadline != nil && time.Now().After(*game.WriteupDeadline),
 		Team: &GameParticipationTeam{
 			ID:   team.ID,
@@ -932,6 +1051,7 @@ func (s *Service) GetParticipationStatus(gameID uint, userID uint) (*GamePartici
 
 	response.Participated = true
 	response.Status = string(participation.Status)
+	response.Division = participation.Division
 
 	var writeup models.GameWriteup
 	if err := s.db.Where("game_id = ? AND team_id = ?", gameID, team.ID).First(&writeup).Error; err == nil {
@@ -1143,10 +1263,15 @@ func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID 
 }
 
 // GetScoreboard aggregates solve data into a ranked scoreboard.
-func (s *Service) GetScoreboard(gameID uint) (*ScoreboardResponse, error) {
+func (s *Service) GetScoreboard(gameID uint, division string) (*ScoreboardResponse, error) {
 	var game models.Game
 	if err := s.db.First(&game, gameID).Error; err != nil {
 		return nil, errors.New("game not found")
+	}
+	divisions := decodeDivisions(game.Divisions)
+	normalizedDivision, err := normalizeParticipationDivision(divisions, division)
+	if err != nil {
+		return nil, err
 	}
 
 	type teamScore struct {
@@ -1162,9 +1287,10 @@ func (s *Service) GetScoreboard(gameID uint) (*ScoreboardResponse, error) {
 		TeamName string
 	}
 	if err := s.db.Table("participations").
-		Select("participations.team_id, teams.name as team_name").
+		Select("participations.team_id, teams.name as team_name, participations.division").
 		Joins("JOIN teams ON teams.id = participations.team_id").
 		Where("participations.game_id = ? AND participations.status = ?", gameID, models.ParticipationAccepted).
+		Where("(? = '' OR participations.division = ?)", normalizedDivision, normalizedDivision).
 		Scan(&participationRows).Error; err != nil {
 		return nil, err
 	}
@@ -1187,7 +1313,9 @@ func (s *Service) GetScoreboard(gameID uint) (*ScoreboardResponse, error) {
 	scoreRowsQuery := s.db.Table("solves").
 		Select("solves.team_id, teams.name as team_name, solves.score, solves.solved_at").
 		Joins("JOIN teams ON teams.id = solves.team_id").
-		Where("solves.game_id = ?", gameID)
+		Joins("JOIN participations ON participations.team_id = solves.team_id AND participations.game_id = solves.game_id").
+		Where("solves.game_id = ? AND participations.status = ?", gameID, models.ParticipationAccepted).
+		Where("(? = '' OR participations.division = ?)", normalizedDivision, normalizedDivision)
 
 	isFrozen := false
 	if game.ScoreboardFreezeAt != nil && time.Now().After(*game.ScoreboardFreezeAt) {
@@ -1274,8 +1402,11 @@ func (s *Service) GetScoreboard(gameID uint) (*ScoreboardResponse, error) {
 		`).
 		Joins("JOIN challenges ON challenges.id = game_challenges.challenge_id").
 		Joins("LEFT JOIN solves ON solves.challenge_id = game_challenges.challenge_id AND solves.game_id = game_challenges.game_id").
+		Joins("LEFT JOIN participations ON participations.team_id = solves.team_id AND participations.game_id = solves.game_id").
 		Joins("LEFT JOIN teams ON teams.id = solves.team_id").
-		Where("game_challenges.game_id = ? AND challenges.is_visible = ?", gameID, true)
+		Where("game_challenges.game_id = ? AND challenges.is_visible = ?", gameID, true).
+		Where("(solves.id IS NULL OR participations.status = ?)", models.ParticipationAccepted).
+		Where("(? = '' OR solves.id IS NULL OR participations.division = ?)", normalizedDivision, normalizedDivision)
 	if isFrozen && game.ScoreboardFreezeAt != nil {
 		challengeStatsQuery = challengeStatsQuery.Where("(solves.id IS NULL OR solves.solved_at <= ?)", *game.ScoreboardFreezeAt)
 	}
@@ -1304,6 +1435,8 @@ func (s *Service) GetScoreboard(gameID uint) (*ScoreboardResponse, error) {
 
 	return &ScoreboardResponse{
 		GameID:     gameID,
+		Division:   normalizedDivision,
+		Divisions:  divisions,
 		IsFrozen:   isFrozen,
 		FreezeTime: game.ScoreboardFreezeAt,
 		Entries:    entries,
@@ -1321,6 +1454,7 @@ func (s *Service) GetParticipants(gameID uint) ([]GameParticipantEntry, error) {
 		TeamID     uint
 		TeamName   string
 		Status     string
+		Division   string
 		JoinedAt   time.Time
 		Score      int
 		SolveCount int
@@ -1332,6 +1466,7 @@ func (s *Service) GetParticipants(gameID uint) ([]GameParticipantEntry, error) {
 			participations.team_id,
 			teams.name as team_name,
 			participations.status,
+			participations.division,
 			participations.created_at as joined_at,
 			COALESCE(SUM(solves.score), 0) as score,
 			COUNT(solves.id) as solve_count
@@ -1339,7 +1474,7 @@ func (s *Service) GetParticipants(gameID uint) ([]GameParticipantEntry, error) {
 		Joins("JOIN teams ON teams.id = participations.team_id").
 		Joins("LEFT JOIN solves ON solves.team_id = participations.team_id AND solves.game_id = participations.game_id").
 		Where("participations.game_id = ?", gameID).
-		Group("participations.team_id, teams.name, participations.status, participations.created_at").
+		Group("participations.team_id, teams.name, participations.status, participations.division, participations.created_at").
 		Order("participations.created_at ASC").
 		Scan(&rows).Error; err != nil {
 		return nil, err
@@ -1351,6 +1486,7 @@ func (s *Service) GetParticipants(gameID uint) ([]GameParticipantEntry, error) {
 			TeamID:     row.TeamID,
 			TeamName:   row.TeamName,
 			Status:     row.Status,
+			Division:   row.Division,
 			JoinedAt:   row.JoinedAt,
 			Score:      row.Score,
 			SolveCount: row.SolveCount,
@@ -1360,7 +1496,7 @@ func (s *Service) GetParticipants(gameID uint) ([]GameParticipantEntry, error) {
 	return result, nil
 }
 
-func (s *Service) UpdateParticipationStatus(gameID uint, teamID uint, status string) (*GameParticipantEntry, error) {
+func (s *Service) UpdateParticipationStatus(gameID uint, teamID uint, status string, division *string) (*GameParticipantEntry, error) {
 	var game models.Game
 	if err := s.db.First(&game, gameID).Error; err != nil {
 		return nil, errors.New("game not found")
@@ -1383,6 +1519,15 @@ func (s *Service) UpdateParticipationStatus(gameID uint, teamID uint, status str
 
 	if err := s.db.Model(&participation).Update("status", nextStatus).Error; err != nil {
 		return nil, err
+	}
+	if division != nil {
+		normalizedDivision, err := normalizeParticipationDivision(decodeDivisions(game.Divisions), *division)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.db.Model(&participation).Update("division", normalizedDivision).Error; err != nil {
+			return nil, err
+		}
 	}
 
 	entries, err := s.GetParticipants(gameID)
@@ -1613,6 +1758,7 @@ func toResponse(g *models.Game) *GameResponse {
 		Name:               g.Name,
 		Description:        g.Description,
 		Notice:             g.Notice,
+		Divisions:          decodeDivisions(g.Divisions),
 		StartTime:          g.StartTime,
 		EndTime:            g.EndTime,
 		ScoreboardFreezeAt: g.ScoreboardFreezeAt,

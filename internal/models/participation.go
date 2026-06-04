@@ -27,6 +27,7 @@ type Participation struct {
 	TeamID    uint                `gorm:"not null;uniqueIndex:idx_game_team" json:"team_id"`
 	UserID    uint                `gorm:"not null" json:"user_id"` // the user who registered
 	Status    ParticipationStatus `gorm:"size:32;default:accepted;not null" json:"status"`
+	Division  string              `gorm:"size:128" json:"division"`
 	CreatedAt time.Time           `json:"created_at"`
 
 	Game Game `gorm:"foreignKey:GameID" json:"-"`

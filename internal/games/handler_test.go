@@ -151,6 +151,7 @@ func TestCreateGame_Success(t *testing.T) {
 	body := map[string]interface{}{
 		"name":               "Spring CTF",
 		"description":        "A fun CTF",
+		"divisions":          []string{"student", "open"},
 		"start_time":         time.Now().Add(24 * time.Hour).Format(time.RFC3339),
 		"end_time":           time.Now().Add(48 * time.Hour).Format(time.RFC3339),
 		"registration_mode":  "auto_accept",
@@ -177,6 +178,7 @@ func TestCreateGame_Success(t *testing.T) {
 	assert.Equal(t, true, game["practice_mode"])
 	assert.Equal(t, true, game["writeup_required"])
 	assert.Equal(t, writeupDeadline, game["writeup_deadline"])
+	assert.Equal(t, []interface{}{"student", "open"}, game["divisions"])
 }
 
 func TestCreateGame_MissingName(t *testing.T) {
@@ -670,6 +672,31 @@ func TestGetParticipants_Success(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &response)
 	assert.Len(t, response, 1)
 	assert.Equal(t, "Blue Team", response[0]["team_name"])
+}
+
+func TestGetScoreboard_SupportsDivisionQuery(t *testing.T) {
+	svc := games.NewMockService()
+	r := setupTestRouter(svc)
+
+	public := true
+	_, _ = svc.CreateGame(games.CreateGameRequest{
+		Name:      "Division Game",
+		Divisions: []string{"student", "open"},
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(time.Hour),
+		IsPublic:  &public,
+	}, 1)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/games/1/scoreboard?division=student", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &response)
+	assert.Equal(t, "student", response["division"])
+	assert.Equal(t, []interface{}{"student", "open"}, response["divisions"])
 }
 
 func TestUpdateParticipantStatus_Success(t *testing.T) {

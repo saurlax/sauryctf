@@ -327,10 +327,14 @@ func (h *Handler) SubmitGameFlag(c *gin.Context, id int, challengeId int) {
 }
 
 func (h *Handler) GetScoreboard(c *gin.Context, id int) {
-	scoreboard, err := h.svc.GetScoreboard(uint(id))
+	scoreboard, err := h.svc.GetScoreboard(uint(id), c.Query("division"))
 	if err != nil {
 		if err.Error() == "game not found" {
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+			return
+		}
+		if err.Error() == "invalid participation division" {
+			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
@@ -355,19 +359,20 @@ func (h *Handler) GetParticipants(c *gin.Context, id int) {
 
 func (h *Handler) UpdateParticipantStatus(c *gin.Context, id int, teamId int) {
 	var req struct {
-		Status string `json:"status" binding:"required"`
+		Status   string  `json:"status" binding:"required"`
+		Division *string `json:"division"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
 
-	participant, err := h.svc.UpdateParticipationStatus(uint(id), uint(teamId), req.Status)
+	participant, err := h.svc.UpdateParticipationStatus(uint(id), uint(teamId), req.Status, req.Division)
 	if err != nil {
 		switch err.Error() {
 		case "game not found", "participation not found":
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
-		case "invalid participation status":
+		case "invalid participation status", "invalid participation division":
 			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})

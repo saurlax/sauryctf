@@ -29,6 +29,8 @@ const scoreboard = ref<ScoreboardEntry[]>([])
 const scoreboardChallenges = ref<ScoreboardChallengeStat[]>([])
 const scoreboardFrozen = ref(false)
 const scoreboardFreezeTime = ref<string | null>(null)
+const selectedDivision = ref('')
+const availableDivisions = ref<string[]>([])
 const participation = ref<GameParticipation | null>(null)
 const writeup = ref<GameWriteupView | null>(null)
 const loading = ref(true)
@@ -75,6 +77,10 @@ async function fetchAll() {
     game.value = gameRes
     challenges.value = challengesRes
     participation.value = participationRes
+    availableDivisions.value = gameRes.divisions || []
+    if (selectedDivision.value && !availableDivisions.value.includes(selectedDivision.value)) {
+      selectedDivision.value = ''
+    }
     writeup.value = writeupRes
     writeupForm.content = writeupRes?.content || ''
   }
@@ -125,11 +131,18 @@ async function fetchWriteup() {
 
 async function fetchScoreboard() {
   try {
-    const res = await $api('get', '/api/games/{id}/scoreboard', { params: { id: Number(gameId) } })
+    const res = await $api('get', '/api/games/{id}/scoreboard', {
+      params: { id: Number(gameId) },
+      query: selectedDivision.value ? { division: selectedDivision.value } : {},
+    })
     scoreboard.value = res.entries || []
     scoreboardChallenges.value = res.challenges || []
     scoreboardFrozen.value = !!res.is_frozen
     scoreboardFreezeTime.value = res.freeze_time || null
+    availableDivisions.value = res.divisions || availableDivisions.value
+    if (selectedDivision.value && !availableDivisions.value.includes(selectedDivision.value)) {
+      selectedDivision.value = ''
+    }
   }
   catch (e: any) {
     toast.add({ title: '获取排行榜失败', description: e.data?.message || e.message, color: 'error' })
@@ -530,6 +543,13 @@ const overviewStats = computed(() => {
       color: 'info' as const,
     },
     {
+      label: '比赛分组',
+      value: availableDivisions.value.length ? String(availableDivisions.value.length) : '未启用',
+      hint: availableDivisions.value.length ? availableDivisions.value.join(' / ') : '当前比赛不区分分组榜',
+      icon: 'i-lucide-layers-3',
+      color: availableDivisions.value.length ? 'warning' as const : 'neutral' as const,
+    },
+    {
       label: '赛后练习',
       value: game.value.practice_mode ? '开启' : '关闭',
       hint: game.value.practice_mode ? '比赛结束后仍可继续练习' : '比赛结束后不再开放练习模式',
@@ -573,6 +593,14 @@ const scoreboardChallengeGroups = computed(() => {
   }))
 })
 
+const divisionOptions = computed(() => [
+  { label: '全部分组', value: '' },
+  ...availableDivisions.value.map(division => ({
+    label: division,
+    value: division,
+  })),
+])
+
 function formatDuration(ms: number) {
   if (ms <= 0) {
     return '0 分钟'
@@ -599,6 +627,12 @@ const tabItems = [
 
 watch(activeTab, (v) => {
   if (v === 'scoreboard') fetchScoreboard()
+})
+
+watch(selectedDivision, () => {
+  if (activeTab.value === 'scoreboard') {
+    fetchScoreboard()
+  }
 })
 
 onMounted(async () => {
@@ -816,6 +850,14 @@ onMounted(async () => {
                 <span>{{ game.registration_mode === 'auto_accept' ? '自动通过' : '人工审核' }}</span>
               </div>
               <div class="flex items-center justify-between gap-3">
+                <span class="text-muted">比赛分组</span>
+                <span>{{ availableDivisions.length ? availableDivisions.join(' / ') : '未启用' }}</span>
+              </div>
+              <div v-if="participation?.division" class="flex items-center justify-between gap-3">
+                <span class="text-muted">我的分组</span>
+                <span>{{ participation.division }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
                 <span class="text-muted">队伍人数限制</span>
                 <span>{{ game.max_team_members ? `${game.max_team_members} 人` : '不限' }}</span>
               </div>
@@ -983,6 +1025,18 @@ onMounted(async () => {
       <div v-else-if="activeTab === 'scoreboard'">
         <div class="space-y-6">
           <UPageCard title="队伍总榜" icon="i-lucide-trophy">
+            <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <UFormField label="查看分组" name="division" class="max-w-sm">
+                <USelect
+                  v-model="selectedDivision"
+                  :items="divisionOptions"
+                  class="w-full"
+                />
+              </UFormField>
+              <p class="text-sm text-muted">
+                {{ selectedDivision ? `当前仅显示 ${selectedDivision} 的公开榜单。` : '当前显示全部公开队伍。' }}
+              </p>
+            </div>
             <UAlert
               v-if="scoreboardFrozen && scoreboardFreezeTime"
               class="mb-4"

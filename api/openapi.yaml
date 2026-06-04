@@ -280,6 +280,10 @@ components:
           type: string
         notice:
           type: string
+        divisions:
+          type: array
+          items:
+            type: string
         start_time:
           type: string
           format: date-time
@@ -326,6 +330,10 @@ components:
           type: string
         notice:
           type: string
+        divisions:
+          type: array
+          items:
+            type: string
         start_time:
           type: string
           format: date-time
@@ -363,6 +371,10 @@ components:
           type: string
         notice:
           type: string
+        divisions:
+          type: array
+          items:
+            type: string
         start_time:
           type: string
           format: date-time
@@ -491,6 +503,12 @@ components:
       properties:
         game_id:
           type: integer
+        division:
+          type: string
+        divisions:
+          type: array
+          items:
+            type: string
         is_frozen:
           type: boolean
         freeze_time:
@@ -516,6 +534,8 @@ components:
         status:
           type: string
           enum: [pending, accepted, rejected]
+        division:
+          type: string
         team:
           type: object
           required: [id, name]
@@ -540,6 +560,10 @@ components:
           type: boolean
         missing_writeup:
           type: boolean
+        divisions:
+          type: array
+          items:
+            type: string
 
     GameParticipantEntry:
       type: object
@@ -552,6 +576,8 @@ components:
         status:
           type: string
           enum: [pending, accepted, rejected]
+        division:
+          type: string
         joined_at:
           type: string
           format: date-time
@@ -567,6 +593,10 @@ components:
         status:
           type: string
           enum: [pending, accepted, rejected]
+        division:
+          type:
+            - string
+            - "null"
 
     HealthResponse:
       type: object
@@ -1294,6 +1324,10 @@ paths:
           required: true
           schema:
             type: integer
+        - name: division
+          in: query
+          schema:
+            type: string
       responses:
         "200":
           description: Scoreboard

@@ -35,9 +35,9 @@ type ServiceInterface interface {
 	// Flag submission (game-scoped, replaces the standalone submit)
 	SubmitFlag(gameID uint, challengeID uint, userID uint, teamID uint, flag string) (*SubmitResult, error)
 	// Scoreboard
-	GetScoreboard(gameID uint) (*ScoreboardResponse, error)
+	GetScoreboard(gameID uint, division string) (*ScoreboardResponse, error)
 	GetParticipants(gameID uint) ([]GameParticipantEntry, error)
-	UpdateParticipationStatus(gameID uint, teamID uint, status string) (*GameParticipantEntry, error)
+	UpdateParticipationStatus(gameID uint, teamID uint, status string, division *string) (*GameParticipantEntry, error)
 	RemoveParticipation(gameID uint, teamID uint) error
 	GetWriteup(gameID uint, userID uint) (*GameWriteupResponse, error)
 	SubmitWriteup(gameID uint, userID uint, req SubmitGameWriteupRequest) (*GameWriteupResponse, error)
@@ -49,6 +49,7 @@ type CreateGameRequest struct {
 	Name               string     `json:"name" binding:"required"`
 	Description        string     `json:"description"`
 	Notice             string     `json:"notice"`
+	Divisions          []string   `json:"divisions"`
 	StartTime          time.Time  `json:"start_time" binding:"required"`
 	EndTime            time.Time  `json:"end_time" binding:"required"`
 	ScoreboardFreezeAt *time.Time `json:"scoreboard_freeze_at"`
@@ -64,6 +65,7 @@ type UpdateGameRequest struct {
 	Name                  *string    `json:"name"`
 	Description           *string    `json:"description"`
 	Notice                *string    `json:"notice"`
+	Divisions             *[]string  `json:"divisions"`
 	StartTime             *time.Time `json:"start_time"`
 	EndTime               *time.Time `json:"end_time"`
 	ClearScoreboardFreeze bool       `json:"-"`
@@ -83,6 +85,7 @@ type GameResponse struct {
 	Name               string     `json:"name"`
 	Description        string     `json:"description"`
 	Notice             string     `json:"notice"`
+	Divisions          []string   `json:"divisions"`
 	StartTime          time.Time  `json:"start_time"`
 	EndTime            time.Time  `json:"end_time"`
 	ScoreboardFreezeAt *time.Time `json:"scoreboard_freeze_at"`
@@ -147,6 +150,8 @@ type ScoreboardChallengeStat struct {
 
 type ScoreboardResponse struct {
 	GameID     uint                      `json:"game_id"`
+	Division   string                    `json:"division,omitempty"`
+	Divisions  []string                  `json:"divisions"`
 	IsFrozen   bool                      `json:"is_frozen"`
 	FreezeTime *time.Time                `json:"freeze_time,omitempty"`
 	Entries    []ScoreboardEntry         `json:"entries"`
@@ -157,6 +162,7 @@ type GameParticipantEntry struct {
 	TeamID     uint      `json:"team_id"`
 	TeamName   string    `json:"team_name"`
 	Status     string    `json:"status"`
+	Division   string    `json:"division"`
 	JoinedAt   time.Time `json:"joined_at"`
 	Score      int       `json:"score"`
 	SolveCount int       `json:"solve_count"`
@@ -168,16 +174,18 @@ type GameParticipationTeam struct {
 }
 
 type GameParticipationResponse struct {
-	HasTeam             bool                   `json:"has_team"`
-	Participated        bool                   `json:"participated"`
-	Status              string                 `json:"status,omitempty"`
-	Team                *GameParticipationTeam `json:"team,omitempty"`
-	WriteupRequired     bool                   `json:"writeup_required"`
-	WriteupSubmitted    bool                   `json:"writeup_submitted"`
-	WriteupStatus       string                 `json:"writeup_status,omitempty"`
-	WriteupDeadline     *time.Time             `json:"writeup_deadline,omitempty"`
-	WriteupDeadlinePassed bool                 `json:"writeup_deadline_passed"`
-	MissingWriteup      bool                   `json:"missing_writeup"`
+	HasTeam              bool                   `json:"has_team"`
+	Participated         bool                   `json:"participated"`
+	Status               string                 `json:"status,omitempty"`
+	Division             string                 `json:"division,omitempty"`
+	Divisions            []string               `json:"divisions"`
+	Team                 *GameParticipationTeam `json:"team,omitempty"`
+	WriteupRequired      bool                   `json:"writeup_required"`
+	WriteupSubmitted     bool                   `json:"writeup_submitted"`
+	WriteupStatus        string                 `json:"writeup_status,omitempty"`
+	WriteupDeadline      *time.Time             `json:"writeup_deadline,omitempty"`
+	WriteupDeadlinePassed bool                  `json:"writeup_deadline_passed"`
+	MissingWriteup       bool                   `json:"missing_writeup"`
 }
 
 type SubmitGameWriteupRequest struct {
@@ -215,6 +223,7 @@ type ExportGameMetadata struct {
 	Name               string     `json:"name"`
 	Description        string     `json:"description"`
 	Notice             string     `json:"notice"`
+	Divisions          []string   `json:"divisions"`
 	StartTime          time.Time  `json:"start_time"`
 	EndTime            time.Time  `json:"end_time"`
 	ScoreboardFreezeAt *time.Time `json:"scoreboard_freeze_at,omitempty"`

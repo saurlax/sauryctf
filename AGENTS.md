@@ -182,6 +182,10 @@ internal/<module>/
   - `writeup_required` marks contests that expect a post-contest writeup submission
   - `writeup_deadline` can be left empty, but when set it must not be earlier than `end_time`
   - these fields now round-trip through game create/update, public/admin reads, and contest import/export packages
+- Games now support a lightweight `division` model closer to GZCTF:
+  - admins can configure a contest's division list directly on create/update
+  - participations can be assigned to one configured division from the admin contest page
+  - the public scoreboard can be filtered by division while still supporting an overall view
 - A minimal writeup workflow now exists for contests that require it:
   - accepted teams can submit or overwrite their contest writeup from the game detail page
   - writeups are blocked when the contest does not require them or the deadline has passed

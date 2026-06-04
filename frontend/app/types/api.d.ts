@@ -245,6 +245,7 @@ export interface components {
       name: string;
       description?: string;
       notice?: string;
+      divisions?: string[];
       /** Format: date-time */
       start_time: string;
       /** Format: date-time */
@@ -269,6 +270,7 @@ export interface components {
       name: string;
       description?: string;
       notice?: string;
+      divisions?: string[];
       /** Format: date-time */
       start_time: string;
       /** Format: date-time */
@@ -288,6 +290,7 @@ export interface components {
       name?: string;
       description?: string;
       notice?: string;
+      divisions?: string[];
       /** Format: date-time */
       start_time?: string;
       /** Format: date-time */
@@ -351,6 +354,8 @@ export interface components {
     };
     Scoreboard: {
       game_id: number;
+      division?: string;
+      divisions?: string[];
       is_frozen?: boolean;
       /** Format: date-time */
       freeze_time?: string;
@@ -362,6 +367,7 @@ export interface components {
       participated: boolean;
       /** @enum {string} */
       status?: "pending" | "accepted" | "rejected";
+      division?: string;
       team?: {
         id: number;
         name: string;
@@ -374,12 +380,14 @@ export interface components {
       writeup_deadline?: string | null;
       writeup_deadline_passed?: boolean;
       missing_writeup?: boolean;
+      divisions?: string[];
     };
     GameParticipantEntry: {
       team_id: number;
       team_name: string;
       /** @enum {string} */
       status: "pending" | "accepted" | "rejected";
+      division?: string;
       /** Format: date-time */
       joined_at: string;
       score: number;
@@ -388,6 +396,7 @@ export interface components {
     UpdateParticipationStatusRequest: {
       /** @enum {string} */
       status: "pending" | "accepted" | "rejected";
+      division?: string | null;
     };
     HealthResponse: {
       status: string;
@@ -958,6 +967,9 @@ export interface operations {
   /** Get game scoreboard */
   getScoreboard: {
     parameters: {
+      query?: {
+        division?: string;
+      };
       path: {
         id: number;
       };

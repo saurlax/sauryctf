@@ -52,6 +52,7 @@ func (m *MockService) CreateGame(req CreateGameRequest, createdBy uint) (*GameRe
 		Name:               req.Name,
 		Description:        req.Description,
 		Notice:             req.Notice,
+		Divisions:          append([]string(nil), req.Divisions...),
 		StartTime:          req.StartTime,
 		EndTime:            req.EndTime,
 		ScoreboardFreezeAt: req.ScoreboardFreezeAt,
@@ -223,6 +224,7 @@ func (m *MockService) ExportGamePackage(id uint) ([]byte, string, error) {
 			Name:               game.Name,
 			Description:        game.Description,
 			Notice:             game.Notice,
+			Divisions:          append([]string(nil), game.Divisions...),
 			StartTime:          game.StartTime,
 			EndTime:            game.EndTime,
 			ScoreboardFreezeAt: game.ScoreboardFreezeAt,
@@ -411,6 +413,7 @@ func (m *MockService) GetParticipationStatus(gameID uint, userID uint) (*GamePar
 		return &GameParticipationResponse{
 			HasTeam:      false,
 			Participated: false,
+			Divisions:    append([]string(nil), m.Games[gameID].Divisions...),
 		}, nil
 	}
 
@@ -420,6 +423,7 @@ func (m *MockService) GetParticipationStatus(gameID uint, userID uint) (*GamePar
 		HasTeam:      true,
 		Participated: participated,
 		Status:       string(status),
+		Divisions:    append([]string(nil), m.Games[gameID].Divisions...),
 		Team:         team,
 	}, nil
 }
@@ -449,11 +453,17 @@ func (m *MockService) SubmitFlag(gameID uint, challengeID uint, userID uint, tea
 	return &SubmitResult{Correct: false, Message: "wrong flag"}, nil
 }
 
-func (m *MockService) GetScoreboard(gameID uint) (*ScoreboardResponse, error) {
-	if _, ok := m.Games[gameID]; !ok {
+func (m *MockService) GetScoreboard(gameID uint, division string) (*ScoreboardResponse, error) {
+	game, ok := m.Games[gameID]
+	if !ok {
 		return nil, fmt.Errorf("game not found")
 	}
-	return &ScoreboardResponse{GameID: gameID, Entries: []ScoreboardEntry{}}, nil
+	return &ScoreboardResponse{
+		GameID:    gameID,
+		Division:  division,
+		Divisions: append([]string(nil), game.Divisions...),
+		Entries:   []ScoreboardEntry{},
+	}, nil
 }
 
 func (m *MockService) GetParticipants(gameID uint) ([]GameParticipantEntry, error) {
@@ -475,6 +485,7 @@ func (m *MockService) GetParticipants(gameID uint) ([]GameParticipantEntry, erro
 			TeamID:     team.ID,
 			TeamName:   team.Name,
 			Status:     string(status),
+			Division:   "",
 			JoinedAt:   time.Now(),
 			Score:      0,
 			SolveCount: 0,
@@ -485,7 +496,7 @@ func (m *MockService) GetParticipants(gameID uint) ([]GameParticipantEntry, erro
 	return result, nil
 }
 
-func (m *MockService) UpdateParticipationStatus(gameID uint, teamID uint, status string) (*GameParticipantEntry, error) {
+func (m *MockService) UpdateParticipationStatus(gameID uint, teamID uint, status string, division *string) (*GameParticipantEntry, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -509,6 +520,7 @@ func (m *MockService) UpdateParticipationStatus(gameID uint, teamID uint, status
 				TeamID:     team.ID,
 				TeamName:   team.Name,
 				Status:     string(nextStatus),
+				Division:   func() string { if division != nil { return *division }; return "" }(),
 				JoinedAt:   time.Now(),
 				Score:      0,
 				SolveCount: 0,

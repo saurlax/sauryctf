@@ -734,7 +734,7 @@ func TestService_GetScoreboard_IncludesChallengeStats(t *testing.T) {
 	_, err = svc.SubmitFlag(gameID, challengeID, 2, team2ID, "flag{fixture}")
 	require.NoError(t, err)
 
-	scoreboard, err := svc.GetScoreboard(gameID)
+	scoreboard, err := svc.GetScoreboard(gameID, "")
 	require.NoError(t, err)
 	require.Len(t, scoreboard.Challenges, 1)
 	assert.Equal(t, challengeID, scoreboard.Challenges[0].ID)
@@ -764,7 +764,7 @@ func TestService_GetScoreboard_FreezesPublicRanking(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, database.Model(&models.Solve{}).Where("team_id = ?", team2ID).Update("solved_at", freezeAt.Add(10*time.Minute)).Error)
 
-	scoreboard, err := svc.GetScoreboard(gameID)
+	scoreboard, err := svc.GetScoreboard(gameID, "")
 	require.NoError(t, err)
 	require.True(t, scoreboard.IsFrozen)
 	require.NotNil(t, scoreboard.FreezeTime)
@@ -946,9 +946,42 @@ func TestService_UpdateParticipationStatus(t *testing.T) {
 	svc := games.NewService(database)
 	gameID, _, team1ID, _ := createGameChallengeFixture(t, database)
 
-	updated, err := svc.UpdateParticipationStatus(gameID, team1ID, "rejected")
+	updated, err := svc.UpdateParticipationStatus(gameID, team1ID, "rejected", nil)
 	require.NoError(t, err)
 	assert.Equal(t, "rejected", updated.Status)
+}
+
+func TestService_GetScoreboard_FiltersByDivision(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, team1ID, team2ID := createGameChallengeFixture(t, database)
+
+	divisions := `["student","open"]`
+	require.NoError(t, database.Model(&models.Game{}).Where("id = ?", gameID).Update("divisions", divisions).Error)
+	require.NoError(t, database.Model(&models.Participation{}).
+		Where("game_id = ? AND team_id = ?", gameID, team1ID).
+		Update("division", "student").Error)
+	require.NoError(t, database.Model(&models.Participation{}).
+		Where("game_id = ? AND team_id = ?", gameID, team2ID).
+		Update("division", "open").Error)
+
+	_, err = svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
+	require.NoError(t, err)
+	_, err = svc.SubmitFlag(gameID, challengeID, 2, team2ID, "flag{fixture}")
+	require.NoError(t, err)
+
+	scoreboard, err := svc.GetScoreboard(gameID, "student")
+	require.NoError(t, err)
+	assert.Equal(t, "student", scoreboard.Division)
+	assert.Equal(t, []string{"student", "open"}, scoreboard.Divisions)
+	require.Len(t, scoreboard.Entries, 1)
+	assert.Equal(t, team1ID, scoreboard.Entries[0].TeamID)
+	require.Len(t, scoreboard.Challenges, 1)
+	assert.Equal(t, 1, scoreboard.Challenges[0].SolvedCount)
 }
 
 func TestService_RemoveParticipation(t *testing.T) {

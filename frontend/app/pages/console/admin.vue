@@ -13,6 +13,7 @@ const gameForm = reactive({
   name: '',
   description: '',
   notice: '',
+  divisions_text: '',
   start_time: '',
   end_time: '',
   scoreboard_freeze_at: '',
@@ -48,6 +49,7 @@ const attachForm = reactive({
 const gameSettingsForm = reactive({
   game_id: undefined as number | undefined,
   status: 'draft' as 'draft' | 'active' | 'ended',
+  divisions_text: '',
   scoreboard_freeze_at: '',
   registration_mode: 'review' as 'review' | 'auto_accept',
   max_team_members: 0,
@@ -62,6 +64,7 @@ const gameEditForm = reactive({
   name: '',
   description: '',
   notice: '',
+  divisions_text: '',
   start_time: '',
   end_time: '',
   practice_mode: false,
@@ -109,6 +112,7 @@ const games = ref<Array<{
   name: string
   description?: string
   notice?: string
+  divisions?: string[]
   status: 'draft' | 'active' | 'ended'
   scoreboard_freeze_at?: string | null
   registration_mode?: 'review' | 'auto_accept'
@@ -148,6 +152,7 @@ const participants = ref<Array<{
   team_id: number
   team_name: string
   status: 'pending' | 'accepted' | 'rejected'
+  division?: string
   joined_at: string
   score: number
   solve_count: number
@@ -166,6 +171,7 @@ const writeups = ref<Array<{
 type AdminGameSummary = (typeof games.value)[number]
 
 const participantStatusDrafts = reactive<Record<number, 'pending' | 'accepted' | 'rejected'>>({})
+const participantDivisionDrafts = reactive<Record<number, string>>({})
 const writeupReviewDrafts = reactive<Record<number, 'approved' | 'rejected'>>({})
 const writeupRemarkDrafts = reactive<Record<number, string>>({})
 
@@ -221,6 +227,23 @@ const selectedGame = computed(() => games.value.find(game => game.id === attachF
 const selectedSettingsGame = computed(() => games.value.find(game => game.id === gameSettingsForm.game_id) || null)
 const selectedEditableGame = computed(() => games.value.find(game => game.id === gameEditForm.game_id) || null)
 const selectedEditableChallenge = computed(() => challenges.value.find(challenge => challenge.id === challengeEditForm.challenge_id) || null)
+const selectedGameDivisionOptions = computed(() => (selectedGame.value?.divisions || []).map(division => ({
+  label: division,
+  value: division,
+})))
+
+function parseDivisionList(raw: string) {
+  return Array.from(new Set(
+    raw
+      .split(/[\n,]/)
+      .map(item => item.trim())
+      .filter(Boolean),
+  ))
+}
+
+function formatDivisionList(divisions?: string[]) {
+  return (divisions || []).join('\n')
+}
 
 async function loadAdminResources() {
   loadingResources.value = true
@@ -283,6 +306,7 @@ async function loadParticipants() {
     })
     for (const participant of participants.value) {
       participantStatusDrafts[participant.team_id] = participant.status
+      participantDivisionDrafts[participant.team_id] = participant.division || ''
     }
   }
   catch (e: any) {
@@ -333,6 +357,7 @@ async function updateParticipantStatus(teamId: number) {
       },
       body: {
         status,
+        division: participantDivisionDrafts[teamId] || null,
       },
     })
 
@@ -341,6 +366,7 @@ async function updateParticipantStatus(teamId: number) {
       participants.value[index] = updated
     }
     participantStatusDrafts[teamId] = updated.status
+    participantDivisionDrafts[teamId] = updated.division || ''
     toast.add({ title: '参赛状态已更新', color: 'success' })
   }
   catch (e: any) {
@@ -372,6 +398,7 @@ async function removeParticipant(teamId: number) {
     })
     participants.value = participants.value.filter(item => item.team_id !== teamId)
     delete participantStatusDrafts[teamId]
+    delete participantDivisionDrafts[teamId]
     toast.add({ title: '参赛队伍已移除', color: 'success' })
   }
   catch (e: any) {
@@ -442,6 +469,7 @@ async function createGame() {
         name: gameForm.name,
         description: gameForm.description,
         notice: gameForm.notice,
+        divisions: parseDivisionList(gameForm.divisions_text),
         start_time: new Date(gameForm.start_time).toISOString(),
         end_time: new Date(gameForm.end_time).toISOString(),
         ...(gameForm.scoreboard_freeze_at ? { scoreboard_freeze_at: new Date(gameForm.scoreboard_freeze_at).toISOString() } : {}),
@@ -457,6 +485,7 @@ async function createGame() {
     gameForm.name = ''
     gameForm.description = ''
     gameForm.notice = ''
+    gameForm.divisions_text = ''
     gameForm.start_time = ''
     gameForm.end_time = ''
     gameForm.scoreboard_freeze_at = ''
@@ -599,6 +628,7 @@ async function updateGameSettings() {
   try {
     const body: {
       status: 'draft' | 'active' | 'ended'
+      divisions: string[]
       registration_mode: 'review' | 'auto_accept'
       max_team_members: number
       practice_mode: boolean
@@ -608,6 +638,7 @@ async function updateGameSettings() {
       scoreboard_freeze_at?: string | null
     } = {
       status: gameSettingsForm.status,
+      divisions: parseDivisionList(gameSettingsForm.divisions_text),
       registration_mode: gameSettingsForm.registration_mode,
       max_team_members: gameSettingsForm.max_team_members,
       practice_mode: gameSettingsForm.practice_mode,
@@ -655,6 +686,7 @@ async function updateGameDetails() {
         name: gameEditForm.name,
         description: gameEditForm.description,
         notice: gameEditForm.notice,
+        divisions: parseDivisionList(gameEditForm.divisions_text),
         start_time: new Date(gameEditForm.start_time).toISOString(),
         end_time: new Date(gameEditForm.end_time).toISOString(),
         practice_mode: gameEditForm.practice_mode,
@@ -879,6 +911,7 @@ watch(() => gameEditForm.game_id, () => {
     gameEditForm.name = ''
     gameEditForm.description = ''
     gameEditForm.notice = ''
+    gameEditForm.divisions_text = ''
     gameEditForm.start_time = ''
     gameEditForm.end_time = ''
     gameEditForm.practice_mode = false
@@ -895,6 +928,7 @@ watch(() => gameEditForm.game_id, () => {
   gameEditForm.name = game.name
   gameEditForm.description = game.description || ''
   gameEditForm.notice = game.notice || ''
+  gameEditForm.divisions_text = formatDivisionList(game.divisions)
   gameEditForm.start_time = game.start_time.slice(0, 16)
   gameEditForm.end_time = game.end_time.slice(0, 16)
   gameEditForm.practice_mode = game.practice_mode ?? false
@@ -905,6 +939,7 @@ watch(() => gameEditForm.game_id, () => {
 watch(() => gameSettingsForm.game_id, () => {
   if (!gameSettingsForm.game_id) {
     gameSettingsForm.status = 'draft'
+    gameSettingsForm.divisions_text = ''
     gameSettingsForm.scoreboard_freeze_at = ''
     gameSettingsForm.registration_mode = 'review'
     gameSettingsForm.max_team_members = 0
@@ -921,6 +956,7 @@ watch(() => gameSettingsForm.game_id, () => {
   }
 
   gameSettingsForm.status = game.status
+  gameSettingsForm.divisions_text = formatDivisionList(game.divisions)
   gameSettingsForm.scoreboard_freeze_at = game.scoreboard_freeze_at ? game.scoreboard_freeze_at.slice(0, 16) : ''
   gameSettingsForm.registration_mode = game.registration_mode || 'review'
   gameSettingsForm.max_team_members = game.max_team_members || 0
@@ -1000,6 +1036,10 @@ onMounted(async () => {
               <UTextarea v-model="gameForm.notice" class="w-full" :rows="4" placeholder="例如：开赛前 15 分钟开放平台，禁止共享 Flag。" />
             </UFormField>
 
+            <UFormField label="比赛分组" name="divisions_text" description="按行或逗号分隔，例如：本科组, 公开组">
+              <UTextarea v-model="gameForm.divisions_text" class="w-full" :rows="3" placeholder="本科组, 公开组" />
+            </UFormField>
+
             <div class="grid gap-4 md:grid-cols-2">
               <UFormField label="开始时间" name="start_time">
                 <UInput v-model="gameForm.start_time" type="datetime-local" class="w-full" />
@@ -1071,6 +1111,10 @@ onMounted(async () => {
               <UTextarea v-model="gameEditForm.notice" class="w-full" :rows="4" placeholder="例如：开赛前 15 分钟开放平台，禁止共享 Flag。" />
             </UFormField>
 
+            <UFormField label="比赛分组" name="divisions_text" description="按行或逗号分隔，留空表示不分组">
+              <UTextarea v-model="gameEditForm.divisions_text" class="w-full" :rows="3" placeholder="本科组, 公开组" />
+            </UFormField>
+
             <div class="grid gap-4 md:grid-cols-2">
               <UFormField label="开始时间" name="start_time">
                 <UInput v-model="gameEditForm.start_time" type="datetime-local" class="w-full" />
@@ -1126,6 +1170,10 @@ onMounted(async () => {
                 :items="gameStatusOptions"
                 class="w-full"
               />
+            </UFormField>
+
+            <UFormField label="比赛分组" name="divisions_text" description="按行或逗号分隔，榜单和参赛分配都会使用这里的分组">
+              <UTextarea v-model="gameSettingsForm.divisions_text" class="w-full" :rows="3" placeholder="本科组, 公开组" />
             </UFormField>
 
             <UFormField label="封榜时间" name="scoreboard_freeze_at" description="留空表示不封榜">
@@ -1450,12 +1498,31 @@ onMounted(async () => {
                   <div>当前得分：{{ participant.score }}</div>
                   <div>解题数量：{{ participant.solve_count }}</div>
                 </div>
-                <div class="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-end">
+                <div class="mt-2 text-muted">
+                  当前分组：{{ participant.division || '未分配' }}
+                </div>
+                <div class="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] md:items-end">
                   <UFormField label="参赛状态" :name="`participant-status-${participant.team_id}`">
                     <USelect
                       v-model="participantStatusDrafts[participant.team_id]"
                       :items="participantStatusOptions"
                       class="w-full"
+                    />
+                  </UFormField>
+                  <UFormField label="所属分组" :name="`participant-division-${participant.team_id}`">
+                    <USelect
+                      v-if="selectedGameDivisionOptions.length"
+                      v-model="participantDivisionDrafts[participant.team_id]"
+                      :items="selectedGameDivisionOptions"
+                      class="w-full"
+                      placeholder="未分配"
+                    />
+                    <UInput
+                      v-else
+                      v-model="participantDivisionDrafts[participant.team_id]"
+                      class="w-full"
+                      placeholder="当前比赛未配置分组"
+                      disabled
                     />
                   </UFormField>
                   <UButton
@@ -1574,6 +1641,9 @@ onMounted(async () => {
                     </div>
                     <div class="text-muted">
                       {{ game.max_team_members ? `队伍上限 ${game.max_team_members} 人` : '队伍人数不限' }}
+                    </div>
+                    <div class="text-muted">
+                      {{ game.divisions?.length ? `分组：${game.divisions.join(' / ')}` : '未启用分组' }}
                     </div>
                     <div class="text-muted">
                       {{ getPracticeModeLabel(game.practice_mode) }} · {{ game.writeup_required ? '需要 Writeup' : '不要求 Writeup' }}
