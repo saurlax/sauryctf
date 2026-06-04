@@ -276,6 +276,14 @@ const difficultyOptions = [
   { label: 'Hard', value: 'hard' },
 ]
 
+const instanceTemplateTokens = [
+  '{{game_id}}',
+  '{{challenge_id}}',
+  '{{team_id}}',
+  '{{user_id}}',
+  '{{team_hash}}',
+]
+
 const typeOptions = [
   { label: 'Static', value: 'static' },
   { label: 'Dynamic', value: 'dynamic' },
@@ -1348,6 +1356,46 @@ function fillDynamicContainerTemplate() {
   challengeForm.is_visible = true
 
   toast.add({ title: '已填充动态容器模板', description: '适合为后续独立实例题预留结构。', color: 'success' })
+}
+
+function fillTeamScopedDynamicTemplate() {
+  challengeForm.title = 'Team Scoped Dynamic Instance'
+  challengeForm.description = '这是一个更接近 GZCTF 体验的动态题模板。当前版本会先为每支队伍生成稳定但不同的入口信息，方便本地联调独立实例链路。'
+  challengeForm.hints = JSON.stringify([
+    '当前版本不会真的起容器，但会把每队入口模板稳定展开到实例租约响应里。',
+    '后续接入真实 Docker / K8s provider 时，可以继续沿用这份结构。',
+  ], null, 2)
+  challengeForm.attachments = '[]'
+  challengeForm.container_spec = JSON.stringify({
+    runtime: {
+      provider: 'docker',
+      image: 'ctf/example:latest',
+      expose: [8080],
+    },
+    connection: {
+      url: 'https://{{team_hash}}.instance.local/games/{{game_id}}/challenges/{{challenge_id}}',
+      host: '{{team_hash}}.instance.local',
+      port: '{{team_id}}',
+      command: 'ssh ctf@{{team_hash}}.instance.local -p {{team_id}}',
+      note: '当前队伍 {{team_id}} 会看到独立入口。后续可把这里替换成真实反代、容器网关或平台代理地址。',
+    },
+    links: [
+      {
+        label: '题目入口',
+        url: 'https://{{team_hash}}.instance.local/games/{{game_id}}/challenges/{{challenge_id}}',
+      },
+    ],
+  }, null, 2)
+  challengeForm.category = 'web'
+  challengeForm.type = 'dynamic'
+  challengeForm.difficulty = 'hard'
+  challengeForm.flag = ''
+  challengeForm.base_score = 500
+  challengeForm.min_score = 200
+  challengeForm.decay_rate = 0.1
+  challengeForm.is_visible = true
+
+  toast.add({ title: '已填充每队独立实例模板', description: '适合先验证 team-scoped 动态题入口。', color: 'success' })
 }
 
 async function createSmokeProvision() {
@@ -3056,6 +3104,9 @@ onMounted(async () => {
                 <UButton size="sm" variant="outline" icon="i-lucide-box" @click="fillDynamicContainerTemplate">
                   动态容器
                 </UButton>
+                <UButton size="sm" variant="outline" icon="i-lucide-waypoints" @click="fillTeamScopedDynamicTemplate">
+                  每队独立入口
+                </UButton>
               </div>
             </div>
           </template>
@@ -3092,6 +3143,23 @@ onMounted(async () => {
             >
               <UTextarea v-model="challengeForm.container_spec" class="w-full font-mono" :rows="8" placeholder='{"connection":{"url":"http://127.0.0.1:8081","note":"instance entry"}}' />
             </UFormField>
+
+            <UPageCard
+              title="模板占位符"
+              icon="i-lucide-braces"
+              description="动态题的 connection 字段可以直接使用这些占位符，为不同队伍生成不同入口。"
+            >
+              <div class="flex flex-wrap gap-2">
+                <UBadge
+                  v-for="token in instanceTemplateTokens"
+                  :key="token"
+                  color="neutral"
+                  variant="subtle"
+                >
+                  {{ token }}
+                </UBadge>
+              </div>
+            </UPageCard>
 
             <UPageCard
               v-if="challengeFormInstanceSpec"
@@ -3218,6 +3286,23 @@ onMounted(async () => {
             >
               <UTextarea v-model="challengeEditForm.container_spec" class="w-full font-mono" :rows="8" placeholder='{"connection":{"url":"http://127.0.0.1:8081","note":"instance entry"}}' />
             </UFormField>
+
+            <UPageCard
+              title="模板占位符"
+              icon="i-lucide-braces"
+              description="编辑动态题时同样可以在 connection 字段里使用这些占位符。"
+            >
+              <div class="flex flex-wrap gap-2">
+                <UBadge
+                  v-for="token in instanceTemplateTokens"
+                  :key="`edit-${token}`"
+                  color="neutral"
+                  variant="subtle"
+                >
+                  {{ token }}
+                </UBadge>
+              </div>
+            </UPageCard>
 
             <UPageCard
               v-if="challengeEditInstanceSpec"
