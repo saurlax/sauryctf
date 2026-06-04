@@ -203,6 +203,9 @@ func (h *Handler) GetChallengeInstance(c *gin.Context, id int, challengeId int) 
 func (h *Handler) EnsureChallengeInstance(c *gin.Context, id int, challengeId int) {
 	h.games.EnsureChallengeInstance(c, id, challengeId)
 }
+func (h *Handler) DestroyChallengeInstance(c *gin.Context, id int, challengeId int) {
+	h.games.DestroyChallengeInstance(c, id, challengeId)
+}
 func (h *Handler) JoinGame(c *gin.Context, id int)  { h.games.JoinGame(c, id) }
 func (h *Handler) LeaveGame(c *gin.Context, id int) { h.games.LeaveGame(c, id) }
 func (h *Handler) GetGameParticipation(c *gin.Context, id int) {

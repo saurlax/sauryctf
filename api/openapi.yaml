@@ -1604,6 +1604,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+    delete:
+      operationId: destroyChallengeInstance
+      summary: Destroy current team challenge instance lease
+      tags: [games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: challengeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lease destroyed or already idle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChallengeInstance"
+        "400":
+          description: Instance lease unavailable in current state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Game or challenge not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /api/games/{id}/scoreboard:
     get:
       operationId: getScoreboard

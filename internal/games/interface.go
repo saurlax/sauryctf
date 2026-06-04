@@ -82,6 +82,7 @@ type ServiceInterface interface {
 	GetGameChallengesForTeam(gameID uint, teamID uint) ([]GameChallengeDetail, error)
 	GetChallengeInstance(gameID uint, challengeID uint, userID uint) (*ChallengeInstanceResponse, error)
 	EnsureChallengeInstance(gameID uint, challengeID uint, userID uint) (*ChallengeInstanceResponse, error)
+	DestroyChallengeInstance(gameID uint, challengeID uint, userID uint) (*ChallengeInstanceResponse, error)
 	// Flag submission (game-scoped, replaces the standalone submit)
 	SubmitFlag(gameID uint, challengeID uint, userID uint, teamID uint, flag string) (*SubmitResult, error)
 	// Scoreboard

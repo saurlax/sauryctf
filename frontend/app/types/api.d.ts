@@ -116,6 +116,8 @@ export interface paths {
     get: operations["getChallengeInstance"];
     /** Start or renew current team challenge instance lease */
     post: operations["ensureChallengeInstance"];
+    /** Destroy current team challenge instance lease */
+    delete: operations["destroyChallengeInstance"];
   };
   "/api/games/{id}/scoreboard": {
     /** Get game scoreboard */
@@ -1181,6 +1183,35 @@ export interface operations {
     };
     responses: {
       /** @description Lease started or renewed */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ChallengeInstance"];
+        };
+      };
+      /** @description Instance lease unavailable in current state */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Game or challenge not found */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /** Destroy current team challenge instance lease */
+  destroyChallengeInstance: {
+    parameters: {
+      path: {
+        id: number;
+        challengeId: number;
+      };
+    };
+    responses: {
+      /** @description Lease destroyed or already idle */
       200: {
         content: {
           "application/json": components["schemas"]["ChallengeInstance"];

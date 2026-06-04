@@ -1964,6 +1964,35 @@ func (s *Service) EnsureChallengeInstance(gameID uint, challengeID uint, userID 
 	return buildInstanceResponse(gameID, challengeID, participation.TeamID, &lease, spec), nil
 }
 
+func (s *Service) DestroyChallengeInstance(gameID uint, challengeID uint, userID uint) (*ChallengeInstanceResponse, error) {
+	_, _, participation, _, err := s.getAcceptedParticipationForUser(gameID, userID)
+	if err != nil {
+		return nil, err
+	}
+	_, spec, err := s.loadManagedInstanceChallenge(gameID, challengeID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := buildInstanceResponse(gameID, challengeID, participation.TeamID, nil, spec)
+
+	var lease models.GameInstanceLease
+	if err := s.db.Where("game_id = ? AND challenge_id = ? AND team_id = ?", gameID, challengeID, participation.TeamID).First(&lease).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			result.Message = "当前没有运行中的实例。"
+			return result, nil
+		}
+		return nil, err
+	}
+
+	if err := s.db.Delete(&lease).Error; err != nil {
+		return nil, err
+	}
+
+	result.Message = "当前队伍实例已销毁。"
+	return result, nil
+}
+
 // SubmitFlag handles flag submission scoped to a game.
 // Uses exponential decay scoring identical to the standalone challenges service.
 func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID uint, flag string) (*SubmitResult, error) {

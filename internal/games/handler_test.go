@@ -136,6 +136,12 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 		fmt.Sscan(c.Param("challengeId"), &challengeId)
 		h.EnsureChallengeInstance(c, id, challengeId)
 	})
+	api.DELETE("/games/:id/challenges/:challengeId/instance", func(c *gin.Context) {
+		var id, challengeId int
+		fmt.Sscan(c.Param("id"), &id)
+		fmt.Sscan(c.Param("challengeId"), &challengeId)
+		h.DestroyChallengeInstance(c, id, challengeId)
+	})
 	api.POST("/games/:id/join", func(c *gin.Context) {
 		var id int
 		fmt.Sscan(c.Param("id"), &id)
@@ -707,6 +713,12 @@ func TestChallengeInstanceLifecycle_Success(t *testing.T) {
 	r.ServeHTTP(w2, req2)
 	assert.Equal(t, http.StatusOK, w2.Code)
 	assert.Contains(t, w2.Body.String(), `"status":"running"`)
+
+	w3 := httptest.NewRecorder()
+	req3, _ := http.NewRequest("DELETE", "/api/games/1/challenges/2/instance", nil)
+	r.ServeHTTP(w3, req3)
+	assert.Equal(t, http.StatusOK, w3.Code)
+	assert.Contains(t, w3.Body.String(), `"status":"idle"`)
 }
 
 func TestListSubmissionRecords_Success(t *testing.T) {

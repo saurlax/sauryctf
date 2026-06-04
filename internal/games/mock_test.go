@@ -841,6 +841,23 @@ func (m *MockService) EnsureChallengeInstance(gameID uint, challengeID uint, use
 	return &copy, nil
 }
 
+func (m *MockService) DestroyChallengeInstance(gameID uint, challengeID uint, userID uint) (*ChallengeInstanceResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	key := fmt.Sprintf("%d-%d-%d", gameID, challengeID, userID)
+	delete(m.InstanceLeases, key)
+
+	return &ChallengeInstanceResponse{
+		GameID:      gameID,
+		ChallengeID: challengeID,
+		TeamID:      1,
+		Status:      "idle",
+		CanStart:    true,
+		Message:     "当前队伍实例已销毁。",
+	}, nil
+}
+
 func (m *MockService) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID uint, flag string) (*SubmitResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

@@ -42,6 +42,7 @@ const submitting = ref<number | null>(null) // challenge id being submitted
 const writeupSubmitting = ref(false)
 const instanceLoading = reactive<Record<number, boolean>>({})
 const instanceStarting = reactive<Record<number, boolean>>({})
+const instanceDestroying = reactive<Record<number, boolean>>({})
 const instanceAutoRefreshing = ref(false)
 const flagInputs = reactive<Record<number, string>>({})
 const writeupForm = reactive({
@@ -195,6 +196,25 @@ async function ensureChallengeInstance(challengeId: number) {
   }
   finally {
     instanceStarting[challengeId] = false
+  }
+}
+
+async function destroyChallengeInstance(challengeId: number) {
+  instanceDestroying[challengeId] = true
+  try {
+    instanceStates[challengeId] = await $api('delete', '/api/games/{id}/challenges/{challengeId}/instance', {
+      params: {
+        id: Number(gameId),
+        challengeId,
+      },
+    })
+    toast.add({ title: '实例已销毁', description: instanceStates[challengeId]?.message || '当前队伍实例已销毁。', color: 'success' })
+  }
+  catch (e: any) {
+    toast.add({ title: '销毁实例失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    instanceDestroying[challengeId] = false
   }
 }
 
@@ -1944,10 +1964,22 @@ onMounted(async () => {
                             size="sm"
                             icon="i-lucide-play"
                             :loading="instanceStarting[ch.id]"
-                            :disabled="instanceStarting[ch.id] || instanceLoading[ch.id] || !authState.user"
+                            :disabled="instanceStarting[ch.id] || instanceLoading[ch.id] || instanceDestroying[ch.id] || !authState.user"
                             @click="ensureChallengeInstance(ch.id)"
                           >
                             {{ instanceStates[ch.id]?.can_renew ? '续期实例' : '启动实例' }}
+                          </UButton>
+                          <UButton
+                            v-if="instanceStates[ch.id]?.status === 'running'"
+                            size="sm"
+                            color="error"
+                            variant="outline"
+                            icon="i-lucide-trash-2"
+                            :loading="instanceDestroying[ch.id]"
+                            :disabled="instanceStarting[ch.id] || instanceLoading[ch.id]"
+                            @click="destroyChallengeInstance(ch.id)"
+                          >
+                            销毁实例
                           </UButton>
                           <UButton
                             v-if="instanceStates[ch.id]?.launch_url"
@@ -1964,7 +1996,7 @@ onMounted(async () => {
                             variant="ghost"
                             icon="i-lucide-refresh-cw"
                             :loading="instanceLoading[ch.id]"
-                            :disabled="instanceStarting[ch.id]"
+                            :disabled="instanceStarting[ch.id] || instanceDestroying[ch.id]"
                             @click="fetchChallengeInstance(ch.id)"
                           >
                             刷新状态

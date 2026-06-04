@@ -1782,6 +1782,18 @@ func TestService_ChallengeInstanceLifecycle_ForAcceptedTeam(t *testing.T) {
 	assert.Equal(t, "docker", running.Provider)
 	assert.Equal(t, "ctf/example:latest", running.Image)
 	assert.Equal(t, "http://127.0.0.1:8081", running.LaunchURL)
+
+	destroyed, err := svc.DestroyChallengeInstance(game.ID, challenge.ID, user.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "idle", destroyed.Status)
+	assert.True(t, destroyed.CanStart)
+	assert.False(t, destroyed.CanRenew)
+	assert.Equal(t, "当前队伍实例已销毁。", destroyed.Message)
+
+	idleAgain, err := svc.GetChallengeInstance(game.ID, challenge.ID, user.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "idle", idleAgain.Status)
+	assert.True(t, idleAgain.CanStart)
 }
 
 func TestService_ChallengeInstanceLifecycle_RendersTemplateFieldsPerTeam(t *testing.T) {

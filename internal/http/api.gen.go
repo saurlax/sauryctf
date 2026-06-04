@@ -1114,6 +1114,9 @@ type ServerInterface interface {
 	// Remove a challenge from a game (admin)
 	// (DELETE /api/games/{id}/challenges/{challengeId})
 	RemoveChallengeFromGame(c *gin.Context, id int, challengeId int)
+	// Destroy current team challenge instance lease
+	// (DELETE /api/games/{id}/challenges/{challengeId}/instance)
+	DestroyChallengeInstance(c *gin.Context, id int, challengeId int)
 	// Get current team challenge instance lease
 	// (GET /api/games/{id}/challenges/{challengeId}/instance)
 	GetChallengeInstance(c *gin.Context, id int, challengeId int)
@@ -1749,6 +1752,42 @@ func (siw *ServerInterfaceWrapper) RemoveChallengeFromGame(c *gin.Context) {
 	siw.Handler.RemoveChallengeFromGame(c, id, challengeId)
 }
 
+// DestroyChallengeInstance operation middleware
+func (siw *ServerInterfaceWrapper) DestroyChallengeInstance(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "challengeId" -------------
+	var challengeId int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "challengeId", c.Param("challengeId"), &challengeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter challengeId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DestroyChallengeInstance(c, id, challengeId)
+}
+
 // GetChallengeInstance operation middleware
 func (siw *ServerInterfaceWrapper) GetChallengeInstance(c *gin.Context) {
 
@@ -2287,6 +2326,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/api/games/:id/challenges", wrapper.GetGameChallenges)
 	router.POST(options.BaseURL+"/api/games/:id/challenges", wrapper.AddChallengeToGame)
 	router.DELETE(options.BaseURL+"/api/games/:id/challenges/:challengeId", wrapper.RemoveChallengeFromGame)
+	router.DELETE(options.BaseURL+"/api/games/:id/challenges/:challengeId/instance", wrapper.DestroyChallengeInstance)
 	router.GET(options.BaseURL+"/api/games/:id/challenges/:challengeId/instance", wrapper.GetChallengeInstance)
 	router.POST(options.BaseURL+"/api/games/:id/challenges/:challengeId/instance", wrapper.EnsureChallengeInstance)
 	router.POST(options.BaseURL+"/api/games/:id/challenges/:challengeId/submit", wrapper.SubmitGameFlag)
