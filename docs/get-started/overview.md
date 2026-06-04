@@ -69,6 +69,7 @@ SauryCTF 是一个对标 GZCTF 的 Go + Gin + GORM + Nuxt SSG CTF 平台。
 完整的本地冒烟步骤现在已经拆到单独文档：
 
 - `docs/get-started/smoke-flow.md`
+- `docs/guide/authentication.md`
 
 其中会覆盖：
 
@@ -135,6 +136,7 @@ pnpm dev:local
 
 - `docs/get-started/overview.md`
 - `docs/get-started/smoke-flow.md`
+- `docs/guide/authentication.md`
 - `docs/guide/console-home.md`
 - `docs/guide/team-management.md`
 - `docs/guide/game-participation.md`
