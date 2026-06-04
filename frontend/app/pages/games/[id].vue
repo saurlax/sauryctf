@@ -212,6 +212,94 @@ const gameStatusMeta = computed(() => {
   }
 })
 
+const canJoinGame = computed(() =>
+  !!authState.user
+  && !!participation.value?.has_team
+  && !participation.value?.participated
+  && gameStatusMeta.value.label !== '已结束',
+)
+
+const canLeaveGame = computed(() =>
+  !!authState.user
+  && !!participation.value?.participated
+  && gameStatusMeta.value.label === '未开始',
+)
+
+const canSubmitFlag = computed(() =>
+  !!authState.user
+  && !!participation.value?.participated
+  && gameStatusMeta.value.label === '进行中',
+)
+
+const participationHint = computed(() => {
+  if (!authState.user) {
+    return {
+      title: '请先登录',
+      description: '登录后即可查看你的队伍状态，并决定是否报名当前比赛。',
+      color: 'neutral' as const,
+    }
+  }
+
+  if (!participation.value?.has_team) {
+    return {
+      title: '需要先加入队伍',
+      description: '当前比赛以内队形式参赛。请先创建或加入队伍，再返回此页面报名。',
+      color: 'warning' as const,
+    }
+  }
+
+  if (participation.value.participated) {
+    if (canLeaveGame.value) {
+      return {
+        title: '当前已报名，可在开赛前退赛',
+        description: '队伍已进入比赛。若信息有误，可以在比赛开始前退出。',
+        color: 'success' as const,
+      }
+    }
+
+    return {
+      title: '当前已报名',
+      description: gameStatusMeta.value.label === '进行中'
+        ? '比赛进行中，当前队伍可以直接前往题目区提交 Flag。'
+        : '比赛开始后不可退赛；比赛结束后也无法继续提交 Flag。',
+      color: 'success' as const,
+    }
+  }
+
+  if (gameStatusMeta.value.label === '已结束') {
+    return {
+      title: '比赛已结束，无法再报名',
+      description: '你仍然可以查看比赛信息、题目和排行榜，但不能再加入本场比赛。',
+      color: 'error' as const,
+    }
+  }
+
+  return {
+    title: '当前可报名',
+    description: '当前队伍尚未报名，进入本场比赛前请确认队伍成员已准备完成。',
+    color: 'info' as const,
+  }
+})
+
+const submitHint = computed(() => {
+  if (!authState.user) {
+    return '请先登录后再参与比赛。'
+  }
+  if (!participation.value?.has_team) {
+    return '当前需要先加入队伍，才能报名比赛并提交 Flag。'
+  }
+  if (!participation.value.participated) {
+    return '当前队伍尚未报名本场比赛，请先在上方完成报名。'
+  }
+  if (gameStatusMeta.value.label === '未开始') {
+    return '比赛尚未开始，当前暂时不能提交 Flag。'
+  }
+  if (gameStatusMeta.value.label === '已结束') {
+    return '比赛已结束，当前不能继续提交 Flag。'
+  }
+  return '当前队伍已具备提交资格。'
+})
+
 const overviewStats = computed(() => {
   if (!game.value) {
     return []
@@ -367,6 +455,9 @@ onMounted(async () => {
                 当前队伍：{{ participation.team.name }}
               </span>
             </div>
+            <p class="mt-2 text-sm text-muted max-w-2xl">
+              {{ participationHint.description }}
+            </p>
           </div>
 
           <div class="flex gap-2">
@@ -374,6 +465,7 @@ onMounted(async () => {
               v-if="participation?.has_team && !participation?.participated"
               icon="i-lucide-badge-plus"
               :loading="joining"
+              :disabled="!canJoinGame"
               @click="joinGame"
             >
               报名比赛
@@ -384,6 +476,7 @@ onMounted(async () => {
               variant="outline"
               icon="i-lucide-log-out"
               :loading="leaving"
+              :disabled="!canLeaveGame"
               @click="leaveGame"
             >
               退出比赛
@@ -410,12 +503,12 @@ onMounted(async () => {
             </p>
             <div class="rounded-lg border border-default bg-muted/40 p-4">
               <p class="font-medium mb-2">
-                参赛提示
+            参赛提示
               </p>
               <ul class="space-y-2 text-muted">
                 <li>1. 先在控制台创建或加入队伍，再报名比赛。</li>
                 <li>2. 题目页会根据你当前队伍显示已解状态和一血队伍。</li>
-                <li>3. 比赛结束后将无法继续得分，请留意结束时间。</li>
+                <li>3. 比赛开始后不可退出比赛，比赛结束后将无法继续得分。</li>
               </ul>
             </div>
           </div>
@@ -469,8 +562,11 @@ onMounted(async () => {
               </div>
               <div class="flex items-center justify-between gap-3">
                 <span class="text-muted">可提交 Flag</span>
-                <span>{{ participation?.participated ? '是' : '否' }}</span>
+                <span>{{ canSubmitFlag ? '是' : '否' }}</span>
               </div>
+              <p class="text-muted leading-6">
+                {{ participationHint.title }}。{{ submitHint }}
+              </p>
             </div>
           </UPageCard>
         </div>
@@ -518,20 +614,27 @@ onMounted(async () => {
               </span>
             </div>
 
-            <div v-if="!ch.solved" class="flex gap-2">
+            <div v-if="!ch.solved" class="space-y-2">
+              <p v-if="!canSubmitFlag" class="text-xs text-muted leading-5">
+                {{ submitHint }}
+              </p>
+              <div class="flex gap-2">
               <UInput
                 v-model="flagInputs[ch.id]"
                 placeholder="flag{...}"
                 size="sm"
                 class="flex-1"
+                :disabled="!canSubmitFlag"
                 @keyup.enter="submitFlag(ch.id)"
               />
               <UButton
                 size="sm"
                 :loading="submitting === ch.id"
                 icon="i-lucide-send"
+                :disabled="!canSubmitFlag"
                 @click="submitFlag(ch.id)"
               />
+              </div>
             </div>
           </UPageCard>
         </div>
