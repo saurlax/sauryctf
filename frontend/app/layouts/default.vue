@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const { authState, isLoggedIn, logout } = useAuth()
+const route = useRoute()
 
 const items = computed(() => {
   const nav = [
@@ -11,6 +12,22 @@ const items = computed(() => {
   }
   return nav
 })
+
+const authRedirect = computed(() => {
+  if (route.path === '/login' || route.path === '/register') {
+    const redirect = route.query.redirect
+    if (typeof redirect === 'string' && redirect.startsWith('/')) {
+      return redirect
+    }
+
+    return '/console'
+  }
+
+  return route.fullPath
+})
+
+const loginTo = computed(() => `/login?redirect=${encodeURIComponent(authRedirect.value)}`)
+const registerTo = computed(() => `/register?redirect=${encodeURIComponent(authRedirect.value)}`)
 </script>
 
 <template>
@@ -41,8 +58,8 @@ const items = computed(() => {
       </template>
       <template v-else>
         <div class="flex items-center gap-2">
-          <UButton label="登录" icon="i-lucide-log-in" variant="ghost" to="/login" />
-          <UButton label="注册" icon="i-lucide-user-round-plus" to="/register" />
+          <UButton label="登录" icon="i-lucide-log-in" variant="ghost" :to="loginTo" />
+          <UButton label="注册" icon="i-lucide-user-round-plus" :to="registerTo" />
         </div>
       </template>
     </template>
