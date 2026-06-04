@@ -40,6 +40,8 @@ const gameSubmitting = ref(false)
 const challengeSubmitting = ref(false)
 const attachSubmitting = ref(false)
 const loadingResources = ref(false)
+const loadingGameChallenges = ref(false)
+const removingChallengeId = ref<number | null>(null)
 const games = ref<Array<{
   id: number
   name: string
@@ -52,6 +54,16 @@ const challenges = ref<Array<{
   title: string
   category: 'web' | 'pwn' | 'crypto' | 'reverse' | 'misc' | 'forensics' | 'awd'
   is_visible?: boolean
+}>>([])
+const selectedGameChallenges = ref<Array<{
+  id: number
+  title: string
+  category: 'web' | 'pwn' | 'crypto' | 'reverse' | 'misc' | 'forensics' | 'awd'
+  type: 'static' | 'dynamic'
+  difficulty?: string
+  score: number
+  solve_count?: number
+  blood_team?: string
 }>>([])
 
 const categoryOptions = [
@@ -85,6 +97,8 @@ const challengeOptions = computed(() => challenges.value.map(challenge => ({
   value: challenge.id,
 })))
 
+const selectedGame = computed(() => games.value.find(game => game.id === attachForm.game_id) || null)
+
 async function loadAdminResources() {
   loadingResources.value = true
   try {
@@ -109,6 +123,29 @@ async function loadAdminResources() {
   }
   finally {
     loadingResources.value = false
+  }
+}
+
+async function loadSelectedGameChallenges() {
+  if (!attachForm.game_id) {
+    selectedGameChallenges.value = []
+    return
+  }
+
+  loadingGameChallenges.value = true
+  try {
+    selectedGameChallenges.value = await $api('get', '/api/games/{id}/challenges', {
+      params: {
+        id: attachForm.game_id,
+      },
+    })
+  }
+  catch (e: any) {
+    selectedGameChallenges.value = []
+    toast.add({ title: '比赛题目加载失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    loadingGameChallenges.value = false
   }
 }
 
@@ -199,6 +236,7 @@ async function attachChallengeToGame() {
     toast.add({ title: '题目已加入比赛', color: 'success' })
     attachForm.challenge_id = undefined
     attachForm.score_override = undefined
+    await loadSelectedGameChallenges()
   }
   catch (e: any) {
     toast.add({ title: '挂载题目失败', description: e.data?.message || e.message, color: 'error' })
@@ -207,6 +245,35 @@ async function attachChallengeToGame() {
     attachSubmitting.value = false
   }
 }
+
+async function removeChallengeFromGame(challengeId: number) {
+  if (!attachForm.game_id) {
+    return
+  }
+
+  removingChallengeId.value = challengeId
+  try {
+    await $api('delete', '/api/games/{id}/challenges/{challengeId}', {
+      params: {
+        id: attachForm.game_id,
+        challengeId,
+      },
+    })
+
+    toast.add({ title: '题目已从比赛移除', color: 'success' })
+    await loadSelectedGameChallenges()
+  }
+  catch (e: any) {
+    toast.add({ title: '移除题目失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    removingChallengeId.value = null
+  }
+}
+
+watch(() => attachForm.game_id, async () => {
+  await loadSelectedGameChallenges()
+})
 
 onMounted(async () => {
   if (!authState.user) {
@@ -258,87 +325,87 @@ onMounted(async () => {
       </div>
 
       <div class="grid gap-6 xl:grid-cols-2">
-      <UPageCard title="创建比赛" icon="i-lucide-trophy">
-        <UForm :state="gameForm" class="space-y-4" @submit="createGame">
-          <UFormField label="比赛名称" name="name">
-            <UInput v-model="gameForm.name" class="w-full" placeholder="例如：Spring CTF 2026" />
-          </UFormField>
-
-          <UFormField label="比赛描述" name="description">
-            <UTextarea v-model="gameForm.description" class="w-full" :rows="4" placeholder="简要介绍比赛规则或主题" />
-          </UFormField>
-
-          <div class="grid gap-4 md:grid-cols-2">
-            <UFormField label="开始时间" name="start_time">
-              <UInput v-model="gameForm.start_time" type="datetime-local" class="w-full" />
+        <UPageCard title="创建比赛" icon="i-lucide-trophy">
+          <UForm :state="gameForm" class="space-y-4" @submit="createGame">
+            <UFormField label="比赛名称" name="name">
+              <UInput v-model="gameForm.name" class="w-full" placeholder="例如：Spring CTF 2026" />
             </UFormField>
 
-            <UFormField label="结束时间" name="end_time">
-              <UInput v-model="gameForm.end_time" type="datetime-local" class="w-full" />
-            </UFormField>
-          </div>
-
-          <UFormField label="公开比赛" name="is_public">
-            <USwitch v-model="gameForm.is_public" />
-          </UFormField>
-
-          <UButton type="submit" :loading="gameSubmitting">
-            创建比赛
-          </UButton>
-        </UForm>
-      </UPageCard>
-
-      <UPageCard title="创建题目" icon="i-lucide-flag">
-        <UForm :state="challengeForm" class="space-y-4" @submit="createChallenge">
-          <UFormField label="题目名称" name="title">
-            <UInput v-model="challengeForm.title" class="w-full" placeholder="例如：Easy XSS" />
-          </UFormField>
-
-          <UFormField label="题目描述" name="description">
-            <UTextarea v-model="challengeForm.description" class="w-full" :rows="4" placeholder="题目简介、提示或附件说明" />
-          </UFormField>
-
-          <div class="grid gap-4 md:grid-cols-3">
-            <UFormField label="分类" name="category">
-              <USelect v-model="challengeForm.category" :items="categoryOptions" class="w-full" />
+            <UFormField label="比赛描述" name="description">
+              <UTextarea v-model="gameForm.description" class="w-full" :rows="4" placeholder="简要介绍比赛规则或主题" />
             </UFormField>
 
-            <UFormField label="类型" name="type">
-              <USelect v-model="challengeForm.type" :items="typeOptions" class="w-full" />
+            <div class="grid gap-4 md:grid-cols-2">
+              <UFormField label="开始时间" name="start_time">
+                <UInput v-model="gameForm.start_time" type="datetime-local" class="w-full" />
+              </UFormField>
+
+              <UFormField label="结束时间" name="end_time">
+                <UInput v-model="gameForm.end_time" type="datetime-local" class="w-full" />
+              </UFormField>
+            </div>
+
+            <UFormField label="公开比赛" name="is_public">
+              <USwitch v-model="gameForm.is_public" />
             </UFormField>
 
-            <UFormField label="难度" name="difficulty">
-              <USelect v-model="challengeForm.difficulty" :items="difficultyOptions" class="w-full" />
-            </UFormField>
-          </div>
+            <UButton type="submit" :loading="gameSubmitting">
+              创建比赛
+            </UButton>
+          </UForm>
+        </UPageCard>
 
-          <UFormField label="Flag" name="flag">
-            <UInput v-model="challengeForm.flag" class="w-full" placeholder="flag{example}" />
-          </UFormField>
-
-          <div class="grid gap-4 md:grid-cols-3">
-            <UFormField label="基础分值" name="base_score">
-              <UInput v-model.number="challengeForm.base_score" type="number" class="w-full" />
+        <UPageCard title="创建题目" icon="i-lucide-flag">
+          <UForm :state="challengeForm" class="space-y-4" @submit="createChallenge">
+            <UFormField label="题目名称" name="title">
+              <UInput v-model="challengeForm.title" class="w-full" placeholder="例如：Easy XSS" />
             </UFormField>
 
-            <UFormField label="最低分值" name="min_score">
-              <UInput v-model.number="challengeForm.min_score" type="number" class="w-full" />
+            <UFormField label="题目描述" name="description">
+              <UTextarea v-model="challengeForm.description" class="w-full" :rows="4" placeholder="题目简介、提示或附件说明" />
             </UFormField>
 
-            <UFormField label="衰减率" name="decay_rate">
-              <UInput v-model.number="challengeForm.decay_rate" type="number" step="0.1" class="w-full" />
+            <div class="grid gap-4 md:grid-cols-3">
+              <UFormField label="分类" name="category">
+                <USelect v-model="challengeForm.category" :items="categoryOptions" class="w-full" />
+              </UFormField>
+
+              <UFormField label="类型" name="type">
+                <USelect v-model="challengeForm.type" :items="typeOptions" class="w-full" />
+              </UFormField>
+
+              <UFormField label="难度" name="difficulty">
+                <USelect v-model="challengeForm.difficulty" :items="difficultyOptions" class="w-full" />
+              </UFormField>
+            </div>
+
+            <UFormField label="Flag" name="flag">
+              <UInput v-model="challengeForm.flag" class="w-full" placeholder="flag{example}" />
             </UFormField>
-          </div>
 
-          <UFormField label="是否可见" name="is_visible">
-            <USwitch v-model="challengeForm.is_visible" />
-          </UFormField>
+            <div class="grid gap-4 md:grid-cols-3">
+              <UFormField label="基础分值" name="base_score">
+                <UInput v-model.number="challengeForm.base_score" type="number" class="w-full" />
+              </UFormField>
 
-          <UButton type="submit" :loading="challengeSubmitting">
-            创建题目
-          </UButton>
-        </UForm>
-      </UPageCard>
+              <UFormField label="最低分值" name="min_score">
+                <UInput v-model.number="challengeForm.min_score" type="number" class="w-full" />
+              </UFormField>
+
+              <UFormField label="衰减率" name="decay_rate">
+                <UInput v-model.number="challengeForm.decay_rate" type="number" step="0.1" class="w-full" />
+              </UFormField>
+            </div>
+
+            <UFormField label="是否可见" name="is_visible">
+              <USwitch v-model="challengeForm.is_visible" />
+            </UFormField>
+
+            <UButton type="submit" :loading="challengeSubmitting">
+              创建题目
+            </UButton>
+          </UForm>
+        </UPageCard>
       </div>
 
       <div class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
@@ -370,6 +437,51 @@ onMounted(async () => {
               加入比赛
             </UButton>
           </UForm>
+
+          <div class="mt-6 border-t border-default pt-4">
+            <div class="mb-2 text-sm font-medium">
+              当前比赛题目
+            </div>
+            <p v-if="selectedGame" class="mb-3 text-sm text-muted">
+              {{ selectedGame.name }} · {{ loadingGameChallenges ? '正在加载题目...' : `${selectedGameChallenges.length} 道已挂载` }}
+            </p>
+            <p v-else class="text-sm text-muted">
+              先选择比赛，再查看该比赛下已挂载的题目。
+            </p>
+
+            <div v-if="selectedGameChallenges.length" class="space-y-2">
+              <div
+                v-for="challenge in selectedGameChallenges"
+                :key="challenge.id"
+                class="flex items-start justify-between gap-3 rounded-lg border border-default px-3 py-2"
+              >
+                <div class="min-w-0">
+                  <div class="font-medium">
+                    #{{ challenge.id }} {{ challenge.title }}
+                  </div>
+                  <div class="text-sm text-muted">
+                    {{ challenge.category }} · {{ challenge.score }} 分 · {{ challenge.solve_count || 0 }} 解
+                    <span v-if="challenge.blood_team"> · 一血 {{ challenge.blood_team }}</span>
+                  </div>
+                </div>
+
+                <UButton
+                  color="error"
+                  variant="soft"
+                  size="sm"
+                  icon="i-lucide-trash-2"
+                  :loading="removingChallengeId === challenge.id"
+                  @click="removeChallengeFromGame(challenge.id)"
+                >
+                  移除
+                </UButton>
+              </div>
+            </div>
+
+            <div v-else-if="selectedGame && !loadingGameChallenges" class="text-sm text-muted">
+              这个比赛还没有挂载题目。
+            </div>
+          </div>
         </UPageCard>
 
         <UPageCard title="已加载资源" icon="i-lucide-list">
