@@ -36,6 +36,10 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
   8. join the contest
   9. submit one known flag
   10. confirm the scoreboard updates
+- `pnpm smoke:local` now also provisions one minimal dynamic challenge and verifies:
+  - `GET /api/games/:id/challenges/:challengeId/instance` returns `idle`
+  - `POST /api/games/:id/challenges/:challengeId/instance` returns a running lease
+  - the returned launch data no longer contains unresolved `{{team_hash}}`-style placeholders
 
 ## Frontend (`frontend/`)
 

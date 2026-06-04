@@ -66,6 +66,17 @@ function Assert-True {
   }
 }
 
+function Assert-False {
+  param(
+    [Parameter(Mandatory = $true)][bool]$Condition,
+    [Parameter(Mandatory = $true)][string]$Message
+  )
+
+  if ($Condition) {
+    Fail $Message
+  }
+}
+
 $suffix = Get-Date -Format "yyyyMMddHHmmss"
 $playerUsername = "smoke-$suffix"
 $playerEmail = "$playerUsername@example.com"
@@ -73,6 +84,7 @@ $playerPassword = "smoke-pass-123"
 $teamName = "Smoke Team $suffix"
 $gameName = "Smoke Game $suffix"
 $challengeTitle = "Smoke Challenge $suffix"
+$dynamicChallengeTitle = "Smoke Dynamic Challenge $suffix"
 $flag = "flag{smoke-test}"
 $now = (Get-Date).ToUniversalTime()
 $startTime = $now.AddMinutes(-5).ToString("o")
@@ -118,11 +130,45 @@ $challenge = Invoke-JsonRequest -Method "POST" -Url "$BaseUrl/api/challenges" -B
 } -Session $adminSession
 Assert-Equal $challenge.title $challengeTitle "Failed to create smoke challenge."
 
+Write-Step "Creating dynamic challenge"
+$dynamicChallenge = Invoke-JsonRequest -Method "POST" -Url "$BaseUrl/api/challenges" -Body @{
+  title          = $dynamicChallengeTitle
+  description    = "Automated dynamic smoke challenge"
+  category       = "web"
+  type           = "dynamic"
+  flag           = "flag{dynamic-smoke}"
+  base_score     = 300
+  min_score      = 100
+  decay_rate     = 0.1
+  is_visible     = $true
+  container_spec = (@{
+    runtime = @{
+      provider = "docker"
+      image    = "ctf/example:latest"
+      expose   = @(8080)
+    }
+    connection = @{
+      url     = "https://{{team_hash}}.instance.local/games/{{game_id}}/challenges/{{challenge_id}}"
+      host    = "{{team_hash}}.instance.local"
+      port    = "{{team_id}}"
+      command = "ssh ctf@{{team_hash}}.instance.local -p {{team_id}}"
+      note    = "Dynamic smoke instance for team {{team_id}}"
+    }
+  } | ConvertTo-Json -Depth 10 -Compress)
+} -Session $adminSession
+Assert-Equal $dynamicChallenge.title $dynamicChallengeTitle "Failed to create dynamic smoke challenge."
+
 Write-Step "Attaching challenge to contest"
 $attachResult = Invoke-JsonRequest -Method "POST" -Url "$BaseUrl/api/games/$($game.id)/challenges" -Body @{
   challenge_id = $challenge.id
 } -Session $adminSession
 Assert-Equal $attachResult.message "added" "Challenge attach did not succeed."
+
+Write-Step "Attaching dynamic challenge to contest"
+$dynamicAttachResult = Invoke-JsonRequest -Method "POST" -Url "$BaseUrl/api/games/$($game.id)/challenges" -Body @{
+  challenge_id = $dynamicChallenge.id
+} -Session $adminSession
+Assert-Equal $dynamicAttachResult.message "added" "Dynamic challenge attach did not succeed."
 
 Write-Step "Activating contest"
 $updatedGame = Invoke-JsonRequest -Method "PUT" -Url "$BaseUrl/api/games/$($game.id)" -Body @{
@@ -156,6 +202,23 @@ $participation = Invoke-JsonRequest -Method "GET" -Url "$BaseUrl/api/games/$($ga
 Assert-True ($participation.participated -eq $true) "Participation response does not show the player team as joined."
 Assert-Equal $participation.status "accepted" "Auto-accept contest did not produce accepted participation."
 
+Write-Step "Checking dynamic instance idle state"
+$instanceIdle = Invoke-JsonRequest -Method "GET" -Url "$BaseUrl/api/games/$($game.id)/challenges/$($dynamicChallenge.id)/instance" -Session $playerSession
+Assert-Equal $instanceIdle.status "idle" "Dynamic challenge instance should start in idle state."
+Assert-True ($instanceIdle.can_start -eq $true) "Dynamic challenge instance should be startable before first lease."
+Assert-Equal $instanceIdle.provider "docker" "Dynamic challenge instance should inherit runtime provider."
+
+Write-Step "Starting dynamic instance lease"
+$instanceRunning = Invoke-JsonRequest -Method "POST" -Url "$BaseUrl/api/games/$($game.id)/challenges/$($dynamicChallenge.id)/instance" -Session $playerSession
+Assert-Equal $instanceRunning.status "running" "Dynamic challenge instance was not started."
+Assert-True ($instanceRunning.can_renew -eq $true) "Dynamic challenge instance should be renewable after start."
+Assert-True (-not [string]::IsNullOrWhiteSpace($instanceRunning.launch_url)) "Dynamic challenge instance did not return a launch URL."
+Assert-True (-not [string]::IsNullOrWhiteSpace($instanceRunning.host)) "Dynamic challenge instance did not return a host."
+Assert-True (-not [string]::IsNullOrWhiteSpace($instanceRunning.command)) "Dynamic challenge instance did not return a command."
+Assert-False ($instanceRunning.launch_url.Contains("{{")) "Dynamic challenge launch URL still contains unresolved template placeholders."
+Assert-False ($instanceRunning.host.Contains("{{")) "Dynamic challenge host still contains unresolved template placeholders."
+Assert-False ($instanceRunning.command.Contains("{{")) "Dynamic challenge command still contains unresolved template placeholders."
+
 Write-Step "Submitting correct flag"
 $submitResult = Invoke-JsonRequest -Method "POST" -Url "$BaseUrl/api/games/$($game.id)/challenges/$($challenge.id)/submit" -Body @{
   team_id = $teamResult.team.id
@@ -175,5 +238,6 @@ Write-Host ""
 Write-Host "Smoke flow passed." -ForegroundColor Green
 Write-Host "Contest: $gameName"
 Write-Host "Challenge: $challengeTitle"
+Write-Host "Dynamic Challenge: $dynamicChallengeTitle"
 Write-Host "Player: $playerUsername"
 Write-Host "Team: $teamName"
