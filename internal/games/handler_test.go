@@ -60,6 +60,11 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 		fmt.Sscan(c.Param("id"), &id)
 		h.ExportScoreboardPackage(c, id)
 	})
+	api.POST("/admin/games/:id/writeups/export", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.ExportWriteupsPackage(c, id)
+	})
 	api.GET("/games/:id/challenges", func(c *gin.Context) {
 		var id int
 		fmt.Sscan(c.Param("id"), &id)
@@ -570,6 +575,44 @@ func TestExportScoreboardPackage_Success(t *testing.T) {
 		fileNames = append(fileNames, file.Name)
 	}
 	assert.ElementsMatch(t, []string{"scoreboard.json", "rankings.csv", "challenge-stats.csv"}, fileNames)
+}
+
+func TestExportWriteupsPackage_Success(t *testing.T) {
+	svc := games.NewMockService()
+	svc.UserTeams[1] = &games.GameParticipationTeam{ID: 7, Name: "Blue Team"}
+	svc.Participations["1-7"] = "accepted"
+	_, _ = svc.CreateGame(games.CreateGameRequest{
+		Name:            "Writeup Export Game",
+		StartTime:       time.Now(),
+		EndTime:         time.Now().Add(time.Hour),
+		WriteupRequired: true,
+	}, 1)
+	_, _ = svc.SubmitWriteup(1, 1, games.SubmitGameWriteupRequest{Content: "# Blue Team\n\nOur writeup"})
+
+	r := setupTestRouter(svc)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/admin/games/1/writeups/export", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/zip", w.Header().Get("Content-Type"))
+	assert.Contains(t, w.Header().Get("Content-Disposition"), "writeups-export.zip")
+
+	reader, err := zip.NewReader(bytes.NewReader(w.Body.Bytes()), int64(w.Body.Len()))
+	assert.NoError(t, err)
+	if err != nil {
+		return
+	}
+
+	fileNames := make([]string, 0, len(reader.File))
+	for _, file := range reader.File {
+		fileNames = append(fileNames, file.Name)
+	}
+
+	assert.Contains(t, fileNames, "writeups.json")
+	assert.Contains(t, fileNames, "writeups.csv")
+	assert.Contains(t, fileNames, "writeups/team-7-blue-team.md")
 }
 
 func TestImportGamePackage_Success(t *testing.T) {

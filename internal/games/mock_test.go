@@ -327,6 +327,69 @@ func (m *MockService) ExportScoreboardPackage(id uint, division string) ([]byte,
 	return archive.Bytes(), filename, nil
 }
 
+func (m *MockService) ExportWriteupsPackage(id uint) ([]byte, string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	game, ok := m.Games[id]
+	if !ok {
+		return nil, "", fmt.Errorf("game not found")
+	}
+
+	writeups := make([]GameWriteupResponse, 0)
+	prefix := fmt.Sprintf("%d-", id)
+	for key, writeup := range m.Writeups {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		copy := *writeup
+		writeups = append(writeups, copy)
+	}
+
+	writeupsJSON, err := json.MarshalIndent(writeups, "", "  ")
+	if err != nil {
+		return nil, "", err
+	}
+	writeupsCSV, err := buildWriteupsCSV(writeups)
+	if err != nil {
+		return nil, "", err
+	}
+
+	var archive bytes.Buffer
+	writer := zip.NewWriter(&archive)
+	for _, file := range []struct {
+		name string
+		data []byte
+	}{
+		{name: "writeups.json", data: writeupsJSON},
+		{name: "writeups.csv", data: writeupsCSV},
+	} {
+		entry, err := writer.Create(file.name)
+		if err != nil {
+			return nil, "", err
+		}
+		if _, err := entry.Write(file.data); err != nil {
+			return nil, "", err
+		}
+	}
+
+	for _, writeup := range writeups {
+		entry, err := writer.Create(fmt.Sprintf("writeups/team-%d-%s.md", writeup.TeamID, sanitizeExportName(writeup.TeamName)))
+		if err != nil {
+			return nil, "", err
+		}
+		if _, err := entry.Write([]byte(writeup.Content)); err != nil {
+			return nil, "", err
+		}
+	}
+
+	if err := writer.Close(); err != nil {
+		return nil, "", err
+	}
+
+	return archive.Bytes(), fmt.Sprintf("game-%d-%s-writeups-export.zip", game.ID, sanitizeExportName(game.Name)), nil
+}
+
 func (m *MockService) ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error) {
 	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {

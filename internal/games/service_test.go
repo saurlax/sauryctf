@@ -603,6 +603,49 @@ func TestService_ExportScoreboardPackage_IncludesJSONAndCSVs(t *testing.T) {
 	assert.Contains(t, files["challenge-stats.csv"], "Fixture Challenge")
 }
 
+func TestService_ExportWriteupsPackage_IncludesJSONCSVAndMarkdownFiles(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, _, team1ID, _ := createGameChallengeFixture(t, database)
+
+	writeupDeadline := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
+	require.NoError(t, database.Model(&models.Game{}).Where("id = ?", gameID).Updates(map[string]any{
+		"writeup_required": true,
+		"writeup_deadline": writeupDeadline,
+	}).Error)
+
+	submitted, err := svc.SubmitWriteup(gameID, 1, games.SubmitGameWriteupRequest{Content: "# Team One\n\nRecovered notes"})
+	require.NoError(t, err)
+	require.Equal(t, team1ID, submitted.TeamID)
+
+	archiveBytes, filename, err := svc.ExportWriteupsPackage(gameID)
+	require.NoError(t, err)
+	assert.Contains(t, filename, "writeups-export.zip")
+
+	reader, err := zip.NewReader(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	require.NoError(t, err)
+	require.Len(t, reader.File, 3)
+
+	files := map[string]string{}
+	for _, file := range reader.File {
+		fileReader, err := file.Open()
+		require.NoError(t, err)
+		data, err := io.ReadAll(fileReader)
+		_ = fileReader.Close()
+		require.NoError(t, err)
+		files[file.Name] = string(data)
+	}
+
+	assert.Contains(t, files["writeups.json"], `"team_name": "Team One"`)
+	assert.Contains(t, files["writeups.csv"], "game_id,team_id,team_name,submitted_by,status,review_remark,submitted_at,reviewed_at,can_submit")
+	assert.Contains(t, files["writeups.csv"], "Team One")
+	assert.Contains(t, files["writeups/team-1-team-one.md"], "# Team One")
+}
+
 func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {
 	database, err := db.ConnectTest()
 	require.NoError(t, err)

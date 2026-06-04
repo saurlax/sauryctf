@@ -111,6 +111,11 @@
   - 也会额外包含 `rankings.csv` 和 `challenge-stats.csv`
   - 适合赛后归档、手工复核排名或继续导入表格工具做复盘
   - 当前版本默认导出总榜口径；如果后续需要，也可以继续扩成按分组单独导出
+- 导出 Writeup 会下载一个单独的 ZIP 包：
+  - 当前包内包含 `writeups.json`
+  - 也会额外包含 `writeups.csv`
+  - 每支队伍的正文还会拆成单独的 `writeups/team-*.md`
+  - 适合赛后批量归档、转交评审或继续做线下复盘整理
 - 导入比赛当前支持上传管理端导出的 ZIP 包：
   - 接受 `sauryctf.export.v1` 和 `sauryctf.export.v2`
   - 必须包含 `game.json`

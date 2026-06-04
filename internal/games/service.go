@@ -634,6 +634,74 @@ func (s *Service) ExportScoreboardPackage(id uint, division string) ([]byte, str
 	return archive.Bytes(), filename, nil
 }
 
+func (s *Service) ExportWriteupsPackage(id uint) ([]byte, string, error) {
+	var game models.Game
+	if err := s.db.First(&game, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, "", errors.New("game not found")
+		}
+		return nil, "", err
+	}
+
+	writeups, err := s.ListWriteups(id)
+	if err != nil {
+		return nil, "", err
+	}
+
+	writeupsJSON, err := json.MarshalIndent(writeups, "", "  ")
+	if err != nil {
+		return nil, "", err
+	}
+
+	writeupsCSV, err := buildWriteupsCSV(writeups)
+	if err != nil {
+		return nil, "", err
+	}
+
+	var archive bytes.Buffer
+	writer := zip.NewWriter(&archive)
+
+	files := []struct {
+		name string
+		data []byte
+	}{
+		{name: "writeups.json", data: writeupsJSON},
+		{name: "writeups.csv", data: writeupsCSV},
+	}
+
+	for _, file := range files {
+		archiveFile, err := writer.Create(file.name)
+		if err != nil {
+			return nil, "", err
+		}
+		if _, err := archiveFile.Write(file.data); err != nil {
+			return nil, "", err
+		}
+	}
+
+	for _, writeup := range writeups {
+		fileName := fmt.Sprintf(
+			"writeups/team-%d-%s.md",
+			writeup.TeamID,
+			sanitizeExportName(writeup.TeamName),
+		)
+		archiveFile, err := writer.Create(fileName)
+		if err != nil {
+			return nil, "", err
+		}
+		if _, err := archiveFile.Write([]byte(writeup.Content)); err != nil {
+			return nil, "", err
+		}
+	}
+
+	if err := writer.Close(); err != nil {
+		return nil, "", err
+	}
+
+	filename := fmt.Sprintf("game-%d-%s-writeups-export.zip", game.ID, sanitizeExportName(game.Name))
+	return archive.Bytes(), filename, nil
+}
+
 func (s *Service) ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error) {
 	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
@@ -1946,6 +2014,42 @@ func buildScoreboardChallengesCSV(challenges []ScoreboardChallengeStat) ([]byte,
 			challenge.BloodTeam,
 			challenge.SecondBloodTeam,
 			challenge.ThirdBloodTeam,
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+func buildWriteupsCSV(writeups []GameWriteupResponse) ([]byte, error) {
+	var buffer bytes.Buffer
+	writer := csv.NewWriter(&buffer)
+
+	if err := writer.Write([]string{"game_id", "team_id", "team_name", "submitted_by", "status", "review_remark", "submitted_at", "reviewed_at", "can_submit"}); err != nil {
+		return nil, err
+	}
+
+	for _, writeup := range writeups {
+		reviewedAt := ""
+		if writeup.ReviewedAt != nil {
+			reviewedAt = writeup.ReviewedAt.UTC().Format(time.RFC3339)
+		}
+
+		if err := writer.Write([]string{
+			fmt.Sprintf("%d", writeup.GameID),
+			fmt.Sprintf("%d", writeup.TeamID),
+			writeup.TeamName,
+			fmt.Sprintf("%d", writeup.SubmittedBy),
+			writeup.Status,
+			writeup.ReviewRemark,
+			writeup.SubmittedAt.UTC().Format(time.RFC3339),
+			reviewedAt,
+			fmt.Sprintf("%t", writeup.CanSubmit),
 		}); err != nil {
 			return nil, err
 		}

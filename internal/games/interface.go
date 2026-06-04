@@ -21,6 +21,7 @@ type ServiceInterface interface {
 	DeleteGame(id uint) error
 	ExportGamePackage(id uint) ([]byte, string, error)
 	ExportScoreboardPackage(id uint, division string) ([]byte, string, error)
+	ExportWriteupsPackage(id uint) ([]byte, string, error)
 	ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error)
 	AddChallenge(gameID uint, challengeID uint, scoreOverride int) error
 	RemoveChallenge(gameID uint, challengeID uint) error
