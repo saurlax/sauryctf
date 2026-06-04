@@ -130,6 +130,9 @@ internal/<module>/
   - only `active` games accept registrations
   - only `active` games within `start_time` / `end_time` accept flag submissions
   - ended games stay browsable, but no longer allow registration or scoring
+- Registration withdrawal now follows the current GZCTF-style rule:
+  - `pending` / `rejected` participations can be withdrawn
+  - `accepted` participations are locked and can no longer be withdrawn
 - Public contest visibility is now tighter:
   - public game lists hide `draft` contests
   - direct public detail lookup also hides private or draft contests

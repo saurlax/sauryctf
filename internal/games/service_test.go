@@ -384,6 +384,66 @@ func TestService_JoinGame_AutoAcceptsWhenConfigured(t *testing.T) {
 	assert.Equal(t, models.ParticipationAccepted, participation.Status)
 }
 
+func TestService_LeaveGame_AllowsPendingWithdrawal(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+
+	user := models.User{Username: "pending-captain", Email: "pending-captain@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+	team := models.Team{Name: "Pending Team", InviteCode: "pending01", CaptainID: user.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team).Error)
+	game := models.Game{
+		Name:      "Pending Leave Game",
+		StartTime: time.Now().Add(time.Hour),
+		EndTime:   time.Now().Add(2 * time.Hour),
+		Status:    "active",
+		IsPublic:  true,
+		CreatedBy: user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+
+	require.NoError(t, svc.JoinGame(game.ID, team.ID, user.ID))
+	require.NoError(t, svc.LeaveGame(game.ID, team.ID, user.ID))
+
+	_, err = svc.GetParticipation(game.ID, team.ID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestService_LeaveGame_RejectsAcceptedWithdrawal(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+
+	user := models.User{Username: "accepted-captain", Email: "accepted-captain@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+	team := models.Team{Name: "Accepted Team", InviteCode: "accepted01", CaptainID: user.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team).Error)
+	game := models.Game{
+		Name:             "Accepted Leave Game",
+		StartTime:        time.Now().Add(time.Hour),
+		EndTime:          time.Now().Add(2 * time.Hour),
+		Status:           "active",
+		RegistrationMode: games.RegistrationModeAutoAccept,
+		IsPublic:         true,
+		CreatedBy:        user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+
+	require.NoError(t, svc.JoinGame(game.ID, team.ID, user.ID))
+
+	err = svc.LeaveGame(game.ID, team.ID, user.ID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot be withdrawn")
+}
+
 func TestService_JoinGame_RejectsTeamExceedingGameMemberLimit(t *testing.T) {
 	database, err := db.ConnectTest()
 	require.NoError(t, err)

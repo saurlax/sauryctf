@@ -51,7 +51,8 @@
 
 - 只有 `accepted` 状态的队伍可以在比赛进行中提交 Flag
 - `pending` / `rejected` 队伍不会获得正式参赛资格
-- 已通过的队伍仍然只能在开赛前退赛
+- `pending` / `rejected` 报名可以主动撤回
+- `accepted` 报名一旦通过就不会再开放撤回，队伍视为锁定
 - `auto_accept` 模式只跳过审核，不会绕过比赛开始/结束时间限制
 - 比赛必须处于 `active` 才会开放报名
 - 比赛只有在 `active` 且到达开始时间后才允许提交 Flag

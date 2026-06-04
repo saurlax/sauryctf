@@ -254,7 +254,8 @@ func (s *Service) JoinGame(gameID uint, teamID uint, userID uint) error {
 }
 
 // LeaveGame removes a team's participation from a game.
-// Only allowed before the game starts (matching GZCTF's constraint).
+// Pending or rejected registrations can be withdrawn.
+// Accepted registrations are locked and cannot be withdrawn anymore.
 func (s *Service) LeaveGame(gameID uint, teamID uint, userID uint) error {
 	var game models.Game
 	if err := s.db.First(&game, gameID).Error; err != nil {
@@ -269,8 +270,8 @@ func (s *Service) LeaveGame(gameID uint, teamID uint, userID uint) error {
 		return err
 	}
 
-	if participation.Status == models.ParticipationAccepted && time.Now().After(game.StartTime) {
-		return errors.New("cannot leave a game that has already started")
+	if participation.Status == models.ParticipationAccepted {
+		return errors.New("accepted participation cannot be withdrawn")
 	}
 
 	result := s.db.Where("game_id = ? AND team_id = ?", gameID, teamID).Delete(&models.Participation{})

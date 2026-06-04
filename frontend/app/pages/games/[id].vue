@@ -270,7 +270,7 @@ const canJoinGame = computed(() =>
 const canLeaveGame = computed(() =>
   !!authState.user
   && !!participation.value?.status
-  && gameStatusMeta.value.label === '未开始',
+  && participation.value?.status !== 'accepted',
 )
 
 const canSubmitFlag = computed(() =>
@@ -317,17 +317,19 @@ const participationHint = computed(() => {
 
     if (canLeaveGame.value) {
       return {
-        title: '当前已报名，可在开赛前退赛',
-        description: '队伍已进入比赛。若信息有误，可以在比赛开始前退出。',
+        title: '当前报名可撤回',
+        description: '待审核或已拒绝的报名可以直接撤回，调整队伍后再重新提交。',
         color: 'success' as const,
       }
     }
 
     return {
       title: '当前已报名',
-      description: gameStatusMeta.value.label === '进行中'
-        ? '比赛进行中，当前队伍可以直接前往题目区提交 Flag。'
-        : '比赛开始后不可退赛；比赛结束后也无法继续提交 Flag。',
+      description: participation.value.status === 'accepted'
+        ? '当前队伍报名已通过。根据当前赛事规则，已通过的报名不会再开放撤回。'
+        : gameStatusMeta.value.label === '进行中'
+            ? '比赛进行中，当前队伍可以直接前往题目区提交 Flag。'
+            : '比赛结束后也无法继续提交 Flag。',
       color: 'success' as const,
     }
   }
@@ -372,6 +374,9 @@ const submitHint = computed(() => {
   }
   if (participation.value.status === 'rejected') {
     return '当前报名已被拒绝，请重新报名或联系管理员确认参赛资格。'
+  }
+  if (participation.value.status === 'accepted' && gameStatusMeta.value.label !== '进行中') {
+    return '当前报名已通过。根据当前赛事规则，已通过的报名不能再撤回。'
   }
   if (gameStatusMeta.value.label === '未开始') {
     return '比赛尚未开始，当前暂时不能提交 Flag。'
@@ -635,7 +640,8 @@ onMounted(async () => {
                 <li>4. 只有处于可用状态的比赛才会开放报名与正式提交。</li>
                 <li>5. {{ game.scoreboard_freeze_at ? `公开榜单将于 ${new Date(game.scoreboard_freeze_at).toLocaleString()} 封榜。` : '当前比赛不启用封榜。' }}</li>
                 <li>6. 题目页会根据你当前队伍显示已解状态和一血队伍。</li>
-                <li>7. 比赛开始后不可退出比赛，比赛结束后将无法继续得分。</li>
+                <li>7. 待审核或已拒绝的报名可以撤回；已通过报名后队伍将锁定，不能再撤回。</li>
+                <li>8. 比赛结束后将无法继续得分。</li>
               </ul>
             </div>
           </div>
