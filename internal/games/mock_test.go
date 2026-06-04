@@ -39,6 +39,7 @@ func (m *MockService) CreateGame(req CreateGameRequest, createdBy uint) (*GameRe
 		ID:          m.nextID,
 		Name:        req.Name,
 		Description: req.Description,
+		Notice:      req.Notice,
 		StartTime:   req.StartTime,
 		EndTime:     req.EndTime,
 		Status:      "draft",
@@ -86,6 +87,12 @@ func (m *MockService) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse,
 	}
 	if req.Name != nil {
 		game.Name = *req.Name
+	}
+	if req.Description != nil {
+		game.Description = *req.Description
+	}
+	if req.Notice != nil {
+		game.Notice = *req.Notice
 	}
 	if req.Status != nil {
 		game.Status = *req.Status

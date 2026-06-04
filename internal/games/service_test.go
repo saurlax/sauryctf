@@ -81,13 +81,16 @@ func TestService_CreateGame(t *testing.T) {
 
 	public := true
 	game, err := svc.CreateGame(games.CreateGameRequest{
-		Name:      "Test CTF",
-		StartTime: time.Now().Add(24 * time.Hour),
-		EndTime:   time.Now().Add(48 * time.Hour),
-		IsPublic:  &public,
+		Name:        "Test CTF",
+		Description: "desc",
+		Notice:      "notice",
+		StartTime:   time.Now().Add(24 * time.Hour),
+		EndTime:     time.Now().Add(48 * time.Hour),
+		IsPublic:    &public,
 	}, 1)
 	assert.NoError(t, err)
 	assert.Equal(t, "Test CTF", game.Name)
+	assert.Equal(t, "notice", game.Notice)
 	assert.Equal(t, "draft", game.Status)
 	assert.True(t, game.IsPublic)
 }
@@ -145,12 +148,15 @@ func TestService_UpdateGame(t *testing.T) {
 
 	newName := "Updated"
 	newStatus := "active"
+	newNotice := "Updated notice"
 	updated, err := svc.UpdateGame(game.ID, games.UpdateGameRequest{
 		Name:   &newName,
+		Notice: &newNotice,
 		Status: &newStatus,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, "Updated", updated.Name)
+	assert.Equal(t, "Updated notice", updated.Notice)
 	assert.Equal(t, "active", updated.Status)
 }
 

@@ -12,6 +12,7 @@ const isAdmin = computed(() => ['admin', 'super_admin'].includes(authState.user?
 const gameForm = reactive({
   name: '',
   description: '',
+  notice: '',
   start_time: '',
   end_time: '',
   is_public: true,
@@ -46,6 +47,7 @@ const gameEditForm = reactive({
   game_id: undefined as number | undefined,
   name: '',
   description: '',
+  notice: '',
   start_time: '',
   end_time: '',
 })
@@ -78,6 +80,7 @@ const games = ref<Array<{
   id: number
   name: string
   description?: string
+  notice?: string
   status: 'draft' | 'active' | 'ended'
   start_time: string
   end_time: string
@@ -232,6 +235,7 @@ async function createGame() {
       body: {
         name: gameForm.name,
         description: gameForm.description,
+        notice: gameForm.notice,
         start_time: new Date(gameForm.start_time).toISOString(),
         end_time: new Date(gameForm.end_time).toISOString(),
         is_public: gameForm.is_public,
@@ -240,6 +244,7 @@ async function createGame() {
     toast.add({ title: '比赛创建成功', color: 'success' })
     gameForm.name = ''
     gameForm.description = ''
+    gameForm.notice = ''
     gameForm.start_time = ''
     gameForm.end_time = ''
     gameForm.is_public = true
@@ -404,6 +409,7 @@ async function updateGameDetails() {
       body: {
         name: gameEditForm.name,
         description: gameEditForm.description,
+        notice: gameEditForm.notice,
         start_time: new Date(gameEditForm.start_time).toISOString(),
         end_time: new Date(gameEditForm.end_time).toISOString(),
       },
@@ -523,6 +529,7 @@ watch(() => gameEditForm.game_id, () => {
   if (!gameEditForm.game_id) {
     gameEditForm.name = ''
     gameEditForm.description = ''
+    gameEditForm.notice = ''
     gameEditForm.start_time = ''
     gameEditForm.end_time = ''
     return
@@ -535,6 +542,7 @@ watch(() => gameEditForm.game_id, () => {
 
   gameEditForm.name = game.name
   gameEditForm.description = game.description || ''
+  gameEditForm.notice = game.notice || ''
   gameEditForm.start_time = game.start_time.slice(0, 16)
   gameEditForm.end_time = game.end_time.slice(0, 16)
 })
@@ -620,6 +628,10 @@ onMounted(async () => {
               <UTextarea v-model="gameForm.description" class="w-full" :rows="4" placeholder="简要介绍比赛规则或主题" />
             </UFormField>
 
+            <UFormField label="比赛公告" name="notice">
+              <UTextarea v-model="gameForm.notice" class="w-full" :rows="4" placeholder="例如：开赛前 15 分钟开放平台，禁止共享 Flag。" />
+            </UFormField>
+
             <div class="grid gap-4 md:grid-cols-2">
               <UFormField label="开始时间" name="start_time">
                 <UInput v-model="gameForm.start_time" type="datetime-local" class="w-full" />
@@ -657,6 +669,10 @@ onMounted(async () => {
 
             <UFormField label="比赛描述" name="description">
               <UTextarea v-model="gameEditForm.description" class="w-full" :rows="4" placeholder="简要介绍比赛规则或主题" />
+            </UFormField>
+
+            <UFormField label="比赛公告" name="notice">
+              <UTextarea v-model="gameEditForm.notice" class="w-full" :rows="4" placeholder="例如：开赛前 15 分钟开放平台，禁止共享 Flag。" />
             </UFormField>
 
             <div class="grid gap-4 md:grid-cols-2">
@@ -958,6 +974,9 @@ onMounted(async () => {
                     </div>
                     <div class="text-muted">
                       {{ game.status }} · {{ new Date(game.start_time).toLocaleString() }}
+                    </div>
+                    <div v-if="game.notice" class="text-muted line-clamp-2">
+                      公告：{{ game.notice }}
                     </div>
                   </div>
 

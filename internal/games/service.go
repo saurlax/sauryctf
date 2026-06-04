@@ -22,6 +22,7 @@ func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameRespon
 	game := &models.Game{
 		Name:        req.Name,
 		Description: req.Description,
+		Notice:      req.Notice,
 		StartTime:   req.StartTime,
 		EndTime:     req.EndTime,
 		Status:      "draft",
@@ -32,7 +33,7 @@ func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameRespon
 	}
 
 	if err := s.db.Select(
-		"Name", "Description", "StartTime", "EndTime", "Status", "IsPublic", "CreatedBy",
+		"Name", "Description", "Notice", "StartTime", "EndTime", "Status", "IsPublic", "CreatedBy",
 	).Create(game).Error; err != nil {
 		return nil, err
 	}
@@ -83,6 +84,9 @@ func (s *Service) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, err
 	}
 	if req.Description != nil {
 		updates["description"] = *req.Description
+	}
+	if req.Notice != nil {
+		updates["notice"] = *req.Notice
 	}
 	if req.StartTime != nil {
 		updates["start_time"] = *req.StartTime
@@ -607,6 +611,7 @@ func toResponse(g *models.Game) *GameResponse {
 		ID:          g.ID,
 		Name:        g.Name,
 		Description: g.Description,
+		Notice:      g.Notice,
 		StartTime:   g.StartTime,
 		EndTime:     g.EndTime,
 		Status:      g.Status,

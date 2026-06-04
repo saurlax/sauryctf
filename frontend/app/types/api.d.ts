@@ -229,6 +229,7 @@ export interface components {
       id: number;
       name: string;
       description?: string;
+      notice?: string;
       /** Format: date-time */
       start_time: string;
       /** Format: date-time */
@@ -243,6 +244,7 @@ export interface components {
     CreateGameRequest: {
       name: string;
       description?: string;
+      notice?: string;
       /** Format: date-time */
       start_time: string;
       /** Format: date-time */
@@ -252,6 +254,7 @@ export interface components {
     UpdateGameRequest: {
       name?: string;
       description?: string;
+      notice?: string;
       /** Format: date-time */
       start_time?: string;
       /** Format: date-time */

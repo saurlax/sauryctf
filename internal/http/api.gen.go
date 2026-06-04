@@ -392,6 +392,7 @@ type CreateGameRequest struct {
 	EndTime     time.Time `json:"end_time"`
 	IsPublic    *bool     `json:"is_public,omitempty"`
 	Name        string    `json:"name"`
+	Notice      *string   `json:"notice,omitempty"`
 	StartTime   time.Time `json:"start_time"`
 }
 
@@ -414,6 +415,7 @@ type Game struct {
 	Id          int        `json:"id"`
 	IsPublic    *bool      `json:"is_public,omitempty"`
 	Name        string     `json:"name"`
+	Notice      *string    `json:"notice,omitempty"`
 	StartTime   time.Time  `json:"start_time"`
 	Status      GameStatus `json:"status"`
 }
@@ -575,6 +577,7 @@ type UpdateGameRequest struct {
 	EndTime     *time.Time               `json:"end_time,omitempty"`
 	IsPublic    *bool                    `json:"is_public,omitempty"`
 	Name        *string                  `json:"name,omitempty"`
+	Notice      *string                  `json:"notice,omitempty"`
 	StartTime   *time.Time               `json:"start_time,omitempty"`
 	Status      *UpdateGameRequestStatus `json:"status,omitempty"`
 }

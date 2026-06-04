@@ -501,9 +501,16 @@ onMounted(async () => {
             <p class="text-default">
               {{ game.description || '当前比赛暂未填写详细规则。你可以先完成队伍准备与比赛报名。' }}
             </p>
+            <UAlert
+              v-if="game.notice"
+              color="info"
+              variant="soft"
+              title="比赛公告"
+              :description="game.notice"
+            />
             <div class="rounded-lg border border-default bg-muted/40 p-4">
               <p class="font-medium mb-2">
-            参赛提示
+                参赛提示
               </p>
               <ul class="space-y-2 text-muted">
                 <li>1. 先在控制台创建或加入队伍，再报名比赛。</li>

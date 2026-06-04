@@ -66,6 +66,7 @@ type Game struct {
 	ID          uint      `gorm:"primaryKey" json:"id"`
 	Name        string    `gorm:"size:255;not null" json:"name"`
 	Description string    `gorm:"type:text" json:"description"`
+	Notice      string    `gorm:"type:text" json:"notice"`
 	StartTime   time.Time `gorm:"not null" json:"start_time"`
 	EndTime     time.Time `gorm:"not null" json:"end_time"`
 	Status      string    `gorm:"size:32;not null;default:draft" json:"status"` // draft, active, ended

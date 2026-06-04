@@ -268,6 +268,8 @@ components:
           type: string
         description:
           type: string
+        notice:
+          type: string
         start_time:
           type: string
           format: date-time
@@ -293,6 +295,8 @@ components:
           type: string
         description:
           type: string
+        notice:
+          type: string
         start_time:
           type: string
           format: date-time
@@ -308,6 +312,8 @@ components:
         name:
           type: string
         description:
+          type: string
+        notice:
           type: string
         start_time:
           type: string
@@ -389,6 +395,23 @@ components:
           type: string
           format: date-time
 
+    ScoreboardChallengeStat:
+      type: object
+      required: [id, title, category, score, solved_count]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        category:
+          type: string
+        score:
+          type: integer
+        solved_count:
+          type: integer
+        blood_team:
+          type: string
+
     Scoreboard:
       type: object
       required: [game_id, entries]
@@ -399,6 +422,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ScoreboardEntry"
+        challenges:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScoreboardChallengeStat"
 
     GameParticipation:
       type: object
