@@ -75,7 +75,7 @@ func TestEnsureBootstrapAdmin(t *testing.T) {
 		assert.EqualValues(t, 1, count)
 	})
 
-	t.Run("creates bootstrap admin when database has users but no admin account", func(t *testing.T) {
+	t.Run("does not create bootstrap admin when database already has users", func(t *testing.T) {
 		database2 := setupTestDB(t)
 		svc2 := NewService(database2, "test-secret")
 

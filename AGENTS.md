@@ -115,7 +115,7 @@ internal/<module>/
 - Dynamic container management must be idempotent; Kubernetes resources must be uniformly labeled.
 - Dynamic scoring is shared across standalone challenge submission and game-scoped submission.
 - Current blood metadata (`first`, `second`, `third`) is retained for display, but does not apply an extra score multiplier.
-- On a fresh database, backend startup auto-creates a bootstrap admin user: `admin / sauryctf`.
+- Only when the `users` table is completely empty, backend startup auto-creates a bootstrap admin user: `admin / sauryctf`.
 - The backend still keeps `/api/auth/register`, but the current frontend intentionally does not expose a public registration page.
 - Game registration now follows a lightweight review flow:
   - player join requests create `pending` participations
