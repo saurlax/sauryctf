@@ -36,6 +36,9 @@
   - 会返回比赛当前的 `max_team_members`
   - 会返回比赛当前的 `divisions`
   - 也会返回 `practice_mode`、`writeup_required`、`writeup_deadline`
+- 选手侧 Writeup 读写接口现在也进入了 OpenAPI 契约：
+  - `GET /api/games/{id}/writeup`
+  - `PUT /api/games/{id}/writeup`
 
 ## 前端行为
 

@@ -83,6 +83,12 @@ export interface paths {
     /** Get my participation status in a game */
     get: operations["getGameParticipation"];
   };
+  "/api/games/{id}/writeup": {
+    /** Get my game writeup */
+    get: operations["getGameWriteup"];
+    /** Submit or update my game writeup */
+    put: operations["submitGameWriteup"];
+  };
   "/api/games/{id}/leave": {
     /** Leave a game */
     delete: operations["leaveGame"];
@@ -460,6 +466,9 @@ export interface components {
       /** Format: date-time */
       reviewed_at?: string | null;
       can_submit: boolean;
+    };
+    SubmitGameWriteupRequest: {
+      content: string;
     };
     HealthResponse: {
       status: string;
@@ -920,6 +929,49 @@ export interface operations {
       404: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /** Get my game writeup */
+  getGameWriteup: {
+    parameters: {
+      path: {
+        id: number;
+      };
+    };
+    responses: {
+      /** @description Writeup */
+      200: {
+        content: {
+          "application/json": components["schemas"]["GameWriteup"];
+        };
+      };
+      /** @description Game not found */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /** Submit or update my game writeup */
+  submitGameWriteup: {
+    parameters: {
+      path: {
+        id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SubmitGameWriteupRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        content: {
+          "application/json": components["schemas"]["GameWriteup"];
         };
       };
     };

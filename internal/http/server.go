@@ -45,13 +45,6 @@ func NewServer(db *gorm.DB, jwtSecret string) *gin.Engine {
 		},
 	})
 
-	engine.GET("/api/games/:id/writeup", func(c *gin.Context) {
-		handler.GetGameWriteup(c, mustIntParam(c, "id"))
-	})
-	engine.PUT("/api/games/:id/writeup", func(c *gin.Context) {
-		handler.SubmitGameWriteup(c, mustIntParam(c, "id"))
-	})
-
 	return engine
 }
 

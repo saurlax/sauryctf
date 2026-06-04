@@ -6,17 +6,7 @@ type GameChallengeDetail = components['schemas']['GameChallengeDetail']
 type ScoreboardEntry = components['schemas']['ScoreboardEntry']
 type GameParticipation = components['schemas']['GameParticipation']
 type ScoreboardChallengeStat = components['schemas']['ScoreboardChallengeStat']
-type GameWriteupView = {
-  game_id: number
-  team_id: number
-  team_name: string
-  content?: string
-  status?: 'submitted' | 'approved' | 'rejected'
-  review_remark?: string
-  submitted_at?: string
-  reviewed_at?: string | null
-  can_submit?: boolean
-}
+type GameWriteupView = components['schemas']['GameWriteup']
 
 const route = useRoute()
 const toast = useToast()
@@ -65,7 +55,7 @@ async function fetchAll() {
       ? $api('get', '/api/games/{id}/participation', { params: { id: Number(gameId) } })
       : Promise.resolve(null)
     const writeupRequest = authState.user
-      ? $fetch<GameWriteupView>(`/api/games/${gameId}/writeup`)
+      ? $api('get', '/api/games/{id}/writeup', { params: { id: Number(gameId) } })
       : Promise.resolve(null)
 
     const [gameRes, challengesRes, participationRes] = await Promise.all([
@@ -121,7 +111,9 @@ async function fetchWriteup() {
   }
 
   try {
-    writeup.value = await $fetch<GameWriteupView>(`/api/games/${gameId}/writeup`)
+    writeup.value = await $api('get', '/api/games/{id}/writeup', {
+      params: { id: Number(gameId) },
+    })
     writeupForm.content = writeup.value?.content || ''
   }
   catch (e: any) {
@@ -242,8 +234,8 @@ async function leaveGame() {
 async function submitWriteup() {
   writeupSubmitting.value = true
   try {
-    writeup.value = await $fetch<GameWriteupView>(`/api/games/${gameId}/writeup`, {
-      method: 'PUT',
+    writeup.value = await $api('put', '/api/games/{id}/writeup', {
+      params: { id: Number(gameId) },
       body: {
         content: writeupForm.content,
       },

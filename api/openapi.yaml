@@ -670,6 +670,13 @@ components:
         can_submit:
           type: boolean
 
+    SubmitGameWriteupRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+
     HealthResponse:
       type: object
       required: [status, version]
@@ -1238,6 +1245,59 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /api/games/{id}/writeup:
+    get:
+      operationId: getGameWriteup
+      summary: Get my game writeup
+      tags: [games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Writeup
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameWriteup"
+        "404":
+          description: Game not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    put:
+      operationId: submitGameWriteup
+      summary: Submit or update my game writeup
+      tags: [games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitGameWriteupRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameWriteup"
 
   /api/games/{id}/leave:
     delete:

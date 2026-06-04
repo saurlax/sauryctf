@@ -791,6 +791,11 @@ type SubmitFlagRequest struct {
 	GameId int    `json:"game_id"`
 }
 
+// SubmitGameWriteupRequest defines model for SubmitGameWriteupRequest.
+type SubmitGameWriteupRequest struct {
+	Content string `json:"content"`
+}
+
 // SubmitResult defines model for SubmitResult.
 type SubmitResult struct {
 	BloodType *SubmitResultBloodType `json:"blood_type,omitempty"`
@@ -969,6 +974,9 @@ type LeaveGameJSONRequestBody = JoinGameRequest
 // UpdateGameParticipantJSONRequestBody defines body for UpdateGameParticipant for application/json ContentType.
 type UpdateGameParticipantJSONRequestBody = UpdateParticipationStatusRequest
 
+// SubmitGameWriteupJSONRequestBody defines body for SubmitGameWriteup for application/json ContentType.
+type SubmitGameWriteupJSONRequestBody = SubmitGameWriteupRequest
+
 // CreateTeamJSONRequestBody defines body for CreateTeam for application/json ContentType.
 type CreateTeamJSONRequestBody = CreateTeamRequest
 
@@ -1070,6 +1078,12 @@ type ServerInterface interface {
 	// Get game scoreboard
 	// (GET /api/games/{id}/scoreboard)
 	GetScoreboard(c *gin.Context, id int, params GetScoreboardParams)
+	// Get my game writeup
+	// (GET /api/games/{id}/writeup)
+	GetGameWriteup(c *gin.Context, id int)
+	// Submit or update my game writeup
+	// (PUT /api/games/{id}/writeup)
+	SubmitGameWriteup(c *gin.Context, id int)
 	// Health check
 	// (GET /api/healthz)
 	Healthz(c *gin.Context)
@@ -1910,6 +1924,60 @@ func (siw *ServerInterfaceWrapper) GetScoreboard(c *gin.Context) {
 	siw.Handler.GetScoreboard(c, id, params)
 }
 
+// GetGameWriteup operation middleware
+func (siw *ServerInterfaceWrapper) GetGameWriteup(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetGameWriteup(c, id)
+}
+
+// SubmitGameWriteup operation middleware
+func (siw *ServerInterfaceWrapper) SubmitGameWriteup(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SubmitGameWriteup(c, id)
+}
+
 // Healthz operation middleware
 func (siw *ServerInterfaceWrapper) Healthz(c *gin.Context) {
 
@@ -2077,6 +2145,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/api/games/:id/participants/:teamId", wrapper.UpdateGameParticipant)
 	router.GET(options.BaseURL+"/api/games/:id/participation", wrapper.GetGameParticipation)
 	router.GET(options.BaseURL+"/api/games/:id/scoreboard", wrapper.GetScoreboard)
+	router.GET(options.BaseURL+"/api/games/:id/writeup", wrapper.GetGameWriteup)
+	router.PUT(options.BaseURL+"/api/games/:id/writeup", wrapper.SubmitGameWriteup)
 	router.GET(options.BaseURL+"/api/healthz", wrapper.Healthz)
 	router.POST(options.BaseURL+"/api/teams", wrapper.CreateTeam)
 	router.POST(options.BaseURL+"/api/teams/join", wrapper.JoinTeam)
