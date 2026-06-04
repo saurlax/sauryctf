@@ -234,6 +234,58 @@ const selectedGameDivisionOptions = computed(() => (selectedGame.value?.division
   value: division,
 })))
 
+const adminSetupSteps = computed(() => {
+  const hasGames = games.value.length > 0
+  const hasChallenges = challenges.value.length > 0
+  const hasMountedChallenges = selectedGameChallenges.value.length > 0
+  const activeGame = games.value.find(game => game.status === 'active') || null
+
+  return [
+    {
+      key: 'game',
+      title: '1. 先创建一场比赛',
+      description: hasGames
+        ? `当前已经有 ${games.value.length} 场比赛，可以继续补充配置或直接复用。`
+        : '先填写比赛名称、时间和报名模式，创建一场最小可用的比赛。默认先保持 draft 更安全。',
+      done: hasGames,
+      actionLabel: '创建比赛',
+      actionTo: '#create-game',
+    },
+    {
+      key: 'challenge',
+      title: '2. 再创建至少一道题目',
+      description: hasChallenges
+        ? `当前题库已有 ${challenges.value.length} 道题目，可以直接挂到比赛里。`
+        : '题目至少需要标题、Flag 和基础分类，后续再逐步补题面、提示和附件即可。',
+      done: hasChallenges,
+      actionLabel: '创建题目',
+      actionTo: '#create-challenge',
+    },
+    {
+      key: 'attach',
+      title: '3. 把题目挂到比赛上',
+      description: hasMountedChallenges
+        ? `当前选中的比赛已经挂载了 ${selectedGameChallenges.value.length} 道题目，可以继续补挂或直接准备开赛。`
+        : hasGames && hasChallenges
+          ? '选中一场比赛和一道题目后，使用挂题表单把题目真正放进比赛。'
+          : '先有比赛和题目后，才能进入这一步。',
+      done: hasMountedChallenges,
+      actionLabel: '去挂题',
+      actionTo: '#attach-challenge',
+    },
+    {
+      key: 'launch',
+      title: '4. 最后切到 active 并验证公开页',
+      description: activeGame
+        ? `当前已有进行中的比赛：${activeGame.name}。现在可以去公开页检查报名、题目显示和排行榜。`
+        : '确认比赛时间、公开性和挂题都无误后，再把状态从 draft 切到 active。',
+      done: Boolean(activeGame),
+      actionLabel: activeGame ? '打开公开页' : '去比赛设置',
+      actionTo: activeGame ? `/games/${activeGame.id}` : '#game-settings',
+    },
+  ]
+})
+
 function getBloodRows(challenge: {
   blood_team?: string
   second_blood_team?: string
@@ -1052,8 +1104,54 @@ onMounted(async () => {
         />
       </div>
 
+      <UPageCard title="首次建赛路径" icon="i-lucide-list-checks">
+        <div class="space-y-3">
+          <UAlert
+            color="info"
+            variant="soft"
+            title="推荐顺序：先建比赛，再建题、挂题，最后切到 active"
+            description="这条顺序更适合空库首次启动后的最小闭环，也能减少把未配置完成的比赛提前公开。"
+          />
+
+          <div class="grid gap-3 xl:grid-cols-2">
+            <div
+              v-for="step in adminSetupSteps"
+              :key="step.key"
+              class="rounded-lg border border-default px-3 py-3"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2">
+                    <UIcon
+                      :name="step.done ? 'i-lucide-circle-check-big' : 'i-lucide-arrow-right-circle'"
+                      :class="step.done ? 'text-success' : 'text-primary'"
+                      class="size-4 shrink-0"
+                    />
+                    <div class="font-medium">
+                      {{ step.title }}
+                    </div>
+                  </div>
+                  <div class="mt-2 text-sm text-muted">
+                    {{ step.description }}
+                  </div>
+                </div>
+                <UBadge :color="step.done ? 'success' : 'warning'" variant="soft">
+                  {{ step.done ? '已就绪' : '待处理' }}
+                </UBadge>
+              </div>
+
+              <div class="mt-3 flex justify-end">
+                <UButton size="sm" variant="outline" :to="step.actionTo">
+                  {{ step.actionLabel }}
+                </UButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      </UPageCard>
+
       <div class="grid gap-6 xl:grid-cols-2">
-        <UPageCard title="创建比赛" icon="i-lucide-trophy">
+        <UPageCard id="create-game" title="创建比赛" icon="i-lucide-trophy">
           <UForm :state="gameForm" class="space-y-4" @submit="createGame">
             <UFormField label="比赛名称" name="name">
               <UInput v-model="gameForm.name" class="w-full" placeholder="例如：Spring CTF 2026" />
@@ -1184,7 +1282,7 @@ onMounted(async () => {
       </div>
 
       <div class="grid gap-6 xl:grid-cols-2">
-        <UPageCard title="比赛设置" icon="i-lucide-sliders-horizontal">
+        <UPageCard id="game-settings" title="比赛设置" icon="i-lucide-sliders-horizontal">
           <UForm :state="gameSettingsForm" class="space-y-4" @submit="updateGameSettings">
             <UFormField label="选择比赛" name="game_id">
               <USelect
@@ -1251,7 +1349,7 @@ onMounted(async () => {
           </UForm>
         </UPageCard>
 
-        <UPageCard title="创建题目" icon="i-lucide-flag">
+        <UPageCard id="create-challenge" title="创建题目" icon="i-lucide-flag">
           <UForm :state="challengeForm" class="space-y-4" @submit="createChallenge">
             <UFormField label="题目名称" name="title">
               <UInput v-model="challengeForm.title" class="w-full" placeholder="例如：Easy XSS" />
@@ -1398,7 +1496,7 @@ onMounted(async () => {
       </div>
 
       <div class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <UPageCard title="比赛挂题" icon="i-lucide-link">
+        <UPageCard id="attach-challenge" title="比赛挂题" icon="i-lucide-link">
           <UForm :state="attachForm" class="space-y-4" @submit="attachChallengeToGame">
             <UFormField label="选择比赛" name="game_id">
               <USelect
