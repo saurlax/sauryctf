@@ -137,6 +137,13 @@ func (h *Handler) DeleteGame(c *gin.Context, id int) {
 	}
 	h.games.DeleteGame(c, id)
 }
+func (h *Handler) ExportGamePackage(c *gin.Context, id int) {
+	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
+	if c.IsAborted() {
+		return
+	}
+	h.games.ExportGamePackage(c, id)
+}
 func (h *Handler) GetGameChallenges(c *gin.Context, id int) {
 	h.games.GetGameChallenges(c, id)
 }

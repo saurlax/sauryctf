@@ -1,6 +1,9 @@
 package games
 
 import (
+	"archive/zip"
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -10,23 +13,23 @@ import (
 )
 
 type MockService struct {
-	mu             sync.Mutex
-	Games          map[uint]*GameResponse
-	GameChs        map[string]bool                       // "gameID-challengeID"
+	mu               sync.Mutex
+	Games            map[uint]*GameResponse
+	GameChs          map[string]bool // "gameID-challengeID"
 	ChallengesByGame map[uint][]GameChallengeDetail
-	Participations map[string]models.ParticipationStatus // "gameID-teamID"
-	UserTeams      map[uint]*GameParticipationTeam
-	nextID         uint
+	Participations   map[string]models.ParticipationStatus // "gameID-teamID"
+	UserTeams        map[uint]*GameParticipationTeam
+	nextID           uint
 }
 
 func NewMockService() *MockService {
 	return &MockService{
-		Games:          make(map[uint]*GameResponse),
-		GameChs:        make(map[string]bool),
+		Games:            make(map[uint]*GameResponse),
+		GameChs:          make(map[string]bool),
 		ChallengesByGame: make(map[uint][]GameChallengeDetail),
-		Participations: make(map[string]models.ParticipationStatus),
-		UserTeams:      make(map[uint]*GameParticipationTeam),
-		nextID:         1,
+		Participations:   make(map[string]models.ParticipationStatus),
+		UserTeams:        make(map[uint]*GameParticipationTeam),
+		nextID:           1,
 	}
 }
 
@@ -43,19 +46,19 @@ func (m *MockService) CreateGame(req CreateGameRequest, createdBy uint) (*GameRe
 		isPublic = *req.IsPublic
 	}
 	game := &GameResponse{
-		ID:               m.nextID,
-		Name:             req.Name,
-		Description:      req.Description,
-		Notice:           req.Notice,
-		StartTime:        req.StartTime,
-		EndTime:          req.EndTime,
+		ID:                 m.nextID,
+		Name:               req.Name,
+		Description:        req.Description,
+		Notice:             req.Notice,
+		StartTime:          req.StartTime,
+		EndTime:            req.EndTime,
 		ScoreboardFreezeAt: req.ScoreboardFreezeAt,
-		Status:           "draft",
-		RegistrationMode: RegistrationModeReview,
-		MaxTeamMembers:   req.MaxTeamMembers,
-		IsPublic:         isPublic,
-		CreatedBy:        createdBy,
-		CreatedAt:        time.Now(),
+		Status:             "draft",
+		RegistrationMode:   RegistrationModeReview,
+		MaxTeamMembers:     req.MaxTeamMembers,
+		IsPublic:           isPublic,
+		CreatedBy:          createdBy,
+		CreatedAt:          time.Now(),
 	}
 	if req.RegistrationMode != "" {
 		game.RegistrationMode = req.RegistrationMode
@@ -174,6 +177,53 @@ func (m *MockService) DeleteGame(id uint) error {
 		}
 	}
 	return nil
+}
+
+func (m *MockService) ExportGamePackage(id uint) ([]byte, string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	game, ok := m.Games[id]
+	if !ok {
+		return nil, "", fmt.Errorf("game not found")
+	}
+
+	payload, err := json.Marshal(ExportGamePackage{
+		Version:     "sauryctf.export.v1",
+		GeneratedAt: time.Now(),
+		Game: ExportGameMetadata{
+			ID:                 game.ID,
+			Name:               game.Name,
+			Description:        game.Description,
+			Notice:             game.Notice,
+			StartTime:          game.StartTime,
+			EndTime:            game.EndTime,
+			ScoreboardFreezeAt: game.ScoreboardFreezeAt,
+			Status:             game.Status,
+			RegistrationMode:   game.RegistrationMode,
+			MaxTeamMembers:     game.MaxTeamMembers,
+			IsPublic:           game.IsPublic,
+		},
+		Challenges: m.exportChallenges(id),
+	})
+	if err != nil {
+		return nil, "", err
+	}
+
+	var archive bytes.Buffer
+	writer := zip.NewWriter(&archive)
+	file, err := writer.Create("game.json")
+	if err != nil {
+		return nil, "", err
+	}
+	if _, err := file.Write(payload); err != nil {
+		return nil, "", err
+	}
+	if err := writer.Close(); err != nil {
+		return nil, "", err
+	}
+
+	return archive.Bytes(), fmt.Sprintf("game-%d-%s-export.zip", game.ID, sanitizeExportName(game.Name)), nil
 }
 
 func (m *MockService) AddChallenge(gameID uint, challengeID uint, scoreOverride int) error {
@@ -375,4 +425,24 @@ func (m *MockService) RemoveParticipation(gameID uint, teamID uint) error {
 
 	delete(m.Participations, key)
 	return nil
+}
+
+func (m *MockService) exportChallenges(gameID uint) []ExportedGameChallenge {
+	items := m.ChallengesByGame[gameID]
+	result := make([]ExportedGameChallenge, 0, len(items))
+	for _, item := range items {
+		result = append(result, ExportedGameChallenge{
+			ID:          item.ID,
+			Title:       item.Title,
+			Description: item.Description,
+			Category:    item.Category,
+			Type:        item.Type,
+			Difficulty:  item.Difficulty,
+			Hints:       item.Hints,
+			Attachments: item.Attachments,
+			BaseScore:   item.Score,
+			IsVisible:   true,
+		})
+	}
+	return result
 }

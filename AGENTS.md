@@ -155,6 +155,13 @@ internal/<module>/
 - Admins can now delete a contest directly from the management page:
   - this removes the game itself plus its participations, solves, and mounted challenge relations
   - original challenge records stay in the challenge library for reuse
+- Admins can now export a contest package from the management page:
+  - endpoint: `POST /api/admin/games/:id/export`
+  - response: ZIP download containing `game.json`
+  - current export scope:
+    - game metadata
+    - mounted challenges with full statement, hints, attachments, flag, scoring, visibility, and score override
+  - current export keeps attachment URLs in JSON and does not yet bundle attachment binaries
 - Challenge content delivery is now expected to use:
   - `description` for the main statement
   - `hints` as a JSON string array

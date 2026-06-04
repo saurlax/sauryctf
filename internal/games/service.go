@@ -1,7 +1,13 @@
 package games
 
 import (
+	"archive/zip"
+	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -74,16 +80,16 @@ func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameRespon
 	}
 
 	game := &models.Game{
-		Name:             req.Name,
-		Description:      req.Description,
-		Notice:           req.Notice,
-		StartTime:        req.StartTime,
-		EndTime:          req.EndTime,
+		Name:               req.Name,
+		Description:        req.Description,
+		Notice:             req.Notice,
+		StartTime:          req.StartTime,
+		EndTime:            req.EndTime,
 		ScoreboardFreezeAt: req.ScoreboardFreezeAt,
-		Status:           "draft",
-		RegistrationMode: registrationMode,
-		MaxTeamMembers:   maxTeamMembers,
-		CreatedBy:        createdBy,
+		Status:             "draft",
+		RegistrationMode:   registrationMode,
+		MaxTeamMembers:     maxTeamMembers,
+		CreatedBy:          createdBy,
 	}
 	if req.IsPublic != nil {
 		game.IsPublic = *req.IsPublic
@@ -241,6 +247,142 @@ func (s *Service) DeleteGame(id uint) error {
 		}
 		return nil
 	})
+}
+
+func (s *Service) ExportGamePackage(id uint) ([]byte, string, error) {
+	var game models.Game
+	if err := s.db.First(&game, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, "", errors.New("game not found")
+		}
+		return nil, "", err
+	}
+
+	type exportRow struct {
+		ID            uint
+		Title         string
+		Description   string
+		Category      string
+		Type          string
+		Difficulty    string
+		Flag          string
+		FlagFormat    string
+		Hints         string
+		Attachments   string
+		ContainerSpec string
+		BaseScore     int
+		MinScore      int
+		DecayRate     float64
+		MaxAttempts   int
+		IsVisible     bool
+		ScoreOverride int
+	}
+
+	var rows []exportRow
+	if err := s.db.Table("game_challenges").
+		Select(`
+			challenges.id,
+			challenges.title,
+			challenges.description,
+			challenges.category,
+			challenges.type,
+			challenges.difficulty,
+			challenges.flag,
+			challenges.flag_format,
+			challenges.hints,
+			challenges.attachments,
+			challenges.container_spec,
+			challenges.base_score,
+			challenges.min_score,
+			challenges.decay_rate,
+			challenges.max_attempts,
+			challenges.is_visible,
+			game_challenges.score_override
+		`).
+		Joins("JOIN challenges ON challenges.id = game_challenges.challenge_id").
+		Where("game_challenges.game_id = ?", id).
+		Order("game_challenges.challenge_id ASC").
+		Scan(&rows).Error; err != nil {
+		return nil, "", err
+	}
+
+	pkg := ExportGamePackage{
+		Version:     "sauryctf.export.v1",
+		GeneratedAt: time.Now().UTC(),
+		Game: ExportGameMetadata{
+			ID:                 game.ID,
+			Name:               game.Name,
+			Description:        game.Description,
+			Notice:             game.Notice,
+			StartTime:          game.StartTime,
+			EndTime:            game.EndTime,
+			ScoreboardFreezeAt: game.ScoreboardFreezeAt,
+			Status:             effectiveGameStatus(&game),
+			RegistrationMode:   game.RegistrationMode,
+			MaxTeamMembers:     game.MaxTeamMembers,
+			IsPublic:           game.IsPublic,
+		},
+		Challenges: make([]ExportedGameChallenge, 0, len(rows)),
+	}
+
+	for _, row := range rows {
+		pkg.Challenges = append(pkg.Challenges, ExportedGameChallenge{
+			ID:            row.ID,
+			Title:         row.Title,
+			Description:   row.Description,
+			Category:      row.Category,
+			Type:          row.Type,
+			Difficulty:    row.Difficulty,
+			Flag:          row.Flag,
+			FlagFormat:    row.FlagFormat,
+			Hints:         row.Hints,
+			Attachments:   row.Attachments,
+			ContainerSpec: row.ContainerSpec,
+			BaseScore:     row.BaseScore,
+			MinScore:      row.MinScore,
+			DecayRate:     row.DecayRate,
+			MaxAttempts:   row.MaxAttempts,
+			IsVisible:     row.IsVisible,
+			ScoreOverride: row.ScoreOverride,
+		})
+	}
+
+	payload, err := json.MarshalIndent(pkg, "", "  ")
+	if err != nil {
+		return nil, "", err
+	}
+
+	var archive bytes.Buffer
+	writer := zip.NewWriter(&archive)
+
+	gameFile, err := writer.Create("game.json")
+	if err != nil {
+		return nil, "", err
+	}
+	if _, err := gameFile.Write(payload); err != nil {
+		return nil, "", err
+	}
+	if err := writer.Close(); err != nil {
+		return nil, "", err
+	}
+
+	filename := fmt.Sprintf("game-%d-%s-export.zip", game.ID, sanitizeExportName(game.Name))
+	return archive.Bytes(), filename, nil
+}
+
+var (
+	exportNameSanitizer = regexp.MustCompile(`[^a-z0-9\-]+`)
+	exportNameSpaces    = regexp.MustCompile(`\s+`)
+)
+
+func sanitizeExportName(name string) string {
+	normalized := exportNameSpaces.ReplaceAllString(strings.ToLower(name), "-")
+	normalized = exportNameSanitizer.ReplaceAllString(normalized, "-")
+	normalized = strings.Trim(normalized, "-")
+	if normalized == "" {
+		return "game"
+	}
+	return normalized
 }
 
 func (s *Service) AddChallenge(gameID uint, challengeID uint, scoreOverride int) error {
@@ -872,18 +1014,18 @@ func (s *Service) RemoveParticipation(gameID uint, teamID uint) error {
 
 func toResponse(g *models.Game) *GameResponse {
 	return &GameResponse{
-		ID:               g.ID,
-		Name:             g.Name,
-		Description:      g.Description,
-		Notice:           g.Notice,
-		StartTime:        g.StartTime,
-		EndTime:          g.EndTime,
+		ID:                 g.ID,
+		Name:               g.Name,
+		Description:        g.Description,
+		Notice:             g.Notice,
+		StartTime:          g.StartTime,
+		EndTime:            g.EndTime,
 		ScoreboardFreezeAt: g.ScoreboardFreezeAt,
-		Status:           effectiveGameStatus(g),
-		RegistrationMode: g.RegistrationMode,
-		MaxTeamMembers:   g.MaxTeamMembers,
-		IsPublic:         g.IsPublic,
-		CreatedBy:        g.CreatedBy,
-		CreatedAt:        g.CreatedAt,
+		Status:             effectiveGameStatus(g),
+		RegistrationMode:   g.RegistrationMode,
+		MaxTeamMembers:     g.MaxTeamMembers,
+		IsPublic:           g.IsPublic,
+		CreatedBy:          g.CreatedBy,
+		CreatedAt:          g.CreatedAt,
 	}
 }

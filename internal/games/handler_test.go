@@ -1,9 +1,11 @@
 package games_test
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -45,6 +47,11 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 		var id int
 		fmt.Sscan(c.Param("id"), &id)
 		h.DeleteGame(c, id)
+	})
+	api.POST("/admin/games/:id/export", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.ExportGamePackage(c, id)
 	})
 	api.GET("/games/:id/challenges", func(c *gin.Context) {
 		var id int
@@ -319,11 +326,11 @@ func TestUpdateGame_ClearScoreboardFreeze_Success(t *testing.T) {
 	public := true
 	freezeAt := time.Now().Add(time.Hour)
 	svc.CreateGame(games.CreateGameRequest{
-		Name:              "Game",
-		StartTime:         time.Now(),
-		EndTime:           time.Now().Add(time.Hour),
+		Name:               "Game",
+		StartTime:          time.Now(),
+		EndTime:            time.Now().Add(time.Hour),
 		ScoreboardFreezeAt: &freezeAt,
-		IsPublic:          &public,
+		IsPublic:           &public,
 	}, 1)
 
 	body := map[string]any{"scoreboard_freeze_at": nil}
@@ -363,6 +370,62 @@ func TestDeleteGame_Success(t *testing.T) {
 	req2, _ := http.NewRequest("GET", "/api/games/1?all=true", nil)
 	r.ServeHTTP(w2, req2)
 	assert.Equal(t, http.StatusNotFound, w2.Code)
+}
+
+func TestExportGamePackage_Success(t *testing.T) {
+	svc := games.NewMockService()
+	svc.ChallengesByGame = map[uint][]games.GameChallengeDetail{
+		1: {
+			{
+				ID:          11,
+				Title:       "Exported Challenge",
+				Description: "full statement",
+				Category:    "web",
+				Type:        "static",
+				Difficulty:  "easy",
+				Hints:       "[\"hint\"]",
+				Attachments: "[\"https://example.com/web.zip\"]",
+				Score:       100,
+			},
+		},
+	}
+	r := setupTestRouter(svc)
+
+	public := true
+	svc.CreateGame(games.CreateGameRequest{
+		Name:      "Winter CTF 2026",
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(time.Hour),
+		IsPublic:  &public,
+	}, 1)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/admin/games/1/export", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/zip", w.Header().Get("Content-Type"))
+	assert.Contains(t, w.Header().Get("Content-Disposition"), "attachment; filename=\"game-1-winter-ctf-2026-export.zip\"")
+
+	reader, err := zip.NewReader(bytes.NewReader(w.Body.Bytes()), int64(w.Body.Len()))
+	assert.NoError(t, err)
+	if err != nil {
+		return
+	}
+	assert.Len(t, reader.File, 1)
+	assert.Equal(t, "game.json", reader.File[0].Name)
+
+	file, err := reader.File[0].Open()
+	assert.NoError(t, err)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(file)
+	assert.NoError(t, err)
+	assert.Contains(t, string(data), "\"name\":\"Winter CTF 2026\"")
+	assert.Contains(t, string(data), "\"title\":\"Exported Challenge\"")
 }
 
 func TestAddChallenge_Success(t *testing.T) {

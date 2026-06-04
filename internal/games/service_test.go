@@ -1,6 +1,9 @@
 package games_test
 
 import (
+	"archive/zip"
+	"bytes"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -81,13 +84,13 @@ func TestService_CreateGame(t *testing.T) {
 
 	public := true
 	game, err := svc.CreateGame(games.CreateGameRequest{
-		Name:        "Test CTF",
-		Description: "desc",
-		Notice:      "notice",
-		StartTime:   time.Now().Add(24 * time.Hour),
-		EndTime:     time.Now().Add(48 * time.Hour),
+		Name:           "Test CTF",
+		Description:    "desc",
+		Notice:         "notice",
+		StartTime:      time.Now().Add(24 * time.Hour),
+		EndTime:        time.Now().Add(48 * time.Hour),
 		MaxTeamMembers: 5,
-		IsPublic:    &public,
+		IsPublic:       &public,
 	}, 1)
 	assert.NoError(t, err)
 	assert.Equal(t, "Test CTF", game.Name)
@@ -280,12 +283,12 @@ func TestService_UpdateGame(t *testing.T) {
 	newMaxTeamMembers := 3
 	freezeAt := time.Now().Add(30 * time.Minute)
 	updated, err := svc.UpdateGame(game.ID, games.UpdateGameRequest{
-		Name:             &newName,
-		Notice:           &newNotice,
+		Name:               &newName,
+		Notice:             &newNotice,
 		ScoreboardFreezeAt: &freezeAt,
-		Status:           &newStatus,
-		RegistrationMode: &newRegistrationMode,
-		MaxTeamMembers:   &newMaxTeamMembers,
+		Status:             &newStatus,
+		RegistrationMode:   &newRegistrationMode,
+		MaxTeamMembers:     &newMaxTeamMembers,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, "Updated", updated.Name)
@@ -369,6 +372,58 @@ func TestService_DeleteGame_RemovesGameScopedRelationsOnly(t *testing.T) {
 	var challengeCount int64
 	require.NoError(t, database.Model(&models.Challenge{}).Where("id = ?", challengeID).Count(&challengeCount).Error)
 	assert.EqualValues(t, 1, challengeCount)
+}
+
+func TestService_ExportGamePackage_IncludesGameAndMountedChallenges(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, _, _ := createGameChallengeFixture(t, database)
+
+	require.NoError(t, database.Model(&models.Challenge{}).Where("id = ?", challengeID).Updates(map[string]any{
+		"description":    "fixture statement",
+		"hints":          "[\"hint-1\"]",
+		"attachments":    "[\"https://example.com/fixture.zip\"]",
+		"flag_format":    "flag{...}",
+		"container_spec": "{\"image\":\"busybox\"}",
+		"max_attempts":   5,
+	}).Error)
+	require.NoError(t, database.Model(&models.GameChallenge{}).
+		Where("game_id = ? AND challenge_id = ?", gameID, challengeID).
+		Update("score_override", 250).Error)
+
+	archiveBytes, filename, err := svc.ExportGamePackage(gameID)
+	require.NoError(t, err)
+	assert.Contains(t, filename, "game-")
+	assert.Contains(t, filename, "-export.zip")
+
+	reader, err := zip.NewReader(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	require.NoError(t, err)
+	require.Len(t, reader.File, 1)
+	assert.Equal(t, "game.json", reader.File[0].Name)
+
+	fileReader, err := reader.File[0].Open()
+	require.NoError(t, err)
+	defer fileReader.Close()
+
+	var pkg games.ExportGamePackage
+	require.NoError(t, json.NewDecoder(fileReader).Decode(&pkg))
+	assert.Equal(t, "sauryctf.export.v1", pkg.Version)
+	assert.Equal(t, gameID, pkg.Game.ID)
+	assert.Equal(t, "Fixture Game", pkg.Game.Name)
+	require.Len(t, pkg.Challenges, 1)
+	assert.Equal(t, challengeID, pkg.Challenges[0].ID)
+	assert.Equal(t, "fixture statement", pkg.Challenges[0].Description)
+	assert.Equal(t, "[\"hint-1\"]", pkg.Challenges[0].Hints)
+	assert.Equal(t, "[\"https://example.com/fixture.zip\"]", pkg.Challenges[0].Attachments)
+	assert.Equal(t, "flag{fixture}", pkg.Challenges[0].Flag)
+	assert.Equal(t, "flag{...}", pkg.Challenges[0].FlagFormat)
+	assert.Equal(t, "{\"image\":\"busybox\"}", pkg.Challenges[0].ContainerSpec)
+	assert.Equal(t, 5, pkg.Challenges[0].MaxAttempts)
+	assert.Equal(t, 250, pkg.Challenges[0].ScoreOverride)
 }
 
 func TestService_AddChallenge(t *testing.T) {

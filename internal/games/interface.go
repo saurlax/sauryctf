@@ -14,6 +14,7 @@ type ServiceInterface interface {
 	ListGames(showAll bool) ([]GameResponse, error)
 	UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, error)
 	DeleteGame(id uint) error
+	ExportGamePackage(id uint) ([]byte, string, error)
 	AddChallenge(gameID uint, challengeID uint, scoreOverride int) error
 	RemoveChallenge(gameID uint, challengeID uint) error
 	// Participation
@@ -35,45 +36,45 @@ type ServiceInterface interface {
 }
 
 type CreateGameRequest struct {
-	Name             string    `json:"name" binding:"required"`
-	Description      string    `json:"description"`
-	Notice           string    `json:"notice"`
-	StartTime        time.Time `json:"start_time" binding:"required"`
-	EndTime          time.Time `json:"end_time" binding:"required"`
+	Name               string     `json:"name" binding:"required"`
+	Description        string     `json:"description"`
+	Notice             string     `json:"notice"`
+	StartTime          time.Time  `json:"start_time" binding:"required"`
+	EndTime            time.Time  `json:"end_time" binding:"required"`
 	ScoreboardFreezeAt *time.Time `json:"scoreboard_freeze_at"`
-	RegistrationMode string    `json:"registration_mode"`
-	MaxTeamMembers   int       `json:"max_team_members"`
-	IsPublic         *bool     `json:"is_public"`
+	RegistrationMode   string     `json:"registration_mode"`
+	MaxTeamMembers     int        `json:"max_team_members"`
+	IsPublic           *bool      `json:"is_public"`
 }
 
 type UpdateGameRequest struct {
-	Name             *string    `json:"name"`
-	Description      *string    `json:"description"`
-	Notice           *string    `json:"notice"`
-	StartTime        *time.Time `json:"start_time"`
-	EndTime          *time.Time `json:"end_time"`
-	ClearScoreboardFreeze bool  `json:"-"`
-	ScoreboardFreezeAt *time.Time `json:"scoreboard_freeze_at"`
-	Status           *string    `json:"status"`
-	RegistrationMode *string    `json:"registration_mode"`
-	MaxTeamMembers   *int       `json:"max_team_members"`
-	IsPublic         *bool      `json:"is_public"`
+	Name                  *string    `json:"name"`
+	Description           *string    `json:"description"`
+	Notice                *string    `json:"notice"`
+	StartTime             *time.Time `json:"start_time"`
+	EndTime               *time.Time `json:"end_time"`
+	ClearScoreboardFreeze bool       `json:"-"`
+	ScoreboardFreezeAt    *time.Time `json:"scoreboard_freeze_at"`
+	Status                *string    `json:"status"`
+	RegistrationMode      *string    `json:"registration_mode"`
+	MaxTeamMembers        *int       `json:"max_team_members"`
+	IsPublic              *bool      `json:"is_public"`
 }
 
 type GameResponse struct {
-	ID               uint      `json:"id"`
-	Name             string    `json:"name"`
-	Description      string    `json:"description"`
-	Notice           string    `json:"notice"`
-	StartTime        time.Time `json:"start_time"`
-	EndTime          time.Time `json:"end_time"`
+	ID                 uint       `json:"id"`
+	Name               string     `json:"name"`
+	Description        string     `json:"description"`
+	Notice             string     `json:"notice"`
+	StartTime          time.Time  `json:"start_time"`
+	EndTime            time.Time  `json:"end_time"`
 	ScoreboardFreezeAt *time.Time `json:"scoreboard_freeze_at"`
-	Status           string    `json:"status"`
-	RegistrationMode string    `json:"registration_mode"`
-	MaxTeamMembers   int       `json:"max_team_members"`
-	IsPublic         bool      `json:"is_public"`
-	CreatedBy        uint      `json:"created_by"`
-	CreatedAt        time.Time `json:"created_at"`
+	Status             string     `json:"status"`
+	RegistrationMode   string     `json:"registration_mode"`
+	MaxTeamMembers     int        `json:"max_team_members"`
+	IsPublic           bool       `json:"is_public"`
+	CreatedBy          uint       `json:"created_by"`
+	CreatedAt          time.Time  `json:"created_at"`
 }
 
 type ChallengeInGame struct {
@@ -125,11 +126,11 @@ type ScoreboardChallengeStat struct {
 }
 
 type ScoreboardResponse struct {
-	GameID            uint                      `json:"game_id"`
-	IsFrozen          bool                      `json:"is_frozen"`
-	FreezeTime        *time.Time                `json:"freeze_time,omitempty"`
-	Entries           []ScoreboardEntry         `json:"entries"`
-	Challenges        []ScoreboardChallengeStat `json:"challenges"`
+	GameID     uint                      `json:"game_id"`
+	IsFrozen   bool                      `json:"is_frozen"`
+	FreezeTime *time.Time                `json:"freeze_time,omitempty"`
+	Entries    []ScoreboardEntry         `json:"entries"`
+	Challenges []ScoreboardChallengeStat `json:"challenges"`
 }
 
 type GameParticipantEntry struct {
@@ -151,4 +152,45 @@ type GameParticipationResponse struct {
 	Participated bool                   `json:"participated"`
 	Status       string                 `json:"status,omitempty"`
 	Team         *GameParticipationTeam `json:"team,omitempty"`
+}
+
+type ExportGamePackage struct {
+	Version     string                  `json:"version"`
+	GeneratedAt time.Time               `json:"generated_at"`
+	Game        ExportGameMetadata      `json:"game"`
+	Challenges  []ExportedGameChallenge `json:"challenges"`
+}
+
+type ExportGameMetadata struct {
+	ID                 uint       `json:"id"`
+	Name               string     `json:"name"`
+	Description        string     `json:"description"`
+	Notice             string     `json:"notice"`
+	StartTime          time.Time  `json:"start_time"`
+	EndTime            time.Time  `json:"end_time"`
+	ScoreboardFreezeAt *time.Time `json:"scoreboard_freeze_at,omitempty"`
+	Status             string     `json:"status"`
+	RegistrationMode   string     `json:"registration_mode"`
+	MaxTeamMembers     int        `json:"max_team_members"`
+	IsPublic           bool       `json:"is_public"`
+}
+
+type ExportedGameChallenge struct {
+	ID            uint    `json:"id"`
+	Title         string  `json:"title"`
+	Description   string  `json:"description"`
+	Category      string  `json:"category"`
+	Type          string  `json:"type"`
+	Difficulty    string  `json:"difficulty"`
+	Flag          string  `json:"flag"`
+	FlagFormat    string  `json:"flag_format"`
+	Hints         string  `json:"hints"`
+	Attachments   string  `json:"attachments"`
+	ContainerSpec string  `json:"container_spec"`
+	BaseScore     int     `json:"base_score"`
+	MinScore      int     `json:"min_score"`
+	DecayRate     float64 `json:"decay_rate"`
+	MaxAttempts   int     `json:"max_attempts"`
+	IsVisible     bool    `json:"is_visible"`
+	ScoreOverride int     `json:"score_override"`
 }

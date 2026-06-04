@@ -88,6 +88,7 @@ const updatingParticipantId = ref<number | null>(null)
 const removingParticipantId = ref<number | null>(null)
 const removingChallengeId = ref<number | null>(null)
 const deletingGameId = ref<number | null>(null)
+const exportingGameId = ref<number | null>(null)
 const deletingChallengeId = ref<number | null>(null)
 const games = ref<Array<{
   id: number
@@ -611,6 +612,37 @@ async function deleteGame(gameId: number) {
   }
   finally {
     deletingGameId.value = null
+  }
+}
+
+async function exportGame(gameId: number) {
+  exportingGameId.value = gameId
+  try {
+    const response = await $fetch.raw(`/api/admin/games/${gameId}/export`, {
+      method: 'POST',
+      responseType: 'blob',
+    })
+
+    const blob = response._data as Blob
+    const contentDisposition = response.headers.get('content-disposition') || ''
+    const match = contentDisposition.match(/filename="([^"]+)"/)
+    const filename = match?.[1] || `game-${gameId}-export.zip`
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+
+    toast.add({ title: '比赛导出成功', description: `已下载 ${filename}`, color: 'success' })
+  }
+  catch (e: any) {
+    toast.add({ title: '比赛导出失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    exportingGameId.value = null
   }
 }
 
@@ -1287,6 +1319,15 @@ onMounted(async () => {
                       :to="`/games/${game.id}`"
                     >
                       打开
+                    </UButton>
+                    <UButton
+                      size="sm"
+                      variant="ghost"
+                      icon="i-lucide-download"
+                      :loading="exportingGameId === game.id"
+                      @click="exportGame(game.id)"
+                    >
+                      导出
                     </UButton>
                     <UButton
                       color="error"
