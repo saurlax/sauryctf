@@ -834,6 +834,41 @@ func TestService_GetAdminDashboardSummary(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	wrongAt := time.Now().Add(-2 * time.Minute).UTC().Truncate(time.Second)
+	acceptedAt := time.Now().Add(-time.Minute).UTC().Truncate(time.Second)
+	require.NoError(t, database.Create(&models.GameSubmission{
+		GameID:        gameID,
+		ChallengeID:   1,
+		UserID:        1,
+		TeamID:        team1ID,
+		SubmittedFlag: "flag{shared-wrong}",
+		Result:        models.GameSubmissionWrongFlag,
+		Message:       "wrong flag",
+		SubmittedAt:   wrongAt,
+	}).Error)
+	require.NoError(t, database.Create(&models.GameSubmission{
+		GameID:        gameID,
+		ChallengeID:   1,
+		UserID:        2,
+		TeamID:        2,
+		SubmittedFlag: "flag{shared-wrong}",
+		Result:        models.GameSubmissionWrongFlag,
+		Message:       "wrong flag",
+		SubmittedAt:   wrongAt.Add(30 * time.Second),
+	}).Error)
+	require.NoError(t, database.Create(&models.GameSubmission{
+		GameID:        gameID,
+		ChallengeID:   1,
+		UserID:        1,
+		TeamID:        team1ID,
+		SubmittedFlag: "flag{fixture}",
+		Result:        models.GameSubmissionAccepted,
+		Message:       "correct",
+		IsCorrect:     true,
+		Score:         100,
+		SubmittedAt:   acceptedAt,
+	}).Error)
+
 	summary, err := svc.GetAdminDashboardSummary(5)
 	require.NoError(t, err)
 	require.NotNil(t, summary)
@@ -848,6 +883,12 @@ func TestService_GetAdminDashboardSummary(t *testing.T) {
 	require.Len(t, summary.LatestAnnouncements, 1)
 	assert.Equal(t, announcement.ID, summary.LatestAnnouncements[0].ID)
 	assert.Equal(t, "最新公告摘要", summary.LatestAnnouncements[0].Content)
+	require.Len(t, summary.RecentSubmissions, 3)
+	assert.Equal(t, "Fixture Game", summary.RecentSubmissions[0].GameName)
+	assert.Equal(t, "accepted", summary.RecentSubmissions[0].Result)
+	require.Len(t, summary.CheatClues, 1)
+	assert.Equal(t, "flag{shared-wrong}", summary.CheatClues[0].SubmittedFlag)
+	assert.Equal(t, 2, summary.CheatClues[0].TeamCount)
 }
 
 func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {

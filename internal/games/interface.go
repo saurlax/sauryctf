@@ -278,6 +278,8 @@ type AdminDashboardSummaryResponse struct {
 	PendingParticipants []AdminDashboardParticipantEntry  `json:"pending_participants"`
 	PendingWriteups     []AdminDashboardWriteupEntry      `json:"pending_writeups"`
 	LatestAnnouncements []AdminDashboardAnnouncementEntry `json:"latest_announcements"`
+	RecentSubmissions   []AdminDashboardSubmissionEntry   `json:"recent_submissions"`
+	CheatClues          []AdminDashboardCheatClueEntry    `json:"cheat_clues"`
 }
 
 type AdminDashboardGameSummary struct {
@@ -321,6 +323,28 @@ type AdminDashboardAnnouncementEntry struct {
 	Content   string    `json:"content"`
 	CreatedBy uint      `json:"created_by"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type AdminDashboardSubmissionEntry struct {
+	GameID         uint      `json:"game_id"`
+	GameName       string    `json:"game_name"`
+	ChallengeID    uint      `json:"challenge_id"`
+	ChallengeTitle string    `json:"challenge_title"`
+	TeamID         uint      `json:"team_id"`
+	TeamName       string    `json:"team_name"`
+	Result         string    `json:"result"`
+	SubmittedAt    time.Time `json:"submitted_at"`
+}
+
+type AdminDashboardCheatClueEntry struct {
+	GameID          uint      `json:"game_id"`
+	GameName        string    `json:"game_name"`
+	ChallengeID     uint      `json:"challenge_id"`
+	ChallengeTitle  string    `json:"challenge_title"`
+	SubmittedFlag   string    `json:"submitted_flag"`
+	TeamCount       int       `json:"team_count"`
+	SubmissionCount int       `json:"submission_count"`
+	LastSeenAt      time.Time `json:"last_seen_at"`
 }
 
 type ExportGamePackage struct {

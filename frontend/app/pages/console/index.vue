@@ -66,6 +66,28 @@ interface AdminAnnouncementEntry {
   created_at: string
 }
 
+interface AdminSubmissionEntry {
+  game_id: number
+  game_name: string
+  challenge_id: number
+  challenge_title: string
+  team_id: number
+  team_name: string
+  result: 'accepted' | 'wrong_flag' | 'already_solved' | 'rejected'
+  submitted_at: string
+}
+
+interface AdminCheatClueEntry {
+  game_id: number
+  game_name: string
+  challenge_id: number
+  challenge_title: string
+  submitted_flag: string
+  team_count: number
+  submission_count: number
+  last_seen_at: string
+}
+
 interface AdminDashboardSummaryResponse {
   games: Array<{
     id: number
@@ -87,6 +109,8 @@ interface AdminDashboardSummaryResponse {
     game_name: string
   }>
   latest_announcements: AdminAnnouncementEntry[]
+  recent_submissions: AdminSubmissionEntry[]
+  cheat_clues: AdminCheatClueEntry[]
 }
 
 const isAdmin = computed(() => ['admin', 'super_admin'].includes(authState.user?.role || ''))
@@ -100,6 +124,8 @@ const participationMap = ref<Record<number, GameParticipation>>({})
 const adminPendingParticipants = ref<Array<AdminParticipantEntry & { game: GameSummary }>>([])
 const adminPendingWriteups = ref<Array<AdminWriteupEntry & { game: GameSummary }>>([])
 const adminLatestAnnouncements = ref<Array<AdminAnnouncementEntry & { game: GameSummary }>>([])
+const adminRecentSubmissions = ref<Array<AdminSubmissionEntry & { game: GameSummary }>>([])
+const adminCheatClues = ref<Array<AdminCheatClueEntry & { game: GameSummary }>>([])
 
 const activeGames = computed(() => games.value.filter(game => game.status === 'active'))
 const upcomingGames = computed(() => games.value.filter(game => game.status === 'draft'))
@@ -173,6 +199,8 @@ function resetAdminTodoData() {
   adminPendingParticipants.value = []
   adminPendingWriteups.value = []
   adminLatestAnnouncements.value = []
+  adminRecentSubmissions.value = []
+  adminCheatClues.value = []
 }
 
 async function loadAdminTodoData() {
@@ -202,6 +230,14 @@ async function loadAdminTodoData() {
       game: gameById.get(item.game_id) || fallbackGame(item.game_id, item.game_name),
     }))
     adminLatestAnnouncements.value = summary.latest_announcements.map(item => ({
+      ...item,
+      game: gameById.get(item.game_id) || fallbackGame(item.game_id, item.game_name),
+    }))
+    adminRecentSubmissions.value = summary.recent_submissions.map(item => ({
+      ...item,
+      game: gameById.get(item.game_id) || fallbackGame(item.game_id, item.game_name),
+    }))
+    adminCheatClues.value = summary.cheat_clues.map(item => ({
       ...item,
       game: gameById.get(item.game_id) || fallbackGame(item.game_id, item.game_name),
     }))
@@ -267,7 +303,34 @@ const adminTodoCards = computed(() => [
     icon: 'i-lucide-megaphone',
     color: 'success' as const,
   },
+  {
+    label: '最近提交',
+    value: String(adminRecentSubmissions.value.length),
+    hint: '最近 5 场比赛里最新的提交记录',
+    icon: 'i-lucide-activity',
+    color: 'neutral' as const,
+  },
+  {
+    label: '可疑线索',
+    value: String(adminCheatClues.value.length),
+    hint: '多队重复错误 Flag 的轻量线索',
+    icon: 'i-lucide-shield-alert',
+    color: 'error' as const,
+  },
 ])
+
+function getSubmissionResultMeta(result: AdminSubmissionEntry['result']) {
+  if (result === 'accepted') {
+    return { label: '正确', color: 'success' as const }
+  }
+  if (result === 'already_solved') {
+    return { label: '已解过', color: 'info' as const }
+  }
+  if (result === 'rejected') {
+    return { label: '拒绝', color: 'neutral' as const }
+  }
+  return { label: '错误', color: 'warning' as const }
+}
 
 const primaryPendingEntry = computed(() => myGameEntries.value[0] || null)
 
@@ -784,7 +847,7 @@ onMounted(async () => {
               <UIcon name="i-lucide-loader-2" class="animate-spin size-6 text-muted" />
             </div>
             <div v-else class="space-y-4">
-              <UPageGrid :cols="{ default: 1, sm: 3 }">
+              <UPageGrid :cols="{ default: 1, sm: 2, xl: 5 }">
                 <UPageCard
                   v-for="card in adminTodoCards"
                   :key="card.label"
@@ -907,6 +970,81 @@ onMounted(async () => {
                 </div>
                 <div v-else class="text-sm text-muted">
                   最近 5 场比赛还没有发布公告。
+                </div>
+              </div>
+
+              <div class="grid gap-4 xl:grid-cols-2">
+                <div class="rounded-lg border border-default px-3 py-3">
+                  <div class="mb-3 flex items-center justify-between gap-2">
+                    <div class="font-medium">
+                      最近提交
+                    </div>
+                    <UButton size="sm" variant="ghost" icon="i-lucide-activity" to="/console/admin">
+                      去查看
+                    </UButton>
+                  </div>
+                  <div v-if="adminRecentSubmissions.length" class="space-y-2">
+                    <div
+                      v-for="item in adminRecentSubmissions"
+                      :key="`${item.game_id}-${item.team_id}-${item.challenge_id}-${item.submitted_at}`"
+                      class="rounded-md bg-elevated/60 px-3 py-2"
+                    >
+                      <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                          <div class="text-sm font-medium">
+                            {{ item.team_name }} · {{ item.challenge_title }}
+                          </div>
+                          <div class="text-xs text-muted">
+                            {{ item.game.name }} · {{ new Date(item.submitted_at).toLocaleString() }}
+                          </div>
+                        </div>
+                        <UBadge :color="getSubmissionResultMeta(item.result).color" variant="soft">
+                          {{ getSubmissionResultMeta(item.result).label }}
+                        </UBadge>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else class="text-sm text-muted">
+                    最近 5 场比赛当前还没有新的提交记录。
+                  </div>
+                </div>
+
+                <div class="rounded-lg border border-default px-3 py-3">
+                  <div class="mb-3 flex items-center justify-between gap-2">
+                    <div class="font-medium">
+                      可疑提交线索
+                    </div>
+                    <UButton size="sm" variant="ghost" icon="i-lucide-shield-alert" to="/console/admin">
+                      去排查
+                    </UButton>
+                  </div>
+                  <div v-if="adminCheatClues.length" class="space-y-2">
+                    <div
+                      v-for="item in adminCheatClues"
+                      :key="`${item.game_id}-${item.challenge_id}-${item.submitted_flag}`"
+                      class="rounded-md bg-elevated/60 px-3 py-2"
+                    >
+                      <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                          <div class="text-sm font-medium">
+                            {{ item.challenge_title }}
+                          </div>
+                          <div class="text-xs text-muted">
+                            {{ item.game.name }} · {{ item.team_count }} 队重复 · {{ item.submission_count }} 次提交
+                          </div>
+                        </div>
+                        <span class="shrink-0 text-xs text-muted">
+                          {{ new Date(item.last_seen_at).toLocaleString() }}
+                        </span>
+                      </div>
+                      <div class="mt-2 truncate rounded bg-default px-2 py-1 font-mono text-xs text-muted">
+                        {{ item.submitted_flag }}
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else class="text-sm text-muted">
+                    最近 5 场比赛当前没有明显的重复错误 Flag 线索。
+                  </div>
                 </div>
               </div>
             </div>

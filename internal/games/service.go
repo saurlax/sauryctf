@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -286,6 +287,8 @@ func (s *Service) GetAdminDashboardSummary(limit int) (*AdminDashboardSummaryRes
 		PendingParticipants: make([]AdminDashboardParticipantEntry, 0),
 		PendingWriteups:     make([]AdminDashboardWriteupEntry, 0),
 		LatestAnnouncements: make([]AdminDashboardAnnouncementEntry, 0),
+		RecentSubmissions:   make([]AdminDashboardSubmissionEntry, 0),
+		CheatClues:          make([]AdminDashboardCheatClueEntry, 0),
 	}
 	if len(gameModels) == 0 {
 		return resp, nil
@@ -368,6 +371,118 @@ func (s *Service) GetAdminDashboardSummary(limit int) (*AdminDashboardSummaryRes
 			CreatedBy: announcement.CreatedBy,
 			CreatedAt: announcement.CreatedAt,
 		})
+	}
+
+	type recentSubmissionItem struct {
+		GameID         uint
+		GameName       string
+		ChallengeID    uint
+		ChallengeTitle string
+		TeamID         uint
+		TeamName       string
+		Result         string
+		SubmittedAt    time.Time
+	}
+	recentSubmissions := make([]recentSubmissionItem, 0)
+	for _, gameID := range gameIDs {
+		records, err := s.ListSubmissionRecords(gameID, "", limit)
+		if err != nil {
+			return nil, err
+		}
+		for _, record := range records {
+			recentSubmissions = append(recentSubmissions, recentSubmissionItem{
+				GameID:         record.GameID,
+				GameName:       gameNameByID[record.GameID],
+				ChallengeID:    record.ChallengeID,
+				ChallengeTitle: record.ChallengeTitle,
+				TeamID:         record.TeamID,
+				TeamName:       record.TeamName,
+				Result:         record.Result,
+				SubmittedAt:    record.SubmittedAt,
+			})
+		}
+	}
+	if len(recentSubmissions) > 0 {
+		sort.Slice(recentSubmissions, func(i, j int) bool {
+			if recentSubmissions[i].SubmittedAt.Equal(recentSubmissions[j].SubmittedAt) {
+				if recentSubmissions[i].GameID == recentSubmissions[j].GameID {
+					return recentSubmissions[i].ChallengeID > recentSubmissions[j].ChallengeID
+				}
+				return recentSubmissions[i].GameID > recentSubmissions[j].GameID
+			}
+			return recentSubmissions[i].SubmittedAt.After(recentSubmissions[j].SubmittedAt)
+		})
+		if len(recentSubmissions) > limit {
+			recentSubmissions = recentSubmissions[:limit]
+		}
+		for _, item := range recentSubmissions {
+			resp.RecentSubmissions = append(resp.RecentSubmissions, AdminDashboardSubmissionEntry{
+				GameID:         item.GameID,
+				GameName:       item.GameName,
+				ChallengeID:    item.ChallengeID,
+				ChallengeTitle: item.ChallengeTitle,
+				TeamID:         item.TeamID,
+				TeamName:       item.TeamName,
+				Result:         item.Result,
+				SubmittedAt:    item.SubmittedAt,
+			})
+		}
+	}
+
+	type cheatClueItem struct {
+		GameID          uint
+		GameName        string
+		ChallengeID     uint
+		ChallengeTitle  string
+		SubmittedFlag   string
+		TeamCount       int
+		SubmissionCount int
+		LastSeenAt      time.Time
+	}
+	cheatClues := make([]cheatClueItem, 0)
+	for _, gameID := range gameIDs {
+		clues, err := s.ListSubmissionCheatClues(gameID, limit)
+		if err != nil {
+			return nil, err
+		}
+		for _, clue := range clues {
+			cheatClues = append(cheatClues, cheatClueItem{
+				GameID:          gameID,
+				GameName:        gameNameByID[gameID],
+				ChallengeID:     clue.ChallengeID,
+				ChallengeTitle:  clue.ChallengeTitle,
+				SubmittedFlag:   clue.SubmittedFlag,
+				TeamCount:       clue.TeamCount,
+				SubmissionCount: clue.SubmissionCount,
+				LastSeenAt:      clue.LastSeenAt,
+			})
+		}
+	}
+	if len(cheatClues) > 0 {
+		sort.Slice(cheatClues, func(i, j int) bool {
+			if cheatClues[i].TeamCount == cheatClues[j].TeamCount {
+				if cheatClues[i].SubmissionCount == cheatClues[j].SubmissionCount {
+					return cheatClues[i].LastSeenAt.After(cheatClues[j].LastSeenAt)
+				}
+				return cheatClues[i].SubmissionCount > cheatClues[j].SubmissionCount
+			}
+			return cheatClues[i].TeamCount > cheatClues[j].TeamCount
+		})
+		if len(cheatClues) > limit {
+			cheatClues = cheatClues[:limit]
+		}
+		for _, item := range cheatClues {
+			resp.CheatClues = append(resp.CheatClues, AdminDashboardCheatClueEntry{
+				GameID:          item.GameID,
+				GameName:        item.GameName,
+				ChallengeID:     item.ChallengeID,
+				ChallengeTitle:  item.ChallengeTitle,
+				SubmittedFlag:   item.SubmittedFlag,
+				TeamCount:       item.TeamCount,
+				SubmissionCount: item.SubmissionCount,
+				LastSeenAt:      item.LastSeenAt,
+			})
+		}
 	}
 
 	return resp, nil

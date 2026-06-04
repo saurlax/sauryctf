@@ -491,6 +491,8 @@ func (m *MockService) GetAdminDashboardSummary(limit int) (*AdminDashboardSummar
 		PendingParticipants: []AdminDashboardParticipantEntry{},
 		PendingWriteups:     []AdminDashboardWriteupEntry{},
 		LatestAnnouncements: []AdminDashboardAnnouncementEntry{},
+		RecentSubmissions:   []AdminDashboardSubmissionEntry{},
+		CheatClues:          []AdminDashboardCheatClueEntry{},
 	}
 	for _, game := range m.Games {
 		resp.Games = append(resp.Games, AdminDashboardGameSummary{
@@ -507,6 +509,42 @@ func (m *MockService) GetAdminDashboardSummary(limit int) (*AdminDashboardSummar
 	}
 	if len(resp.Games) > limit {
 		resp.Games = resp.Games[:limit]
+	}
+	for gameID, submissions := range m.Submissions {
+		game := m.Games[gameID]
+		for _, submission := range submissions {
+			resp.RecentSubmissions = append(resp.RecentSubmissions, AdminDashboardSubmissionEntry{
+				GameID:         submission.GameID,
+				GameName:       game.Name,
+				ChallengeID:    submission.ChallengeID,
+				ChallengeTitle: submission.ChallengeTitle,
+				TeamID:         submission.TeamID,
+				TeamName:       submission.TeamName,
+				Result:         submission.Result,
+				SubmittedAt:    submission.SubmittedAt,
+			})
+		}
+	}
+	if len(resp.RecentSubmissions) > limit {
+		resp.RecentSubmissions = resp.RecentSubmissions[:limit]
+	}
+	for gameID, clues := range m.CheatClues {
+		game := m.Games[gameID]
+		for _, clue := range clues {
+			resp.CheatClues = append(resp.CheatClues, AdminDashboardCheatClueEntry{
+				GameID:          gameID,
+				GameName:        game.Name,
+				ChallengeID:     clue.ChallengeID,
+				ChallengeTitle:  clue.ChallengeTitle,
+				SubmittedFlag:   clue.SubmittedFlag,
+				TeamCount:       clue.TeamCount,
+				SubmissionCount: clue.SubmissionCount,
+				LastSeenAt:      clue.LastSeenAt,
+			})
+		}
+	}
+	if len(resp.CheatClues) > limit {
+		resp.CheatClues = resp.CheatClues[:limit]
 	}
 	return resp, nil
 }

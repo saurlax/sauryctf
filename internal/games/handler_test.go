@@ -845,6 +845,28 @@ func TestGetAdminDashboardSummary_Success(t *testing.T) {
 		IsPublic:  &public,
 	}, 1)
 	assert.NoError(t, err)
+	svc.Submissions[1] = []games.GameSubmissionRecord{
+		{
+			ID:             1,
+			GameID:         1,
+			ChallengeID:    3,
+			ChallengeTitle: "Web 101",
+			TeamID:         7,
+			TeamName:       "Blue Team",
+			Result:         "accepted",
+			SubmittedAt:    time.Now(),
+		},
+	}
+	svc.CheatClues[1] = []games.GameSubmissionCheatClue{
+		{
+			SubmittedFlag:   "flag{shared}",
+			ChallengeID:     3,
+			ChallengeTitle:  "Web 101",
+			TeamCount:       2,
+			SubmissionCount: 3,
+			LastSeenAt:      time.Now(),
+		},
+	}
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/admin/dashboard/summary", nil)
@@ -853,6 +875,8 @@ func TestGetAdminDashboardSummary_Success(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"games"`)
 	assert.Contains(t, w.Body.String(), `"Summary Game"`)
+	assert.Contains(t, w.Body.String(), `"recent_submissions"`)
+	assert.Contains(t, w.Body.String(), `"cheat_clues"`)
 }
 
 func TestImportGamePackage_Success(t *testing.T) {
