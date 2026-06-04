@@ -2,9 +2,12 @@
 import type { components } from '~/types/api'
 
 type Game = components['schemas']['Game']
+type GameParticipation = components['schemas']['GameParticipation']
 
 const toast = useToast()
+const { authState, fetchUser } = useAuth()
 const games = ref<Game[]>([])
+const participationMap = ref<Record<number, GameParticipation>>({})
 const loading = ref(true)
 
 async function fetchGames() {
@@ -12,6 +15,7 @@ async function fetchGames() {
   try {
     const res = await $api('get', '/api/games')
     games.value = res || []
+    await fetchParticipationStates()
   }
   catch (e: any) {
     toast.add({ title: '获取比赛列表失败', description: e.data?.message || e.message, color: 'error' })
@@ -19,6 +23,29 @@ async function fetchGames() {
   finally {
     loading.value = false
   }
+}
+
+async function fetchParticipationStates() {
+  if (!authState.user || games.value.length === 0) {
+    participationMap.value = {}
+    return
+  }
+
+  const entries = await Promise.all(
+    games.value.map(async (game) => {
+      try {
+        const participation = await $api('get', '/api/games/{id}/participation', {
+          params: { id: game.id },
+        })
+        return [game.id, participation] as const
+      }
+      catch {
+        return [game.id, { has_team: false, participated: false } as GameParticipation] as const
+      }
+    }),
+  )
+
+  participationMap.value = Object.fromEntries(entries)
 }
 
 function getStatusColor(status: string) {
@@ -39,7 +66,65 @@ function getStatusLabel(status: string) {
   }
 }
 
-onMounted(fetchGames)
+function getParticipationMeta(game: Game) {
+  const participation = participationMap.value[game.id]
+
+  if (!authState.user) {
+    return {
+      label: '登录后可查看报名状态',
+      color: 'neutral' as const,
+      description: '先登录，再决定创建队伍或直接进入比赛详情页。',
+      actionLabel: '去登录',
+      actionTo: '/login',
+    }
+  }
+
+  if (!participation?.has_team) {
+    return {
+      label: '未加入队伍',
+      color: 'warning' as const,
+      description: '需要先创建或加入队伍，才能报名比赛并提交 Flag。',
+      actionLabel: '去队伍页',
+      actionTo: '/console/team',
+    }
+  }
+
+  if (participation.participated) {
+    return {
+      label: '已报名',
+      color: 'success' as const,
+      description: `当前队伍 ${participation.team?.name || ''} 已进入该比赛。`,
+      actionLabel: '进入比赛',
+      actionTo: `/games/${game.id}`,
+    }
+  }
+
+  if (game.status === 'ended') {
+    return {
+      label: '比赛已结束',
+      color: 'error' as const,
+      description: '当前无法再报名，但仍可进入查看题目与排行榜。',
+      actionLabel: '查看详情',
+      actionTo: `/games/${game.id}`,
+    }
+  }
+
+  return {
+    label: '可报名',
+    color: 'info' as const,
+    description: `当前队伍 ${participation.team?.name || ''} 尚未报名，可进入详情页完成操作。`,
+    actionLabel: '前往报名',
+    actionTo: `/games/${game.id}`,
+  }
+}
+
+onMounted(async () => {
+  if (!authState.user) {
+    await fetchUser()
+  }
+
+  await fetchGames()
+})
 </script>
 
 <template>
@@ -85,16 +170,35 @@ onMounted(fetchGames)
         <p class="text-sm text-muted line-clamp-2">
           {{ game.description || '暂无描述' }}
         </p>
+        <div class="mt-4 rounded-lg border border-default bg-elevated/50 px-3 py-3">
+          <div class="mb-2 flex items-center justify-between gap-2">
+            <span class="text-sm font-medium">我的参赛状态</span>
+            <UBadge :color="getParticipationMeta(game).color" variant="soft" size="sm">
+              {{ getParticipationMeta(game).label }}
+            </UBadge>
+          </div>
+          <p class="text-xs text-muted leading-5">
+            {{ getParticipationMeta(game).description }}
+          </p>
+        </div>
         <template #footer>
-          <div class="text-xs text-muted space-y-1">
-            <div class="flex items-center gap-1">
-              <UIcon name="i-lucide-clock" class="size-3" />
-              <span>{{ new Date(game.start_time).toLocaleString() }}</span>
+          <div class="space-y-3">
+            <div class="text-xs text-muted space-y-1">
+              <div class="flex items-center gap-1">
+                <UIcon name="i-lucide-clock" class="size-3" />
+                <span>{{ new Date(game.start_time).toLocaleString() }}</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <UIcon name="i-lucide-flag" class="size-3" />
+                <span>{{ new Date(game.end_time).toLocaleString() }}</span>
+              </div>
             </div>
-            <div class="flex items-center gap-1">
-              <UIcon name="i-lucide-flag" class="size-3" />
-              <span>{{ new Date(game.end_time).toLocaleString() }}</span>
-            </div>
+            <UButton
+              :label="getParticipationMeta(game).actionLabel"
+              :to="getParticipationMeta(game).actionTo"
+              variant="outline"
+              block
+            />
           </div>
         </template>
       </UPageCard>
