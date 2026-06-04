@@ -42,10 +42,19 @@ const gameSettingsForm = reactive({
   is_public: true,
 })
 
+const gameEditForm = reactive({
+  game_id: undefined as number | undefined,
+  name: '',
+  description: '',
+  start_time: '',
+  end_time: '',
+})
+
 const gameSubmitting = ref(false)
 const challengeSubmitting = ref(false)
 const attachSubmitting = ref(false)
 const settingsSubmitting = ref(false)
+const gameEditing = ref(false)
 const loadingResources = ref(false)
 const loadingGameChallenges = ref(false)
 const removingChallengeId = ref<number | null>(null)
@@ -112,6 +121,7 @@ const challengeOptions = computed(() => challenges.value.map(challenge => ({
 
 const selectedGame = computed(() => games.value.find(game => game.id === attachForm.game_id) || null)
 const selectedSettingsGame = computed(() => games.value.find(game => game.id === gameSettingsForm.game_id) || null)
+const selectedEditableGame = computed(() => games.value.find(game => game.id === gameEditForm.game_id) || null)
 
 async function loadAdminResources() {
   loadingResources.value = true
@@ -258,6 +268,37 @@ async function updateGameSettings() {
   }
 }
 
+async function updateGameDetails() {
+  if (!gameEditForm.game_id) {
+    toast.add({ title: '请先选择比赛', color: 'warning' })
+    return
+  }
+
+  gameEditing.value = true
+  try {
+    await $api('put', '/api/games/{id}', {
+      params: {
+        id: gameEditForm.game_id,
+      },
+      body: {
+        name: gameEditForm.name,
+        description: gameEditForm.description,
+        start_time: new Date(gameEditForm.start_time).toISOString(),
+        end_time: new Date(gameEditForm.end_time).toISOString(),
+      },
+    })
+
+    toast.add({ title: '比赛信息已更新', color: 'success' })
+    await loadAdminResources()
+  }
+  catch (e: any) {
+    toast.add({ title: '比赛信息更新失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    gameEditing.value = false
+  }
+}
+
 async function attachChallengeToGame() {
   if (!attachForm.game_id || !attachForm.challenge_id) {
     toast.add({ title: '请先选择比赛和题目', color: 'warning' })
@@ -313,6 +354,26 @@ async function removeChallengeFromGame(challengeId: number) {
     removingChallengeId.value = null
   }
 }
+
+watch(() => gameEditForm.game_id, () => {
+  if (!gameEditForm.game_id) {
+    gameEditForm.name = ''
+    gameEditForm.description = ''
+    gameEditForm.start_time = ''
+    gameEditForm.end_time = ''
+    return
+  }
+
+  const game = games.value.find(item => item.id === gameEditForm.game_id)
+  if (!game) {
+    return
+  }
+
+  gameEditForm.name = game.name
+  gameEditForm.description = game.description || ''
+  gameEditForm.start_time = game.start_time.slice(0, 16)
+  gameEditForm.end_time = game.end_time.slice(0, 16)
+})
 
 watch(() => gameSettingsForm.game_id, () => {
   if (!gameSettingsForm.game_id) {
@@ -414,6 +475,47 @@ onMounted(async () => {
           </UForm>
         </UPageCard>
 
+        <UPageCard title="编辑比赛信息" icon="i-lucide-pencil-line">
+          <UForm :state="gameEditForm" class="space-y-4" @submit="updateGameDetails">
+            <UFormField label="选择比赛" name="game_id">
+              <USelect
+                v-model="gameEditForm.game_id"
+                :items="gameOptions"
+                class="w-full"
+                placeholder="选择一个比赛"
+              />
+            </UFormField>
+
+            <UFormField label="比赛名称" name="name">
+              <UInput v-model="gameEditForm.name" class="w-full" placeholder="例如：Spring CTF 2026" />
+            </UFormField>
+
+            <UFormField label="比赛描述" name="description">
+              <UTextarea v-model="gameEditForm.description" class="w-full" :rows="4" placeholder="简要介绍比赛规则或主题" />
+            </UFormField>
+
+            <div class="grid gap-4 md:grid-cols-2">
+              <UFormField label="开始时间" name="start_time">
+                <UInput v-model="gameEditForm.start_time" type="datetime-local" class="w-full" />
+              </UFormField>
+
+              <UFormField label="结束时间" name="end_time">
+                <UInput v-model="gameEditForm.end_time" type="datetime-local" class="w-full" />
+              </UFormField>
+            </div>
+
+            <div v-if="selectedEditableGame" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+              正在编辑：{{ selectedEditableGame.name }} · 当前状态 {{ selectedEditableGame.status }}
+            </div>
+
+            <UButton type="submit" :loading="gameEditing">
+              保存比赛信息
+            </UButton>
+          </UForm>
+        </UPageCard>
+      </div>
+
+      <div class="grid gap-6 xl:grid-cols-2">
         <UPageCard title="比赛设置" icon="i-lucide-sliders-horizontal">
           <UForm :state="gameSettingsForm" class="space-y-4" @submit="updateGameSettings">
             <UFormField label="选择比赛" name="game_id">
@@ -446,9 +548,7 @@ onMounted(async () => {
             </UButton>
           </UForm>
         </UPageCard>
-      </div>
 
-      <div class="grid gap-6 xl:grid-cols-2">
         <UPageCard title="创建题目" icon="i-lucide-flag">
           <UForm :state="challengeForm" class="space-y-4" @submit="createChallenge">
             <UFormField label="题目名称" name="title">
