@@ -152,7 +152,8 @@ internal/<module>/
 - Game lifecycle rules are now enforced by the backend:
   - only `active` games accept registrations
   - only `active` games within `start_time` / `end_time` accept flag submissions
-  - ended games stay browsable, but no longer allow registration or scoring
+  - ended games stay browsable, no longer allow registration, and only allow further submissions when `practice_mode` is enabled
+  - post-contest practice submissions are stored separately and do not affect the official scoreboard, solve times, or blood statistics
   - if an `active` game has already passed `end_time`, read APIs now surface it as `ended` automatically
 - Game challenge content now follows a safer visibility rule:
   - everyone can still see basic challenge metadata such as title, category, score, and solve count

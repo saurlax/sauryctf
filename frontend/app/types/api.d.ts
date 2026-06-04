@@ -279,6 +279,7 @@ export interface components {
     };
     SubmitResult: {
       correct: boolean;
+      is_practice?: boolean;
       score?: number;
       /** @enum {string} */
       blood_type?: "first" | "second" | "third";

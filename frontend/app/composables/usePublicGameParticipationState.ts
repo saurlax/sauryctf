@@ -7,6 +7,7 @@ export type PublicGamePhase = 'draft' | 'before_start' | 'active' | 'ended'
 type PublicParticipationStateInput = {
   gameId: number
   gamePhase: PublicGamePhase
+  practiceMode?: boolean
   isLoggedIn: boolean
   participation: GameParticipation | null | undefined
   registrationMode?: 'review' | 'auto_accept'
@@ -35,7 +36,7 @@ function getPhaseEndedDescription() {
 
 export function usePublicGameParticipationState() {
   function resolveParticipationMeta(input: PublicParticipationStateInput): PublicParticipationMeta {
-    const { gameId, gamePhase, isLoggedIn, participation, registrationMode = 'review' } = input
+    const { gameId, gamePhase, practiceMode = false, isLoggedIn, participation, registrationMode = 'review' } = input
 
     if (!isLoggedIn) {
       return {
@@ -102,7 +103,7 @@ export function usePublicGameParticipationState() {
         label: '已报名',
         color: 'success',
         description: `当前队伍 ${participation.team?.name || ''} 已进入该比赛。`,
-        actionLabel: gamePhase === 'active' ? '进入比赛' : '查看详情',
+        actionLabel: gamePhase === 'active' || (gamePhase === 'ended' && practiceMode) ? '进入比赛' : '查看详情',
         actionTo: `/games/${gameId}`,
       }
     }
@@ -129,7 +130,7 @@ export function usePublicGameParticipationState() {
   }
 
   function resolveParticipationHints(input: PublicParticipationStateInput): PublicParticipationHints {
-    const { gamePhase, isLoggedIn, participation, registrationMode = 'review', maxTeamMembers } = input
+    const { gamePhase, practiceMode = false, isLoggedIn, participation, registrationMode = 'review', maxTeamMembers } = input
 
     if (!isLoggedIn) {
       return {
@@ -225,7 +226,7 @@ export function usePublicGameParticipationState() {
         submitHint: gamePhase === 'before_start'
           ? '比赛尚未开始，当前暂时不能提交 Flag。'
           : gamePhase === 'ended'
-              ? '比赛已结束，当前不能继续提交 Flag。'
+              ? (practiceMode ? '正式比赛已结束，但当前比赛开启了赛后练习模式，你可以继续补题提交。' : '比赛已结束，当前不能继续提交 Flag。')
               : '当前队伍已具备提交资格。',
         visibilityHint: gamePhase === 'before_start'
           ? '当前队伍已通过报名，但比赛尚未开始。为了避免提前泄题，完整题面会在开赛后自动开放。'
@@ -244,7 +245,7 @@ export function usePublicGameParticipationState() {
       submitHint: gamePhase === 'before_start'
         ? '比赛尚未开始，当前暂时不能提交 Flag。'
         : gamePhase === 'ended'
-            ? '比赛已结束，当前不能继续提交 Flag。'
+            ? (practiceMode ? '正式比赛已结束，但当前比赛开启了赛后练习模式，你可以继续补题提交。' : '比赛已结束，当前不能继续提交 Flag。')
             : '当前队伍已具备提交资格。',
       visibilityHint: gamePhase === 'before_start'
         ? '当前队伍已通过报名，但比赛尚未开始。为了避免提前泄题，完整题面会在开赛后自动开放。'

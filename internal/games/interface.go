@@ -128,6 +128,7 @@ type SubmitResult struct {
 	Correct   bool   `json:"correct"`
 	Score     int    `json:"score,omitempty"`
 	BloodType string `json:"blood_type,omitempty"`
+	IsPractice bool  `json:"is_practice,omitempty"`
 	Message   string `json:"message"`
 }
 

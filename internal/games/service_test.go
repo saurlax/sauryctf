@@ -1125,6 +1125,42 @@ func TestService_SubmitFlag_RejectsAfterGameEnd(t *testing.T) {
 	assert.Contains(t, err.Error(), "already ended")
 }
 
+func TestService_SubmitFlag_AllowsPracticeModeAfterGameEndWithoutAffectingScoreboard(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, team1ID, _ := createGameChallengeFixture(t, database)
+
+	require.NoError(t, database.Model(&models.Game{}).Where("id = ?", gameID).Updates(map[string]any{
+		"start_time":    time.Now().Add(-4 * time.Hour),
+		"end_time":      time.Now().Add(-time.Hour),
+		"practice_mode": true,
+	}).Error)
+
+	result, err := svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
+	require.NoError(t, err)
+	assert.True(t, result.Correct)
+	assert.True(t, result.IsPractice)
+	assert.Equal(t, 0, result.Score)
+	assert.Empty(t, result.BloodType)
+	assert.Equal(t, "practice solved", result.Message)
+
+	scoreboard, err := svc.GetScoreboard(gameID, "")
+	require.NoError(t, err)
+	require.Len(t, scoreboard.Entries, 2)
+	assert.Equal(t, 0, scoreboard.Entries[0].Score)
+	assert.Equal(t, 0, scoreboard.Entries[1].Score)
+	require.Len(t, scoreboard.Challenges, 1)
+	assert.Equal(t, 0, scoreboard.Challenges[0].SolvedCount)
+
+	var practiceCount int64
+	require.NoError(t, database.Model(&models.Solve{}).Where("game_id = ? AND is_practice = ?", gameID, true).Count(&practiceCount).Error)
+	assert.EqualValues(t, 1, practiceCount)
+}
+
 func TestService_SubmitFlag_RejectsDraftGame(t *testing.T) {
 	database, err := db.ConnectTest()
 	require.NoError(t, err)

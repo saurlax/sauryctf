@@ -1166,7 +1166,7 @@ func (s *Service) GetGameChallengesForTeam(gameID uint, teamID uint) ([]GameChal
 	}
 
 	var solves []models.Solve
-	if err := s.db.Where("game_id = ? AND team_id = ?", gameID, teamID).Find(&solves).Error; err != nil {
+	if err := s.db.Where("game_id = ? AND team_id = ? AND is_practice = ?", gameID, teamID, false).Find(&solves).Error; err != nil {
 		return nil, err
 	}
 
@@ -1197,8 +1197,13 @@ func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID 
 	if time.Now().Before(game.StartTime) {
 		return nil, errors.New("game has not started yet")
 	}
+	isPractice := false
 	if time.Now().After(game.EndTime) {
-		return nil, errors.New("game has already ended")
+		if game.PracticeMode {
+			isPractice = true
+		} else {
+			return nil, errors.New("game has already ended")
+		}
 	}
 
 	// Verify game exists and team has joined
@@ -1228,24 +1233,29 @@ func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID 
 
 	// Idempotent: already solved?
 	var existing models.Solve
-	err := s.db.Where("challenge_id = ? AND team_id = ? AND game_id = ?", challengeID, teamID, gameID).
+	err := s.db.Where("challenge_id = ? AND team_id = ? AND game_id = ? AND is_practice = ?", challengeID, teamID, gameID, isPractice).
 		First(&existing).Error
 	if err == nil {
-		return &SubmitResult{Correct: true, Score: existing.Score, Message: "already solved"}, nil
+		return &SubmitResult{Correct: true, Score: existing.Score, IsPractice: isPractice, Message: "already solved"}, nil
 	}
 
-	// Count how many teams solved this before us
-	var solvesBefore int64
-	s.db.Model(&models.Solve{}).Where("challenge_id = ? AND game_id = ?", challengeID, gameID).Count(&solvesBefore)
-
-	bloodType := scoring.BloodType(int(solvesBefore))
-	score := scoring.ComputeScore(ch, int(solvesBefore))
+	var (
+		solvesBefore int64
+		bloodType   string
+		score       int
+	)
+	if !isPractice {
+		s.db.Model(&models.Solve{}).Where("challenge_id = ? AND game_id = ? AND is_practice = ?", challengeID, gameID, false).Count(&solvesBefore)
+		bloodType = scoring.BloodType(int(solvesBefore))
+		score = scoring.ComputeScore(ch, int(solvesBefore))
+	}
 
 	solve := &models.Solve{
 		ChallengeID: challengeID,
 		UserID:      userID,
 		TeamID:      teamID,
 		GameID:      gameID,
+		IsPractice:  isPractice,
 		Score:       score,
 		BloodType:   bloodType,
 		SolvedAt:    time.Now(),
@@ -1254,7 +1264,12 @@ func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID 
 		return nil, err
 	}
 
-	return &SubmitResult{Correct: true, Score: score, BloodType: bloodType, Message: "correct"}, nil
+	message := "correct"
+	if isPractice {
+		message = "practice solved"
+	}
+
+	return &SubmitResult{Correct: true, Score: score, BloodType: bloodType, IsPractice: isPractice, Message: message}, nil
 }
 
 // GetScoreboard aggregates solve data into a ranked scoreboard.
@@ -1309,7 +1324,7 @@ func (s *Service) GetScoreboard(gameID uint, division string) (*ScoreboardRespon
 		Select("solves.team_id, teams.name as team_name, solves.score, solves.solved_at").
 		Joins("JOIN teams ON teams.id = solves.team_id").
 		Joins("JOIN participations ON participations.team_id = solves.team_id AND participations.game_id = solves.game_id").
-		Where("solves.game_id = ? AND participations.status = ?", gameID, models.ParticipationAccepted).
+		Where("solves.game_id = ? AND solves.is_practice = ? AND participations.status = ?", gameID, false, models.ParticipationAccepted).
 		Where("(? = '' OR participations.division = ?)", normalizedDivision, normalizedDivision)
 
 	isFrozen := false
@@ -1400,7 +1415,7 @@ func (s *Service) GetScoreboard(gameID uint, division string) (*ScoreboardRespon
 			COALESCE(MAX(CASE WHEN solves.blood_type = 'third' THEN teams.name END), '') as third_blood_team
 		`).
 		Joins("JOIN challenges ON challenges.id = game_challenges.challenge_id").
-		Joins("LEFT JOIN solves ON solves.challenge_id = game_challenges.challenge_id AND solves.game_id = game_challenges.game_id").
+		Joins("LEFT JOIN solves ON solves.challenge_id = game_challenges.challenge_id AND solves.game_id = game_challenges.game_id AND solves.is_practice = false").
 		Joins("LEFT JOIN participations ON participations.team_id = solves.team_id AND participations.game_id = solves.game_id").
 		Joins("LEFT JOIN teams ON teams.id = solves.team_id").
 		Where("game_challenges.game_id = ? AND challenges.is_visible = ?", gameID, true).
@@ -1473,7 +1488,7 @@ func (s *Service) GetParticipants(gameID uint) ([]GameParticipantEntry, error) {
 			COUNT(solves.id) as solve_count
 		`).
 		Joins("JOIN teams ON teams.id = participations.team_id").
-		Joins("LEFT JOIN solves ON solves.team_id = participations.team_id AND solves.game_id = participations.game_id").
+		Joins("LEFT JOIN solves ON solves.team_id = participations.team_id AND solves.game_id = participations.game_id AND solves.is_practice = false").
 		Where("participations.game_id = ?", gameID).
 		Group("participations.team_id, teams.name, participations.status, participations.division, participations.created_at").
 		Order("participations.created_at ASC").

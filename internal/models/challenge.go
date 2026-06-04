@@ -57,6 +57,7 @@ type Solve struct {
 	UserID      uint      `gorm:"not null;index;uniqueIndex:idx_solve_unique" json:"user_id"`
 	TeamID      uint      `gorm:"not null;index;uniqueIndex:idx_solve_unique" json:"team_id"`
 	GameID      uint      `gorm:"not null;index;uniqueIndex:idx_solve_unique" json:"game_id"`
+	IsPractice  bool      `gorm:"not null;default:false;uniqueIndex:idx_solve_unique" json:"is_practice"`
 	Score       int       `gorm:"not null" json:"score"`
 	BloodType   string    `gorm:"size:16" json:"blood_type"` // first, second, third, or empty
 	SolvedAt    time.Time `gorm:"not null" json:"solved_at"`

@@ -152,7 +152,13 @@ async function submitFlag(challengeId: number) {
       body: { flag, team_id: teamId },
     })
     if (res.correct) {
-      toast.add({ title: '🎉 Flag 正确！', description: `+${res.score} 分${res.blood_type ? ` (${res.blood_type === 'first' ? '一血' : res.blood_type === 'second' ? '二血' : '三血'})` : ''}`, color: 'success' })
+      toast.add({
+        title: res.is_practice ? '练习提交成功' : '🎉 Flag 正确！',
+        description: res.is_practice
+          ? '这次提交已记录为赛后练习，不会再计入正式榜单分数。'
+          : `+${res.score} 分${res.blood_type ? ` (${res.blood_type === 'first' ? '一血' : res.blood_type === 'second' ? '二血' : '三血'})` : ''}`,
+        color: 'success',
+      })
       flagInputs[challengeId] = ''
       await fetchAll()
     }
@@ -336,7 +342,7 @@ const canLeaveGame = computed(() =>
 const canSubmitFlag = computed(() =>
   !!authState.user
   && participation.value?.status === 'accepted'
-  && gameStatusMeta.value.label === '进行中',
+  && (gameStatusMeta.value.label === '进行中' || (gameStatusMeta.value.label === '已结束' && !!game.value?.practice_mode)),
 )
 
 const publicGamePhase = computed<PublicGamePhase>(() => {
@@ -355,6 +361,7 @@ const publicGamePhase = computed<PublicGamePhase>(() => {
 const publicParticipationHints = computed(() => resolveParticipationHints({
   gameId: Number(gameId),
   gamePhase: publicGamePhase.value,
+  practiceMode: game.value?.practice_mode,
   isLoggedIn: !!authState.user,
   participation: participation.value,
   registrationMode: game.value?.registration_mode,
@@ -364,6 +371,7 @@ const publicParticipationHints = computed(() => resolveParticipationHints({
 const participationMeta = computed(() => resolveParticipationMeta({
   gameId: Number(gameId),
   gamePhase: publicGamePhase.value,
+  practiceMode: game.value?.practice_mode,
   isLoggedIn: !!authState.user,
   participation: participation.value,
   registrationMode: game.value?.registration_mode,
@@ -393,8 +401,10 @@ const challengeVisibilityHint = computed(() => publicParticipationHints.value.vi
 const challengeSubmitMeta = computed(() => {
   if (canSubmitFlag.value) {
     return {
-      title: '当前可以提交 Flag',
-      description: '你的队伍已经具备参赛资格，可以直接在下方输入 Flag 并提交。',
+      title: gameStatusMeta.value.label === '已结束' ? '当前可以继续练习提交' : '当前可以提交 Flag',
+      description: gameStatusMeta.value.label === '已结束'
+        ? '正式比赛已经结束，但当前比赛开启了赛后练习模式。你仍然可以继续补题提交，练习解题不会再计入正式榜单。'
+        : '你的队伍已经具备参赛资格，可以直接在下方输入 Flag 并提交。',
       color: 'success' as const,
     }
   }
