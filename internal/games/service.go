@@ -201,6 +201,12 @@ func (s *Service) JoinGame(gameID uint, teamID uint, userID uint) error {
 	if err := s.db.First(&game, gameID).Error; err != nil {
 		return errors.New("game not found")
 	}
+	if game.Status != "active" {
+		return errors.New("game is not open for registration")
+	}
+	if time.Now().After(game.EndTime) {
+		return errors.New("game has already ended")
+	}
 
 	// Prevent duplicate participation
 	var existing models.Participation
@@ -434,6 +440,20 @@ func (s *Service) GetGameChallengesForTeam(gameID uint, teamID uint) ([]GameChal
 // SubmitFlag handles flag submission scoped to a game.
 // Uses exponential decay scoring identical to the standalone challenges service.
 func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID uint, flag string) (*SubmitResult, error) {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		return nil, errors.New("game not found")
+	}
+	if game.Status != "active" {
+		return nil, errors.New("game is not active")
+	}
+	if time.Now().Before(game.StartTime) {
+		return nil, errors.New("game has not started yet")
+	}
+	if time.Now().After(game.EndTime) {
+		return nil, errors.New("game has already ended")
+	}
+
 	// Verify game exists and team has joined
 	var part models.Participation
 	if err := s.db.Where("game_id = ? AND team_id = ?", gameID, teamID).First(&part).Error; err != nil {

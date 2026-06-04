@@ -218,6 +218,22 @@ const gameStatusMeta = computed(() => {
     return { label: '未知', color: 'neutral' as const, description: '' }
   }
 
+  if (game.value.status === 'draft') {
+    return {
+      label: '草稿',
+      color: 'neutral' as const,
+      description: '当前比赛仍在准备中，暂未开放报名与正式提交。',
+    }
+  }
+
+  if (game.value.status === 'ended') {
+    return {
+      label: '已结束',
+      color: 'error' as const,
+      description: `比赛已于 ${new Date(game.value.end_time).toLocaleString()} 结束`,
+    }
+  }
+
   const start = new Date(game.value.start_time).getTime()
   const end = new Date(game.value.end_time).getTime()
 
@@ -321,6 +337,14 @@ const participationHint = computed(() => {
       title: '比赛已结束，无法再报名',
       description: '你仍然可以查看比赛信息、题目和排行榜，但不能再加入本场比赛。',
       color: 'error' as const,
+    }
+  }
+
+  if (gameStatusMeta.value.label === '草稿') {
+    return {
+      title: '比赛尚未开放',
+      description: '当前比赛还在准备阶段。管理员切换为可用状态后，队伍才可以开始报名。',
+      color: 'neutral' as const,
     }
   }
 
@@ -608,9 +632,10 @@ onMounted(async () => {
                 <li>1. 先在控制台创建或加入队伍，再报名比赛。</li>
                 <li>2. 当前比赛报名方式：{{ game.registration_mode === 'auto_accept' ? '自动通过' : '人工审核' }}。</li>
                 <li>3. {{ game.max_team_members ? `当前队伍人数上限为 ${game.max_team_members} 人，超出将无法报名。` : '当前比赛不限制队伍人数。' }}</li>
-                <li>4. {{ game.scoreboard_freeze_at ? `公开榜单将于 ${new Date(game.scoreboard_freeze_at).toLocaleString()} 封榜。` : '当前比赛不启用封榜。' }}</li>
-                <li>5. 题目页会根据你当前队伍显示已解状态和一血队伍。</li>
-                <li>6. 比赛开始后不可退出比赛，比赛结束后将无法继续得分。</li>
+                <li>4. 只有处于可用状态的比赛才会开放报名与正式提交。</li>
+                <li>5. {{ game.scoreboard_freeze_at ? `公开榜单将于 ${new Date(game.scoreboard_freeze_at).toLocaleString()} 封榜。` : '当前比赛不启用封榜。' }}</li>
+                <li>6. 题目页会根据你当前队伍显示已解状态和一血队伍。</li>
+                <li>7. 比赛开始后不可退出比赛，比赛结束后将无法继续得分。</li>
               </ul>
             </div>
           </div>

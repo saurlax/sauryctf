@@ -126,6 +126,10 @@ internal/<module>/
 - Games can now optionally configure `scoreboard_freeze_at`:
   - the public scoreboard freezes after that time
   - submissions after freeze still score normally, but no longer affect the public ranking view
+- Game lifecycle rules are now enforced by the backend:
+  - only `active` games accept registrations
+  - only `active` games within `start_time` / `end_time` accept flag submissions
+  - ended games stay browsable, but no longer allow registration or scoring
 - Challenge content delivery is now expected to use:
   - `description` for the main statement
   - `hints` as a JSON string array

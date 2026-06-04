@@ -293,7 +293,7 @@ func TestService_JoinGame_CreatesPendingParticipation(t *testing.T) {
 		Name:      "Join Game",
 		StartTime: time.Now().Add(time.Hour),
 		EndTime:   time.Now().Add(2 * time.Hour),
-		Status:    "draft",
+		Status:    "active",
 		IsPublic:  true,
 		CreatedBy: user.ID,
 	}
@@ -322,7 +322,7 @@ func TestService_JoinGame_AutoAcceptsWhenConfigured(t *testing.T) {
 		Name:             "Auto Accept Game",
 		StartTime:        time.Now().Add(time.Hour),
 		EndTime:          time.Now().Add(2 * time.Hour),
-		Status:           "draft",
+		Status:           "active",
 		RegistrationMode: games.RegistrationModeAutoAccept,
 		IsPublic:         true,
 		CreatedBy:        user.ID,
@@ -362,7 +362,7 @@ func TestService_JoinGame_RejectsTeamExceedingGameMemberLimit(t *testing.T) {
 		Name:             "Limited Game",
 		StartTime:        time.Now().Add(time.Hour),
 		EndTime:          time.Now().Add(2 * time.Hour),
-		Status:           "draft",
+		Status:           "active",
 		RegistrationMode: games.RegistrationModeReview,
 		MaxTeamMembers:   1,
 		IsPublic:         true,
@@ -420,4 +420,82 @@ func TestService_SubmitFlag_RejectsPendingParticipation(t *testing.T) {
 	_, err = svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not approved")
+}
+
+func TestService_JoinGame_RejectsDraftGame(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+
+	user := models.User{Username: "draft-captain", Email: "draft-captain@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+	team := models.Team{Name: "Draft Team", InviteCode: "draft01", CaptainID: user.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team).Error)
+	game := models.Game{
+		Name:      "Draft Game",
+		StartTime: time.Now().Add(time.Hour),
+		EndTime:   time.Now().Add(2 * time.Hour),
+		Status:    "draft",
+		IsPublic:  true,
+		CreatedBy: user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+
+	err = svc.JoinGame(game.ID, team.ID, user.ID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not open for registration")
+}
+
+func TestService_SubmitFlag_RejectsBeforeGameStart(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, team1ID, _ := createGameChallengeFixture(t, database)
+
+	require.NoError(t, database.Model(&models.Game{}).Where("id = ?", gameID).Update("start_time", time.Now().Add(time.Hour)).Error)
+
+	_, err = svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "has not started yet")
+}
+
+func TestService_SubmitFlag_RejectsAfterGameEnd(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, team1ID, _ := createGameChallengeFixture(t, database)
+
+	require.NoError(t, database.Model(&models.Game{}).Where("id = ?", gameID).Updates(map[string]any{
+		"start_time": time.Now().Add(-2 * time.Hour),
+		"end_time":   time.Now().Add(-time.Hour),
+	}).Error)
+
+	_, err = svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "already ended")
+}
+
+func TestService_SubmitFlag_RejectsDraftGame(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, team1ID, _ := createGameChallengeFixture(t, database)
+
+	require.NoError(t, database.Model(&models.Game{}).Where("id = ?", gameID).Update("status", "draft").Error)
+
+	_, err = svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not active")
 }
