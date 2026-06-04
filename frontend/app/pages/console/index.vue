@@ -4,7 +4,7 @@ definePageMeta({
 })
 
 const { authState, fetchUser } = useAuth()
-const router = useRouter()
+const isAdmin = computed(() => ['admin', 'super_admin'].includes(authState.user?.role || ''))
 
 const stats = computed(() => [
   { label: '我的队伍', value: authState.user ? '已加入' : '未加入', icon: 'i-lucide-users' },
@@ -12,6 +12,12 @@ const stats = computed(() => [
   { label: '解题数量', value: '0', icon: 'i-lucide-flag' },
   { label: '总得分', value: '0', icon: 'i-lucide-star' },
 ])
+
+onMounted(async () => {
+  if (!authState.user) {
+    await fetchUser()
+  }
+})
 </script>
 
 <template>
@@ -40,12 +46,20 @@ const stats = computed(() => [
         <div class="flex flex-col gap-3">
           <UButton label="我的队伍" icon="i-lucide-users" to="/console/team" variant="outline" block />
           <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="outline" block />
+          <UButton
+            v-if="isAdmin"
+            label="赛事管理"
+            icon="i-lucide-settings-2"
+            to="/console/admin"
+            variant="outline"
+            block
+          />
         </div>
       </UPageCard>
 
-      <UPageCard title="最新公告">
+      <UPageCard :title="isAdmin ? '管理提示' : '最新公告'">
         <p class="text-muted text-sm">
-          暂无公告
+          {{ isAdmin ? '你当前拥有管理权限，可以创建比赛和题目。' : '暂无公告' }}
         </p>
       </UPageCard>
     </div>
