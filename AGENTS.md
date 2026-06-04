@@ -179,6 +179,7 @@ internal/<module>/
   - the default skeleton provider also supports simple per-team templating in `container_spec.connection.*` using `{{game_id}}`, `{{challenge_id}}`, `{{team_id}}`, `{{user_id}}`, and `{{team_hash}}`, so local dynamic challenges can expose stable team-specific entry data before real providers land
   - the admin challenge form now ships a dedicated “team-scoped instance” template and shows the supported placeholder tokens inline, so local operators can create per-team dynamic entry data without hand-writing the whole JSON structure
   - the public game page now distinguishes between templated connection info and the resolved per-team lease entry, so players see when an instance URL is still a template and when a real team-scoped address has been issued
+  - local smoke-oriented dynamic templates now point to a frontend `/mock-instance/...` page so the resolved launch URL can be opened directly during local verification
 - Registration withdrawal now follows the current GZCTF-style rule:
   - `pending` / `rejected` participations can be withdrawn
   - `accepted` participations are locked and can no longer be withdrawn

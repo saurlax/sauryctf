@@ -148,10 +148,10 @@ $dynamicChallenge = Invoke-JsonRequest -Method "POST" -Url "$BaseUrl/api/challen
       expose   = @(8080)
     }
     connection = @{
-      url     = "https://{{team_hash}}.instance.local/games/{{game_id}}/challenges/{{challenge_id}}"
-      host    = "{{team_hash}}.instance.local"
+      url     = "/mock-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}"
+      host    = "127.0.0.1"
       port    = "{{team_id}}"
-      command = "ssh ctf@{{team_hash}}.instance.local -p {{team_id}}"
+      command = "open /mock-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}"
       note    = "Dynamic smoke instance for team {{team_id}}"
     }
   } | ConvertTo-Json -Depth 10 -Compress)
@@ -218,6 +218,7 @@ Assert-True (-not [string]::IsNullOrWhiteSpace($instanceRunning.command)) "Dynam
 Assert-False ($instanceRunning.launch_url.Contains("{{")) "Dynamic challenge launch URL still contains unresolved template placeholders."
 Assert-False ($instanceRunning.host.Contains("{{")) "Dynamic challenge host still contains unresolved template placeholders."
 Assert-False ($instanceRunning.command.Contains("{{")) "Dynamic challenge command still contains unresolved template placeholders."
+Assert-True ($instanceRunning.launch_url.StartsWith("/mock-instance/")) "Dynamic challenge launch URL does not point to the local mock instance page."
 
 Write-Step "Submitting correct flag"
 $submitResult = Invoke-JsonRequest -Method "POST" -Url "$BaseUrl/api/games/$($game.id)/challenges/$($challenge.id)/submit" -Body @{

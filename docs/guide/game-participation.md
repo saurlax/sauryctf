@@ -192,7 +192,7 @@
   - `{{user_id}}`
   - `{{team_hash}}`
 - 适合先把动态题的连接入口做成“每队不同但稳定”的本地形态
-  - 例如 `connection.url` 可以写成 `https://{{team_hash}}.instance.local/chal/{{challenge_id}}`
+  - 例如 `connection.url` 可以写成 `/mock-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}`
   - 当前仍然只是在租约响应里生成差异化入口，不会真的创建容器或反代
 - 这样做是为了向 GZCTF 的 `ContainerProvider` 模型靠拢
   - 后续可以按 `runtime.provider` 继续接 `docker`、`k8s` 或代理型 provider
