@@ -1484,8 +1484,6 @@ paths:
       operationId: getScoreboard
       summary: Get game scoreboard
       tags: [games]
-      security:
-        - BearerAuth: []
       parameters:
         - name: id
           in: path

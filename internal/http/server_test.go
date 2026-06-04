@@ -384,6 +384,146 @@ func TestServer_PublicVisitorCanBrowsePublicGameMetadata(t *testing.T) {
 	assert.Empty(t, publicChallenges[0].Attachments)
 }
 
+func TestServer_PublicVisitorCanViewPublicScoreboard(t *testing.T) {
+	server := setupHTTPTestServer(t)
+	defer server.Close()
+
+	adminCookie := loginBootstrapAdmin(t, server.URL)
+
+	start := time.Now().Add(-30 * time.Minute).UTC().Truncate(time.Second)
+	end := time.Now().Add(2 * time.Hour).UTC().Truncate(time.Second)
+	game := createSmokeGame(t, server.URL, adminCookie, map[string]any{
+		"name":              "Visitor Scoreboard Game",
+		"description":       "public scoreboard flow",
+		"start_time":        start.Format(time.RFC3339),
+		"end_time":          end.Format(time.RFC3339),
+		"registration_mode": "auto_accept",
+		"is_public":         true,
+	})
+
+	challenge := createSmokeChallenge(t, server.URL, adminCookie, map[string]any{
+		"title":       "Scoreboard Challenge",
+		"description": "show me on the board",
+		"category":    "misc",
+		"type":        "static",
+		"flag":        "flag{public-scoreboard}",
+		"base_score":  300,
+		"is_visible":  true,
+	})
+
+	attachBody, err := json.Marshal(map[string]any{
+		"challenge_id": challenge.ID,
+	})
+	require.NoError(t, err)
+
+	attachReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/games/"+idPath(game.ID)+"/challenges", bytes.NewReader(attachBody))
+	require.NoError(t, err)
+	attachReq.Header.Set("Content-Type", "application/json")
+	attachReq.AddCookie(adminCookie)
+
+	attachResp, err := http.DefaultClient.Do(attachReq)
+	require.NoError(t, err)
+	defer attachResp.Body.Close()
+	require.Equal(t, http.StatusOK, attachResp.StatusCode)
+
+	updateBody, err := json.Marshal(map[string]any{
+		"status": "active",
+	})
+	require.NoError(t, err)
+
+	updateReq, err := http.NewRequest(http.MethodPut, server.URL+"/api/games/"+idPath(game.ID), bytes.NewReader(updateBody))
+	require.NoError(t, err)
+	updateReq.Header.Set("Content-Type", "application/json")
+	updateReq.AddCookie(adminCookie)
+
+	updateResp, err := http.DefaultClient.Do(updateReq)
+	require.NoError(t, err)
+	defer updateResp.Body.Close()
+	require.Equal(t, http.StatusOK, updateResp.StatusCode)
+
+	registerBody := bytes.NewBufferString(`{"username":"score_user","email":"score_user@example.com","password":"password123"}`)
+	registerReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/auth/register", registerBody)
+	require.NoError(t, err)
+	registerReq.Header.Set("Content-Type", "application/json")
+
+	registerResp, err := http.DefaultClient.Do(registerReq)
+	require.NoError(t, err)
+	defer registerResp.Body.Close()
+	require.Equal(t, http.StatusCreated, registerResp.StatusCode)
+
+	var playerCookie *http.Cookie
+	for _, cookie := range registerResp.Cookies() {
+		if cookie.Name == "token" {
+			playerCookie = cookie
+			break
+		}
+	}
+	require.NotNil(t, playerCookie)
+
+	createTeamBody := bytes.NewBufferString(`{"name":"Scoreboard Team"}`)
+	createTeamReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/teams", createTeamBody)
+	require.NoError(t, err)
+	createTeamReq.Header.Set("Content-Type", "application/json")
+	createTeamReq.AddCookie(playerCookie)
+
+	createTeamResp, err := http.DefaultClient.Do(createTeamReq)
+	require.NoError(t, err)
+	defer createTeamResp.Body.Close()
+	require.Equal(t, http.StatusCreated, createTeamResp.StatusCode)
+
+	var createTeamPayload struct {
+		Team struct {
+			ID uint `json:"id"`
+		} `json:"team"`
+	}
+	require.NoError(t, json.NewDecoder(createTeamResp.Body).Decode(&createTeamPayload))
+	require.NotZero(t, createTeamPayload.Team.ID)
+
+	joinBody, err := json.Marshal(map[string]any{
+		"team_id": createTeamPayload.Team.ID,
+	})
+	require.NoError(t, err)
+
+	joinReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/games/"+idPath(game.ID)+"/join", bytes.NewReader(joinBody))
+	require.NoError(t, err)
+	joinReq.Header.Set("Content-Type", "application/json")
+	joinReq.AddCookie(playerCookie)
+
+	joinResp, err := http.DefaultClient.Do(joinReq)
+	require.NoError(t, err)
+	defer joinResp.Body.Close()
+	require.Equal(t, http.StatusOK, joinResp.StatusCode)
+
+	submitBody, err := json.Marshal(map[string]any{
+		"team_id": createTeamPayload.Team.ID,
+		"flag":    "flag{public-scoreboard}",
+	})
+	require.NoError(t, err)
+
+	submitReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/games/"+idPath(game.ID)+"/challenges/"+idPath(challenge.ID)+"/submit", bytes.NewReader(submitBody))
+	require.NoError(t, err)
+	submitReq.Header.Set("Content-Type", "application/json")
+	submitReq.AddCookie(playerCookie)
+
+	submitResp, err := http.DefaultClient.Do(submitReq)
+	require.NoError(t, err)
+	defer submitResp.Body.Close()
+	require.Equal(t, http.StatusOK, submitResp.StatusCode)
+
+	scoreboardResp, err := http.Get(server.URL + "/api/games/" + idPath(game.ID) + "/scoreboard")
+	require.NoError(t, err)
+	defer scoreboardResp.Body.Close()
+	require.Equal(t, http.StatusOK, scoreboardResp.StatusCode)
+
+	var scoreboard games.ScoreboardResponse
+	require.NoError(t, json.NewDecoder(scoreboardResp.Body).Decode(&scoreboard))
+	require.Len(t, scoreboard.Entries, 1)
+	assert.Equal(t, "Scoreboard Team", scoreboard.Entries[0].TeamName)
+	assert.Equal(t, 300, scoreboard.Entries[0].Score)
+	require.Len(t, scoreboard.Challenges, 1)
+	assert.Equal(t, "Scoreboard Team", scoreboard.Challenges[0].BloodTeam)
+}
+
 func TestServer_AdminDashboardSummary(t *testing.T) {
 	server := setupHTTPTestServer(t)
 	defer server.Close()

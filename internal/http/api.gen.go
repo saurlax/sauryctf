@@ -1925,8 +1925,6 @@ func (siw *ServerInterfaceWrapper) GetScoreboard(c *gin.Context) {
 		return
 	}
 
-	c.Set(string(BearerAuthScopes), []string{})
-
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetScoreboardParams
 
