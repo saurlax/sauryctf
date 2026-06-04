@@ -6,9 +6,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/saurlax/sauryctf/internal/db"
 	"github.com/saurlax/sauryctf/internal/games"
+	"github.com/saurlax/sauryctf/internal/models"
 )
 
 func setupService(t *testing.T) (*games.Service, func()) {
@@ -23,6 +25,54 @@ func setupService(t *testing.T) (*games.Service, func()) {
 	cleanup()
 
 	return games.NewService(database), cleanup
+}
+
+func createGameChallengeFixture(t *testing.T, database *gorm.DB) (uint, uint, uint, uint) {
+	t.Helper()
+
+	user1 := models.User{Username: "user1", Email: "user1@example.com", PasswordHash: "hash"}
+	user2 := models.User{Username: "user2", Email: "user2@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user1).Error)
+	require.NoError(t, database.Create(&user2).Error)
+
+	team1 := models.Team{Name: "Team One", InviteCode: "team01", CaptainID: user1.ID, Status: models.TeamStatusActive}
+	team2 := models.Team{Name: "Team Two", InviteCode: "team02", CaptainID: user2.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team1).Error)
+	require.NoError(t, database.Create(&team2).Error)
+
+	challenge := models.Challenge{
+		Title:      "Fixture Challenge",
+		Category:   models.CategoryWeb,
+		Flag:       "flag{fixture}",
+		BaseScore:  100,
+		MinScore:   10,
+		DecayRate:  0.1,
+		IsVisible:  true,
+		CreatedBy:  user1.ID,
+	}
+	require.NoError(t, database.Create(&challenge).Error)
+
+	game := models.Game{
+		Name:      "Fixture Game",
+		StartTime: time.Now().Add(-time.Hour),
+		EndTime:   time.Now().Add(time.Hour),
+		Status:    "active",
+		IsPublic:  true,
+		CreatedBy: user1.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+
+	require.NoError(t, database.Create(&models.GameChallenge{
+		GameID: game.ID, ChallengeID: challenge.ID,
+	}).Error)
+	require.NoError(t, database.Create(&models.Participation{
+		GameID: game.ID, TeamID: team1.ID, UserID: user1.ID, Status: models.ParticipationAccepted,
+	}).Error)
+	require.NoError(t, database.Create(&models.Participation{
+		GameID: game.ID, TeamID: team2.ID, UserID: user2.ID, Status: models.ParticipationAccepted,
+	}).Error)
+
+	return game.ID, challenge.ID, team1.ID, team2.ID
 }
 
 func TestService_CreateGame(t *testing.T) {
@@ -125,4 +175,26 @@ func TestService_AddChallenge(t *testing.T) {
 	if err != nil {
 		assert.Contains(t, err.Error(), "challenge not found")
 	}
+}
+
+func TestService_SubmitFlag_UsesSharedScoringRule(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, team1ID, team2ID := createGameChallengeFixture(t, database)
+
+	first, err := svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
+	require.NoError(t, err)
+	assert.True(t, first.Correct)
+	assert.Equal(t, "first", first.BloodType)
+	assert.Equal(t, 100, first.Score)
+
+	second, err := svc.SubmitFlag(gameID, challengeID, 2, team2ID, "flag{fixture}")
+	require.NoError(t, err)
+	assert.True(t, second.Correct)
+	assert.Equal(t, "second", second.BloodType)
+	assert.Equal(t, 91, second.Score)
 }

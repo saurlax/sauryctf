@@ -2,12 +2,12 @@ package games
 
 import (
 	"errors"
-	"math"
 	"time"
 
 	"gorm.io/gorm"
 
 	"github.com/saurlax/sauryctf/internal/models"
+	"github.com/saurlax/sauryctf/internal/scoring"
 )
 
 type Service struct {
@@ -380,19 +380,8 @@ func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID 
 	var solvesBefore int64
 	s.db.Model(&models.Solve{}).Where("challenge_id = ? AND game_id = ?", challengeID, gameID).Count(&solvesBefore)
 
-	// Determine blood type
-	bloodType := ""
-	switch solvesBefore {
-	case 0:
-		bloodType = "first"
-	case 1:
-		bloodType = "second"
-	case 2:
-		bloodType = "third"
-	}
-
-	// Decay scoring
-	score := computeScore(ch, int(solvesBefore))
+	bloodType := scoring.BloodType(int(solvesBefore))
+	score := scoring.ComputeScore(ch, int(solvesBefore))
 
 	solve := &models.Solve{
 		ChallengeID: challengeID,
@@ -407,40 +396,6 @@ func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID 
 	}
 
 	return &SubmitResult{Correct: true, Score: score, BloodType: bloodType, Message: "correct"}, nil
-}
-
-// computeScore applies exponential decay: score = max(min_score, base * exp((1-x)/decay))
-func computeScore(ch models.Challenge, solvesBefore int) int {
-	base := ch.BaseScore
-	if base == 0 {
-		base = 500
-	}
-	minScore := ch.MinScore
-	if minScore == 0 {
-		minScore = 50
-	}
-	decayRate := ch.DecayRate
-	if decayRate == 0 {
-		decayRate = 30
-	}
-
-	// Blood bonuses
-	multiplier := 1.0
-	switch solvesBefore {
-	case 0:
-		multiplier = 1.0 // first blood: no extra decay yet
-	case 1:
-		multiplier = 1.0
-	case 2:
-		multiplier = 1.0
-	}
-
-	x := float64(solvesBefore + 1)
-	score := int(math.Round(float64(base) * multiplier * math.Exp((1-x)/decayRate)))
-	if score < minScore {
-		score = minScore
-	}
-	return score
 }
 
 // GetScoreboard aggregates solve data into a ranked scoreboard.

@@ -177,7 +177,7 @@ func TestService_SubmitFlag_Correct(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, result.Correct)
 	assert.Equal(t, "first", result.BloodType)
-	assert.Equal(t, 600, result.Score) // 200 * 3 (first blood)
+	assert.Equal(t, 200, result.Score)
 }
 
 func TestService_SubmitFlag_WrongFlag(t *testing.T) {
@@ -227,23 +227,23 @@ func TestService_SubmitFlag_BloodBonuses(t *testing.T) {
 		IsVisible: &visible,
 	}, 1)
 
-	// First blood: base=100, e^(0)=1 → 100, ×3 = 300
+	// First blood keeps the base score and records blood metadata.
 	r1, _ := svc.SubmitFlag(ch.ID, 1, 10, 1, "flag{blood}")
 	assert.Equal(t, "first", r1.BloodType)
-	assert.Equal(t, 300, r1.Score)
+	assert.Equal(t, 100, r1.Score)
 
-	// Second blood: base decays with e^(-0.1) ≈ 0.905 → 10+90*0.905=91, ×2 = 182
+	// Second blood decays but uses the same scoring rule as game-scoped submissions.
 	r2, _ := svc.SubmitFlag(ch.ID, 1, 20, 2, "flag{blood}")
 	assert.Equal(t, "second", r2.BloodType)
-	assert.Equal(t, 182, r2.Score)
+	assert.Equal(t, 91, r2.Score)
 
-	// Third blood: e^(-0.2) ≈ 0.819 → 10+90*0.819=83, ×1.5 = 125
+	// Third blood continues to decay while preserving blood metadata.
 	r3, _ := svc.SubmitFlag(ch.ID, 1, 30, 3, "flag{blood}")
 	assert.Equal(t, "third", r3.BloodType)
-	assert.Equal(t, 125, r3.Score)
+	assert.Equal(t, 84, r3.Score)
 
-	// No blood: e^(-0.3) ≈ 0.741 → 10+90*0.741=76, ×1 = 76
+	// Further solves only receive the decayed score.
 	r4, _ := svc.SubmitFlag(ch.ID, 1, 40, 4, "flag{blood}")
 	assert.Equal(t, "", r4.BloodType)
-	assert.Equal(t, 76, r4.Score)
+	assert.Equal(t, 77, r4.Score)
 }

@@ -112,6 +112,8 @@ internal/<module>/
 - Handlers depend only on `ServiceInterface`, never directly on concrete `*Service`.
 - All admin operations write audit logs.
 - Dynamic container management must be idempotent; Kubernetes resources must be uniformly labeled.
+- Dynamic scoring is shared across standalone challenge submission and game-scoped submission.
+- Current blood metadata (`first`, `second`, `third`) is retained for display, but does not apply an extra score multiplier.
 
 ## Makefile (legacy — prefer pnpm scripts above)
 

@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/saurlax/sauryctf/internal/models"
+	"github.com/saurlax/sauryctf/internal/scoring"
 )
 
 type Service struct {
@@ -190,34 +191,13 @@ func (s *Service) SubmitFlag(challengeID uint, gameID uint, userID uint, teamID 
 		}, nil
 	}
 
-	// Calculate score with dynamic scoring and blood bonuses
+	// Calculate score with shared dynamic scoring.
 	solveCount := int64(0)
 	s.db.Model(&models.Solve{}).Where("challenge_id = ? AND game_id = ?",
 		challengeID, gameID).Count(&solveCount)
 
-	// Blood types: first=3x, second=2x, third=1.5x
-	bloodType := ""
-	bloodMultiplier := 1.0
-	switch solveCount {
-	case 0:
-		bloodType = "first"
-		bloodMultiplier = 3.0
-	case 1:
-		bloodType = "second"
-		bloodMultiplier = 2.0
-	case 2:
-		bloodType = "third"
-		bloodMultiplier = 1.5
-	}
-
-	// Dynamic score: base_score * (min_score/base_score + (1 - min_score/base_score) * e^(-decay * solve_count))
-	// Simplified: score = minScore + (baseScore - minScore) * e^(-decayRate * solveCount)
-	dynamicScore := float64(ch.MinScore) + (float64(ch.BaseScore)-float64(ch.MinScore))*
-		expApprox(-ch.DecayRate*float64(solveCount))
-	score := int(dynamicScore * bloodMultiplier)
-	if score < ch.MinScore {
-		score = ch.MinScore
-	}
+	bloodType := scoring.BloodType(int(solveCount))
+	score := scoring.ComputeScore(*ch, int(solveCount))
 
 	solve := &models.Solve{
 		ChallengeID: challengeID,
@@ -239,14 +219,4 @@ func (s *Service) SubmitFlag(challengeID uint, gameID uint, userID uint, teamID 
 		BloodType: bloodType,
 		Message:   "correct",
 	}, nil
-}
-
-// expApprox returns a simple approximation of e^x for scoring calculations.
-func expApprox(x float64) float64 {
-	// Taylor series approximation: e^x ≈ 1 + x + x²/2 + x³/6
-	// Sufficient for decay calculations where x is negative
-	if x < -10 {
-		return 0
-	}
-	return 1 + x + x*x/2 + x*x*x/6
 }
