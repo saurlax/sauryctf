@@ -1325,6 +1325,32 @@ func TestService_SubmitWriteup_UpsertsTeamWriteup(t *testing.T) {
 	assert.EqualValues(t, 1, count)
 }
 
+func TestService_ListWriteups_ReturnsSubmittedWriteup(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, _, _, _ := createGameChallengeFixture(t, database)
+	writeupDeadline := time.Now().Add(time.Hour)
+	require.NoError(t, database.Model(&models.Game{}).Where("id = ?", gameID).Updates(map[string]any{
+		"writeup_required": true,
+		"writeup_deadline": writeupDeadline,
+	}).Error)
+
+	submitted, err := svc.SubmitWriteup(gameID, 1, games.SubmitGameWriteupRequest{Content: "list me"})
+	require.NoError(t, err)
+
+	writeups, err := svc.ListWriteups(gameID)
+	require.NoError(t, err)
+	require.Len(t, writeups, 1)
+	assert.Equal(t, submitted.TeamID, writeups[0].TeamID)
+	assert.Equal(t, "Team One", writeups[0].TeamName)
+	assert.Equal(t, "list me", writeups[0].Content)
+	assert.Equal(t, "submitted", writeups[0].Status)
+}
+
 func TestService_ReviewWriteup_UpdatesStatus(t *testing.T) {
 	database, err := db.ConnectTest()
 	require.NoError(t, err)

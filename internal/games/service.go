@@ -1681,24 +1681,19 @@ func (s *Service) ListWriteups(gameID uint) ([]GameWriteupResponse, error) {
 		return nil, err
 	}
 
-	type row struct {
-		models.GameWriteup
-		TeamName string
-	}
-	var rows []row
-	if err := s.db.Table("game_writeups").
-		Select("game_writeups.*, teams.name as team_name").
-		Joins("JOIN teams ON teams.id = game_writeups.team_id").
-		Where("game_writeups.game_id = ?", gameID).
-		Order("game_writeups.submitted_at DESC").
-		Scan(&rows).Error; err != nil {
+	var rows []models.GameWriteup
+	if err := s.db.
+		Preload("Team").
+		Where("game_id = ?", gameID).
+		Order("submitted_at DESC").
+		Find(&rows).Error; err != nil {
 		return nil, err
 	}
 
 	result := make([]GameWriteupResponse, 0, len(rows))
 	for _, row := range rows {
-		item := row.GameWriteup
-		result = append(result, *toWriteupResponse(&item, row.TeamName, game.WriteupRequired))
+		item := row
+		result = append(result, *toWriteupResponse(&item, row.Team.Name, game.WriteupRequired))
 	}
 	return result, nil
 }
