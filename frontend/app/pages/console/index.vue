@@ -33,6 +33,7 @@ interface GameSummary {
 type GameParticipation = components['schemas']['GameParticipation']
 
 const isAdmin = computed(() => ['admin', 'super_admin'].includes(authState.user?.role || ''))
+const { fetchParticipationMap } = useGameParticipationMap()
 const loading = ref(true)
 const team = ref<TeamSummary | null>(null)
 const games = ref<GameSummary[]>([])
@@ -79,22 +80,7 @@ async function fetchConsoleData() {
 
     if (gamesRes.status === 'fulfilled') {
       games.value = gamesRes.value
-      if (authState.user && games.value.length > 0) {
-        const entries = await Promise.all(
-          games.value.map(async (game) => {
-            try {
-              const participation = await $api('get', '/api/games/{id}/participation', {
-                params: { id: game.id },
-              })
-              return [game.id, participation] as const
-            }
-            catch {
-              return [game.id, { has_team: false, participated: false } as GameParticipation] as const
-            }
-          }),
-        )
-        participationMap.value = Object.fromEntries(entries)
-      }
+      participationMap.value = await fetchParticipationMap(games.value.map(game => game.id))
     }
     else {
       games.value = []

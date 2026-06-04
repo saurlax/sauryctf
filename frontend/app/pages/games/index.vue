@@ -6,6 +6,7 @@ type GameParticipation = components['schemas']['GameParticipation']
 
 const toast = useToast()
 const { authState, ensureInitialized } = useAuth()
+const { fetchParticipationMap } = useGameParticipationMap()
 const games = ref<Game[]>([])
 const participationMap = ref<Record<number, GameParticipation>>({})
 const loading = ref(true)
@@ -26,26 +27,7 @@ async function fetchGames() {
 }
 
 async function fetchParticipationStates() {
-  if (!authState.user || games.value.length === 0) {
-    participationMap.value = {}
-    return
-  }
-
-  const entries = await Promise.all(
-    games.value.map(async (game) => {
-      try {
-        const participation = await $api('get', '/api/games/{id}/participation', {
-          params: { id: game.id },
-        })
-        return [game.id, participation] as const
-      }
-      catch {
-        return [game.id, { has_team: false, participated: false } as GameParticipation] as const
-      }
-    }),
-  )
-
-  participationMap.value = Object.fromEntries(entries)
+  participationMap.value = await fetchParticipationMap(games.value.map(game => game.id))
 }
 
 function getStatusColor(status: string) {
