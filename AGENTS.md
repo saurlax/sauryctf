@@ -175,6 +175,11 @@ internal/<module>/
     - restores mounted challenge `score_override`
     - restores embedded local attachments from `v2` packages into `./attachments`
   - external attachment URLs still stay as URL arrays and are not downloaded during import
+- Game metadata is now closer to GZCTF's contest configuration model:
+  - `practice_mode` controls whether the contest should continue exposing a post-contest practice posture in the UI
+  - `writeup_required` marks contests that expect a post-contest writeup submission
+  - `writeup_deadline` can be left empty, but when set it must not be earlier than `end_time`
+  - these fields now round-trip through game create/update, public/admin reads, and contest import/export packages
 - Challenge content delivery is now expected to use:
   - `description` for the main statement
   - `hints` as a JSON string array

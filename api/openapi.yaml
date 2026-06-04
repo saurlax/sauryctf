@@ -299,6 +299,15 @@ components:
           enum: [review, auto_accept]
         max_team_members:
           type: integer
+        practice_mode:
+          type: boolean
+        writeup_required:
+          type: boolean
+        writeup_deadline:
+          type:
+            - string
+            - "null"
+          format: date-time
         is_public:
           type: boolean
         created_by:
@@ -333,6 +342,15 @@ components:
           enum: [review, auto_accept]
         max_team_members:
           type: integer
+        practice_mode:
+          type: boolean
+        writeup_required:
+          type: boolean
+        writeup_deadline:
+          type:
+            - string
+            - "null"
+          format: date-time
         is_public:
           type: boolean
 
@@ -364,6 +382,15 @@ components:
           enum: [review, auto_accept]
         max_team_members:
           type: integer
+        practice_mode:
+          type: boolean
+        writeup_required:
+          type: boolean
+        writeup_deadline:
+          type:
+            - string
+            - "null"
+          format: date-time
         is_public:
           type: boolean
 

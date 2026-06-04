@@ -29,7 +29,7 @@ func (h *Handler) CreateGame(c *gin.Context) {
 	game, err := h.svc.CreateGame(req, userID.(uint))
 	if err != nil {
 		switch err.Error() {
-		case "invalid registration mode", "invalid max team members", "invalid game timeline", "invalid scoreboard freeze time":
+		case "invalid registration mode", "invalid max team members", "invalid game timeline", "invalid scoreboard freeze time", "invalid writeup deadline":
 			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
@@ -82,6 +82,9 @@ func (h *Handler) UpdateGame(c *gin.Context, id int) {
 		if value, ok := raw["scoreboard_freeze_at"]; ok && value == nil {
 			req.ClearScoreboardFreeze = true
 		}
+		if value, ok := raw["writeup_deadline"]; ok && value == nil {
+			req.ClearWriteupDeadline = true
+		}
 	}
 
 	game, err := h.svc.UpdateGame(uint(id), req)
@@ -89,7 +92,7 @@ func (h *Handler) UpdateGame(c *gin.Context, id int) {
 		switch err.Error() {
 		case "game not found":
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
-		case "invalid registration mode", "invalid max team members", "invalid game timeline", "invalid scoreboard freeze time":
+		case "invalid registration mode", "invalid max team members", "invalid game timeline", "invalid scoreboard freeze time", "invalid writeup deadline":
 			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
@@ -154,7 +157,7 @@ func (h *Handler) ImportGamePackage(c *gin.Context) {
 	game, err := h.svc.ImportGamePackage(data, userID)
 	if err != nil {
 		switch err.Error() {
-		case "missing import file", "invalid import package", "game.json not found in import package", "invalid game.json", "unsupported import package version", "invalid registration mode", "invalid max team members", "invalid game timeline", "invalid scoreboard freeze time":
+		case "missing import file", "invalid import package", "game.json not found in import package", "invalid game.json", "unsupported import package version", "invalid registration mode", "invalid max team members", "invalid game timeline", "invalid scoreboard freeze time", "invalid writeup deadline":
 			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})

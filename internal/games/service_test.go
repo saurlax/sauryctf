@@ -87,14 +87,18 @@ func TestService_CreateGame(t *testing.T) {
 	defer cleanup()
 
 	public := true
+	writeupDeadline := time.Now().Add(72 * time.Hour).UTC().Truncate(time.Second)
 	game, err := svc.CreateGame(games.CreateGameRequest{
-		Name:           "Test CTF",
-		Description:    "desc",
-		Notice:         "notice",
-		StartTime:      time.Now().Add(24 * time.Hour),
-		EndTime:        time.Now().Add(48 * time.Hour),
-		MaxTeamMembers: 5,
-		IsPublic:       &public,
+		Name:            "Test CTF",
+		Description:     "desc",
+		Notice:          "notice",
+		StartTime:       time.Now().Add(24 * time.Hour),
+		EndTime:         time.Now().Add(48 * time.Hour),
+		MaxTeamMembers:  5,
+		PracticeMode:    true,
+		WriteupRequired: true,
+		WriteupDeadline: &writeupDeadline,
+		IsPublic:        &public,
 	}, 1)
 	assert.NoError(t, err)
 	assert.Equal(t, "Test CTF", game.Name)
@@ -102,6 +106,10 @@ func TestService_CreateGame(t *testing.T) {
 	assert.Equal(t, "draft", game.Status)
 	assert.Equal(t, games.RegistrationModeReview, game.RegistrationMode)
 	assert.Equal(t, 5, game.MaxTeamMembers)
+	assert.True(t, game.PracticeMode)
+	assert.True(t, game.WriteupRequired)
+	require.NotNil(t, game.WriteupDeadline)
+	assert.True(t, game.WriteupDeadline.Equal(writeupDeadline))
 	assert.Nil(t, game.ScoreboardFreezeAt)
 	assert.True(t, game.IsPublic)
 }
@@ -138,6 +146,26 @@ func TestService_CreateGame_RejectsFreezeOutsideTimeline(t *testing.T) {
 	}, 1)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid scoreboard freeze time")
+}
+
+func TestService_CreateGame_RejectsWriteupDeadlineBeforeEnd(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	public := true
+	start := time.Now().Add(time.Hour)
+	end := start.Add(2 * time.Hour)
+	writeupDeadline := end.Add(-time.Minute)
+	_, err := svc.CreateGame(games.CreateGameRequest{
+		Name:            "Broken Writeup",
+		StartTime:       start,
+		EndTime:         end,
+		WriteupRequired: true,
+		WriteupDeadline: &writeupDeadline,
+		IsPublic:        &public,
+	}, 1)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid writeup deadline")
 }
 
 func TestService_GetGame(t *testing.T) {
@@ -286,6 +314,9 @@ func TestService_UpdateGame(t *testing.T) {
 	newRegistrationMode := games.RegistrationModeAutoAccept
 	newMaxTeamMembers := 3
 	freezeAt := time.Now().Add(30 * time.Minute)
+	practiceMode := true
+	writeupRequired := true
+	writeupDeadline := time.Now().Add(2 * time.Hour).UTC().Truncate(time.Second)
 	updated, err := svc.UpdateGame(game.ID, games.UpdateGameRequest{
 		Name:               &newName,
 		Notice:             &newNotice,
@@ -293,6 +324,9 @@ func TestService_UpdateGame(t *testing.T) {
 		Status:             &newStatus,
 		RegistrationMode:   &newRegistrationMode,
 		MaxTeamMembers:     &newMaxTeamMembers,
+		PracticeMode:       &practiceMode,
+		WriteupRequired:    &writeupRequired,
+		WriteupDeadline:    &writeupDeadline,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, "Updated", updated.Name)
@@ -300,6 +334,10 @@ func TestService_UpdateGame(t *testing.T) {
 	assert.Equal(t, "active", updated.Status)
 	assert.Equal(t, games.RegistrationModeAutoAccept, updated.RegistrationMode)
 	assert.Equal(t, 3, updated.MaxTeamMembers)
+	assert.True(t, updated.PracticeMode)
+	assert.True(t, updated.WriteupRequired)
+	require.NotNil(t, updated.WriteupDeadline)
+	assert.True(t, updated.WriteupDeadline.Equal(writeupDeadline))
 	require.NotNil(t, updated.ScoreboardFreezeAt)
 }
 
@@ -341,6 +379,48 @@ func TestService_UpdateGame_RejectsFreezeOutsideTimeline(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid scoreboard freeze time")
+}
+
+func TestService_UpdateGame_ClearsWriteupDeadline(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	public := true
+	writeupDeadline := time.Now().Add(2 * time.Hour).UTC().Truncate(time.Second)
+	game, _ := svc.CreateGame(games.CreateGameRequest{
+		Name:            "Writeup Clear",
+		StartTime:       time.Now(),
+		EndTime:         time.Now().Add(time.Hour),
+		WriteupRequired: true,
+		WriteupDeadline: &writeupDeadline,
+		IsPublic:        &public,
+	}, 1)
+
+	updated, err := svc.UpdateGame(game.ID, games.UpdateGameRequest{
+		ClearWriteupDeadline: true,
+	})
+	require.NoError(t, err)
+	assert.Nil(t, updated.WriteupDeadline)
+}
+
+func TestService_UpdateGame_RejectsWriteupDeadlineBeforeEnd(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	public := true
+	game, _ := svc.CreateGame(games.CreateGameRequest{
+		Name:      "Writeup Guard",
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(2 * time.Hour),
+		IsPublic:  &public,
+	}, 1)
+
+	writeupDeadline := time.Now().Add(time.Hour)
+	_, err := svc.UpdateGame(game.ID, games.UpdateGameRequest{
+		WriteupDeadline: &writeupDeadline,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid writeup deadline")
 }
 
 func TestService_DeleteGame_RemovesGameScopedRelationsOnly(t *testing.T) {
@@ -432,6 +512,9 @@ func TestService_ExportGamePackage_IncludesGameAndMountedChallenges(t *testing.T
 	assert.Equal(t, games.ExportPackageVersionV2, pkg.Version)
 	assert.Equal(t, gameID, pkg.Game.ID)
 	assert.Equal(t, "Fixture Game", pkg.Game.Name)
+	assert.False(t, pkg.Game.PracticeMode)
+	assert.False(t, pkg.Game.WriteupRequired)
+	assert.Nil(t, pkg.Game.WriteupDeadline)
 	require.Len(t, pkg.Challenges, 1)
 	assert.Equal(t, challengeID, pkg.Challenges[0].ID)
 	assert.Equal(t, "fixture statement", pkg.Challenges[0].Description)
@@ -464,6 +547,7 @@ func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {
 	gameID, challengeID, _, _ := createGameChallengeFixture(t, database)
 
 	freezeAt := time.Now().Add(20 * time.Minute).UTC().Truncate(time.Second)
+	writeupDeadline := freezeAt.Add(24 * time.Hour)
 	require.NoError(t, database.Model(&models.Game{}).Where("id = ?", gameID).Updates(map[string]any{
 		"name":                 "Export Source Game",
 		"description":          "source description",
@@ -471,6 +555,9 @@ func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {
 		"scoreboard_freeze_at": freezeAt,
 		"registration_mode":    games.RegistrationModeAutoAccept,
 		"max_team_members":     4,
+		"practice_mode":        true,
+		"writeup_required":     true,
+		"writeup_deadline":     writeupDeadline,
 		"is_public":            false,
 	}).Error)
 	require.NoError(t, os.MkdirAll("attachments", 0o755))
@@ -510,10 +597,14 @@ func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {
 	assert.Equal(t, "draft", imported.Status)
 	assert.Equal(t, games.RegistrationModeAutoAccept, imported.RegistrationMode)
 	assert.Equal(t, 4, imported.MaxTeamMembers)
+	assert.True(t, imported.PracticeMode)
+	assert.True(t, imported.WriteupRequired)
 	assert.False(t, imported.IsPublic)
 	assert.Equal(t, uint(99), imported.CreatedBy)
 	require.NotNil(t, imported.ScoreboardFreezeAt)
 	assert.True(t, imported.ScoreboardFreezeAt.Equal(freezeAt))
+	require.NotNil(t, imported.WriteupDeadline)
+	assert.True(t, imported.WriteupDeadline.Equal(writeupDeadline))
 
 	var challengeCount int64
 	require.NoError(t, database.Model(&models.Challenge{}).Count(&challengeCount).Error)

@@ -56,6 +56,9 @@ func (m *MockService) CreateGame(req CreateGameRequest, createdBy uint) (*GameRe
 		Status:             "draft",
 		RegistrationMode:   RegistrationModeReview,
 		MaxTeamMembers:     req.MaxTeamMembers,
+		PracticeMode:       req.PracticeMode,
+		WriteupRequired:    req.WriteupRequired,
+		WriteupDeadline:    req.WriteupDeadline,
 		IsPublic:           isPublic,
 		CreatedBy:          createdBy,
 		CreatedAt:          time.Now(),
@@ -127,7 +130,17 @@ func (m *MockService) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse,
 	if req.ScoreboardFreezeAt != nil {
 		nextFreezeAt = req.ScoreboardFreezeAt
 	}
+	nextWriteupDeadline := game.WriteupDeadline
+	if req.ClearWriteupDeadline {
+		nextWriteupDeadline = nil
+	}
+	if req.WriteupDeadline != nil {
+		nextWriteupDeadline = req.WriteupDeadline
+	}
 	if err := validateGameTimeline(nextStartTime, nextEndTime, nextFreezeAt); err != nil {
+		return nil, err
+	}
+	if err := validateWriteupDeadline(nextEndTime, nextWriteupDeadline); err != nil {
 		return nil, err
 	}
 	if req.Name != nil {
@@ -153,6 +166,18 @@ func (m *MockService) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse,
 	}
 	if req.MaxTeamMembers != nil {
 		game.MaxTeamMembers = *req.MaxTeamMembers
+	}
+	if req.PracticeMode != nil {
+		game.PracticeMode = *req.PracticeMode
+	}
+	if req.WriteupRequired != nil {
+		game.WriteupRequired = *req.WriteupRequired
+	}
+	if req.WriteupDeadline != nil {
+		game.WriteupDeadline = req.WriteupDeadline
+	}
+	if req.ClearWriteupDeadline {
+		game.WriteupDeadline = nil
 	}
 	if req.IsPublic != nil {
 		game.IsPublic = *req.IsPublic
@@ -202,6 +227,9 @@ func (m *MockService) ExportGamePackage(id uint) ([]byte, string, error) {
 			Status:             game.Status,
 			RegistrationMode:   game.RegistrationMode,
 			MaxTeamMembers:     game.MaxTeamMembers,
+			PracticeMode:       game.PracticeMode,
+			WriteupRequired:    game.WriteupRequired,
+			WriteupDeadline:    game.WriteupDeadline,
 			IsPublic:           game.IsPublic,
 		},
 		Challenges: m.exportChallenges(id),
@@ -266,6 +294,9 @@ func (m *MockService) ImportGamePackage(data []byte, createdBy uint) (*GameRespo
 		ScoreboardFreezeAt: pkg.Game.ScoreboardFreezeAt,
 		RegistrationMode:   pkg.Game.RegistrationMode,
 		MaxTeamMembers:     pkg.Game.MaxTeamMembers,
+		PracticeMode:       pkg.Game.PracticeMode,
+		WriteupRequired:    pkg.Game.WriteupRequired,
+		WriteupDeadline:    pkg.Game.WriteupDeadline,
 		IsPublic:           &pkg.Game.IsPublic,
 	}, createdBy)
 	if err != nil {

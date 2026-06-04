@@ -256,6 +256,10 @@ export interface components {
       /** @enum {string} */
       registration_mode?: "review" | "auto_accept";
       max_team_members?: number;
+      practice_mode?: boolean;
+      writeup_required?: boolean;
+      /** Format: date-time */
+      writeup_deadline?: string | null;
       is_public?: boolean;
       created_by?: number;
       /** Format: date-time */
@@ -274,6 +278,10 @@ export interface components {
       /** @enum {string} */
       registration_mode?: "review" | "auto_accept";
       max_team_members?: number;
+      practice_mode?: boolean;
+      writeup_required?: boolean;
+      /** Format: date-time */
+      writeup_deadline?: string | null;
       is_public?: boolean;
     };
     UpdateGameRequest: {
@@ -291,6 +299,10 @@ export interface components {
       /** @enum {string} */
       registration_mode?: "review" | "auto_accept";
       max_team_members?: number;
+      practice_mode?: boolean;
+      writeup_required?: boolean;
+      /** Format: date-time */
+      writeup_deadline?: string | null;
       is_public?: boolean;
     };
     AddChallengeToGameRequest: {

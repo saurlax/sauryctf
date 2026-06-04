@@ -35,6 +35,10 @@
 - 报名模式当前支持：
   - `review`：提交报名后进入待审核
   - `auto_accept`：提交报名后直接获得参赛资格
+- 比赛扩展配置当前支持：
+  - `practice_mode`：标记比赛结束后是否继续保留练习入口
+  - `writeup_required`：标记比赛是否要求赛后提交 Writeup
+  - `writeup_deadline`：留空即可；如果填写，不能早于比赛 `end_time`
 - 队伍人数上限当前支持：
   - `0`：不限制人数
   - 正整数：超过人数上限的队伍无法报名该比赛
@@ -59,12 +63,14 @@
   - 当前包内只有 `game.json`
   - 包含比赛基础信息与已挂载题目的完整配置
   - 当前导出版本为 `sauryctf.export.v2`
+  - 也会包含 `practice_mode`、`writeup_required`、`writeup_deadline`
   - 外部附件链接会继续保留为 JSON 数组
   - 如果题目附件使用本地 `/attachments/**` 路径，这些文件也会一起打包进 ZIP
 - 导入比赛当前支持上传管理端导出的 ZIP 包：
   - 接受 `sauryctf.export.v1` 和 `sauryctf.export.v2`
   - 必须包含 `game.json`
   - 导入后会新建一场 `draft` 比赛
+  - 比赛的练习模式和 Writeup 配置会一起恢复
   - 题目会作为新的题库记录重新创建，再挂载到新比赛
   - `v2` 包里嵌入的本地附件会恢复到服务端 `./attachments`
   - 外部附件链接仍只按 URL 保存，不会在导入时主动下载

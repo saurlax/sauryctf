@@ -50,6 +50,9 @@ type CreateGameRequest struct {
 	ScoreboardFreezeAt *time.Time `json:"scoreboard_freeze_at"`
 	RegistrationMode   string     `json:"registration_mode"`
 	MaxTeamMembers     int        `json:"max_team_members"`
+	PracticeMode       bool       `json:"practice_mode"`
+	WriteupRequired    bool       `json:"writeup_required"`
+	WriteupDeadline    *time.Time `json:"writeup_deadline"`
 	IsPublic           *bool      `json:"is_public"`
 }
 
@@ -64,6 +67,10 @@ type UpdateGameRequest struct {
 	Status                *string    `json:"status"`
 	RegistrationMode      *string    `json:"registration_mode"`
 	MaxTeamMembers        *int       `json:"max_team_members"`
+	PracticeMode          *bool      `json:"practice_mode"`
+	WriteupRequired       *bool      `json:"writeup_required"`
+	ClearWriteupDeadline  bool       `json:"-"`
+	WriteupDeadline       *time.Time `json:"writeup_deadline"`
 	IsPublic              *bool      `json:"is_public"`
 }
 
@@ -78,6 +85,9 @@ type GameResponse struct {
 	Status             string     `json:"status"`
 	RegistrationMode   string     `json:"registration_mode"`
 	MaxTeamMembers     int        `json:"max_team_members"`
+	PracticeMode       bool       `json:"practice_mode"`
+	WriteupRequired    bool       `json:"writeup_required"`
+	WriteupDeadline    *time.Time `json:"writeup_deadline"`
 	IsPublic           bool       `json:"is_public"`
 	CreatedBy          uint       `json:"created_by"`
 	CreatedAt          time.Time  `json:"created_at"`
@@ -178,6 +188,9 @@ type ExportGameMetadata struct {
 	Status             string     `json:"status"`
 	RegistrationMode   string     `json:"registration_mode"`
 	MaxTeamMembers     int        `json:"max_team_members"`
+	PracticeMode       bool       `json:"practice_mode"`
+	WriteupRequired    bool       `json:"writeup_required"`
+	WriteupDeadline    *time.Time `json:"writeup_deadline,omitempty"`
 	IsPublic           bool       `json:"is_public"`
 }
 

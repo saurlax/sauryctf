@@ -63,20 +63,23 @@ type Solve struct {
 }
 
 type Game struct {
-	ID               uint      `gorm:"primaryKey" json:"id"`
-	Name             string    `gorm:"size:255;not null" json:"name"`
-	Description      string    `gorm:"type:text" json:"description"`
-	Notice           string    `gorm:"type:text" json:"notice"`
-	StartTime        time.Time `gorm:"not null" json:"start_time"`
-	EndTime          time.Time `gorm:"not null" json:"end_time"`
+	ID                 uint       `gorm:"primaryKey" json:"id"`
+	Name               string     `gorm:"size:255;not null" json:"name"`
+	Description        string     `gorm:"type:text" json:"description"`
+	Notice             string     `gorm:"type:text" json:"notice"`
+	StartTime          time.Time  `gorm:"not null" json:"start_time"`
+	EndTime            time.Time  `gorm:"not null" json:"end_time"`
 	ScoreboardFreezeAt *time.Time `json:"scoreboard_freeze_at"`
-	Status           string    `gorm:"size:32;not null;default:draft" json:"status"`              // draft, active, ended
-	RegistrationMode string    `gorm:"size:32;not null;default:review" json:"registration_mode"` // review, auto_accept
-	MaxTeamMembers   int       `gorm:"not null;default:0" json:"max_team_members"`                // 0 = unlimited
-	IsPublic         bool      `gorm:"not null;default:false" json:"is_public"`
-	CreatedBy        uint      `gorm:"index" json:"created_by"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	Status             string     `gorm:"size:32;not null;default:draft" json:"status"`              // draft, active, ended
+	RegistrationMode   string     `gorm:"size:32;not null;default:review" json:"registration_mode"` // review, auto_accept
+	MaxTeamMembers     int        `gorm:"not null;default:0" json:"max_team_members"`                // 0 = unlimited
+	PracticeMode       bool       `gorm:"not null;default:false" json:"practice_mode"`
+	WriteupRequired    bool       `gorm:"not null;default:false" json:"writeup_required"`
+	WriteupDeadline    *time.Time `json:"writeup_deadline"`
+	IsPublic           bool       `gorm:"not null;default:false" json:"is_public"`
+	CreatedBy          uint       `gorm:"index" json:"created_by"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
 type GameChallenge struct {

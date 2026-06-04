@@ -23,6 +23,7 @@
 - `GET /api/games/{id}`
   - 会返回比赛当前的 `registration_mode`
   - 会返回比赛当前的 `max_team_members`
+  - 也会返回 `practice_mode`、`writeup_required`、`writeup_deadline`
 
 ## 前端行为
 
@@ -30,6 +31,8 @@
   - 当前报名状态
   - 当前队伍名称
   - 管理员填写的比赛公告
+  - 比赛是否支持赛后练习
+  - 比赛是否要求 Writeup 以及截止时间
   - 待审核 / 已拒绝 / 已通过的区别说明
   - 报名比赛 / 退出比赛操作
   - 当前是否可报名 / 可退赛 / 可提交 Flag 的原因说明

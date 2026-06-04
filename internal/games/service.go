@@ -76,6 +76,13 @@ func validateGameTimeline(startTime, endTime time.Time, freezeAt *time.Time) err
 	return nil
 }
 
+func validateWriteupDeadline(endTime time.Time, deadline *time.Time) error {
+	if deadline != nil && deadline.Before(endTime) {
+		return errors.New("invalid writeup deadline")
+	}
+	return nil
+}
+
 func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameResponse, error) {
 	registrationMode, err := normalizeRegistrationMode(req.RegistrationMode)
 	if err != nil {
@@ -86,6 +93,9 @@ func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameRespon
 		return nil, err
 	}
 	if err := validateGameTimeline(req.StartTime, req.EndTime, req.ScoreboardFreezeAt); err != nil {
+		return nil, err
+	}
+	if err := validateWriteupDeadline(req.EndTime, req.WriteupDeadline); err != nil {
 		return nil, err
 	}
 
@@ -99,6 +109,9 @@ func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameRespon
 		Status:             "draft",
 		RegistrationMode:   registrationMode,
 		MaxTeamMembers:     maxTeamMembers,
+		PracticeMode:       req.PracticeMode,
+		WriteupRequired:    req.WriteupRequired,
+		WriteupDeadline:    req.WriteupDeadline,
 		CreatedBy:          createdBy,
 	}
 	if req.IsPublic != nil {
@@ -106,7 +119,7 @@ func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameRespon
 	}
 
 	if err := s.db.Select(
-		"Name", "Description", "Notice", "StartTime", "EndTime", "ScoreboardFreezeAt", "Status", "RegistrationMode", "MaxTeamMembers", "IsPublic", "CreatedBy",
+		"Name", "Description", "Notice", "StartTime", "EndTime", "ScoreboardFreezeAt", "Status", "RegistrationMode", "MaxTeamMembers", "PracticeMode", "WriteupRequired", "WriteupDeadline", "IsPublic", "CreatedBy",
 	).Create(game).Error; err != nil {
 		return nil, err
 	}
@@ -177,7 +190,17 @@ func (s *Service) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, err
 	if req.ScoreboardFreezeAt != nil {
 		nextFreezeAt = req.ScoreboardFreezeAt
 	}
+	nextWriteupDeadline := game.WriteupDeadline
+	if req.ClearWriteupDeadline {
+		nextWriteupDeadline = nil
+	}
+	if req.WriteupDeadline != nil {
+		nextWriteupDeadline = req.WriteupDeadline
+	}
 	if err := validateGameTimeline(nextStartTime, nextEndTime, nextFreezeAt); err != nil {
+		return nil, err
+	}
+	if err := validateWriteupDeadline(nextEndTime, nextWriteupDeadline); err != nil {
 		return nil, err
 	}
 
@@ -219,6 +242,18 @@ func (s *Service) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, err
 			return nil, err
 		}
 		updates["max_team_members"] = maxTeamMembers
+	}
+	if req.PracticeMode != nil {
+		updates["practice_mode"] = *req.PracticeMode
+	}
+	if req.WriteupRequired != nil {
+		updates["writeup_required"] = *req.WriteupRequired
+	}
+	if req.ClearWriteupDeadline {
+		updates["writeup_deadline"] = nil
+	}
+	if req.WriteupDeadline != nil {
+		updates["writeup_deadline"] = *req.WriteupDeadline
 	}
 	if req.IsPublic != nil {
 		updates["is_public"] = *req.IsPublic
@@ -330,6 +365,9 @@ func (s *Service) ExportGamePackage(id uint) ([]byte, string, error) {
 			Status:             effectiveGameStatus(&game),
 			RegistrationMode:   game.RegistrationMode,
 			MaxTeamMembers:     game.MaxTeamMembers,
+			PracticeMode:       game.PracticeMode,
+			WriteupRequired:    game.WriteupRequired,
+			WriteupDeadline:    game.WriteupDeadline,
 			IsPublic:           game.IsPublic,
 		},
 		Challenges: make([]ExportedGameChallenge, 0, len(rows)),
@@ -439,6 +477,9 @@ func (s *Service) ImportGamePackage(data []byte, createdBy uint) (*GameResponse,
 	if err := validateGameTimeline(pkg.Game.StartTime, pkg.Game.EndTime, pkg.Game.ScoreboardFreezeAt); err != nil {
 		return nil, err
 	}
+	if err := validateWriteupDeadline(pkg.Game.EndTime, pkg.Game.WriteupDeadline); err != nil {
+		return nil, err
+	}
 
 	registrationMode, err := normalizeRegistrationMode(pkg.Game.RegistrationMode)
 	if err != nil {
@@ -461,12 +502,15 @@ func (s *Service) ImportGamePackage(data []byte, createdBy uint) (*GameResponse,
 			Status:             "draft",
 			RegistrationMode:   registrationMode,
 			MaxTeamMembers:     maxTeamMembers,
+			PracticeMode:       pkg.Game.PracticeMode,
+			WriteupRequired:    pkg.Game.WriteupRequired,
+			WriteupDeadline:    pkg.Game.WriteupDeadline,
 			IsPublic:           pkg.Game.IsPublic,
 			CreatedBy:          createdBy,
 		}
 
 		if err := tx.Select(
-			"Name", "Description", "Notice", "StartTime", "EndTime", "ScoreboardFreezeAt", "Status", "RegistrationMode", "MaxTeamMembers", "IsPublic", "CreatedBy",
+			"Name", "Description", "Notice", "StartTime", "EndTime", "ScoreboardFreezeAt", "Status", "RegistrationMode", "MaxTeamMembers", "PracticeMode", "WriteupRequired", "WriteupDeadline", "IsPublic", "CreatedBy",
 		).Create(game).Error; err != nil {
 			return err
 		}
@@ -1364,6 +1408,9 @@ func toResponse(g *models.Game) *GameResponse {
 		Status:             effectiveGameStatus(g),
 		RegistrationMode:   g.RegistrationMode,
 		MaxTeamMembers:     g.MaxTeamMembers,
+		PracticeMode:       g.PracticeMode,
+		WriteupRequired:    g.WriteupRequired,
+		WriteupDeadline:    g.WriteupDeadline,
 		IsPublic:           g.IsPublic,
 		CreatedBy:          g.CreatedBy,
 		CreatedAt:          g.CreatedAt,

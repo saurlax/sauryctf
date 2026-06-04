@@ -18,6 +18,9 @@ const gameForm = reactive({
   scoreboard_freeze_at: '',
   registration_mode: 'review' as 'review' | 'auto_accept',
   max_team_members: 0,
+  practice_mode: false,
+  writeup_required: false,
+  writeup_deadline: '',
   is_public: true,
 })
 
@@ -48,6 +51,9 @@ const gameSettingsForm = reactive({
   scoreboard_freeze_at: '',
   registration_mode: 'review' as 'review' | 'auto_accept',
   max_team_members: 0,
+  practice_mode: false,
+  writeup_required: false,
+  writeup_deadline: '',
   is_public: true,
 })
 
@@ -58,6 +64,9 @@ const gameEditForm = reactive({
   notice: '',
   start_time: '',
   end_time: '',
+  practice_mode: false,
+  writeup_required: false,
+  writeup_deadline: '',
 })
 
 const challengeEditForm = reactive({
@@ -104,6 +113,9 @@ const games = ref<Array<{
   scoreboard_freeze_at?: string | null
   registration_mode?: 'review' | 'auto_accept'
   max_team_members?: number
+  practice_mode?: boolean
+  writeup_required?: boolean
+  writeup_deadline?: string | null
   start_time: string
   end_time: string
   is_public?: boolean
@@ -362,6 +374,10 @@ function getRegistrationModeLabel(mode?: 'review' | 'auto_accept') {
   return mode === 'auto_accept' ? '自动通过' : '人工审核'
 }
 
+function getPracticeModeLabel(enabled?: boolean) {
+  return enabled ? '赛后练习开启' : '仅正赛'
+}
+
 async function createGame() {
   gameSubmitting.value = true
   try {
@@ -375,6 +391,9 @@ async function createGame() {
         ...(gameForm.scoreboard_freeze_at ? { scoreboard_freeze_at: new Date(gameForm.scoreboard_freeze_at).toISOString() } : {}),
         registration_mode: gameForm.registration_mode,
         max_team_members: gameForm.max_team_members,
+        practice_mode: gameForm.practice_mode,
+        writeup_required: gameForm.writeup_required,
+        writeup_deadline: gameForm.writeup_deadline ? new Date(gameForm.writeup_deadline).toISOString() : null,
         is_public: gameForm.is_public,
       },
     })
@@ -387,6 +406,9 @@ async function createGame() {
     gameForm.scoreboard_freeze_at = ''
     gameForm.registration_mode = 'review'
     gameForm.max_team_members = 0
+    gameForm.practice_mode = false
+    gameForm.writeup_required = false
+    gameForm.writeup_deadline = ''
     gameForm.is_public = true
     await loadAdminResources()
   }
@@ -523,12 +545,20 @@ async function updateGameSettings() {
       status: 'draft' | 'active' | 'ended'
       registration_mode: 'review' | 'auto_accept'
       max_team_members: number
+      practice_mode: boolean
+      writeup_required: boolean
+      writeup_deadline?: string | null
       is_public: boolean
       scoreboard_freeze_at?: string | null
     } = {
       status: gameSettingsForm.status,
       registration_mode: gameSettingsForm.registration_mode,
       max_team_members: gameSettingsForm.max_team_members,
+      practice_mode: gameSettingsForm.practice_mode,
+      writeup_required: gameSettingsForm.writeup_required,
+      writeup_deadline: gameSettingsForm.writeup_deadline
+        ? new Date(gameSettingsForm.writeup_deadline).toISOString()
+        : null,
       is_public: gameSettingsForm.is_public,
       scoreboard_freeze_at: gameSettingsForm.scoreboard_freeze_at
         ? new Date(gameSettingsForm.scoreboard_freeze_at).toISOString()
@@ -571,6 +601,11 @@ async function updateGameDetails() {
         notice: gameEditForm.notice,
         start_time: new Date(gameEditForm.start_time).toISOString(),
         end_time: new Date(gameEditForm.end_time).toISOString(),
+        practice_mode: gameEditForm.practice_mode,
+        writeup_required: gameEditForm.writeup_required,
+        writeup_deadline: gameEditForm.writeup_deadline
+          ? new Date(gameEditForm.writeup_deadline).toISOString()
+          : null,
       },
     })
 
@@ -790,6 +825,9 @@ watch(() => gameEditForm.game_id, () => {
     gameEditForm.notice = ''
     gameEditForm.start_time = ''
     gameEditForm.end_time = ''
+    gameEditForm.practice_mode = false
+    gameEditForm.writeup_required = false
+    gameEditForm.writeup_deadline = ''
     return
   }
 
@@ -803,6 +841,9 @@ watch(() => gameEditForm.game_id, () => {
   gameEditForm.notice = game.notice || ''
   gameEditForm.start_time = game.start_time.slice(0, 16)
   gameEditForm.end_time = game.end_time.slice(0, 16)
+  gameEditForm.practice_mode = game.practice_mode ?? false
+  gameEditForm.writeup_required = game.writeup_required ?? false
+  gameEditForm.writeup_deadline = game.writeup_deadline ? game.writeup_deadline.slice(0, 16) : ''
 })
 
 watch(() => gameSettingsForm.game_id, () => {
@@ -811,6 +852,9 @@ watch(() => gameSettingsForm.game_id, () => {
     gameSettingsForm.scoreboard_freeze_at = ''
     gameSettingsForm.registration_mode = 'review'
     gameSettingsForm.max_team_members = 0
+    gameSettingsForm.practice_mode = false
+    gameSettingsForm.writeup_required = false
+    gameSettingsForm.writeup_deadline = ''
     gameSettingsForm.is_public = true
     return
   }
@@ -824,6 +868,9 @@ watch(() => gameSettingsForm.game_id, () => {
   gameSettingsForm.scoreboard_freeze_at = game.scoreboard_freeze_at ? game.scoreboard_freeze_at.slice(0, 16) : ''
   gameSettingsForm.registration_mode = game.registration_mode || 'review'
   gameSettingsForm.max_team_members = game.max_team_members || 0
+  gameSettingsForm.practice_mode = game.practice_mode ?? false
+  gameSettingsForm.writeup_required = game.writeup_required ?? false
+  gameSettingsForm.writeup_deadline = game.writeup_deadline ? game.writeup_deadline.slice(0, 16) : ''
   gameSettingsForm.is_public = game.is_public ?? true
 })
 
@@ -914,13 +961,29 @@ onMounted(async () => {
               <USelect v-model="gameForm.registration_mode" :items="registrationModeOptions" class="w-full" />
             </UFormField>
 
-            <UFormField label="队伍人数上限" name="max_team_members" description="0 表示不限制">
-              <UInput v-model.number="gameForm.max_team_members" type="number" min="0" class="w-full" />
-            </UFormField>
+            <div class="grid gap-4 md:grid-cols-2">
+              <UFormField label="队伍人数上限" name="max_team_members" description="0 表示不限制">
+                <UInput v-model.number="gameForm.max_team_members" type="number" min="0" class="w-full" />
+              </UFormField>
 
-            <UFormField label="公开比赛" name="is_public">
-              <USwitch v-model="gameForm.is_public" />
-            </UFormField>
+              <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不要求单独截止时间">
+                <UInput v-model="gameForm.writeup_deadline" type="datetime-local" class="w-full" />
+              </UFormField>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-3">
+              <UFormField label="公开比赛" name="is_public">
+                <USwitch v-model="gameForm.is_public" />
+              </UFormField>
+
+              <UFormField label="启用赛后练习" name="practice_mode">
+                <USwitch v-model="gameForm.practice_mode" />
+              </UFormField>
+
+              <UFormField label="要求 Writeup" name="writeup_required">
+                <USwitch v-model="gameForm.writeup_required" />
+              </UFormField>
+            </div>
 
             <UButton type="submit" :loading="gameSubmitting">
               创建比赛
@@ -961,8 +1024,24 @@ onMounted(async () => {
               </UFormField>
             </div>
 
+            <div class="grid gap-4 md:grid-cols-2">
+              <UFormField label="Writeup 截止时间" name="writeup_deadline" description="需晚于比赛结束时间">
+                <UInput v-model="gameEditForm.writeup_deadline" type="datetime-local" class="w-full" />
+              </UFormField>
+
+              <div class="grid gap-4 md:grid-cols-2">
+                <UFormField label="启用赛后练习" name="practice_mode">
+                  <USwitch v-model="gameEditForm.practice_mode" />
+                </UFormField>
+
+                <UFormField label="要求 Writeup" name="writeup_required">
+                  <USwitch v-model="gameEditForm.writeup_required" />
+                </UFormField>
+              </div>
+            </div>
+
             <div v-if="selectedEditableGame" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              正在编辑：{{ selectedEditableGame.name }} · 当前状态 {{ selectedEditableGame.status }}
+              正在编辑：{{ selectedEditableGame.name }} · 当前状态 {{ selectedEditableGame.status }} · {{ getPracticeModeLabel(selectedEditableGame.practice_mode) }} · {{ selectedEditableGame.writeup_required ? '需要 Writeup' : '不要求 Writeup' }}
             </div>
 
             <UButton type="submit" :loading="gameEditing">
@@ -1008,12 +1087,26 @@ onMounted(async () => {
               <UInput v-model.number="gameSettingsForm.max_team_members" type="number" min="0" class="w-full" />
             </UFormField>
 
-            <UFormField label="公开比赛" name="is_public">
-              <USwitch v-model="gameSettingsForm.is_public" />
+            <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不额外限制提交时间">
+              <UInput v-model="gameSettingsForm.writeup_deadline" type="datetime-local" class="w-full" />
             </UFormField>
 
+            <div class="grid gap-4 md:grid-cols-3">
+              <UFormField label="公开比赛" name="is_public">
+                <USwitch v-model="gameSettingsForm.is_public" />
+              </UFormField>
+
+              <UFormField label="启用赛后练习" name="practice_mode">
+                <USwitch v-model="gameSettingsForm.practice_mode" />
+              </UFormField>
+
+              <UFormField label="要求 Writeup" name="writeup_required">
+                <USwitch v-model="gameSettingsForm.writeup_required" />
+              </UFormField>
+            </div>
+
             <div v-if="selectedSettingsGame" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              当前比赛：{{ selectedSettingsGame.name }} · {{ new Date(selectedSettingsGame.start_time).toLocaleString() }} · {{ getRegistrationModeLabel(selectedSettingsGame.registration_mode) }} · {{ selectedSettingsGame.max_team_members ? `最多 ${selectedSettingsGame.max_team_members} 人` : '人数不限' }} · {{ selectedSettingsGame.scoreboard_freeze_at ? `封榜于 ${new Date(selectedSettingsGame.scoreboard_freeze_at).toLocaleString()}` : '不封榜' }}
+              当前比赛：{{ selectedSettingsGame.name }} · {{ new Date(selectedSettingsGame.start_time).toLocaleString() }} · {{ getRegistrationModeLabel(selectedSettingsGame.registration_mode) }} · {{ selectedSettingsGame.max_team_members ? `最多 ${selectedSettingsGame.max_team_members} 人` : '人数不限' }} · {{ getPracticeModeLabel(selectedSettingsGame.practice_mode) }} · {{ selectedSettingsGame.writeup_required ? '需要 Writeup' : '不要求 Writeup' }} · {{ selectedSettingsGame.scoreboard_freeze_at ? `封榜于 ${new Date(selectedSettingsGame.scoreboard_freeze_at).toLocaleString()}` : '不封榜' }}
             </div>
 
             <UButton type="submit" :loading="settingsSubmitting">
@@ -1358,7 +1451,13 @@ onMounted(async () => {
                       {{ game.max_team_members ? `队伍上限 ${game.max_team_members} 人` : '队伍人数不限' }}
                     </div>
                     <div class="text-muted">
+                      {{ getPracticeModeLabel(game.practice_mode) }} · {{ game.writeup_required ? '需要 Writeup' : '不要求 Writeup' }}
+                    </div>
+                    <div class="text-muted">
                       {{ game.scoreboard_freeze_at ? `封榜时间 ${new Date(game.scoreboard_freeze_at).toLocaleString()}` : '不封榜' }}
+                    </div>
+                    <div v-if="game.writeup_deadline" class="text-muted">
+                      Writeup 截止：{{ new Date(game.writeup_deadline).toLocaleString() }}
                     </div>
                     <div v-if="game.notice" class="text-muted line-clamp-2">
                       公告：{{ game.notice }}

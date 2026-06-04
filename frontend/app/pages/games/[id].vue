@@ -451,6 +451,13 @@ const overviewStats = computed(() => {
       icon: 'i-lucide-file-stack',
       color: 'info' as const,
     },
+    {
+      label: '赛后练习',
+      value: game.value.practice_mode ? '开启' : '关闭',
+      hint: game.value.practice_mode ? '比赛结束后仍可继续练习' : '比赛结束后不再开放练习模式',
+      icon: 'i-lucide-orbit',
+      color: game.value.practice_mode ? 'success' as const : 'neutral' as const,
+    },
   ]
 })
 
@@ -669,9 +676,11 @@ onMounted(async () => {
                 <li>3. {{ game.max_team_members ? `当前队伍人数上限为 ${game.max_team_members} 人，超出将无法报名。` : '当前比赛不限制队伍人数。' }}</li>
                 <li>4. 只有处于可用状态的比赛才会开放报名与正式提交。</li>
                 <li>5. {{ game.scoreboard_freeze_at ? `公开榜单将于 ${new Date(game.scoreboard_freeze_at).toLocaleString()} 封榜。` : '当前比赛不启用封榜。' }}</li>
-                <li>6. 题目页会根据你当前队伍显示已解状态和一血队伍。</li>
-                <li>7. 待审核或已拒绝的报名可以撤回；已通过报名后队伍将锁定，不能再撤回。</li>
-                <li>8. 比赛结束后将无法继续得分。</li>
+                <li>6. {{ game.practice_mode ? '比赛结束后会继续保留练习模式，便于复盘和补题。' : '当前比赛为纯正赛模式，结束后不会继续开放练习。' }}</li>
+                <li>7. {{ game.writeup_required ? (game.writeup_deadline ? `当前比赛要求提交 Writeup，截止时间为 ${new Date(game.writeup_deadline).toLocaleString()}。` : '当前比赛要求提交 Writeup，具体截止时间请留意公告。') : '当前比赛不强制要求提交 Writeup。' }}</li>
+                <li>8. 题目页会根据你当前队伍显示已解状态和一血队伍。</li>
+                <li>9. 待审核或已拒绝的报名可以撤回；已通过报名后队伍将锁定，不能再撤回。</li>
+                <li>10. 比赛结束后将无法继续得分。</li>
               </ul>
             </div>
           </div>
@@ -730,6 +739,18 @@ onMounted(async () => {
               <div class="flex items-center justify-between gap-3">
                 <span class="text-muted">队伍人数限制</span>
                 <span>{{ game.max_team_members ? `${game.max_team_members} 人` : '不限' }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-muted">赛后练习</span>
+                <span>{{ game.practice_mode ? '开启' : '关闭' }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-muted">Writeup 要求</span>
+                <span>{{ game.writeup_required ? '需要' : '不需要' }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-muted">Writeup 截止</span>
+                <span>{{ game.writeup_deadline ? new Date(game.writeup_deadline).toLocaleString() : '未设置' }}</span>
               </div>
               <div class="flex items-center justify-between gap-3">
                 <span class="text-muted">可提交 Flag</span>

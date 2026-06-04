@@ -126,13 +126,17 @@ func TestCreateGame_Success(t *testing.T) {
 	svc := games.NewMockService()
 	r := setupTestRouter(svc)
 
+	writeupDeadline := time.Now().Add(72 * time.Hour).Format(time.RFC3339)
 	body := map[string]interface{}{
-		"name":              "Spring CTF",
-		"description":       "A fun CTF",
-		"start_time":        time.Now().Add(24 * time.Hour).Format(time.RFC3339),
-		"end_time":          time.Now().Add(48 * time.Hour).Format(time.RFC3339),
-		"registration_mode": "auto_accept",
-		"max_team_members":  4,
+		"name":               "Spring CTF",
+		"description":        "A fun CTF",
+		"start_time":         time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+		"end_time":           time.Now().Add(48 * time.Hour).Format(time.RFC3339),
+		"registration_mode":  "auto_accept",
+		"max_team_members":   4,
+		"practice_mode":      true,
+		"writeup_required":   true,
+		"writeup_deadline":   writeupDeadline,
 	}
 	b, _ := json.Marshal(body)
 
@@ -149,6 +153,9 @@ func TestCreateGame_Success(t *testing.T) {
 	assert.Equal(t, "draft", game["status"])
 	assert.Equal(t, "auto_accept", game["registration_mode"])
 	assert.Equal(t, float64(4), game["max_team_members"])
+	assert.Equal(t, true, game["practice_mode"])
+	assert.Equal(t, true, game["writeup_required"])
+	assert.Equal(t, writeupDeadline, game["writeup_deadline"])
 }
 
 func TestCreateGame_MissingName(t *testing.T) {
@@ -304,7 +311,17 @@ func TestUpdateGame_Success(t *testing.T) {
 	newName := "New Name"
 	newMode := games.RegistrationModeAutoAccept
 	newLimit := 2
-	body := games.UpdateGameRequest{Name: &newName, RegistrationMode: &newMode, MaxTeamMembers: &newLimit}
+	practiceMode := true
+	writeupRequired := true
+	writeupDeadline := time.Now().Add(2 * time.Hour).UTC().Truncate(time.Second)
+	body := games.UpdateGameRequest{
+		Name:            &newName,
+		RegistrationMode: &newMode,
+		MaxTeamMembers:  &newLimit,
+		PracticeMode:    &practiceMode,
+		WriteupRequired: &writeupRequired,
+		WriteupDeadline: &writeupDeadline,
+	}
 	b, _ := json.Marshal(body)
 
 	w := httptest.NewRecorder()
@@ -319,6 +336,9 @@ func TestUpdateGame_Success(t *testing.T) {
 	assert.Equal(t, "New Name", game["name"])
 	assert.Equal(t, "auto_accept", game["registration_mode"])
 	assert.Equal(t, float64(2), game["max_team_members"])
+	assert.Equal(t, true, game["practice_mode"])
+	assert.Equal(t, true, game["writeup_required"])
+	assert.Equal(t, writeupDeadline.Format(time.RFC3339), game["writeup_deadline"])
 }
 
 func TestUpdateGame_ClearScoreboardFreeze_Success(t *testing.T) {
@@ -348,6 +368,36 @@ func TestUpdateGame_ClearScoreboardFreeze_Success(t *testing.T) {
 	var game map[string]any
 	json.Unmarshal(w.Body.Bytes(), &game)
 	assert.Nil(t, game["scoreboard_freeze_at"])
+}
+
+func TestUpdateGame_ClearWriteupDeadline_Success(t *testing.T) {
+	svc := games.NewMockService()
+	r := setupTestRouter(svc)
+
+	public := true
+	writeupDeadline := time.Now().Add(2 * time.Hour)
+	svc.CreateGame(games.CreateGameRequest{
+		Name:            "Game",
+		StartTime:       time.Now(),
+		EndTime:         time.Now().Add(time.Hour),
+		WriteupRequired: true,
+		WriteupDeadline: &writeupDeadline,
+		IsPublic:        &public,
+	}, 1)
+
+	body := map[string]any{"writeup_deadline": nil}
+	b, _ := json.Marshal(body)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/games/1", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var game map[string]any
+	json.Unmarshal(w.Body.Bytes(), &game)
+	assert.Nil(t, game["writeup_deadline"])
 }
 
 func TestDeleteGame_Success(t *testing.T) {
@@ -444,6 +494,9 @@ func TestImportGamePackage_Success(t *testing.T) {
 		EndTime:          time.Now().Add(time.Hour),
 		RegistrationMode: games.RegistrationModeAutoAccept,
 		MaxTeamMembers:   4,
+		PracticeMode:     true,
+		WriteupRequired:  true,
+		WriteupDeadline:  func() *time.Time { v := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Second); return &v }(),
 		IsPublic:         &public,
 	}, 1)
 	svc.ChallengesByGame[1] = []games.GameChallengeDetail{
@@ -488,6 +541,8 @@ func TestImportGamePackage_Success(t *testing.T) {
 	_ = json.Unmarshal(w.Body.Bytes(), &response)
 	assert.Equal(t, "Winter CTF 2026", response["name"])
 	assert.Equal(t, "draft", response["status"])
+	assert.Equal(t, true, response["practice_mode"])
+	assert.Equal(t, true, response["writeup_required"])
 
 	importedChallenges, err := svc.GetAdminGameChallenges(2)
 	assert.NoError(t, err)
