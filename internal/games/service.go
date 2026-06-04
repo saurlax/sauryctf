@@ -386,6 +386,9 @@ func (s *Service) DeleteGame(id uint) error {
 		if err := tx.Where("game_id = ?", id).Delete(&models.Participation{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Where("game_id = ?", id).Delete(&models.GameWriteup{}).Error; err != nil {
+			return err
+		}
 		if err := tx.Where("game_id = ?", id).Delete(&models.Solve{}).Error; err != nil {
 			return err
 		}

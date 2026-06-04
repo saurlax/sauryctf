@@ -1,8 +1,11 @@
 package http
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -441,4 +444,183 @@ func TestServer_DoesNotBootstrapAdminWhenUsersExist(t *testing.T) {
 	var count int64
 	require.NoError(t, database.Model(&models.User{}).Count(&count).Error)
 	assert.EqualValues(t, 1, count)
+}
+
+func TestServer_AdminCanExportImportAndDeleteGamePackage(t *testing.T) {
+	server := setupHTTPTestServer(t)
+	defer server.Close()
+
+	tokenCookie := loginBootstrapAdmin(t, server.URL)
+
+	start := time.Now().Add(30 * time.Minute).UTC().Truncate(time.Second)
+	end := start.Add(2 * time.Hour)
+	writeupDeadline := end.Add(24 * time.Hour)
+	game := createSmokeGame(t, server.URL, tokenCookie, map[string]any{
+		"name":               "Portable Smoke Game",
+		"description":        "export import delete smoke",
+		"notice":             "ship it",
+		"start_time":         start.Format(time.RFC3339),
+		"end_time":           end.Format(time.RFC3339),
+		"registration_mode":  "auto_accept",
+		"max_team_members":   4,
+		"practice_mode":      true,
+		"writeup_required":   true,
+		"writeup_deadline":   writeupDeadline.Format(time.RFC3339),
+		"divisions":          []string{"student", "open"},
+		"is_public":          false,
+	})
+
+	challenge := createSmokeChallenge(t, server.URL, tokenCookie, map[string]any{
+		"title":        "Portable Challenge",
+		"description":  "archive me",
+		"category":     "misc",
+		"type":         "static",
+		"difficulty":   "easy",
+		"flag":         "flag{portable-smoke}",
+		"base_score":   400,
+		"min_score":    50,
+		"decay_rate":   0.2,
+		"hints":        "[\"take the zip\"]",
+		"attachments":  "[\"https://example.com/portable.zip\"]",
+		"is_visible":   true,
+	})
+
+	attachBody, err := json.Marshal(map[string]any{
+		"challenge_id":   challenge.ID,
+		"score_override": 275,
+	})
+	require.NoError(t, err)
+
+	attachReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/games/"+idPath(game.ID)+"/challenges", bytes.NewReader(attachBody))
+	require.NoError(t, err)
+	attachReq.Header.Set("Content-Type", "application/json")
+	attachReq.AddCookie(tokenCookie)
+
+	attachResp, err := http.DefaultClient.Do(attachReq)
+	require.NoError(t, err)
+	defer attachResp.Body.Close()
+	require.Equal(t, http.StatusOK, attachResp.StatusCode)
+
+	exportReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/admin/games/"+idPath(game.ID)+"/export", nil)
+	require.NoError(t, err)
+	exportReq.AddCookie(tokenCookie)
+
+	exportResp, err := http.DefaultClient.Do(exportReq)
+	require.NoError(t, err)
+	defer exportResp.Body.Close()
+	require.Equal(t, http.StatusOK, exportResp.StatusCode)
+	require.Equal(t, "application/zip", exportResp.Header.Get("Content-Type"))
+	assert.Contains(t, exportResp.Header.Get("Content-Disposition"), "attachment; filename=")
+
+	exportedBytes, err := io.ReadAll(exportResp.Body)
+	require.NoError(t, err)
+	require.NotEmpty(t, exportedBytes)
+
+	zipReader, err := zip.NewReader(bytes.NewReader(exportedBytes), int64(len(exportedBytes)))
+	require.NoError(t, err)
+	require.NotEmpty(t, zipReader.File)
+
+	var gameJSONFile *zip.File
+	for _, file := range zipReader.File {
+		if file.Name == "game.json" {
+			gameJSONFile = file
+			break
+		}
+	}
+	require.NotNil(t, gameJSONFile)
+
+	gameJSONReader, err := gameJSONFile.Open()
+	require.NoError(t, err)
+	defer gameJSONReader.Close()
+
+	var exportedPayload struct {
+		Version    string `json:"version"`
+		Game       struct {
+			Name             string    `json:"name"`
+			RegistrationMode string    `json:"registration_mode"`
+			MaxTeamMembers   int       `json:"max_team_members"`
+			PracticeMode     bool      `json:"practice_mode"`
+			WriteupRequired  bool      `json:"writeup_required"`
+			WriteupDeadline  time.Time `json:"writeup_deadline"`
+			IsPublic         bool      `json:"is_public"`
+			Divisions        []string  `json:"divisions"`
+		} `json:"game"`
+		Challenges []struct {
+			Title         string `json:"title"`
+			Attachments   string `json:"attachments"`
+			ScoreOverride int    `json:"score_override"`
+		} `json:"challenges"`
+	}
+	require.NoError(t, json.NewDecoder(gameJSONReader).Decode(&exportedPayload))
+	assert.Equal(t, "sauryctf.export.v2", exportedPayload.Version)
+	assert.Equal(t, "Portable Smoke Game", exportedPayload.Game.Name)
+	assert.Equal(t, "auto_accept", exportedPayload.Game.RegistrationMode)
+	assert.Equal(t, 4, exportedPayload.Game.MaxTeamMembers)
+	assert.True(t, exportedPayload.Game.PracticeMode)
+	assert.True(t, exportedPayload.Game.WriteupRequired)
+	assert.False(t, exportedPayload.Game.IsPublic)
+	assert.Equal(t, []string{"student", "open"}, exportedPayload.Game.Divisions)
+	require.Len(t, exportedPayload.Challenges, 1)
+	assert.Equal(t, "Portable Challenge", exportedPayload.Challenges[0].Title)
+	assert.Equal(t, 275, exportedPayload.Challenges[0].ScoreOverride)
+
+	var importBody bytes.Buffer
+	importWriter := multipart.NewWriter(&importBody)
+	importFileWriter, err := importWriter.CreateFormFile("file", "portable-smoke.zip")
+	require.NoError(t, err)
+	_, err = importFileWriter.Write(exportedBytes)
+	require.NoError(t, err)
+	require.NoError(t, importWriter.Close())
+
+	importReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/admin/games/import", &importBody)
+	require.NoError(t, err)
+	importReq.Header.Set("Content-Type", importWriter.FormDataContentType())
+	importReq.AddCookie(tokenCookie)
+
+	importResp, err := http.DefaultClient.Do(importReq)
+	require.NoError(t, err)
+	defer importResp.Body.Close()
+	require.Equal(t, http.StatusCreated, importResp.StatusCode)
+
+	var importedGame games.GameResponse
+	require.NoError(t, json.NewDecoder(importResp.Body).Decode(&importedGame))
+	assert.NotEqual(t, game.ID, importedGame.ID)
+	assert.Equal(t, "Portable Smoke Game", importedGame.Name)
+	assert.Equal(t, "draft", importedGame.Status)
+	assert.Equal(t, "auto_accept", importedGame.RegistrationMode)
+	assert.Equal(t, 4, importedGame.MaxTeamMembers)
+	assert.True(t, importedGame.PracticeMode)
+	assert.True(t, importedGame.WriteupRequired)
+	require.NotNil(t, importedGame.WriteupDeadline)
+	assert.False(t, importedGame.IsPublic)
+	assert.Equal(t, []string{"student", "open"}, importedGame.Divisions)
+
+	importedChallengesReq, err := http.NewRequest(http.MethodGet, server.URL+"/api/admin/games/"+idPath(importedGame.ID)+"/challenges", nil)
+	require.NoError(t, err)
+	importedChallengesReq.AddCookie(tokenCookie)
+
+	importedChallengesResp, err := http.DefaultClient.Do(importedChallengesReq)
+	require.NoError(t, err)
+	defer importedChallengesResp.Body.Close()
+	require.Equal(t, http.StatusOK, importedChallengesResp.StatusCode)
+
+	var importedChallenges []games.GameChallengeDetail
+	require.NoError(t, json.NewDecoder(importedChallengesResp.Body).Decode(&importedChallenges))
+	require.Len(t, importedChallenges, 1)
+	assert.Equal(t, "Portable Challenge", importedChallenges[0].Title)
+	assert.Equal(t, 275, importedChallenges[0].Score)
+
+	deleteReq, err := http.NewRequest(http.MethodDelete, server.URL+"/api/admin/games/"+idPath(game.ID), nil)
+	require.NoError(t, err)
+	deleteReq.AddCookie(tokenCookie)
+
+	deleteResp, err := http.DefaultClient.Do(deleteReq)
+	require.NoError(t, err)
+	defer deleteResp.Body.Close()
+	require.Equal(t, http.StatusOK, deleteResp.StatusCode)
+
+	deletedGameResp, err := http.Get(server.URL + "/api/games/" + idPath(game.ID) + "?all=true")
+	require.NoError(t, err)
+	defer deletedGameResp.Body.Close()
+	require.Equal(t, http.StatusNotFound, deletedGameResp.StatusCode)
 }

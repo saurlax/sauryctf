@@ -444,6 +444,13 @@ func TestService_DeleteGame_RemovesGameScopedRelationsOnly(t *testing.T) {
 
 	_, err = svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
 	require.NoError(t, err)
+	writeupDeadline := time.Now().Add(time.Hour)
+	require.NoError(t, database.Model(&models.Game{}).Where("id = ?", gameID).Updates(map[string]any{
+		"writeup_required": true,
+		"writeup_deadline": writeupDeadline,
+	}).Error)
+	_, err = svc.SubmitWriteup(gameID, 1, games.SubmitGameWriteupRequest{Content: "fixture writeup"})
+	require.NoError(t, err)
 
 	require.NoError(t, svc.DeleteGame(gameID))
 
@@ -462,6 +469,10 @@ func TestService_DeleteGame_RemovesGameScopedRelationsOnly(t *testing.T) {
 	var mountCount int64
 	require.NoError(t, database.Model(&models.GameChallenge{}).Where("game_id = ?", gameID).Count(&mountCount).Error)
 	assert.Zero(t, mountCount)
+
+	var writeupCount int64
+	require.NoError(t, database.Model(&models.GameWriteup{}).Where("game_id = ?", gameID).Count(&writeupCount).Error)
+	assert.Zero(t, writeupCount)
 
 	var challengeCount int64
 	require.NoError(t, database.Model(&models.Challenge{}).Where("id = ?", challengeID).Count(&challengeCount).Error)
