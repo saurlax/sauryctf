@@ -26,7 +26,8 @@
   - 再准备队伍
   - 最后回到比赛继续报名
 - 如果是从比赛详情页跳到 `/register?redirect=/games/{id}`：
-  - 注册成功后会先进入 `/console/team?redirect=/games/{id}`
+  - 注册成功后会先进入 `/console/team?onboarding=created&redirect=/games/{id}`
+  - 队伍页会同时保留“账号已创建”的提示和“完成后回到原比赛”的提示
   - 创建队伍或加入队伍成功后，会自动回到原比赛
 
 ## 登录链路

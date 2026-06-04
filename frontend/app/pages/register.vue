@@ -60,6 +60,7 @@ function resolveRedirect() {
     return {
       path: '/console/team',
       query: {
+        onboarding: 'created',
         redirect,
       },
     }

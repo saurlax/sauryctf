@@ -150,6 +150,7 @@ internal/<module>/
 - Only when the `users` table is completely empty, backend startup auto-creates a bootstrap admin user: `admin / sauryctf`.
 - The frontend now exposes separate `/login` and `/register` entries in the top-right navigation for basic account onboarding.
 - Direct `/register` success now lands on `/console/team?onboarding=created`, so first-time players can create or join a team immediately instead of bouncing through `/console` first.
+- If registration started from a public game page, success now lands on `/console/team?onboarding=created&redirect=...`, so the first-time onboarding hint and the game return path stay visible at the same time.
 - When a guest is redirected from a protected page such as `/console/**`, the target path is preserved in `?redirect=...` so login/register can return the user to the original destination.
 - Game registration now follows a lightweight review flow:
   - player join requests create `pending` participations
