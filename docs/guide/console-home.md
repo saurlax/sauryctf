@@ -27,13 +27,12 @@
   - `GET /api/teams/my`
   - `GET /api/games`
   - `GET /api/games/{id}/participation`
-- 不新增后端聚合接口
 - 前端保持 Nuxt UI 极简卡片式布局
 - 注册后直达 `/console?onboarding=team` 时，会优先用一条顶部提示把用户带去 `/console/team`
-- 管理员待办当前直接复用已有接口逐场拉取，不新增专门的 dashboard summary API：
-  - `GET /api/games/{id}/participants`
-  - `GET /api/admin/games/{id}/writeups`
-  - `GET /api/admin/games/{id}/announcements`
+- 管理员待办当前已经收敛为一个轻量聚合接口：
+  - `GET /api/admin/dashboard/summary`
+  - 返回最近 5 场比赛、待审核报名、待审 Writeup 与最新公告摘要
+  - 控制台首页不再逐场拉取报名 / Writeup / 公告接口
 - “下一步”卡片当前会固定覆盖最小参赛路径：
   - 先准备队伍
   - 再选择比赛

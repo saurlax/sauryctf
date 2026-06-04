@@ -28,6 +28,7 @@ type ServiceInterface interface {
 	DeleteAnnouncement(gameID uint, announcementID uint) error
 	ListSubmissionRecords(gameID uint, submissionType string, limit int) ([]GameSubmissionRecord, error)
 	ListSubmissionCheatClues(gameID uint, limit int) ([]GameSubmissionCheatClue, error)
+	GetAdminDashboardSummary(limit int) (*AdminDashboardSummaryResponse, error)
 	ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error)
 	AddChallenge(gameID uint, challengeID uint, scoreOverride int) error
 	RemoveChallenge(gameID uint, challengeID uint) error
@@ -270,6 +271,56 @@ type GameSubmissionCheatClue struct {
 	TeamCount      int       `json:"team_count"`
 	SubmissionCount int      `json:"submission_count"`
 	Teams          []string  `json:"teams"`
+}
+
+type AdminDashboardSummaryResponse struct {
+	Games               []AdminDashboardGameSummary       `json:"games"`
+	PendingParticipants []AdminDashboardParticipantEntry  `json:"pending_participants"`
+	PendingWriteups     []AdminDashboardWriteupEntry      `json:"pending_writeups"`
+	LatestAnnouncements []AdminDashboardAnnouncementEntry `json:"latest_announcements"`
+}
+
+type AdminDashboardGameSummary struct {
+	ID               uint      `json:"id"`
+	Name             string    `json:"name"`
+	StartTime        time.Time `json:"start_time"`
+	EndTime          time.Time `json:"end_time"`
+	Status           string    `json:"status"`
+	IsPublic         bool      `json:"is_public"`
+	RegistrationMode string    `json:"registration_mode"`
+	PracticeMode     bool      `json:"practice_mode"`
+	WriteupRequired  bool      `json:"writeup_required"`
+}
+
+type AdminDashboardParticipantEntry struct {
+	GameID     uint      `json:"game_id"`
+	GameName   string    `json:"game_name"`
+	TeamID     uint      `json:"team_id"`
+	TeamName   string    `json:"team_name"`
+	Status     string    `json:"status"`
+	Division   string    `json:"division"`
+	JoinedAt   time.Time `json:"joined_at"`
+	Score      int       `json:"score"`
+	SolveCount int       `json:"solve_count"`
+}
+
+type AdminDashboardWriteupEntry struct {
+	GameID      uint      `json:"game_id"`
+	GameName    string    `json:"game_name"`
+	TeamID      uint      `json:"team_id"`
+	TeamName    string    `json:"team_name"`
+	SubmittedBy uint      `json:"submitted_by"`
+	Status      string    `json:"status"`
+	SubmittedAt time.Time `json:"submitted_at"`
+}
+
+type AdminDashboardAnnouncementEntry struct {
+	ID        uint      `json:"id"`
+	GameID    uint      `json:"game_id"`
+	GameName  string    `json:"game_name"`
+	Content   string    `json:"content"`
+	CreatedBy uint      `json:"created_by"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type ExportGamePackage struct {

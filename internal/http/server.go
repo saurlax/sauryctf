@@ -73,6 +73,9 @@ func NewServer(db *gorm.DB, jwtSecret string) *gin.Engine {
 	admin.GET("/games/:id/cheat-clues", func(c *gin.Context) {
 		handler.games.ListSubmissionCheatClues(c, mustIntParam(c, "id"))
 	})
+	admin.GET("/dashboard/summary", func(c *gin.Context) {
+		handler.games.GetAdminDashboardSummary(c)
+	})
 
 	engine.GET("/api/games/:id/announcements", func(c *gin.Context) {
 		id := mustIntParam(c, "id")

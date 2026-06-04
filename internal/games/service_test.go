@@ -806,6 +806,50 @@ func TestService_AnnouncementCRUD(t *testing.T) {
 	assert.Equal(t, second.ID, items[0].ID)
 }
 
+func TestService_GetAdminDashboardSummary(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, _, team1ID, _ := createGameChallengeFixture(t, database)
+
+	require.NoError(t, database.Model(&models.Participation{}).
+		Where("game_id = ? AND team_id = ?", gameID, team1ID).
+		Update("status", models.ParticipationPending).Error)
+
+	submittedAt := time.Now().UTC().Truncate(time.Second)
+	require.NoError(t, database.Create(&models.GameWriteup{
+		GameID:      gameID,
+		TeamID:      team1ID,
+		SubmittedBy: 1,
+		Content:     "summary writeup",
+		Status:      models.WriteupStatusSubmitted,
+		SubmittedAt: submittedAt,
+	}).Error)
+
+	announcement, err := svc.CreateAnnouncement(gameID, 1, games.CreateGameAnnouncementRequest{
+		Content: "最新公告摘要",
+	})
+	require.NoError(t, err)
+
+	summary, err := svc.GetAdminDashboardSummary(5)
+	require.NoError(t, err)
+	require.NotNil(t, summary)
+	require.Len(t, summary.Games, 1)
+	assert.Equal(t, gameID, summary.Games[0].ID)
+	require.Len(t, summary.PendingParticipants, 1)
+	assert.Equal(t, "Team One", summary.PendingParticipants[0].TeamName)
+	assert.Equal(t, gameID, summary.PendingParticipants[0].GameID)
+	require.Len(t, summary.PendingWriteups, 1)
+	assert.Equal(t, "Team One", summary.PendingWriteups[0].TeamName)
+	assert.Equal(t, gameID, summary.PendingWriteups[0].GameID)
+	require.Len(t, summary.LatestAnnouncements, 1)
+	assert.Equal(t, announcement.ID, summary.LatestAnnouncements[0].ID)
+	assert.Equal(t, "最新公告摘要", summary.LatestAnnouncements[0].Content)
+}
+
 func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {
 	database, err := db.ConnectTest()
 	require.NoError(t, err)

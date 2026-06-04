@@ -478,6 +478,39 @@ func (m *MockService) ListSubmissionCheatClues(gameID uint, limit int) ([]GameSu
 	return items, nil
 }
 
+func (m *MockService) GetAdminDashboardSummary(limit int) (*AdminDashboardSummaryResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if limit <= 0 {
+		limit = 5
+	}
+
+	resp := &AdminDashboardSummaryResponse{
+		Games:               make([]AdminDashboardGameSummary, 0, len(m.Games)),
+		PendingParticipants: []AdminDashboardParticipantEntry{},
+		PendingWriteups:     []AdminDashboardWriteupEntry{},
+		LatestAnnouncements: []AdminDashboardAnnouncementEntry{},
+	}
+	for _, game := range m.Games {
+		resp.Games = append(resp.Games, AdminDashboardGameSummary{
+			ID:               game.ID,
+			Name:             game.Name,
+			StartTime:        game.StartTime,
+			EndTime:          game.EndTime,
+			Status:           game.Status,
+			IsPublic:         game.IsPublic,
+			RegistrationMode: game.RegistrationMode,
+			PracticeMode:     game.PracticeMode,
+			WriteupRequired:  game.WriteupRequired,
+		})
+	}
+	if len(resp.Games) > limit {
+		resp.Games = resp.Games[:limit]
+	}
+	return resp, nil
+}
+
 func (m *MockService) ListAnnouncements(gameID uint) ([]GameAnnouncementResponse, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

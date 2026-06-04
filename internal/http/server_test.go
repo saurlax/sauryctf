@@ -383,6 +383,53 @@ func TestServer_PublicVisitorCanBrowsePublicGameMetadata(t *testing.T) {
 	assert.Empty(t, publicChallenges[0].Attachments)
 }
 
+func TestServer_AdminDashboardSummary(t *testing.T) {
+	server := setupHTTPTestServer(t)
+	defer server.Close()
+
+	tokenCookie := loginBootstrapAdmin(t, server.URL)
+
+	start := time.Now().Add(2 * time.Hour).UTC().Truncate(time.Second)
+	end := start.Add(2 * time.Hour)
+	game := createSmokeGame(t, server.URL, tokenCookie, map[string]any{
+		"name":        "Dashboard Summary Game",
+		"description": "summary fixture",
+		"start_time":  start.Format(time.RFC3339),
+		"end_time":    end.Format(time.RFC3339),
+		"is_public":   true,
+	})
+
+	announcementBody := bytes.NewBufferString(`{"content":"summary announcement"}`)
+	announcementReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/admin/games/"+idPath(game.ID)+"/announcements", announcementBody)
+	require.NoError(t, err)
+	announcementReq.Header.Set("Content-Type", "application/json")
+	announcementReq.AddCookie(tokenCookie)
+
+	announcementResp, err := http.DefaultClient.Do(announcementReq)
+	require.NoError(t, err)
+	defer announcementResp.Body.Close()
+	require.Equal(t, http.StatusCreated, announcementResp.StatusCode)
+
+	summaryReq, err := http.NewRequest(http.MethodGet, server.URL+"/api/admin/dashboard/summary", nil)
+	require.NoError(t, err)
+	summaryReq.AddCookie(tokenCookie)
+
+	summaryResp, err := http.DefaultClient.Do(summaryReq)
+	require.NoError(t, err)
+	defer summaryResp.Body.Close()
+	require.Equal(t, http.StatusOK, summaryResp.StatusCode)
+
+	var payload struct {
+		Games               []games.AdminDashboardGameSummary       `json:"games"`
+		LatestAnnouncements []games.AdminDashboardAnnouncementEntry `json:"latest_announcements"`
+	}
+	require.NoError(t, json.NewDecoder(summaryResp.Body).Decode(&payload))
+	require.NotEmpty(t, payload.Games)
+	assert.Equal(t, "Dashboard Summary Game", payload.Games[0].Name)
+	require.NotEmpty(t, payload.LatestAnnouncements)
+	assert.Equal(t, "summary announcement", payload.LatestAnnouncements[0].Content)
+}
+
 func TestServer_NormalUserCannotCreateGame(t *testing.T) {
 	server := setupHTTPTestServer(t)
 	defer server.Close()

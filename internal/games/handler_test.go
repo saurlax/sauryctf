@@ -96,6 +96,7 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 		fmt.Sscan(c.Param("id"), &id)
 		h.ListSubmissionCheatClues(c, id)
 	})
+	api.GET("/admin/dashboard/summary", h.GetAdminDashboardSummary)
 	api.GET("/games/:id/challenges", func(c *gin.Context) {
 		var id int
 		fmt.Sscan(c.Param("id"), &id)
@@ -830,6 +831,28 @@ func TestDeleteAnnouncement_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Empty(t, svc.Announcements[1])
+}
+
+func TestGetAdminDashboardSummary_Success(t *testing.T) {
+	svc := games.NewMockService()
+	r := setupTestRouter(svc)
+
+	public := true
+	_, err := svc.CreateGame(games.CreateGameRequest{
+		Name:      "Summary Game",
+		StartTime: time.Now().Add(time.Hour),
+		EndTime:   time.Now().Add(2 * time.Hour),
+		IsPublic:  &public,
+	}, 1)
+	assert.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/admin/dashboard/summary", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"games"`)
+	assert.Contains(t, w.Body.String(), `"Summary Game"`)
 }
 
 func TestImportGamePackage_Success(t *testing.T) {

@@ -288,6 +288,16 @@ func (h *Handler) ListSubmissionCheatClues(c *gin.Context, id int) {
 	c.JSON(http.StatusOK, clues)
 }
 
+func (h *Handler) GetAdminDashboardSummary(c *gin.Context) {
+	summary, err := h.svc.GetAdminDashboardSummary(5)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, summary)
+}
+
 func (h *Handler) ImportGamePackage(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {

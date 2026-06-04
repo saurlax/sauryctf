@@ -60,9 +60,33 @@ interface AdminWriteupEntry {
 interface AdminAnnouncementEntry {
   id: number
   game_id: number
+  game_name: string
   content: string
   created_by: number
   created_at: string
+}
+
+interface AdminDashboardSummaryResponse {
+  games: Array<{
+    id: number
+    name: string
+    start_time: string
+    end_time: string
+    status: 'draft' | 'active' | 'ended'
+    is_public: boolean
+    registration_mode: 'review' | 'auto_accept'
+    practice_mode: boolean
+    writeup_required: boolean
+  }>
+  pending_participants: Array<AdminParticipantEntry & {
+    game_id: number
+    game_name: string
+  }>
+  pending_writeups: Array<AdminWriteupEntry & {
+    game_id: number
+    game_name: string
+  }>
+  latest_announcements: AdminAnnouncementEntry[]
 }
 
 const isAdmin = computed(() => ['admin', 'super_admin'].includes(authState.user?.role || ''))
@@ -130,7 +154,7 @@ async function fetchConsoleData() {
     if (gamesRes.status === 'fulfilled') {
       games.value = gamesRes.value
       participationMap.value = await fetchParticipationMap(games.value.map(game => game.id))
-      await loadAdminTodoData(games.value)
+      await loadAdminTodoData()
     }
     else {
       games.value = []
@@ -151,79 +175,40 @@ function resetAdminTodoData() {
   adminLatestAnnouncements.value = []
 }
 
-async function loadAdminTodoData(gameList: GameSummary[]) {
+async function loadAdminTodoData() {
   if (!isAdmin.value) {
-    resetAdminTodoData()
-    return
-  }
-
-  const targetGames = [...gameList]
-    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
-    .slice(0, 5)
-
-  if (!targetGames.length) {
     resetAdminTodoData()
     return
   }
 
   loadingAdminTodo.value = true
   try {
-    const settled = await Promise.allSettled(targetGames.map(async (game) => {
-      const [participants, writeups, announcements] = await Promise.all([
-        $api('get', '/api/games/{id}/participants', {
-          params: { id: game.id },
-        }),
-        $api('get', '/api/admin/games/{id}/writeups', {
-          params: { id: game.id },
-        }),
-        $fetch<AdminAnnouncementEntry[]>(`/api/admin/games/${game.id}/announcements`),
-      ])
+    const summary = await $fetch<AdminDashboardSummaryResponse>('/api/admin/dashboard/summary')
+    const gameById = new Map(games.value.map(game => [game.id, game]))
+    const fallbackGame = (id: number, name: string): GameSummary => ({
+      id,
+      name,
+      start_time: '',
+      end_time: '',
+      status: 'draft',
+    })
 
-      return {
-        game,
-        participants,
-        writeups,
-        announcements,
-      }
+    adminPendingParticipants.value = summary.pending_participants.map(item => ({
+      ...item,
+      game: gameById.get(item.game_id) || fallbackGame(item.game_id, item.game_name),
     }))
-
-    const pendingParticipants: Array<AdminParticipantEntry & { game: GameSummary }> = []
-    const pendingWriteups: Array<AdminWriteupEntry & { game: GameSummary }> = []
-    const latestAnnouncements: Array<AdminAnnouncementEntry & { game: GameSummary }> = []
-
-    for (const result of settled) {
-      if (result.status !== 'fulfilled') {
-        continue
-      }
-
-      const { game, participants, writeups, announcements } = result.value
-
-      pendingParticipants.push(
-        ...participants
-          .filter(item => item.status === 'pending')
-          .map(item => ({ ...item, game })),
-      )
-
-      pendingWriteups.push(
-        ...writeups
-          .filter(item => item.status === 'submitted')
-          .map(item => ({ ...item, game })),
-      )
-
-      latestAnnouncements.push(
-        ...announcements.map(item => ({ ...item, game })),
-      )
-    }
-
-    adminPendingParticipants.value = pendingParticipants
-      .sort((a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
-      .slice(0, 6)
-    adminPendingWriteups.value = pendingWriteups
-      .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime())
-      .slice(0, 6)
-    adminLatestAnnouncements.value = latestAnnouncements
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, 5)
+    adminPendingWriteups.value = summary.pending_writeups.map(item => ({
+      ...item,
+      game: gameById.get(item.game_id) || fallbackGame(item.game_id, item.game_name),
+    }))
+    adminLatestAnnouncements.value = summary.latest_announcements.map(item => ({
+      ...item,
+      game: gameById.get(item.game_id) || fallbackGame(item.game_id, item.game_name),
+    }))
+  }
+  catch (e: any) {
+    resetAdminTodoData()
+    toast.add({ title: '管理待办加载失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
     loadingAdminTodo.value = false

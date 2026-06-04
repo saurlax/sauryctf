@@ -268,6 +268,111 @@ func (s *Service) ListGames(showAll bool) ([]GameResponse, error) {
 	return result, nil
 }
 
+func (s *Service) GetAdminDashboardSummary(limit int) (*AdminDashboardSummaryResponse, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+
+	var gameModels []models.Game
+	if err := s.db.
+		Order("start_time DESC").
+		Limit(limit).
+		Find(&gameModels).Error; err != nil {
+		return nil, err
+	}
+
+	resp := &AdminDashboardSummaryResponse{
+		Games:               make([]AdminDashboardGameSummary, 0, len(gameModels)),
+		PendingParticipants: make([]AdminDashboardParticipantEntry, 0),
+		PendingWriteups:     make([]AdminDashboardWriteupEntry, 0),
+		LatestAnnouncements: make([]AdminDashboardAnnouncementEntry, 0),
+	}
+	if len(gameModels) == 0 {
+		return resp, nil
+	}
+
+	gameIDs := make([]uint, 0, len(gameModels))
+	gameNameByID := make(map[uint]string, len(gameModels))
+	for _, game := range gameModels {
+		gameIDs = append(gameIDs, game.ID)
+		gameNameByID[game.ID] = game.Name
+		resp.Games = append(resp.Games, AdminDashboardGameSummary{
+			ID:               game.ID,
+			Name:             game.Name,
+			StartTime:        game.StartTime,
+			EndTime:          game.EndTime,
+			Status:           effectiveGameStatus(&game),
+			IsPublic:         game.IsPublic,
+			RegistrationMode: game.RegistrationMode,
+			PracticeMode:     game.PracticeMode,
+			WriteupRequired:  game.WriteupRequired,
+		})
+	}
+
+	var participations []models.Participation
+	if err := s.db.
+		Preload("Team").
+		Where("game_id IN ? AND status = ?", gameIDs, models.ParticipationPending).
+		Order("created_at DESC").
+		Find(&participations).Error; err != nil {
+		return nil, err
+	}
+	for _, participation := range participations {
+		resp.PendingParticipants = append(resp.PendingParticipants, AdminDashboardParticipantEntry{
+			GameID:     participation.GameID,
+			GameName:   gameNameByID[participation.GameID],
+			TeamID:     participation.TeamID,
+			TeamName:   participation.Team.Name,
+			Status:     string(participation.Status),
+			Division:   participation.Division,
+			JoinedAt:   participation.CreatedAt,
+			Score:      0,
+			SolveCount: 0,
+		})
+	}
+
+	var writeups []models.GameWriteup
+	if err := s.db.
+		Preload("Team").
+		Where("game_id IN ? AND status = ?", gameIDs, models.WriteupStatusSubmitted).
+		Order("submitted_at DESC").
+		Find(&writeups).Error; err != nil {
+		return nil, err
+	}
+	for _, writeup := range writeups {
+		resp.PendingWriteups = append(resp.PendingWriteups, AdminDashboardWriteupEntry{
+			GameID:      writeup.GameID,
+			GameName:    gameNameByID[writeup.GameID],
+			TeamID:      writeup.TeamID,
+			TeamName:    writeup.Team.Name,
+			SubmittedBy: writeup.SubmittedBy,
+			Status:      string(writeup.Status),
+			SubmittedAt: writeup.SubmittedAt,
+		})
+	}
+
+	var announcements []models.GameAnnouncement
+	if err := s.db.
+		Where("game_id IN ?", gameIDs).
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&announcements).Error; err != nil {
+		return nil, err
+	}
+	for _, announcement := range announcements {
+		resp.LatestAnnouncements = append(resp.LatestAnnouncements, AdminDashboardAnnouncementEntry{
+			ID:        announcement.ID,
+			GameID:    announcement.GameID,
+			GameName:  gameNameByID[announcement.GameID],
+			Content:   announcement.Content,
+			CreatedBy: announcement.CreatedBy,
+			CreatedAt: announcement.CreatedAt,
+		})
+	}
+
+	return resp, nil
+}
+
 func (s *Service) GetPublicGame(id uint) (*GameResponse, error) {
 	game, err := s.GetGame(id)
 	if err != nil {
