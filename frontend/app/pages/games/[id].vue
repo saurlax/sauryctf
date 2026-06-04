@@ -478,6 +478,22 @@ const detailSecondaryAction = computed(() => {
   return null
 })
 
+const participationSummaryLabel = computed(() => {
+  if (!authState.user) {
+    return '访客可浏览'
+  }
+
+  return participationMeta.value.label
+})
+
+const participationSummaryColor = computed(() => {
+  if (!authState.user) {
+    return 'info' as const
+  }
+
+  return participationMeta.value.color
+})
+
 const overviewStats = computed(() => {
   if (!game.value) {
     return []
@@ -693,10 +709,10 @@ onMounted(async () => {
             </div>
             <div v-else class="flex items-center gap-2 flex-wrap">
               <UBadge
-                :color="authState.user ? (participation?.participated ? 'success' : participation?.has_team ? 'warning' : 'neutral') : 'info'"
+                :color="participationSummaryColor"
                 variant="soft"
               >
-                {{ authState.user ? (participation?.participated ? '已报名' : participation?.has_team ? '未报名' : '未加入队伍') : '访客可浏览' }}
+                {{ participationSummaryLabel }}
               </UBadge>
               <span v-if="participation?.team" class="text-sm text-muted">
                 当前队伍：{{ participation.team.name }}
@@ -816,10 +832,10 @@ onMounted(async () => {
               <div class="flex items-center justify-between gap-3">
                 <span class="text-muted">比赛报名</span>
                 <UBadge
-                  :color="participation?.participated ? 'success' : 'warning'"
+                  :color="participationSummaryColor"
                   variant="soft"
                 >
-                  {{ participation?.participated ? '已报名' : '未报名' }}
+                  {{ participationSummaryLabel }}
                 </UBadge>
               </div>
               <div class="flex items-center justify-between gap-3">
