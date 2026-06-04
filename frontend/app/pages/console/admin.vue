@@ -328,12 +328,13 @@ const selectedAdminOverview = computed(() => {
   }
 })
 
-const activeMonitorTab = ref<'overview' | 'submissions' | 'clues' | 'ops'>('overview')
+const activeMonitorTab = ref<'overview' | 'submissions' | 'clues' | 'timeline' | 'ops'>('overview')
 
 const monitorTabItems = [
   { label: '总览', value: 'overview', icon: 'i-lucide-layout-dashboard' },
   { label: '提交流', value: 'submissions', icon: 'i-lucide-activity' },
   { label: '线索', value: 'clues', icon: 'i-lucide-shield-alert' },
+  { label: '时间线', value: 'timeline', icon: 'i-lucide-timeline' },
   { label: '运维', value: 'ops', icon: 'i-lucide-megaphone' },
 ]
 
@@ -427,6 +428,57 @@ const monitorFocusItems = computed(() => {
   }
 
   return items.slice(0, 4)
+})
+
+const selectedMonitorTimeline = computed(() => {
+  const overview = selectedAdminOverview.value
+  if (!overview) {
+    return []
+  }
+
+  const acceptedSubmissionItems = submissions.value
+    .filter(item => item.result === 'accepted')
+    .map(item => ({
+      key: `submission-${item.id}`,
+      occurredAt: item.submitted_at,
+      timestamp: new Date(item.submitted_at).getTime(),
+      icon: 'i-lucide-circle-check-big',
+      color: 'success' as const,
+      badge: '正确提交',
+      title: `${item.team_name} 解出 ${item.challenge_title}`,
+      description: `${item.username} 在 ${item.category} 分类上提交正确 Flag${item.blood_type ? `，血量标记：${item.blood_type}` : ''}。`,
+    }))
+
+  const announcementItems = announcements.value.map(item => ({
+    key: `announcement-${item.id}`,
+    occurredAt: item.created_at,
+    timestamp: new Date(item.created_at).getTime(),
+    icon: 'i-lucide-megaphone',
+    color: 'info' as const,
+    badge: '公告',
+    title: '管理员发布了一条比赛公告',
+    description: item.content,
+  }))
+
+  const cheatClueItems = cheatClues.value.map(item => ({
+    key: `clue-${item.challenge_id}-${item.submitted_flag}`,
+    occurredAt: item.last_seen_at,
+    timestamp: new Date(item.last_seen_at).getTime(),
+    icon: 'i-lucide-shield-alert',
+    color: 'warning' as const,
+    badge: '可疑线索',
+    title: `${item.challenge_title} 出现重复错误 Flag`,
+    description: `${item.team_count} 支队伍共提交 ${item.submission_count} 次相同错误 Flag：${item.submitted_flag}`,
+  }))
+
+  return [
+    ...acceptedSubmissionItems,
+    ...announcementItems,
+    ...cheatClueItems,
+  ]
+    .filter(item => Number.isFinite(item.timestamp))
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 12)
 })
 
 const selectedGamePreflightChecks = computed(() => {
@@ -2352,6 +2404,48 @@ onMounted(async () => {
             </div>
             <div v-else class="text-sm text-muted">
               当前还没有发现跨队重复错误 Flag 的线索。
+            </div>
+          </div>
+
+          <div v-else-if="activeMonitorTab === 'timeline'" class="space-y-3">
+            <UAlert
+              color="info"
+              variant="soft"
+              title="时间线会混合展示公告、正确提交与可疑线索"
+              description="适合在赛时快速回放最近发生了什么，帮助管理员判断是正常比赛推进，还是需要插入运维或排查动作。"
+            />
+
+            <div v-if="selectedMonitorTimeline.length" class="space-y-2">
+              <div
+                v-for="item in selectedMonitorTimeline"
+                :key="item.key"
+                class="rounded-lg border border-default px-3 py-3"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-2">
+                      <UIcon :name="item.icon" :class="`size-4 text-${item.color}`" />
+                      <div class="font-medium">
+                        {{ item.title }}
+                      </div>
+                    </div>
+                    <div class="mt-2 text-sm text-muted whitespace-pre-wrap break-all">
+                      {{ item.description }}
+                    </div>
+                  </div>
+                  <div class="shrink-0 text-right">
+                    <UBadge :color="item.color" variant="soft">
+                      {{ item.badge }}
+                    </UBadge>
+                    <div class="mt-2 text-xs text-muted">
+                      {{ new Date(item.occurredAt).toLocaleString() }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-sm text-muted">
+              当前还没有可串到时间线里的赛时事件。
             </div>
           </div>
 
