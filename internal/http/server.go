@@ -9,21 +9,25 @@ import (
 
 	"github.com/saurlax/sauryctf/internal/auth"
 	"github.com/saurlax/sauryctf/internal/challenges"
+	"github.com/saurlax/sauryctf/internal/config"
 	"github.com/saurlax/sauryctf/internal/games"
 	"github.com/saurlax/sauryctf/internal/models"
 	"github.com/saurlax/sauryctf/internal/rbac"
 	"github.com/saurlax/sauryctf/internal/teams"
 )
 
-func NewServer(db *gorm.DB, jwtSecret string) *gin.Engine {
+func NewServer(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	engine := gin.New()
 	engine.Use(gin.Logger())
 	engine.Use(gin.Recovery())
 	engine.StaticFS("/attachments", http.Dir("./attachments"))
 
 	// 初始化各模块服务和 handler
-	authSvc := auth.NewService(db, jwtSecret)
-	gameSvc := games.NewService(db)
+	authSvc := auth.NewService(db, cfg.JWTSecret)
+	gameSvc := games.NewServiceWithOptions(db, nil, games.InstancePolicy{
+		LeaseDuration: cfg.InstanceLeaseDuration,
+		RenewalWindow: cfg.InstanceRenewalWindow,
+	})
 	handler := NewHandler(
 		auth.NewHandler(authSvc),
 		teams.NewHandler(teams.NewService(db)),

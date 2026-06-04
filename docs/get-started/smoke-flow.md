@@ -17,6 +17,13 @@ pnpm dev
 - 前端：`http://127.0.0.1:3000`
 - 后端：`http://127.0.0.1:8080`
 
+当前动态题实例的最小容器策略也可以直接通过环境变量调整：
+
+- `INSTANCE_LEASE_DURATION_MINUTES`
+- `INSTANCE_RENEWAL_WINDOW_MINUTES`
+
+默认分别是 `30` 分钟和 `10` 分钟，适合本地 smoke 流程。
+
 如果当前数据库是空的，后端启动后会自动创建：
 
 - 用户名：`admin`

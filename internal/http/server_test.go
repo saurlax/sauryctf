@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/saurlax/sauryctf/internal/auth"
+	"github.com/saurlax/sauryctf/internal/config"
 	"github.com/saurlax/sauryctf/internal/db"
 	"github.com/saurlax/sauryctf/internal/games"
 	"github.com/saurlax/sauryctf/internal/models"
@@ -34,7 +35,7 @@ func setupHTTPTestServer(t *testing.T) *httptest.Server {
 	_, _, err = authSvc.EnsureBootstrapAdmin()
 	require.NoError(t, err)
 
-	engine := NewServer(database, "test-secret")
+	engine := NewServer(database, &config.Config{JWTSecret: "test-secret"})
 	return httptest.NewServer(engine)
 }
 

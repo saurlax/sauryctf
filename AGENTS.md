@@ -92,7 +92,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 | `challenges/` | Challenge CRUD, flag submission, dynamic scoring |
 | `games/` | Game CRUD, challenge association |
 | `models/` | Data models (User, Session, Team, TeamMember, Challenge, Solve, Game, GameChallenge) |
-| `config/` | Env var loading (HOST, PORT, DATABASE_URL, JWT_SECRET) |
+| `config/` | Env var loading (HOST, PORT, DATABASE_URL, JWT_SECRET, instance lease policy) |
 | `db/` | Database connection (SQLite by default; PostgreSQL when DATABASE_URL is set), migration, test helpers (`ConnectTest`, `CleanTables`) |
 | `http/` | Gin server init, route registration (`/api/healthz`, plus all CRUD routes below) |
 
@@ -183,6 +183,7 @@ internal/<module>/
   - the public game page now presents managed instances more like an operator-facing panel: lease countdown, progress bar, mock-vs-real entry hint, and a lightweight auto-refresh for running leases
   - managed instances now also support a minimal player-side destroy flow so the current team can reset an active local/mock lease without touching the admin side
   - managed instance renewal is now gated by a minimal GZCTF-style renewal window: the current lease only becomes renewable within 10 minutes before expiry
+  - the current local container policy is now env-configurable via `INSTANCE_LEASE_DURATION_MINUTES` and `INSTANCE_RENEWAL_WINDOW_MINUTES`, so local smoke runs can tune lifetime and renewal behavior without changing code
 - Registration withdrawal now follows the current GZCTF-style rule:
   - `pending` / `rejected` participations can be withdrawn
   - `accepted` participations are locked and can no longer be withdrawn

@@ -50,6 +50,11 @@ type ChallengeInstanceProvider interface {
 	EnsureLease(req ChallengeInstanceProviderRequest) (*ChallengeInstanceLeaseState, error)
 }
 
+type InstancePolicy struct {
+	LeaseDuration time.Duration
+	RenewalWindow time.Duration
+}
+
 // ServiceInterface defines the game management contract.
 type ServiceInterface interface {
 	CreateGame(req CreateGameRequest, createdBy uint) (*GameResponse, error)

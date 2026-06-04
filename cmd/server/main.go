@@ -57,7 +57,7 @@ func main() {
 		fmt.Printf("Bootstrap admin created: %s / %s\n", user.Username, "sauryctf")
 	}
 
-	engine := httphandler.NewServer(database, cfg.JWTSecret)
+	engine := httphandler.NewServer(database, cfg)
 
 	addr := fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)
 

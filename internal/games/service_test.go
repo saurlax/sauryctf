@@ -1864,6 +1864,76 @@ func TestService_ChallengeInstanceLifecycle_OnlyRenewsWithinWindow(t *testing.T)
 	assert.Contains(t, renewed.Message, "需在到期前 10 分钟内续期")
 }
 
+func TestService_InstancePolicy_UsesConfiguredDurations(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	lastTestDB = database
+	db.CleanTables(database)
+
+	svc := games.NewServiceWithOptions(database, nil, games.InstancePolicy{
+		LeaseDuration: 12 * time.Minute,
+		RenewalWindow: 3 * time.Minute,
+	})
+
+	user := models.User{Username: "policy-user", Email: "policy@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+
+	team := models.Team{Name: "Policy Team", InviteCode: "policy-team", CaptainID: user.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team.ID,
+		UserID: user.ID,
+		Role:   models.MemberRoleCaptain,
+	}).Error)
+
+	challenge := models.Challenge{
+		Title:         "Policy Lease",
+		Category:      models.CategoryWeb,
+		Type:          models.TypeDynamic,
+		Flag:          "flag{policy}",
+		BaseScore:     100,
+		MinScore:      100,
+		DecayRate:     0,
+		IsVisible:     true,
+		CreatedBy:     user.ID,
+		ContainerSpec: `{"runtime":{"provider":"docker","image":"ctf/example:latest"},"connection":{"url":"http://127.0.0.1:8081","note":"policy lease"}}`,
+	}
+	require.NoError(t, database.Create(&challenge).Error)
+
+	game := models.Game{
+		Name:         "Policy Game",
+		StartTime:    time.Now().Add(-time.Hour),
+		EndTime:      time.Now().Add(time.Hour),
+		Status:       "active",
+		IsPublic:     true,
+		PracticeMode: true,
+		CreatedBy:    user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+	require.NoError(t, database.Create(&models.GameChallenge{
+		GameID: game.ID, ChallengeID: challenge.ID,
+	}).Error)
+	require.NoError(t, database.Create(&models.Participation{
+		GameID: game.ID, TeamID: team.ID, UserID: user.ID, Status: models.ParticipationAccepted,
+	}).Error)
+
+	running, err := svc.EnsureChallengeInstance(game.ID, challenge.ID, user.ID)
+	require.NoError(t, err)
+	require.NotNil(t, running.ExpiresAt)
+	assert.WithinDuration(t, time.Now().Add(12*time.Minute), *running.ExpiresAt, 5*time.Second)
+
+	var lease models.GameInstanceLease
+	require.NoError(t, database.Where("game_id = ? AND challenge_id = ? AND team_id = ?", game.ID, challenge.ID, team.ID).First(&lease).Error)
+	lease.ExpiresAt = time.Now().Add(5 * time.Minute)
+	require.NoError(t, database.Save(&lease).Error)
+
+	state, err := svc.GetChallengeInstance(game.ID, challenge.ID, user.ID)
+	require.NoError(t, err)
+	assert.False(t, state.CanRenew)
+	assert.Contains(t, state.Message, "需在到期前 3 分钟内续期")
+}
+
 func TestService_ChallengeInstanceLifecycle_RendersTemplateFieldsPerTeam(t *testing.T) {
 	svc, cleanup := setupService(t)
 	defer cleanup()
@@ -1945,9 +2015,9 @@ func TestService_ChallengeInstanceLifecycle_UsesCustomProvider(t *testing.T) {
 			ExpiresAt:     time.Now().Add(45 * time.Minute),
 		},
 	}
-	svc := games.NewServiceWithInstanceProviders(database, map[string]games.ChallengeInstanceProvider{
+	svc := games.NewServiceWithOptions(database, map[string]games.ChallengeInstanceProvider{
 		"custom": provider,
-	})
+	}, games.InstancePolicy{})
 
 	user := models.User{Username: "provider-user", Email: "provider@example.com", PasswordHash: "hash"}
 	require.NoError(t, database.Create(&user).Error)

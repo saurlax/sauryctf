@@ -26,13 +26,14 @@ const (
 	RegistrationModeReview     = "review"
 	RegistrationModeAutoAccept = "auto_accept"
 	exportAttachmentDir        = "attachments"
-	instanceLeaseDuration      = 30 * time.Minute
-	instanceRenewalWindow      = 10 * time.Minute
+	defaultInstanceLeaseDuration = 30 * time.Minute
+	defaultInstanceRenewalWindow = 10 * time.Minute
 )
 
 type Service struct {
 	db                *gorm.DB
 	instanceProviders map[string]ChallengeInstanceProvider
+	instancePolicy    InstancePolicy
 }
 
 type exportedAttachmentPayload struct {
@@ -51,13 +52,28 @@ type parsedInstanceSpec struct {
 }
 
 func NewService(db *gorm.DB) *Service {
-	return NewServiceWithInstanceProviders(db, nil)
+	return NewServiceWithOptions(db, nil, InstancePolicy{})
 }
 
 func NewServiceWithInstanceProviders(db *gorm.DB, providers map[string]ChallengeInstanceProvider) *Service {
+	return NewServiceWithOptions(db, providers, InstancePolicy{})
+}
+
+func NewServiceWithOptions(db *gorm.DB, providers map[string]ChallengeInstanceProvider, policy InstancePolicy) *Service {
+	if policy.LeaseDuration <= 0 {
+		policy.LeaseDuration = defaultInstanceLeaseDuration
+	}
+	if policy.RenewalWindow <= 0 {
+		policy.RenewalWindow = defaultInstanceRenewalWindow
+	}
+	if policy.RenewalWindow > policy.LeaseDuration {
+		policy.RenewalWindow = policy.LeaseDuration
+	}
+
 	return &Service{
 		db:                db,
 		instanceProviders: cloneChallengeInstanceProviders(providers),
+		instancePolicy:    policy,
 	}
 }
 
@@ -242,11 +258,11 @@ func buildInstanceResponse(gameID uint, challengeID uint, teamID uint, lease *mo
 		status = "running"
 		canStart = false
 		secondsLeft = int(time.Until(lease.ExpiresAt).Seconds())
-		if time.Until(lease.ExpiresAt) <= instanceRenewalWindow {
+		if time.Until(lease.ExpiresAt) <= s.instancePolicy.RenewalWindow {
 			canRenew = true
 			message = fmt.Sprintf("实例运行中，预计还剩 %d 秒，当前已经进入可续期窗口。", secondsLeft)
 		} else {
-			message = fmt.Sprintf("实例运行中，预计还剩 %d 秒；需在到期前 %d 分钟内续期。", secondsLeft, int(instanceRenewalWindow/time.Minute))
+			message = fmt.Sprintf("实例运行中，预计还剩 %d 秒；需在到期前 %d 分钟内续期。", secondsLeft, int(s.instancePolicy.RenewalWindow/time.Minute))
 		}
 	}
 
@@ -1932,8 +1948,8 @@ func (s *Service) EnsureChallengeInstance(gameID uint, challengeID uint, userID 
 
 	var existingLease *models.GameInstanceLease
 	if !errors.Is(findErr, gorm.ErrRecordNotFound) {
-		if lease.ExpiresAt.After(now) && time.Until(lease.ExpiresAt) > instanceRenewalWindow {
-			return nil, fmt.Errorf("instance renewal is only available within %d minutes before expiry", int(instanceRenewalWindow/time.Minute))
+		if lease.ExpiresAt.After(now) && time.Until(lease.ExpiresAt) > s.instancePolicy.RenewalWindow {
+			return nil, fmt.Errorf("instance renewal is only available within %d minutes before expiry", int(s.instancePolicy.RenewalWindow/time.Minute))
 		}
 		existingLease = &lease
 	}
@@ -1944,7 +1960,7 @@ func (s *Service) EnsureChallengeInstance(gameID uint, challengeID uint, userID 
 		TeamID:        participation.TeamID,
 		UserID:        userID,
 		Now:           now,
-		LeaseDuration: instanceLeaseDuration,
+		LeaseDuration: s.instancePolicy.LeaseDuration,
 		Runtime:       toChallengeInstanceRuntimeSpec(spec),
 		Existing:      existingLease,
 	})
