@@ -96,6 +96,11 @@ const importForm = reactive({
   file: undefined as File | undefined,
 })
 
+const submissionFilters = reactive({
+  type: 'all' as 'all' | 'accepted' | 'wrong_flag' | 'already_solved',
+  count: 50,
+})
+
 const gameSubmitting = ref(false)
 const challengeSubmitting = ref(false)
 const attachSubmitting = ref(false)
@@ -244,6 +249,13 @@ const participantStatusOptions = [
   { label: '待审核', value: 'pending' },
   { label: '已通过', value: 'accepted' },
   { label: '已拒绝', value: 'rejected' },
+]
+
+const submissionTypeOptions = [
+  { label: '全部结果', value: 'all' },
+  { label: '只看正确', value: 'accepted' },
+  { label: '只看错误 Flag', value: 'wrong_flag' },
+  { label: '只看重复提交', value: 'already_solved' },
 ]
 
 const gameOptions = computed(() => games.value.map(game => ({
@@ -548,7 +560,12 @@ async function loadSubmissions() {
 
   loadingSubmissions.value = true
   try {
-    submissions.value = await $fetch(`/api/admin/games/${attachForm.game_id}/submissions`)
+    submissions.value = await $fetch(`/api/admin/games/${attachForm.game_id}/submissions`, {
+      query: {
+        type: submissionFilters.type,
+        count: submissionFilters.count,
+      },
+    })
   }
   catch (e: any) {
     submissions.value = []
@@ -1620,6 +1637,13 @@ watch(() => attachForm.game_id, async () => {
   await loadSubmissions()
 })
 
+watch(() => [submissionFilters.type, submissionFilters.count], async () => {
+  if (!attachForm.game_id) {
+    return
+  }
+  await loadSubmissions()
+})
+
 onMounted(async () => {
   await ensureInitialized()
 
@@ -2544,15 +2568,34 @@ onMounted(async () => {
               <div class="text-sm text-muted">
                 {{ selectedGame.name }} · {{ loadingSubmissions ? '正在加载提交记录...' : `最近 ${submissions.length} 条` }}
               </div>
-              <UButton
-                size="sm"
-                variant="ghost"
-                icon="i-lucide-refresh-cw"
-                :loading="loadingSubmissions"
-                @click="loadSubmissions"
-              >
-                刷新
-              </UButton>
+              <div class="flex items-center gap-2">
+                <USelect
+                  v-model="submissionFilters.type"
+                  :items="submissionTypeOptions"
+                  size="sm"
+                  class="w-36"
+                />
+                <USelect
+                  v-model="submissionFilters.count"
+                  :items="[
+                    { label: '20 条', value: 20 },
+                    { label: '50 条', value: 50 },
+                    { label: '100 条', value: 100 },
+                    { label: '200 条', value: 200 },
+                  ]"
+                  size="sm"
+                  class="w-28"
+                />
+                <UButton
+                  size="sm"
+                  variant="ghost"
+                  icon="i-lucide-refresh-cw"
+                  :loading="loadingSubmissions"
+                  @click="loadSubmissions"
+                >
+                  刷新
+                </UButton>
+              </div>
             </div>
             <div v-else class="text-sm text-muted">
               先选择比赛，再查看当前比赛的最近提交。

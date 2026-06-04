@@ -436,7 +436,7 @@ func (m *MockService) ExportSubmissionsPackage(id uint) ([]byte, string, error) 
 	return archive.Bytes(), fmt.Sprintf("game-%d-%s-submissions-export.zip", game.ID, sanitizeExportName(game.Name)), nil
 }
 
-func (m *MockService) ListSubmissionRecords(gameID uint, limit int) ([]GameSubmissionRecord, error) {
+func (m *MockService) ListSubmissionRecords(gameID uint, submissionType string, limit int) ([]GameSubmissionRecord, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -444,7 +444,13 @@ func (m *MockService) ListSubmissionRecords(gameID uint, limit int) ([]GameSubmi
 		return nil, fmt.Errorf("game not found")
 	}
 
-	items := append([]GameSubmissionRecord(nil), m.Submissions[gameID]...)
+	items := make([]GameSubmissionRecord, 0, len(m.Submissions[gameID]))
+	for _, item := range m.Submissions[gameID] {
+		if submissionType != "" && submissionType != "all" && item.Result != submissionType {
+			continue
+		}
+		items = append(items, item)
+	}
 	if limit > 0 && len(items) > limit {
 		items = items[:limit]
 	}

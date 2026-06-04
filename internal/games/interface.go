@@ -23,7 +23,7 @@ type ServiceInterface interface {
 	ExportScoreboardPackage(id uint, division string) ([]byte, string, error)
 	ExportWriteupsPackage(id uint) ([]byte, string, error)
 	ExportSubmissionsPackage(id uint) ([]byte, string, error)
-	ListSubmissionRecords(gameID uint, limit int) ([]GameSubmissionRecord, error)
+	ListSubmissionRecords(gameID uint, submissionType string, limit int) ([]GameSubmissionRecord, error)
 	ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error)
 	AddChallenge(gameID uint, challengeID uint, scoreOverride int) error
 	RemoveChallenge(gameID uint, challengeID uint) error

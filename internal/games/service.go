@@ -714,7 +714,7 @@ func (s *Service) ExportSubmissionsPackage(id uint) ([]byte, string, error) {
 		return nil, "", err
 	}
 
-	submissions, err := s.ListSubmissionRecords(id, 0)
+	submissions, err := s.ListSubmissionRecords(id, "", 0)
 	if err != nil {
 		return nil, "", err
 	}
@@ -1745,12 +1745,43 @@ func (s *Service) GetParticipants(gameID uint) ([]GameParticipantEntry, error) {
 	return result, nil
 }
 
-func (s *Service) ListSubmissionRecords(gameID uint, limit int) ([]GameSubmissionRecord, error) {
+func normalizeSubmissionType(submissionType string) (string, error) {
+	switch strings.TrimSpace(strings.ToLower(submissionType)) {
+	case "", "all":
+		return "", nil
+	case string(models.GameSubmissionAccepted):
+		return string(models.GameSubmissionAccepted), nil
+	case string(models.GameSubmissionWrongFlag):
+		return string(models.GameSubmissionWrongFlag), nil
+	case string(models.GameSubmissionAlreadySolved):
+		return string(models.GameSubmissionAlreadySolved), nil
+	case string(models.GameSubmissionRejected):
+		return string(models.GameSubmissionRejected), nil
+	default:
+		return "", errors.New("invalid submission type")
+	}
+}
+
+func normalizeSubmissionLimit(limit int) int {
+	if limit <= 0 {
+		return 100
+	}
+	if limit > 500 {
+		return 500
+	}
+	return limit
+}
+
+func (s *Service) ListSubmissionRecords(gameID uint, submissionType string, limit int) ([]GameSubmissionRecord, error) {
 	var game models.Game
 	if err := s.db.First(&game, gameID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("game not found")
 		}
+		return nil, err
+	}
+	normalizedType, err := normalizeSubmissionType(submissionType)
+	if err != nil {
 		return nil, err
 	}
 
@@ -1798,9 +1829,10 @@ func (s *Service) ListSubmissionRecords(gameID uint, limit int) ([]GameSubmissio
 		Joins("JOIN teams ON teams.id = game_submissions.team_id").
 		Where("game_submissions.game_id = ?", gameID).
 		Order("game_submissions.submitted_at DESC, game_submissions.id DESC")
-	if limit > 0 {
-		query = query.Limit(limit)
+	if normalizedType != "" {
+		query = query.Where("game_submissions.result = ?", normalizedType)
 	}
+	query = query.Limit(normalizeSubmissionLimit(limit))
 	if err := query.Scan(&rows).Error; err != nil {
 		return nil, err
 	}

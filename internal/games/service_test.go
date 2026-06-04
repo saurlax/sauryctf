@@ -702,7 +702,7 @@ func TestService_ListSubmissionRecords_IncludesWrongAndAcceptedAttempts(t *testi
 	require.NoError(t, err)
 	assert.True(t, second.Correct)
 
-	records, err := svc.ListSubmissionRecords(gameID, 10)
+	records, err := svc.ListSubmissionRecords(gameID, "", 10)
 	require.NoError(t, err)
 	require.Len(t, records, 2)
 	assert.Equal(t, "accepted", records[0].Result)
@@ -711,6 +711,34 @@ func TestService_ListSubmissionRecords_IncludesWrongAndAcceptedAttempts(t *testi
 	assert.Equal(t, "wrong_flag", records[1].Result)
 	assert.Equal(t, "wrong flag", records[1].Message)
 	assert.False(t, records[1].IsCorrect)
+}
+
+func TestService_ListSubmissionRecords_FiltersByTypeAndLimit(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, team1ID, _ := createGameChallengeFixture(t, database)
+
+	_, err = svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{wrong}")
+	require.NoError(t, err)
+	_, err = svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
+	require.NoError(t, err)
+	_, err = svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
+	require.NoError(t, err)
+
+	wrongOnly, err := svc.ListSubmissionRecords(gameID, "wrong_flag", 10)
+	require.NoError(t, err)
+	require.Len(t, wrongOnly, 1)
+	assert.Equal(t, "wrong_flag", wrongOnly[0].Result)
+
+	limited, err := svc.ListSubmissionRecords(gameID, "", 2)
+	require.NoError(t, err)
+	require.Len(t, limited, 2)
+	assert.Equal(t, "already_solved", limited[0].Result)
+	assert.Equal(t, "accepted", limited[1].Result)
 }
 
 func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {

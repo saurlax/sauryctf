@@ -2,6 +2,7 @@ package games
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -187,11 +188,21 @@ func (h *Handler) ExportSubmissionsPackage(c *gin.Context, id int) {
 }
 
 func (h *Handler) ListSubmissionRecords(c *gin.Context, id int) {
-	submissions, err := h.svc.ListSubmissionRecords(uint(id), 100)
+	limit := 100
+	if value := c.Query("count"); value != "" {
+		if _, scanErr := fmt.Sscan(value, &limit); scanErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "invalid submission count"})
+			return
+		}
+	}
+
+	submissions, err := h.svc.ListSubmissionRecords(uint(id), c.Query("type"), limit)
 	if err != nil {
 		switch err.Error() {
 		case "game not found":
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		case "invalid submission type", "invalid submission count":
+			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		}

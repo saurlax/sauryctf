@@ -683,6 +683,30 @@ func TestListSubmissionRecords_Success(t *testing.T) {
 	assert.Equal(t, "wrong_flag", response[1]["result"])
 }
 
+func TestListSubmissionRecords_SupportsTypeAndCountQuery(t *testing.T) {
+	svc := games.NewMockService()
+	_, _ = svc.CreateGame(games.CreateGameRequest{
+		Name:      "Submission Filter Game",
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(time.Hour),
+	}, 1)
+	_, _ = svc.SubmitFlag(1, 3, 1, 7, "wrong_flag")
+	_, _ = svc.SubmitFlag(1, 3, 1, 7, "correct_flag")
+
+	r := setupTestRouter(svc)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/admin/games/1/submissions?type=wrong_flag&count=1", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response []map[string]any
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Len(t, response, 1)
+	assert.Equal(t, "wrong_flag", response[0]["result"])
+}
+
 func TestImportGamePackage_Success(t *testing.T) {
 	svc := games.NewMockService()
 	r := setupTestRouter(svc)
