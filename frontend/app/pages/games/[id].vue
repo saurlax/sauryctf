@@ -381,6 +381,40 @@ const overviewStats = computed(() => {
   ]
 })
 
+const challengeGroups = computed(() => {
+  const groups = new Map<string, GameChallengeDetail[]>()
+
+  for (const challenge of challenges.value) {
+    const category = challenge.category || 'misc'
+    if (!groups.has(category)) {
+      groups.set(category, [])
+    }
+    groups.get(category)?.push(challenge)
+  }
+
+  return Array.from(groups.entries()).map(([category, items]) => ({
+    category,
+    items,
+  }))
+})
+
+const scoreboardChallengeGroups = computed(() => {
+  const groups = new Map<string, ScoreboardChallengeStat[]>()
+
+  for (const challenge of scoreboardChallenges.value) {
+    const category = challenge.category || 'misc'
+    if (!groups.has(category)) {
+      groups.set(category, [])
+    }
+    groups.get(category)?.push(challenge)
+  }
+
+  return Array.from(groups.entries()).map(([category, items]) => ({
+    category,
+    items,
+  }))
+})
+
 function formatDuration(ms: number) {
   if (ms <= 0) {
     return '0 分钟'
@@ -632,102 +666,112 @@ onMounted(async () => {
           </p>
         </div>
 
-        <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div v-else class="space-y-6">
           <UPageCard
-            v-for="ch in challenges"
-            :key="ch.id"
-            :class="ch.solved ? 'ring-1 ring-success' : ''"
+            v-for="group in challengeGroups"
+            :key="group.category"
+            :title="group.category.toUpperCase()"
+            :description="`${group.items.length} 道题目`"
+            :icon="group.items.some(item => item.solved) ? 'i-lucide-folder-open-dot' : 'i-lucide-folder-open'"
           >
-            <template #header>
-              <div class="flex items-center justify-between gap-2 flex-wrap">
-                <span class="font-semibold">{{ ch.title }}</span>
-                <div class="flex gap-1">
-                  <UBadge :color="getCategoryColor(ch.category)" size="sm">
-                    {{ ch.category }}
-                  </UBadge>
-                  <UBadge v-if="ch.solved" color="success" size="sm" icon="i-lucide-check">
-                    已解决
-                  </UBadge>
-                </div>
-              </div>
-            </template>
-
-            <div class="flex items-center justify-between text-sm text-muted mb-3">
-              <div class="flex items-center gap-2">
-                <UBadge :color="getDifficultyColor(ch.difficulty ?? '')" variant="soft" size="sm">
-                  {{ ch.difficulty || 'medium' }}
-                </UBadge>
-                <span>{{ ch.score }} pts</span>
-              </div>
-                <span class="flex items-center gap-1">
-                  <UIcon name="i-lucide-users" class="size-3" />
-                  {{ ch.solve_count }}
-                </span>
-              </div>
-
-              <div class="space-y-3 mb-4 text-sm">
-                <p class="text-muted leading-6 whitespace-pre-wrap">
-                  {{ ch.description || '当前题目暂未填写详细题面。' }}
-                </p>
-
-                <div v-if="parseStringList(ch.hints).length" class="rounded-lg border border-default bg-muted/40 px-3 py-3">
-                  <div class="mb-2 flex items-center gap-2 text-sm font-medium">
-                    <UIcon name="i-lucide-lightbulb" class="size-4 text-warning" />
-                    <span>提示</span>
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <UPageCard
+                v-for="ch in group.items"
+                :key="ch.id"
+                :class="ch.solved ? 'ring-1 ring-success' : ''"
+              >
+                <template #header>
+                  <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <span class="font-semibold">{{ ch.title }}</span>
+                    <div class="flex gap-1">
+                      <UBadge :color="getCategoryColor(ch.category)" size="sm">
+                        {{ ch.category }}
+                      </UBadge>
+                      <UBadge v-if="ch.solved" color="success" size="sm" icon="i-lucide-check">
+                        已解决
+                      </UBadge>
+                    </div>
                   </div>
-                  <ul class="space-y-2 text-muted">
-                    <li
-                      v-for="(hint, hintIndex) in parseStringList(ch.hints)"
-                      :key="`${ch.id}-hint-${hintIndex}`"
-                    >
-                      {{ hintIndex + 1 }}. {{ hint }}
-                    </li>
-                  </ul>
+                </template>
+
+                <div class="flex items-center justify-between text-sm text-muted mb-3">
+                  <div class="flex items-center gap-2">
+                    <UBadge :color="getDifficultyColor(ch.difficulty ?? '')" variant="soft" size="sm">
+                      {{ ch.difficulty || 'medium' }}
+                    </UBadge>
+                    <span>{{ ch.score }} pts</span>
+                  </div>
+                  <span class="flex items-center gap-1">
+                    <UIcon name="i-lucide-users" class="size-3" />
+                    {{ ch.solve_count }}
+                  </span>
                 </div>
 
-                <div v-if="parseStringList(ch.attachments).length" class="rounded-lg border border-default bg-muted/40 px-3 py-3">
-                  <div class="mb-2 flex items-center gap-2 text-sm font-medium">
-                    <UIcon name="i-lucide-paperclip" class="size-4 text-info" />
-                    <span>附件</span>
+                <div class="space-y-3 mb-4 text-sm">
+                  <p class="text-muted leading-6 whitespace-pre-wrap">
+                    {{ ch.description || '当前题目暂未填写详细题面。' }}
+                  </p>
+
+                  <div v-if="parseStringList(ch.hints).length" class="rounded-lg border border-default bg-muted/40 px-3 py-3">
+                    <div class="mb-2 flex items-center gap-2 text-sm font-medium">
+                      <UIcon name="i-lucide-lightbulb" class="size-4 text-warning" />
+                      <span>提示</span>
+                    </div>
+                    <ul class="space-y-2 text-muted">
+                      <li
+                        v-for="(hint, hintIndex) in parseStringList(ch.hints)"
+                        :key="`${ch.id}-hint-${hintIndex}`"
+                      >
+                        {{ hintIndex + 1 }}. {{ hint }}
+                      </li>
+                    </ul>
                   </div>
-                  <div class="flex flex-col gap-2">
-                    <UButton
-                      v-for="(attachment, attachmentIndex) in parseStringList(ch.attachments)"
-                      :key="`${ch.id}-attachment-${attachmentIndex}`"
-                      :to="attachment"
-                      target="_blank"
-                      variant="outline"
+
+                  <div v-if="parseStringList(ch.attachments).length" class="rounded-lg border border-default bg-muted/40 px-3 py-3">
+                    <div class="mb-2 flex items-center gap-2 text-sm font-medium">
+                      <UIcon name="i-lucide-paperclip" class="size-4 text-info" />
+                      <span>附件</span>
+                    </div>
+                    <div class="flex flex-col gap-2">
+                      <UButton
+                        v-for="(attachment, attachmentIndex) in parseStringList(ch.attachments)"
+                        :key="`${ch.id}-attachment-${attachmentIndex}`"
+                        :to="attachment"
+                        target="_blank"
+                        variant="outline"
+                        size="sm"
+                        icon="i-lucide-download"
+                        class="justify-start"
+                      >
+                        附件 {{ attachmentIndex + 1 }}
+                      </UButton>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="!ch.solved" class="space-y-2">
+                  <p v-if="!canSubmitFlag" class="text-xs text-muted leading-5">
+                    {{ submitHint }}
+                  </p>
+                  <div class="flex gap-2">
+                    <UInput
+                      v-model="flagInputs[ch.id]"
+                      placeholder="flag{...}"
                       size="sm"
-                      icon="i-lucide-download"
-                      class="justify-start"
-                    >
-                      附件 {{ attachmentIndex + 1 }}
-                    </UButton>
+                      class="flex-1"
+                      :disabled="!canSubmitFlag"
+                      @keyup.enter="submitFlag(ch.id)"
+                    />
+                    <UButton
+                      size="sm"
+                      :loading="submitting === ch.id"
+                      icon="i-lucide-send"
+                      :disabled="!canSubmitFlag"
+                      @click="submitFlag(ch.id)"
+                    />
                   </div>
                 </div>
-              </div>
-
-              <div v-if="!ch.solved" class="space-y-2">
-                <p v-if="!canSubmitFlag" class="text-xs text-muted leading-5">
-                {{ submitHint }}
-              </p>
-              <div class="flex gap-2">
-              <UInput
-                v-model="flagInputs[ch.id]"
-                placeholder="flag{...}"
-                size="sm"
-                class="flex-1"
-                :disabled="!canSubmitFlag"
-                @keyup.enter="submitFlag(ch.id)"
-              />
-              <UButton
-                size="sm"
-                :loading="submitting === ch.id"
-                icon="i-lucide-send"
-                :disabled="!canSubmitFlag"
-                @click="submitFlag(ch.id)"
-              />
-              </div>
+              </UPageCard>
             </div>
           </UPageCard>
         </div>
@@ -763,27 +807,37 @@ onMounted(async () => {
             <div v-if="scoreboardChallenges.length === 0" class="text-sm text-muted">
               暂无题目统计
             </div>
-            <div v-else class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div v-else class="space-y-6">
               <UPageCard
-                v-for="challenge in scoreboardChallenges"
-                :key="challenge.id"
-                :title="challenge.title"
-                :description="challenge.category"
-                :icon="challenge.blood_team ? 'i-lucide-droplets' : 'i-lucide-flag'"
+                v-for="group in scoreboardChallengeGroups"
+                :key="group.category"
+                :title="group.category.toUpperCase()"
+                :description="`${group.items.length} 道题`"
+                icon="i-lucide-folders"
               >
-                <div class="space-y-3 text-sm">
-                  <div class="flex items-center justify-between gap-3">
-                    <span class="text-muted">当前分值</span>
-                    <span>{{ challenge.score }} pts</span>
-                  </div>
-                  <div class="flex items-center justify-between gap-3">
-                    <span class="text-muted">解出队伍</span>
-                    <span>{{ challenge.solved_count }}</span>
-                  </div>
-                  <div class="flex items-center justify-between gap-3">
-                    <span class="text-muted">一血队伍</span>
-                    <span>{{ challenge.blood_team || '暂无' }}</span>
-                  </div>
+                <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <UPageCard
+                    v-for="challenge in group.items"
+                    :key="challenge.id"
+                    :title="challenge.title"
+                    :description="challenge.category"
+                    :icon="challenge.blood_team ? 'i-lucide-droplets' : 'i-lucide-flag'"
+                  >
+                    <div class="space-y-3 text-sm">
+                      <div class="flex items-center justify-between gap-3">
+                        <span class="text-muted">当前分值</span>
+                        <span>{{ challenge.score }} pts</span>
+                      </div>
+                      <div class="flex items-center justify-between gap-3">
+                        <span class="text-muted">解出队伍</span>
+                        <span>{{ challenge.solved_count }}</span>
+                      </div>
+                      <div class="flex items-center justify-between gap-3">
+                        <span class="text-muted">一血队伍</span>
+                        <span>{{ challenge.blood_team || '暂无' }}</span>
+                      </div>
+                    </div>
+                  </UPageCard>
                 </div>
               </UPageCard>
             </div>
