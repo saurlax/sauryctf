@@ -91,6 +91,16 @@ function getParticipationMeta(game: Game) {
   }
 
   if (participation.participated) {
+    if (participation.missing_writeup) {
+      return {
+        label: '待补 Writeup',
+        color: 'warning' as const,
+        description: `当前队伍 ${participation.team?.name || ''} 已通过比赛报名，但在截止时间前还没有提交 Writeup。`,
+        actionLabel: '去补交',
+        actionTo: `/games/${game.id}`,
+      }
+    }
+
     if (participation.status === 'pending') {
       return {
         label: '待审核',
@@ -107,6 +117,16 @@ function getParticipationMeta(game: Game) {
         color: 'error' as const,
         description: `当前队伍 ${participation.team?.name || ''} 的报名未通过，可进入详情页重新确认。`,
         actionLabel: '重新报名',
+        actionTo: `/games/${game.id}`,
+      }
+    }
+
+    if (participation.writeup_required && participation.writeup_submitted && participation.writeup_status === 'submitted') {
+      return {
+        label: 'Writeup 待审',
+        color: 'info' as const,
+        description: `当前队伍 ${participation.team?.name || ''} 已提交 Writeup，等待管理员审核。`,
+        actionLabel: '查看详情',
         actionTo: `/games/${game.id}`,
       }
     }

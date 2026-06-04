@@ -168,10 +168,16 @@ type GameParticipationTeam struct {
 }
 
 type GameParticipationResponse struct {
-	HasTeam      bool                   `json:"has_team"`
-	Participated bool                   `json:"participated"`
-	Status       string                 `json:"status,omitempty"`
-	Team         *GameParticipationTeam `json:"team,omitempty"`
+	HasTeam             bool                   `json:"has_team"`
+	Participated        bool                   `json:"participated"`
+	Status              string                 `json:"status,omitempty"`
+	Team                *GameParticipationTeam `json:"team,omitempty"`
+	WriteupRequired     bool                   `json:"writeup_required"`
+	WriteupSubmitted    bool                   `json:"writeup_submitted"`
+	WriteupStatus       string                 `json:"writeup_status,omitempty"`
+	WriteupDeadline     *time.Time             `json:"writeup_deadline,omitempty"`
+	WriteupDeadlinePassed bool                 `json:"writeup_deadline_passed"`
+	MissingWriteup      bool                   `json:"missing_writeup"`
 }
 
 type SubmitGameWriteupRequest struct {

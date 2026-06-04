@@ -3,6 +3,8 @@ definePageMeta({
   middleware: 'auth',
 })
 
+import type { components } from '~/types/api'
+
 const { authState, fetchUser } = useAuth()
 const toast = useToast()
 
@@ -27,10 +29,13 @@ interface GameSummary {
   is_public?: boolean
 }
 
+type GameParticipation = components['schemas']['GameParticipation']
+
 const isAdmin = computed(() => ['admin', 'super_admin'].includes(authState.user?.role || ''))
 const loading = ref(true)
 const team = ref<TeamSummary | null>(null)
 const games = ref<GameSummary[]>([])
+const participationMap = ref<Record<number, GameParticipation>>({})
 
 const activeGames = computed(() => games.value.filter(game => game.status === 'active'))
 const upcomingGames = computed(() => games.value.filter(game => game.status === 'draft'))
@@ -73,9 +78,26 @@ async function fetchConsoleData() {
 
     if (gamesRes.status === 'fulfilled') {
       games.value = gamesRes.value
+      if (authState.user && games.value.length > 0) {
+        const entries = await Promise.all(
+          games.value.map(async (game) => {
+            try {
+              const participation = await $api('get', '/api/games/{id}/participation', {
+                params: { id: game.id },
+              })
+              return [game.id, participation] as const
+            }
+            catch {
+              return [game.id, { has_team: false, participated: false } as GameParticipation] as const
+            }
+          }),
+        )
+        participationMap.value = Object.fromEntries(entries)
+      }
     }
     else {
       games.value = []
+      participationMap.value = {}
       const e = gamesRes.reason as any
       toast.add({ title: '比赛列表加载失败', description: e.data?.message || e.message, color: 'error' })
     }
@@ -84,6 +106,10 @@ async function fetchConsoleData() {
     loading.value = false
   }
 }
+
+const pendingWriteupGames = computed(() =>
+  games.value.filter(game => participationMap.value[game.id]?.missing_writeup),
+)
 
 function getStatusMeta(status: GameSummary['status']) {
   const meta = {
@@ -187,6 +213,32 @@ onMounted(async () => {
             </div>
             <div v-else class="text-sm text-muted">
               当前还没有可浏览的公开比赛。
+            </div>
+          </UPageCard>
+
+          <UPageCard v-if="pendingWriteupGames.length" title="待补交 Writeup" icon="i-lucide-file-warning">
+            <div class="space-y-3">
+              <div
+                v-for="game in pendingWriteupGames"
+                :key="game.id"
+                class="flex items-start justify-between gap-3 rounded-lg border border-default px-3 py-3"
+              >
+                <div class="min-w-0">
+                  <div class="font-medium">
+                    {{ game.name }}
+                  </div>
+                  <div class="text-sm text-muted">
+                    比赛已要求补交 Writeup，请尽快进入详情页处理。
+                  </div>
+                </div>
+                <UButton
+                  size="sm"
+                  icon="i-lucide-arrow-up-right"
+                  :to="`/games/${game.id}`"
+                >
+                  前往补交
+                </UButton>
+              </div>
             </div>
           </UPageCard>
         </div>

@@ -895,8 +895,11 @@ func (s *Service) GetParticipationStatus(gameID uint, userID uint) (*GamePartici
 	if err := s.db.Where("user_id = ?", userID).First(&member).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &GameParticipationResponse{
-				HasTeam:      false,
-				Participated: false,
+				HasTeam:          false,
+				Participated:     false,
+				WriteupRequired:  game.WriteupRequired,
+				WriteupDeadline:  game.WriteupDeadline,
+				WriteupDeadlinePassed: game.WriteupDeadline != nil && time.Now().After(*game.WriteupDeadline),
 			}, nil
 		}
 		return nil, err
@@ -908,7 +911,10 @@ func (s *Service) GetParticipationStatus(gameID uint, userID uint) (*GamePartici
 	}
 
 	response := &GameParticipationResponse{
-		HasTeam: true,
+		HasTeam:         true,
+		WriteupRequired: game.WriteupRequired,
+		WriteupDeadline: game.WriteupDeadline,
+		WriteupDeadlinePassed: game.WriteupDeadline != nil && time.Now().After(*game.WriteupDeadline),
 		Team: &GameParticipationTeam{
 			ID:   team.ID,
 			Name: team.Name,
@@ -926,6 +932,16 @@ func (s *Service) GetParticipationStatus(gameID uint, userID uint) (*GamePartici
 
 	response.Participated = true
 	response.Status = string(participation.Status)
+
+	var writeup models.GameWriteup
+	if err := s.db.Where("game_id = ? AND team_id = ?", gameID, team.ID).First(&writeup).Error; err == nil {
+		response.WriteupSubmitted = true
+		response.WriteupStatus = string(writeup.Status)
+	}
+	if response.WriteupRequired && response.Status == string(models.ParticipationAccepted) && response.WriteupDeadlinePassed && !response.WriteupSubmitted {
+		response.MissingWriteup = true
+	}
+
 	return response, nil
 }
 

@@ -364,6 +364,16 @@ const participationHint = computed(() => {
   }
 
   if (participation.value.participated) {
+    if (participation.value.missing_writeup) {
+      return {
+        title: '需要补交 Writeup',
+        description: participation.value.writeup_deadline
+          ? `当前队伍已通过比赛报名，但在 ${new Date(participation.value.writeup_deadline).toLocaleString()} 前还没有提交 Writeup，请尽快前往 Writeup 标签补交。`
+          : '当前队伍已通过比赛报名，但这场比赛要求提交 Writeup，请尽快前往 Writeup 标签补交。',
+        color: 'warning' as const,
+      }
+    }
+
     if (participation.value.status === 'pending') {
       return {
         title: '报名待审核',
@@ -385,6 +395,14 @@ const participationHint = computed(() => {
         title: '当前报名可撤回',
         description: '待审核或已拒绝的报名可以直接撤回，调整队伍后再重新提交。',
         color: 'success' as const,
+      }
+    }
+
+    if (participation.value.writeup_required && participation.value.writeup_submitted && participation.value.writeup_status === 'submitted') {
+      return {
+        title: 'Writeup 待审核',
+        description: '当前队伍已经提交 Writeup，等待管理员审核。比赛侧的报名资格不受影响，但你可以继续回到 Writeup 标签更新内容。',
+        color: 'info' as const,
       }
     }
 
@@ -439,6 +457,9 @@ const submitHint = computed(() => {
   }
   if (participation.value.status === 'rejected') {
     return '当前报名已被拒绝，请重新报名或联系管理员确认参赛资格。'
+  }
+  if (participation.value.missing_writeup) {
+    return '当前比赛要求 Writeup，且截止时间已过，但你的队伍还没有提交。'
   }
   if (participation.value.status === 'accepted' && gameStatusMeta.value.label !== '进行中') {
     return '当前报名已通过。根据当前赛事规则，已通过的报名不能再撤回。'

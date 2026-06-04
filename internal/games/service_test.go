@@ -1243,3 +1243,28 @@ func TestService_ReviewWriteup_UpdatesStatus(t *testing.T) {
 	assert.Equal(t, "looks good", reviewed.ReviewRemark)
 	require.NotNil(t, reviewed.ReviewedAt)
 }
+
+func TestService_GetParticipationStatus_FlagsMissingWriteupAfterDeadline(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, _, team1ID, _ := createGameChallengeFixture(t, database)
+	writeupDeadline := time.Now().Add(-time.Hour)
+	require.NoError(t, database.Model(&models.Game{}).Where("id = ?", gameID).Updates(map[string]any{
+		"writeup_required": true,
+		"writeup_deadline": writeupDeadline,
+	}).Error)
+	require.NoError(t, database.Model(&models.Participation{}).
+		Where("game_id = ? AND team_id = ?", gameID, team1ID).
+		Update("status", models.ParticipationAccepted).Error)
+
+	status, err := svc.GetParticipationStatus(gameID, 1)
+	require.NoError(t, err)
+	assert.True(t, status.WriteupRequired)
+	assert.True(t, status.WriteupDeadlinePassed)
+	assert.True(t, status.MissingWriteup)
+	assert.False(t, status.WriteupSubmitted)
+}

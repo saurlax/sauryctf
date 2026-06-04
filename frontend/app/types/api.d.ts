@@ -366,6 +366,14 @@ export interface components {
         id: number;
         name: string;
       };
+      writeup_required?: boolean;
+      writeup_submitted?: boolean;
+      /** @enum {string} */
+      writeup_status?: "submitted" | "approved" | "rejected";
+      /** Format: date-time */
+      writeup_deadline?: string | null;
+      writeup_deadline_passed?: boolean;
+      missing_writeup?: boolean;
     };
     GameParticipantEntry: {
       team_id: number;

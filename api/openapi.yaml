@@ -524,6 +524,22 @@ components:
               type: integer
             name:
               type: string
+        writeup_required:
+          type: boolean
+        writeup_submitted:
+          type: boolean
+        writeup_status:
+          type: string
+          enum: [submitted, approved, rejected]
+        writeup_deadline:
+          type:
+            - string
+            - "null"
+          format: date-time
+        writeup_deadline_passed:
+          type: boolean
+        missing_writeup:
+          type: boolean
 
     GameParticipantEntry:
       type: object
