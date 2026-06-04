@@ -266,6 +266,13 @@ onMounted(async () => {
               variant="outline"
               block
             />
+            <UButton
+              v-if="getParticipationMeta(game).secondaryLabel && getParticipationMeta(game).secondaryTo"
+              :label="getParticipationMeta(game).secondaryLabel"
+              :to="getParticipationMeta(game).secondaryTo"
+              variant="ghost"
+              block
+            />
           </div>
         </template>
       </UPageCard>

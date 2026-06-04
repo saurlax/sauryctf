@@ -23,6 +23,8 @@ type PublicParticipationMeta = {
   description: string
   actionLabel: string
   actionTo: string
+  secondaryLabel?: string
+  secondaryTo?: string
 }
 
 type PublicParticipationHints = {
@@ -47,6 +49,7 @@ export function usePublicGameParticipationState() {
       participation,
       registrationMode = 'review',
       loginTo = '/login',
+      registerTo = '/register',
       teamTo = '/console/team',
     } = input
 
@@ -54,9 +57,11 @@ export function usePublicGameParticipationState() {
       return {
         label: '登录后可查看报名状态',
         color: 'neutral',
-        description: '先登录，再决定创建队伍或直接进入比赛详情页。',
+        description: '已有账号可直接登录；如果还没有账号，也可以先注册再回来继续报名。',
         actionLabel: '去登录',
         actionTo: loginTo,
+        secondaryLabel: '去注册',
+        secondaryTo: registerTo,
       }
     }
 
