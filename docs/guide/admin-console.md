@@ -106,6 +106,11 @@
   - 也会包含 `practice_mode`、`writeup_required`、`writeup_deadline`
   - 外部附件链接会继续保留为 JSON 数组
   - 如果题目附件使用本地 `/attachments/**` 路径，这些文件也会一起打包进 ZIP
+- 导出榜单会下载一个单独的 ZIP 包：
+  - 当前包内包含 `scoreboard.json`
+  - 也会额外包含 `rankings.csv` 和 `challenge-stats.csv`
+  - 适合赛后归档、手工复核排名或继续导入表格工具做复盘
+  - 当前版本默认导出总榜口径；如果后续需要，也可以继续扩成按分组单独导出
 - 导入比赛当前支持上传管理端导出的 ZIP 包：
   - 接受 `sauryctf.export.v1` 和 `sauryctf.export.v2`
   - 必须包含 `game.json`

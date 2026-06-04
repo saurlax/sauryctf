@@ -558,6 +558,51 @@ func TestService_ExportGamePackage_IncludesGameAndMountedChallenges(t *testing.T
 	assert.Equal(t, "fixture payload", string(embeddedData))
 }
 
+func TestService_ExportScoreboardPackage_IncludesJSONAndCSVs(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, team1ID, team2ID := createGameChallengeFixture(t, database)
+
+	require.NoError(t, database.Model(&models.Game{}).Where("id = ?", gameID).Updates(map[string]any{
+		"divisions": `["student","open"]`,
+	}).Error)
+	require.NoError(t, database.Model(&models.Participation{}).Where("game_id = ? AND team_id = ?", gameID, team1ID).Update("division", "student").Error)
+	require.NoError(t, database.Model(&models.Participation{}).Where("game_id = ? AND team_id = ?", gameID, team2ID).Update("division", "open").Error)
+
+	_, err = svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
+	require.NoError(t, err)
+
+	archiveBytes, filename, err := svc.ExportScoreboardPackage(gameID, "student")
+	require.NoError(t, err)
+	assert.Contains(t, filename, "scoreboard-student-export.zip")
+
+	reader, err := zip.NewReader(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	require.NoError(t, err)
+	require.Len(t, reader.File, 3)
+
+	files := map[string]string{}
+	for _, file := range reader.File {
+		fileReader, err := file.Open()
+		require.NoError(t, err)
+		data, err := io.ReadAll(fileReader)
+		_ = fileReader.Close()
+		require.NoError(t, err)
+		files[file.Name] = string(data)
+	}
+
+	assert.Contains(t, files["scoreboard.json"], `"division": "student"`)
+	assert.Contains(t, files["scoreboard.json"], `"team_name": "Team One"`)
+	assert.Contains(t, files["rankings.csv"], "rank,team_id,team_name,score,solve_count,last_solve")
+	assert.Contains(t, files["rankings.csv"], "1,")
+	assert.Contains(t, files["rankings.csv"], "Team One")
+	assert.Contains(t, files["challenge-stats.csv"], "challenge_id,title,category,score,solved_count,first_blood_team,second_blood_team,third_blood_team")
+	assert.Contains(t, files["challenge-stats.csv"], "Fixture Challenge")
+}
+
 func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {
 	database, err := db.ConnectTest()
 	require.NoError(t, err)

@@ -111,6 +111,7 @@ const removingParticipantId = ref<number | null>(null)
 const removingChallengeId = ref<number | null>(null)
 const deletingGameId = ref<number | null>(null)
 const exportingGameId = ref<number | null>(null)
+const exportingScoreboardGameId = ref<number | null>(null)
 const importingGame = ref(false)
 const deletingChallengeId = ref<number | null>(null)
 const games = ref<Array<{
@@ -1251,6 +1252,37 @@ async function exportGame(gameId: number) {
   }
   finally {
     exportingGameId.value = null
+  }
+}
+
+async function exportScoreboard(gameId: number) {
+  exportingScoreboardGameId.value = gameId
+  try {
+    const response = await $fetch.raw(`/api/admin/games/${gameId}/scoreboard/export`, {
+      method: 'POST',
+      responseType: 'blob',
+    })
+
+    const blob = response._data as Blob
+    const contentDisposition = response.headers.get('content-disposition') || ''
+    const match = contentDisposition.match(/filename="([^"]+)"/)
+    const filename = match?.[1] || `game-${gameId}-scoreboard-export.zip`
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+
+    toast.add({ title: '榜单导出成功', description: `已下载 ${filename}`, color: 'success' })
+  }
+  catch (e: any) {
+    toast.add({ title: '榜单导出失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    exportingScoreboardGameId.value = null
   }
 }
 
@@ -2419,6 +2451,15 @@ onMounted(async () => {
                       @click="exportGame(game.id)"
                     >
                       导出
+                    </UButton>
+                    <UButton
+                      size="sm"
+                      variant="ghost"
+                      icon="i-lucide-table-properties"
+                      :loading="exportingScoreboardGameId === game.id"
+                      @click="exportScoreboard(game.id)"
+                    >
+                      导出榜单
                     </UButton>
                     <UButton
                       color="error"

@@ -268,6 +268,65 @@ func (m *MockService) ExportGamePackage(id uint) ([]byte, string, error) {
 	return archive.Bytes(), fmt.Sprintf("game-%d-%s-export.zip", game.ID, sanitizeExportName(game.Name)), nil
 }
 
+func (m *MockService) ExportScoreboardPackage(id uint, division string) ([]byte, string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	game, ok := m.Games[id]
+	if !ok {
+		return nil, "", fmt.Errorf("game not found")
+	}
+
+	scoreboard := &ScoreboardResponse{
+		GameID:    id,
+		Division:  division,
+		Divisions: append([]string(nil), game.Divisions...),
+		Entries:   []ScoreboardEntry{},
+		Challenges: []ScoreboardChallengeStat{},
+	}
+
+	scoreboardJSON, err := json.MarshalIndent(scoreboard, "", "  ")
+	if err != nil {
+		return nil, "", err
+	}
+	rankingsCSV, err := buildScoreboardEntriesCSV(scoreboard.Entries)
+	if err != nil {
+		return nil, "", err
+	}
+	challengesCSV, err := buildScoreboardChallengesCSV(scoreboard.Challenges)
+	if err != nil {
+		return nil, "", err
+	}
+
+	var archive bytes.Buffer
+	writer := zip.NewWriter(&archive)
+	for _, file := range []struct {
+		name string
+		data []byte
+	}{
+		{name: "scoreboard.json", data: scoreboardJSON},
+		{name: "rankings.csv", data: rankingsCSV},
+		{name: "challenge-stats.csv", data: challengesCSV},
+	} {
+		entry, err := writer.Create(file.name)
+		if err != nil {
+			return nil, "", err
+		}
+		if _, err := entry.Write(file.data); err != nil {
+			return nil, "", err
+		}
+	}
+	if err := writer.Close(); err != nil {
+		return nil, "", err
+	}
+
+	filename := fmt.Sprintf("game-%d-%s-scoreboard-export.zip", game.ID, sanitizeExportName(game.Name))
+	if strings.TrimSpace(division) != "" {
+		filename = fmt.Sprintf("game-%d-%s-scoreboard-%s-export.zip", game.ID, sanitizeExportName(game.Name), sanitizeExportName(division))
+	}
+	return archive.Bytes(), filename, nil
+}
+
 func (m *MockService) ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error) {
 	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {

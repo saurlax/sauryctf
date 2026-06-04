@@ -10,6 +10,7 @@ import (
 	"github.com/saurlax/sauryctf/internal/auth"
 	"github.com/saurlax/sauryctf/internal/challenges"
 	"github.com/saurlax/sauryctf/internal/games"
+	"github.com/saurlax/sauryctf/internal/models"
 	"github.com/saurlax/sauryctf/internal/rbac"
 	"github.com/saurlax/sauryctf/internal/teams"
 )
@@ -43,6 +44,12 @@ func NewServer(db *gorm.DB, jwtSecret string) *gin.Engine {
 				rbac.OptionalAuthMiddleware(authSvc)(c)
 			},
 		},
+	})
+
+	admin := engine.Group("/api/admin")
+	admin.Use(rbac.AuthMiddleware(authSvc), rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin))
+	admin.POST("/games/:id/scoreboard/export", func(c *gin.Context) {
+		handler.games.ExportScoreboardPackage(c, mustIntParam(c, "id"))
 	})
 
 	return engine

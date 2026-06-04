@@ -3,6 +3,7 @@ package games
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -567,6 +568,69 @@ func (s *Service) ExportGamePackage(id uint) ([]byte, string, error) {
 	}
 
 	filename := fmt.Sprintf("game-%d-%s-export.zip", game.ID, sanitizeExportName(game.Name))
+	return archive.Bytes(), filename, nil
+}
+
+func (s *Service) ExportScoreboardPackage(id uint, division string) ([]byte, string, error) {
+	var game models.Game
+	if err := s.db.First(&game, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, "", errors.New("game not found")
+		}
+		return nil, "", err
+	}
+
+	scoreboard, err := s.GetScoreboard(id, division)
+	if err != nil {
+		return nil, "", err
+	}
+
+	scoreboardJSON, err := json.MarshalIndent(scoreboard, "", "  ")
+	if err != nil {
+		return nil, "", err
+	}
+
+	rankingsCSV, err := buildScoreboardEntriesCSV(scoreboard.Entries)
+	if err != nil {
+		return nil, "", err
+	}
+
+	challengesCSV, err := buildScoreboardChallengesCSV(scoreboard.Challenges)
+	if err != nil {
+		return nil, "", err
+	}
+
+	var archive bytes.Buffer
+	writer := zip.NewWriter(&archive)
+
+	files := []struct {
+		name string
+		data []byte
+	}{
+		{name: "scoreboard.json", data: scoreboardJSON},
+		{name: "rankings.csv", data: rankingsCSV},
+		{name: "challenge-stats.csv", data: challengesCSV},
+	}
+
+	for _, file := range files {
+		archiveFile, err := writer.Create(file.name)
+		if err != nil {
+			return nil, "", err
+		}
+		if _, err := archiveFile.Write(file.data); err != nil {
+			return nil, "", err
+		}
+	}
+
+	if err := writer.Close(); err != nil {
+		return nil, "", err
+	}
+
+	filename := fmt.Sprintf("game-%d-%s-scoreboard-export.zip", game.ID, sanitizeExportName(game.Name))
+	if strings.TrimSpace(scoreboard.Division) != "" {
+		filename = fmt.Sprintf("game-%d-%s-scoreboard-%s-export.zip", game.ID, sanitizeExportName(game.Name), sanitizeExportName(scoreboard.Division))
+	}
+
 	return archive.Bytes(), filename, nil
 }
 
@@ -1829,4 +1893,67 @@ func toWriteupResponse(writeup *models.GameWriteup, teamName string, canSubmit b
 		ReviewedAt:   writeup.ReviewedAt,
 		CanSubmit:    canSubmit,
 	}
+}
+
+func buildScoreboardEntriesCSV(entries []ScoreboardEntry) ([]byte, error) {
+	var buffer bytes.Buffer
+	writer := csv.NewWriter(&buffer)
+
+	if err := writer.Write([]string{"rank", "team_id", "team_name", "score", "solve_count", "last_solve"}); err != nil {
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		lastSolve := ""
+		if !entry.LastSolve.IsZero() {
+			lastSolve = entry.LastSolve.UTC().Format(time.RFC3339)
+		}
+
+		if err := writer.Write([]string{
+			fmt.Sprintf("%d", entry.Rank),
+			fmt.Sprintf("%d", entry.TeamID),
+			entry.TeamName,
+			fmt.Sprintf("%d", entry.Score),
+			fmt.Sprintf("%d", entry.SolveCount),
+			lastSolve,
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+func buildScoreboardChallengesCSV(challenges []ScoreboardChallengeStat) ([]byte, error) {
+	var buffer bytes.Buffer
+	writer := csv.NewWriter(&buffer)
+
+	if err := writer.Write([]string{"challenge_id", "title", "category", "score", "solved_count", "first_blood_team", "second_blood_team", "third_blood_team"}); err != nil {
+		return nil, err
+	}
+
+	for _, challenge := range challenges {
+		if err := writer.Write([]string{
+			fmt.Sprintf("%d", challenge.ID),
+			challenge.Title,
+			challenge.Category,
+			fmt.Sprintf("%d", challenge.Score),
+			fmt.Sprintf("%d", challenge.SolvedCount),
+			challenge.BloodTeam,
+			challenge.SecondBloodTeam,
+			challenge.ThirdBloodTeam,
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
 }

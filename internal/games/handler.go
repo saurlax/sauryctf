@@ -133,6 +133,25 @@ func (h *Handler) ExportGamePackage(c *gin.Context, id int) {
 	})
 }
 
+func (h *Handler) ExportScoreboardPackage(c *gin.Context, id int) {
+	data, filename, err := h.svc.ExportScoreboardPackage(uint(id), c.Query("division"))
+	if err != nil {
+		switch err.Error() {
+		case "game not found":
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		case "invalid participation division":
+			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
+		return
+	}
+
+	c.DataFromReader(http.StatusOK, int64(len(data)), "application/zip", bytes.NewReader(data), map[string]string{
+		"Content-Disposition": `attachment; filename="` + filename + `"`,
+	})
+}
+
 func (h *Handler) ImportGamePackage(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {

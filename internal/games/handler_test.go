@@ -55,6 +55,11 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 		fmt.Sscan(c.Param("id"), &id)
 		h.ExportGamePackage(c, id)
 	})
+	api.POST("/admin/games/:id/scoreboard/export", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.ExportScoreboardPackage(c, id)
+	})
 	api.GET("/games/:id/challenges", func(c *gin.Context) {
 		var id int
 		fmt.Sscan(c.Param("id"), &id)
@@ -531,6 +536,40 @@ func TestExportGamePackage_Success(t *testing.T) {
 	assert.Contains(t, string(data), "\"version\":\"sauryctf.export.v2\"")
 	assert.Contains(t, string(data), "\"name\":\"Winter CTF 2026\"")
 	assert.Contains(t, string(data), "\"title\":\"Exported Challenge\"")
+}
+
+func TestExportScoreboardPackage_Success(t *testing.T) {
+	svc := games.NewMockService()
+	r := setupTestRouter(svc)
+
+	public := true
+	svc.CreateGame(games.CreateGameRequest{
+		Name:      "Winter CTF 2026",
+		Divisions: []string{"student", "open"},
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(time.Hour),
+		IsPublic:  &public,
+	}, 1)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/admin/games/1/scoreboard/export?division=student", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/zip", w.Header().Get("Content-Type"))
+	assert.Contains(t, w.Header().Get("Content-Disposition"), "scoreboard-student-export.zip")
+
+	reader, err := zip.NewReader(bytes.NewReader(w.Body.Bytes()), int64(w.Body.Len()))
+	assert.NoError(t, err)
+	if err != nil {
+		return
+	}
+
+	fileNames := make([]string, 0, len(reader.File))
+	for _, file := range reader.File {
+		fileNames = append(fileNames, file.Name)
+	}
+	assert.ElementsMatch(t, []string{"scoreboard.json", "rankings.csv", "challenge-stats.csv"}, fileNames)
 }
 
 func TestImportGamePackage_Success(t *testing.T) {
