@@ -319,6 +319,8 @@ const selectedGame = computed(() => games.value.find(game => game.id === attachF
 const selectedSettingsGame = computed(() => games.value.find(game => game.id === gameSettingsForm.game_id) || null)
 const selectedEditableGame = computed(() => games.value.find(game => game.id === gameEditForm.game_id) || null)
 const selectedEditableChallenge = computed(() => challenges.value.find(challenge => challenge.id === challengeEditForm.challenge_id) || null)
+const challengeFormInstanceSpec = computed(() => parseChallengeInstanceSpec(challengeForm.container_spec))
+const challengeEditInstanceSpec = computed(() => parseChallengeInstanceSpec(challengeEditForm.container_spec))
 const selectedGameDivisionOptions = computed(() => (selectedGame.value?.divisions || []).map(division => ({
   label: division,
   value: division,
@@ -3091,6 +3093,47 @@ onMounted(async () => {
               <UTextarea v-model="challengeForm.container_spec" class="w-full font-mono" :rows="8" placeholder='{"connection":{"url":"http://127.0.0.1:8081","note":"instance entry"}}' />
             </UFormField>
 
+            <UPageCard
+              v-if="challengeFormInstanceSpec"
+              title="实例预览"
+              icon="i-lucide-box"
+              description="这里会按比赛页的展示逻辑预览当前实例接入信息。"
+            >
+              <div class="space-y-2 text-sm text-muted">
+                <p v-if="challengeFormInstanceSpec.note" class="whitespace-pre-wrap">
+                  {{ challengeFormInstanceSpec.note }}
+                </p>
+                <div v-if="challengeFormInstanceSpec.url">
+                  入口：{{ challengeFormInstanceSpec.url }}
+                </div>
+                <div v-if="challengeFormInstanceSpec.host || challengeFormInstanceSpec.port">
+                  主机：{{ challengeFormInstanceSpec.host || 'host' }}<template v-if="challengeFormInstanceSpec.port">:{{ challengeFormInstanceSpec.port }}</template>
+                </div>
+                <div v-if="challengeFormInstanceSpec.command" class="rounded-md border border-default bg-default px-3 py-2 font-mono text-xs whitespace-pre-wrap">
+                  {{ challengeFormInstanceSpec.command }}
+                </div>
+                <div v-if="challengeFormInstanceSpec.links.length" class="space-y-1">
+                  <div
+                    v-for="(link, index) in challengeFormInstanceSpec.links"
+                    :key="`${link.url}-${index}`"
+                  >
+                    附加入口：{{ link.label }} -> {{ link.url }}
+                  </div>
+                </div>
+                <div v-if="challengeFormInstanceSpec.runtimeProvider || challengeFormInstanceSpec.runtimeImage || challengeFormInstanceSpec.runtimeExpose.length" class="rounded-md border border-default bg-default px-3 py-2 text-xs">
+                  <div v-if="challengeFormInstanceSpec.runtimeProvider">
+                    运行环境：{{ challengeFormInstanceSpec.runtimeProvider }}
+                  </div>
+                  <div v-if="challengeFormInstanceSpec.runtimeImage">
+                    镜像：{{ challengeFormInstanceSpec.runtimeImage }}
+                  </div>
+                  <div v-if="challengeFormInstanceSpec.runtimeExpose.length">
+                    暴露端口：{{ challengeFormInstanceSpec.runtimeExpose.join(' / ') }}
+                  </div>
+                </div>
+              </div>
+            </UPageCard>
+
             <div class="grid gap-4 md:grid-cols-3">
               <UFormField label="分类" name="category">
                 <USelect v-model="challengeForm.category" :items="categoryOptions" class="w-full" />
@@ -3175,6 +3218,47 @@ onMounted(async () => {
             >
               <UTextarea v-model="challengeEditForm.container_spec" class="w-full font-mono" :rows="8" placeholder='{"connection":{"url":"http://127.0.0.1:8081","note":"instance entry"}}' />
             </UFormField>
+
+            <UPageCard
+              v-if="challengeEditInstanceSpec"
+              title="实例预览"
+              icon="i-lucide-box"
+              description="编辑时也会按比赛页的展示逻辑预览当前实例接入信息。"
+            >
+              <div class="space-y-2 text-sm text-muted">
+                <p v-if="challengeEditInstanceSpec.note" class="whitespace-pre-wrap">
+                  {{ challengeEditInstanceSpec.note }}
+                </p>
+                <div v-if="challengeEditInstanceSpec.url">
+                  入口：{{ challengeEditInstanceSpec.url }}
+                </div>
+                <div v-if="challengeEditInstanceSpec.host || challengeEditInstanceSpec.port">
+                  主机：{{ challengeEditInstanceSpec.host || 'host' }}<template v-if="challengeEditInstanceSpec.port">:{{ challengeEditInstanceSpec.port }}</template>
+                </div>
+                <div v-if="challengeEditInstanceSpec.command" class="rounded-md border border-default bg-default px-3 py-2 font-mono text-xs whitespace-pre-wrap">
+                  {{ challengeEditInstanceSpec.command }}
+                </div>
+                <div v-if="challengeEditInstanceSpec.links.length" class="space-y-1">
+                  <div
+                    v-for="(link, index) in challengeEditInstanceSpec.links"
+                    :key="`${link.url}-${index}`"
+                  >
+                    附加入口：{{ link.label }} -> {{ link.url }}
+                  </div>
+                </div>
+                <div v-if="challengeEditInstanceSpec.runtimeProvider || challengeEditInstanceSpec.runtimeImage || challengeEditInstanceSpec.runtimeExpose.length" class="rounded-md border border-default bg-default px-3 py-2 text-xs">
+                  <div v-if="challengeEditInstanceSpec.runtimeProvider">
+                    运行环境：{{ challengeEditInstanceSpec.runtimeProvider }}
+                  </div>
+                  <div v-if="challengeEditInstanceSpec.runtimeImage">
+                    镜像：{{ challengeEditInstanceSpec.runtimeImage }}
+                  </div>
+                  <div v-if="challengeEditInstanceSpec.runtimeExpose.length">
+                    暴露端口：{{ challengeEditInstanceSpec.runtimeExpose.join(' / ') }}
+                  </div>
+                </div>
+              </div>
+            </UPageCard>
 
             <div class="grid gap-4 md:grid-cols-3">
               <UFormField label="分类" name="category">

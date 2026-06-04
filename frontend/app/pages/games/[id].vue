@@ -303,40 +303,6 @@ function parseStringList(raw?: string) {
   return raw.split('\n').map(item => item.trim()).filter(Boolean)
 }
 
-function parseContainerSpec(raw?: string) {
-  if (!raw) {
-    return null
-  }
-
-  try {
-    const parsed = JSON.parse(raw)
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as {
-        connection?: {
-          url?: string
-          host?: string
-          port?: string | number
-          command?: string
-          note?: string
-        }
-        links?: Array<{
-          label?: string
-          url?: string
-        }>
-      }
-    }
-  }
-  catch {
-    // Keep compatibility with older free-form text specs.
-  }
-
-  return {
-    connection: {
-      note: raw,
-    },
-  }
-}
-
 const gameStatusMeta = computed(() => {
   if (!game.value) {
     return { label: '未知', color: 'neutral' as const, description: '' }
@@ -1605,7 +1571,7 @@ onMounted(async () => {
                   </div>
 
                   <div
-                    v-if="parseContainerSpec(ch.container_spec)"
+                    v-if="parseChallengeInstanceSpec(ch.container_spec)"
                     class="rounded-lg border border-default bg-muted/40 px-3 py-3"
                   >
                     <div class="mb-2 flex items-center gap-2 text-sm font-medium">
@@ -1613,12 +1579,12 @@ onMounted(async () => {
                       <span>实例接入信息</span>
                     </div>
                     <div class="space-y-2 text-muted">
-                      <p v-if="parseContainerSpec(ch.container_spec)?.connection?.note" class="leading-6 whitespace-pre-wrap">
-                        {{ parseContainerSpec(ch.container_spec)?.connection?.note }}
+                      <p v-if="parseChallengeInstanceSpec(ch.container_spec)?.note" class="leading-6 whitespace-pre-wrap">
+                        {{ parseChallengeInstanceSpec(ch.container_spec)?.note }}
                       </p>
-                      <div v-if="parseContainerSpec(ch.container_spec)?.connection?.url" class="flex flex-col gap-2">
+                      <div v-if="parseChallengeInstanceSpec(ch.container_spec)?.url" class="flex flex-col gap-2">
                         <UButton
-                          :to="parseContainerSpec(ch.container_spec)?.connection?.url"
+                          :to="parseChallengeInstanceSpec(ch.container_spec)?.url"
                           target="_blank"
                           variant="outline"
                           size="sm"
@@ -1628,15 +1594,15 @@ onMounted(async () => {
                           打开实例入口
                         </UButton>
                       </div>
-                      <div v-if="parseContainerSpec(ch.container_spec)?.connection?.host || parseContainerSpec(ch.container_spec)?.connection?.port" class="text-sm">
-                        {{ parseContainerSpec(ch.container_spec)?.connection?.host || 'host' }}<template v-if="parseContainerSpec(ch.container_spec)?.connection?.port">:{{ parseContainerSpec(ch.container_spec)?.connection?.port }}</template>
+                      <div v-if="parseChallengeInstanceSpec(ch.container_spec)?.host || parseChallengeInstanceSpec(ch.container_spec)?.port" class="text-sm">
+                        {{ parseChallengeInstanceSpec(ch.container_spec)?.host || 'host' }}<template v-if="parseChallengeInstanceSpec(ch.container_spec)?.port">:{{ parseChallengeInstanceSpec(ch.container_spec)?.port }}</template>
                       </div>
-                      <div v-if="parseContainerSpec(ch.container_spec)?.connection?.command" class="rounded-md border border-default bg-default px-3 py-2 font-mono text-xs whitespace-pre-wrap">
-                        {{ parseContainerSpec(ch.container_spec)?.connection?.command }}
+                      <div v-if="parseChallengeInstanceSpec(ch.container_spec)?.command" class="rounded-md border border-default bg-default px-3 py-2 font-mono text-xs whitespace-pre-wrap">
+                        {{ parseChallengeInstanceSpec(ch.container_spec)?.command }}
                       </div>
-                      <div v-if="parseContainerSpec(ch.container_spec)?.links?.length" class="flex flex-col gap-2">
+                      <div v-if="parseChallengeInstanceSpec(ch.container_spec)?.links?.length" class="flex flex-col gap-2">
                         <UButton
-                          v-for="(link, linkIndex) in parseContainerSpec(ch.container_spec)?.links || []"
+                          v-for="(link, linkIndex) in parseChallengeInstanceSpec(ch.container_spec)?.links || []"
                           :key="`${ch.id}-instance-link-${linkIndex}`"
                           :to="link.url"
                           target="_blank"
@@ -1647,6 +1613,17 @@ onMounted(async () => {
                         >
                           {{ link.label || `实例链接 ${linkIndex + 1}` }}
                         </UButton>
+                      </div>
+                      <div v-if="parseChallengeInstanceSpec(ch.container_spec)?.runtimeProvider || parseChallengeInstanceSpec(ch.container_spec)?.runtimeImage || parseChallengeInstanceSpec(ch.container_spec)?.runtimeExpose.length" class="rounded-md border border-default bg-default px-3 py-2 text-xs text-muted">
+                        <div v-if="parseChallengeInstanceSpec(ch.container_spec)?.runtimeProvider">
+                          运行环境：{{ parseChallengeInstanceSpec(ch.container_spec)?.runtimeProvider }}
+                        </div>
+                        <div v-if="parseChallengeInstanceSpec(ch.container_spec)?.runtimeImage">
+                          镜像：{{ parseChallengeInstanceSpec(ch.container_spec)?.runtimeImage }}
+                        </div>
+                        <div v-if="parseChallengeInstanceSpec(ch.container_spec)?.runtimeExpose.length">
+                          暴露端口：{{ parseChallengeInstanceSpec(ch.container_spec)?.runtimeExpose.join(' / ') }}
+                        </div>
                       </div>
                     </div>
                   </div>
