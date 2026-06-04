@@ -220,6 +220,9 @@ onMounted(async () => {
           {{ game.max_team_members ? `队伍人数上限：${game.max_team_members} 人` : '队伍人数不限' }}
         </p>
         <p class="mt-1 text-xs text-muted">
+          {{ game.divisions?.length ? `比赛分组：${game.divisions.join(' / ')}` : '当前不区分分组榜' }}
+        </p>
+        <p class="mt-1 text-xs text-muted">
           {{ game.practice_mode ? '支持赛后练习' : '仅正赛模式' }} · {{ game.writeup_required ? '要求 Writeup' : '不要求 Writeup' }}
         </p>
         <p v-if="game.writeup_deadline" class="mt-1 text-xs text-muted">
@@ -234,6 +237,9 @@ onMounted(async () => {
           </div>
           <p class="text-xs text-muted leading-5">
             {{ getParticipationMeta(game).description }}
+          </p>
+          <p v-if="participationMap[game.id]?.division" class="mt-2 text-xs text-muted">
+            当前分组：{{ participationMap[game.id]?.division }}
           </p>
         </div>
         <template #footer>
