@@ -2,7 +2,11 @@
 import * as z from 'zod'
 import type { FormSubmitEvent } from '@nuxt/ui'
 
-const { authState, fetchUser, login } = useAuth()
+definePageMeta({
+  middleware: 'guest',
+})
+
+const { login } = useAuth()
 const router = useRouter()
 const route = useRoute()
 const toast = useToast()
@@ -37,16 +41,6 @@ const state = reactive<Partial<LoginSchema>>({
   username: 'admin',
   password: 'sauryctf',
 })
-
-onMounted(async () => {
-  if (!authState.user) {
-    await fetchUser()
-  }
-
-  if (authState.user) {
-    await router.push(resolveRedirect())
-  }
-})
 </script>
 
 <template>
@@ -80,7 +74,7 @@ onMounted(async () => {
       <div class="mt-4 text-sm text-muted">
         还没有账号？
         <ULink :to="route.query.redirect ? `/register?redirect=${route.query.redirect}` : '/register'" class="font-medium">
-          去注册
+          去注册页面
         </ULink>
       </div>
     </UPageCard>

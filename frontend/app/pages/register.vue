@@ -2,7 +2,11 @@
 import * as z from 'zod'
 import type { FormSubmitEvent } from '@nuxt/ui'
 
-const { authState, fetchUser, register } = useAuth()
+definePageMeta({
+  middleware: 'guest',
+})
+
+const { register } = useAuth()
 const router = useRouter()
 const route = useRoute()
 const toast = useToast()
@@ -39,16 +43,6 @@ function resolveRedirect() {
   }
   return '/console'
 }
-
-onMounted(async () => {
-  if (!authState.user) {
-    await fetchUser()
-  }
-
-  if (authState.user) {
-    await router.push(resolveRedirect())
-  }
-})
 </script>
 
 <template>
@@ -78,7 +72,7 @@ onMounted(async () => {
       <div class="mt-4 text-sm text-muted">
         已有账号？
         <ULink :to="route.query.redirect ? `/login?redirect=${route.query.redirect}` : '/login'" class="font-medium">
-          去登录
+          去登录页面
         </ULink>
       </div>
     </UPageCard>
