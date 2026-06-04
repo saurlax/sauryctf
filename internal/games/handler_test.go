@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -48,6 +49,7 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 		fmt.Sscan(c.Param("id"), &id)
 		h.DeleteGame(c, id)
 	})
+	api.POST("/admin/games/import", h.ImportGamePackage)
 	api.POST("/admin/games/:id/export", func(c *gin.Context) {
 		var id int
 		fmt.Sscan(c.Param("id"), &id)
@@ -426,6 +428,86 @@ func TestExportGamePackage_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, string(data), "\"name\":\"Winter CTF 2026\"")
 	assert.Contains(t, string(data), "\"title\":\"Exported Challenge\"")
+}
+
+func TestImportGamePackage_Success(t *testing.T) {
+	svc := games.NewMockService()
+	r := setupTestRouter(svc)
+
+	public := true
+	svc.CreateGame(games.CreateGameRequest{
+		Name:             "Winter CTF 2026",
+		Description:      "source desc",
+		Notice:           "source notice",
+		StartTime:        time.Now(),
+		EndTime:          time.Now().Add(time.Hour),
+		RegistrationMode: games.RegistrationModeAutoAccept,
+		MaxTeamMembers:   4,
+		IsPublic:         &public,
+	}, 1)
+	svc.ChallengesByGame[1] = []games.GameChallengeDetail{
+		{
+			ID:          11,
+			Title:       "Exported Challenge",
+			Description: "full statement",
+			Category:    "web",
+			Type:        "static",
+			Difficulty:  "easy",
+			Hints:       "[\"hint\"]",
+			Attachments: "[\"https://example.com/web.zip\"]",
+			Score:       100,
+		},
+	}
+
+	exported, _, err := svc.ExportGamePackage(1)
+	assert.NoError(t, err)
+	if err != nil {
+		return
+	}
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("file", "game-export.zip")
+	assert.NoError(t, err)
+	if err != nil {
+		return
+	}
+	_, err = part.Write(exported)
+	assert.NoError(t, err)
+	assert.NoError(t, writer.Close())
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/admin/games/import", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var response map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &response)
+	assert.Equal(t, "Winter CTF 2026", response["name"])
+	assert.Equal(t, "draft", response["status"])
+
+	importedChallenges, err := svc.GetAdminGameChallenges(2)
+	assert.NoError(t, err)
+	assert.Len(t, importedChallenges, 1)
+	assert.Equal(t, "Exported Challenge", importedChallenges[0].Title)
+}
+
+func TestImportGamePackage_MissingFile(t *testing.T) {
+	svc := games.NewMockService()
+	r := setupTestRouter(svc)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	assert.NoError(t, writer.Close())
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/admin/games/import", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestAddChallenge_Success(t *testing.T) {

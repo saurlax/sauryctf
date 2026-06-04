@@ -426,6 +426,111 @@ func TestService_ExportGamePackage_IncludesGameAndMountedChallenges(t *testing.T
 	assert.Equal(t, 250, pkg.Challenges[0].ScoreOverride)
 }
 
+func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, _, _ := createGameChallengeFixture(t, database)
+
+	freezeAt := time.Now().Add(20 * time.Minute).UTC().Truncate(time.Second)
+	require.NoError(t, database.Model(&models.Game{}).Where("id = ?", gameID).Updates(map[string]any{
+		"name":                 "Export Source Game",
+		"description":          "source description",
+		"notice":               "source notice",
+		"scoreboard_freeze_at": freezeAt,
+		"registration_mode":    games.RegistrationModeAutoAccept,
+		"max_team_members":     4,
+		"is_public":            false,
+	}).Error)
+	require.NoError(t, database.Model(&models.Challenge{}).Where("id = ?", challengeID).Updates(map[string]any{
+		"title":          "Imported Challenge",
+		"description":    "full imported statement",
+		"hints":          "[\"import hint\"]",
+		"attachments":    "[\"https://example.com/import.zip\"]",
+		"flag_format":    "flag{...}",
+		"container_spec": "{\"image\":\"busybox\"}",
+		"base_score":     150,
+		"min_score":      20,
+		"decay_rate":     0.2,
+		"max_attempts":   7,
+		"is_visible":     false,
+	}).Error)
+	require.NoError(t, database.Model(&models.GameChallenge{}).
+		Where("game_id = ? AND challenge_id = ?", gameID, challengeID).
+		Update("score_override", 333).Error)
+
+	archiveBytes, _, err := svc.ExportGamePackage(gameID)
+	require.NoError(t, err)
+
+	imported, err := svc.ImportGamePackage(archiveBytes, 99)
+	require.NoError(t, err)
+	require.NotNil(t, imported)
+	assert.NotEqual(t, gameID, imported.ID)
+	assert.Equal(t, "Export Source Game", imported.Name)
+	assert.Equal(t, "source description", imported.Description)
+	assert.Equal(t, "source notice", imported.Notice)
+	assert.Equal(t, "draft", imported.Status)
+	assert.Equal(t, games.RegistrationModeAutoAccept, imported.RegistrationMode)
+	assert.Equal(t, 4, imported.MaxTeamMembers)
+	assert.False(t, imported.IsPublic)
+	assert.Equal(t, uint(99), imported.CreatedBy)
+	require.NotNil(t, imported.ScoreboardFreezeAt)
+	assert.True(t, imported.ScoreboardFreezeAt.Equal(freezeAt))
+
+	var challengeCount int64
+	require.NoError(t, database.Model(&models.Challenge{}).Count(&challengeCount).Error)
+	assert.EqualValues(t, 2, challengeCount)
+
+	var importedChallenge models.Challenge
+	require.NoError(t, database.Where("created_by = ? AND title = ?", 99, "Imported Challenge").First(&importedChallenge).Error)
+	assert.Equal(t, "full imported statement", importedChallenge.Description)
+	assert.Equal(t, "[\"import hint\"]", importedChallenge.Hints)
+	assert.Equal(t, "[\"https://example.com/import.zip\"]", importedChallenge.Attachments)
+	assert.Equal(t, "flag{fixture}", importedChallenge.Flag)
+	assert.Equal(t, "flag{...}", importedChallenge.FlagFormat)
+	assert.Equal(t, "{\"image\":\"busybox\"}", importedChallenge.ContainerSpec)
+	assert.Equal(t, 150, importedChallenge.BaseScore)
+	assert.Equal(t, 20, importedChallenge.MinScore)
+	assert.Equal(t, 0.2, importedChallenge.DecayRate)
+	assert.Equal(t, 7, importedChallenge.MaxAttempts)
+	assert.False(t, importedChallenge.IsVisible)
+
+	var importedMount models.GameChallenge
+	require.NoError(t, database.Where("game_id = ? AND challenge_id = ?", imported.ID, importedChallenge.ID).First(&importedMount).Error)
+	assert.Equal(t, 333, importedMount.ScoreOverride)
+}
+
+func TestService_ImportGamePackage_RejectsUnsupportedVersion(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	pkg := games.ExportGamePackage{
+		Version: "sauryctf.export.v999",
+		Game: games.ExportGameMetadata{
+			Name:      "Broken Import",
+			StartTime: time.Now().Add(time.Hour),
+			EndTime:   time.Now().Add(2 * time.Hour),
+		},
+	}
+	payload, err := json.Marshal(pkg)
+	require.NoError(t, err)
+
+	var archive bytes.Buffer
+	writer := zip.NewWriter(&archive)
+	file, err := writer.Create("game.json")
+	require.NoError(t, err)
+	_, err = file.Write(payload)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	_, err = svc.ImportGamePackage(archive.Bytes(), 1)
+	require.Error(t, err)
+	assert.Equal(t, "unsupported import package version", err.Error())
+}
+
 func TestService_AddChallenge(t *testing.T) {
 	svc, cleanup := setupService(t)
 	defer cleanup()

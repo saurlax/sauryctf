@@ -75,6 +75,10 @@ const challengeEditForm = reactive({
   is_visible: true,
 })
 
+const importForm = reactive({
+  file: undefined as File | undefined,
+})
+
 const gameSubmitting = ref(false)
 const challengeSubmitting = ref(false)
 const attachSubmitting = ref(false)
@@ -89,6 +93,7 @@ const removingParticipantId = ref<number | null>(null)
 const removingChallengeId = ref<number | null>(null)
 const deletingGameId = ref<number | null>(null)
 const exportingGameId = ref<number | null>(null)
+const importingGame = ref(false)
 const deletingChallengeId = ref<number | null>(null)
 const games = ref<Array<{
   id: number
@@ -135,6 +140,7 @@ const participants = ref<Array<{
   score: number
   solve_count: number
 }>>([])
+type AdminGameSummary = (typeof games.value)[number]
 
 const participantStatusDrafts = reactive<Record<number, 'pending' | 'accepted' | 'rejected'>>({})
 
@@ -643,6 +649,34 @@ async function exportGame(gameId: number) {
   }
   finally {
     exportingGameId.value = null
+  }
+}
+
+async function importGamePackage() {
+  if (!importForm.file) {
+    toast.add({ title: '请先选择导入文件', color: 'warning' })
+    return
+  }
+
+  importingGame.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', importForm.file)
+
+    const game = await $fetch<AdminGameSummary>('/api/admin/games/import', {
+      method: 'POST',
+      body: formData,
+    })
+
+    importForm.file = undefined
+    toast.add({ title: '比赛导入成功', description: `已创建 ${game.name}`, color: 'success' })
+    await loadAdminResources()
+  }
+  catch (e: any) {
+    toast.add({ title: '比赛导入失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    importingGame.value = false
   }
 }
 
@@ -1211,6 +1245,34 @@ onMounted(async () => {
         </UPageCard>
 
         <div class="space-y-6">
+          <UPageCard title="导入比赛包" icon="i-lucide-upload">
+            <div class="space-y-4">
+              <p class="text-sm text-muted">
+                上传由后台导出的 `sauryctf.export.v1` ZIP 包，系统会创建一场新的比赛和一组新的题目副本。
+              </p>
+
+              <UFormField label="ZIP 文件" name="import-file" description="当前仅支持包含 game.json 的导出包。">
+                <UFileUpload
+                  v-model="importForm.file"
+                  accept=".zip,application/zip"
+                  class="min-h-32"
+                  label="拖拽比赛包到这里"
+                  description="或点击选择一个 ZIP 文件"
+                />
+              </UFormField>
+
+              <div class="flex justify-end">
+                <UButton
+                  icon="i-lucide-file-up"
+                  :loading="importingGame"
+                  @click="importGamePackage"
+                >
+                  导入比赛
+                </UButton>
+              </div>
+            </div>
+          </UPageCard>
+
           <UPageCard title="参赛队伍" icon="i-lucide-users">
             <div v-if="selectedGame" class="mb-3 text-sm text-muted">
               {{ selectedGame.name }} · {{ loadingParticipants ? '正在加载队伍...' : `${participants.length} 支队伍` }}

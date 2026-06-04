@@ -144,6 +144,13 @@ func (h *Handler) ExportGamePackage(c *gin.Context, id int) {
 	}
 	h.games.ExportGamePackage(c, id)
 }
+func (h *Handler) ImportGamePackage(c *gin.Context) {
+	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
+	if c.IsAborted() {
+		return
+	}
+	h.games.ImportGamePackage(c)
+}
 func (h *Handler) GetGameChallenges(c *gin.Context, id int) {
 	h.games.GetGameChallenges(c, id)
 }

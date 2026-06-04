@@ -226,6 +226,78 @@ func (m *MockService) ExportGamePackage(id uint) ([]byte, string, error) {
 	return archive.Bytes(), fmt.Sprintf("game-%d-%s-export.zip", game.ID, sanitizeExportName(game.Name)), nil
 }
 
+func (m *MockService) ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error) {
+	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return nil, fmt.Errorf("invalid import package")
+	}
+
+	var gameFile *zip.File
+	for _, file := range reader.File {
+		if file.Name == "game.json" {
+			gameFile = file
+			break
+		}
+	}
+	if gameFile == nil {
+		return nil, fmt.Errorf("game.json not found in import package")
+	}
+
+	fileReader, err := gameFile.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer fileReader.Close()
+
+	var pkg ExportGamePackage
+	if err := json.NewDecoder(fileReader).Decode(&pkg); err != nil {
+		return nil, fmt.Errorf("invalid game.json")
+	}
+	if pkg.Version != "sauryctf.export.v1" {
+		return nil, fmt.Errorf("unsupported import package version")
+	}
+
+	imported, err := m.CreateGame(CreateGameRequest{
+		Name:               pkg.Game.Name,
+		Description:        pkg.Game.Description,
+		Notice:             pkg.Game.Notice,
+		StartTime:          pkg.Game.StartTime,
+		EndTime:            pkg.Game.EndTime,
+		ScoreboardFreezeAt: pkg.Game.ScoreboardFreezeAt,
+		RegistrationMode:   pkg.Game.RegistrationMode,
+		MaxTeamMembers:     pkg.Game.MaxTeamMembers,
+		IsPublic:           &pkg.Game.IsPublic,
+	}, createdBy)
+	if err != nil {
+		return nil, err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.ChallengesByGame[imported.ID] = make([]GameChallengeDetail, 0, len(pkg.Challenges))
+	for _, item := range pkg.Challenges {
+		m.ChallengesByGame[imported.ID] = append(m.ChallengesByGame[imported.ID], GameChallengeDetail{
+			ID:          item.ID,
+			Title:       item.Title,
+			Description: item.Description,
+			Category:    item.Category,
+			Type:        item.Type,
+			Difficulty:  item.Difficulty,
+			Hints:       item.Hints,
+			Attachments: item.Attachments,
+			Score: func() int {
+				if item.ScoreOverride > 0 {
+					return item.ScoreOverride
+				}
+				return item.BaseScore
+			}(),
+		})
+	}
+
+	return imported, nil
+}
+
 func (m *MockService) AddChallenge(gameID uint, challengeID uint, scoreOverride int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

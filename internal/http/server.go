@@ -46,6 +46,7 @@ func NewServer(db *gorm.DB, jwtSecret string) *gin.Engine {
 	engine.DELETE("/api/admin/games/:id", func(c *gin.Context) {
 		handler.DeleteGame(c, mustIntParam(c, "id"))
 	})
+	engine.POST("/api/admin/games/import", handler.ImportGamePackage)
 	engine.POST("/api/admin/games/:id/export", func(c *gin.Context) {
 		handler.ExportGamePackage(c, mustIntParam(c, "id"))
 	})

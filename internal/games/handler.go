@@ -2,6 +2,7 @@ package games
 
 import (
 	"bytes"
+	"io"
 	"net/http"
 	"time"
 
@@ -127,6 +128,41 @@ func (h *Handler) ExportGamePackage(c *gin.Context, id int) {
 	c.DataFromReader(http.StatusOK, int64(len(data)), "application/zip", bytes.NewReader(data), map[string]string{
 		"Content-Disposition": `attachment; filename="` + filename + `"`,
 	})
+}
+
+func (h *Handler) ImportGamePackage(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "missing import file"})
+		return
+	}
+
+	fileReader, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+	defer fileReader.Close()
+
+	data, err := io.ReadAll(fileReader)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+
+	userID := c.MustGet("user_id").(uint)
+	game, err := h.svc.ImportGamePackage(data, userID)
+	if err != nil {
+		switch err.Error() {
+		case "missing import file", "invalid import package", "game.json not found in import package", "invalid game.json", "unsupported import package version", "invalid registration mode", "invalid max team members", "invalid game timeline", "invalid scoreboard freeze time":
+			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusCreated, game)
 }
 
 func (h *Handler) AddChallengeToGame(c *gin.Context, id int) {

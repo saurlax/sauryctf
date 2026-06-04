@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"regexp"
 	"strings"
 	"time"
@@ -368,6 +369,140 @@ func (s *Service) ExportGamePackage(id uint) ([]byte, string, error) {
 
 	filename := fmt.Sprintf("game-%d-%s-export.zip", game.ID, sanitizeExportName(game.Name))
 	return archive.Bytes(), filename, nil
+}
+
+func (s *Service) ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error) {
+	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return nil, errors.New("invalid import package")
+	}
+
+	var gameFile *zip.File
+	for _, file := range reader.File {
+		if file.Name == "game.json" {
+			gameFile = file
+			break
+		}
+	}
+	if gameFile == nil {
+		return nil, errors.New("game.json not found in import package")
+	}
+
+	fileReader, err := gameFile.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer fileReader.Close()
+
+	payload, err := io.ReadAll(fileReader)
+	if err != nil {
+		return nil, err
+	}
+
+	var pkg ExportGamePackage
+	if err := json.Unmarshal(payload, &pkg); err != nil {
+		return nil, errors.New("invalid game.json")
+	}
+	if pkg.Version != "sauryctf.export.v1" {
+		return nil, errors.New("unsupported import package version")
+	}
+	if err := validateGameTimeline(pkg.Game.StartTime, pkg.Game.EndTime, pkg.Game.ScoreboardFreezeAt); err != nil {
+		return nil, err
+	}
+
+	registrationMode, err := normalizeRegistrationMode(pkg.Game.RegistrationMode)
+	if err != nil {
+		return nil, err
+	}
+	maxTeamMembers, err := normalizeMaxTeamMembers(pkg.Game.MaxTeamMembers)
+	if err != nil {
+		return nil, err
+	}
+
+	var importedGame *GameResponse
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		game := &models.Game{
+			Name:               pkg.Game.Name,
+			Description:        pkg.Game.Description,
+			Notice:             pkg.Game.Notice,
+			StartTime:          pkg.Game.StartTime,
+			EndTime:            pkg.Game.EndTime,
+			ScoreboardFreezeAt: pkg.Game.ScoreboardFreezeAt,
+			Status:             "draft",
+			RegistrationMode:   registrationMode,
+			MaxTeamMembers:     maxTeamMembers,
+			IsPublic:           pkg.Game.IsPublic,
+			CreatedBy:          createdBy,
+		}
+
+		if err := tx.Select(
+			"Name", "Description", "Notice", "StartTime", "EndTime", "ScoreboardFreezeAt", "Status", "RegistrationMode", "MaxTeamMembers", "IsPublic", "CreatedBy",
+		).Create(game).Error; err != nil {
+			return err
+		}
+
+		for _, item := range pkg.Challenges {
+			challenge := &models.Challenge{
+				Title:         item.Title,
+				Description:   item.Description,
+				Category:      models.ChallengeCategory(item.Category),
+				Type:          models.ChallengeType(item.Type),
+				Difficulty:    models.DifficultyLevel(item.Difficulty),
+				Flag:          item.Flag,
+				FlagFormat:    item.FlagFormat,
+				BaseScore:     item.BaseScore,
+				MinScore:      item.MinScore,
+				DecayRate:     item.DecayRate,
+				MaxAttempts:   item.MaxAttempts,
+				Hints:         item.Hints,
+				Attachments:   item.Attachments,
+				ContainerSpec: item.ContainerSpec,
+				IsVisible:     item.IsVisible,
+				CreatedBy:     createdBy,
+			}
+
+			if challenge.Type == "" {
+				challenge.Type = models.TypeStatic
+			}
+			if challenge.Difficulty == "" {
+				challenge.Difficulty = models.DifficultyEasy
+			}
+			if challenge.BaseScore == 0 {
+				challenge.BaseScore = 100
+			}
+			if challenge.MinScore == 0 {
+				challenge.MinScore = 10
+			}
+			if challenge.DecayRate == 0 {
+				challenge.DecayRate = 0.1
+			}
+
+			if err := tx.Select(
+				"Title", "Description", "Category", "Type", "Difficulty",
+				"Flag", "FlagFormat", "BaseScore", "MinScore", "DecayRate",
+				"MaxAttempts", "Hints", "Attachments", "ContainerSpec",
+				"IsVisible", "CreatedBy",
+			).Create(challenge).Error; err != nil {
+				return err
+			}
+
+			mount := &models.GameChallenge{
+				GameID:        game.ID,
+				ChallengeID:   challenge.ID,
+				ScoreOverride: item.ScoreOverride,
+			}
+			if err := tx.Create(mount).Error; err != nil {
+				return err
+			}
+		}
+
+		importedGame = toResponse(game)
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return importedGame, nil
 }
 
 var (

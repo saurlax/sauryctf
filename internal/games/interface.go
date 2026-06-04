@@ -15,6 +15,7 @@ type ServiceInterface interface {
 	UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, error)
 	DeleteGame(id uint) error
 	ExportGamePackage(id uint) ([]byte, string, error)
+	ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error)
 	AddChallenge(gameID uint, challengeID uint, scoreOverride int) error
 	RemoveChallenge(gameID uint, challengeID uint) error
 	// Participation
