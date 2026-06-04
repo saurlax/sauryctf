@@ -293,9 +293,18 @@ export interface components {
       /** Format: date-time */
       last_solve?: string;
     };
+    ScoreboardChallengeStat: {
+      id: number;
+      title: string;
+      category: string;
+      score: number;
+      solved_count: number;
+      blood_team?: string;
+    };
     Scoreboard: {
       game_id: number;
       entries: components["schemas"]["ScoreboardEntry"][];
+      challenges?: components["schemas"]["ScoreboardChallengeStat"][];
     };
     GameParticipation: {
       has_team: boolean;

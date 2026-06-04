@@ -198,3 +198,25 @@ func TestService_SubmitFlag_UsesSharedScoringRule(t *testing.T) {
 	assert.Equal(t, "second", second.BloodType)
 	assert.Equal(t, 91, second.Score)
 }
+
+func TestService_GetScoreboard_IncludesChallengeStats(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, team1ID, team2ID := createGameChallengeFixture(t, database)
+
+	_, err = svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
+	require.NoError(t, err)
+	_, err = svc.SubmitFlag(gameID, challengeID, 2, team2ID, "flag{fixture}")
+	require.NoError(t, err)
+
+	scoreboard, err := svc.GetScoreboard(gameID)
+	require.NoError(t, err)
+	require.Len(t, scoreboard.Challenges, 1)
+	assert.Equal(t, challengeID, scoreboard.Challenges[0].ID)
+	assert.Equal(t, 2, scoreboard.Challenges[0].SolvedCount)
+	assert.Equal(t, "Team One", scoreboard.Challenges[0].BloodTeam)
+}

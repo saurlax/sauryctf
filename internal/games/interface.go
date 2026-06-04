@@ -93,9 +93,19 @@ type ScoreboardEntry struct {
 	LastSolve time.Time `json:"last_solve"`
 }
 
+type ScoreboardChallengeStat struct {
+	ID         uint   `json:"id"`
+	Title      string `json:"title"`
+	Category   string `json:"category"`
+	Score      int    `json:"score"`
+	SolvedCount int   `json:"solved_count"`
+	BloodTeam  string `json:"blood_team,omitempty"`
+}
+
 type ScoreboardResponse struct {
-	GameID  uint              `json:"game_id"`
-	Entries []ScoreboardEntry `json:"entries"`
+	GameID     uint                    `json:"game_id"`
+	Entries    []ScoreboardEntry       `json:"entries"`
+	Challenges []ScoreboardChallengeStat `json:"challenges"`
 }
 
 type GameParticipationTeam struct {

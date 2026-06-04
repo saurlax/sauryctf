@@ -5,6 +5,7 @@ type Game = components['schemas']['Game']
 type GameChallengeDetail = components['schemas']['GameChallengeDetail']
 type ScoreboardEntry = components['schemas']['ScoreboardEntry']
 type GameParticipation = components['schemas']['GameParticipation']
+type ScoreboardChallengeStat = components['schemas']['ScoreboardChallengeStat']
 
 const route = useRoute()
 const toast = useToast()
@@ -13,6 +14,7 @@ const { authState, fetchUser } = useAuth()
 const game = ref<Game | null>(null)
 const challenges = ref<GameChallengeDetail[]>([])
 const scoreboard = ref<ScoreboardEntry[]>([])
+const scoreboardChallenges = ref<ScoreboardChallengeStat[]>([])
 const participation = ref<GameParticipation | null>(null)
 const loading = ref(true)
 const participationLoading = ref(false)
@@ -75,6 +77,7 @@ async function fetchScoreboard() {
   try {
     const res = await $api('get', '/api/games/{id}/scoreboard', { params: { id: Number(gameId) } })
     scoreboard.value = res.entries || []
+    scoreboardChallenges.value = res.challenges || []
   }
   catch (e: any) {
     toast.add({ title: '获取排行榜失败', description: e.data?.message || e.message, color: 'error' })
@@ -518,26 +521,60 @@ onMounted(async () => {
 
       <!-- Scoreboard Tab -->
       <div v-else-if="activeTab === 'scoreboard'">
-        <UTable
-          :data="scoreboard"
-          :columns="[
-            { accessorKey: 'rank', header: '#' },
-            { accessorKey: 'team_name', header: '队伍' },
-            { accessorKey: 'score', header: '分数' },
-            { accessorKey: 'solve_count', header: '解题数' },
-            { accessorKey: 'last_solve', header: '最后解题' },
-          ]"
-          :empty-state="{ icon: 'i-lucide-trophy', label: '暂无数据' }"
-        >
-          <template #rank-cell="{ row }">
-            <span :class="row.original.rank <= 3 ? 'font-bold text-warning' : ''">
-              {{ row.original.rank }}
-            </span>
-          </template>
-          <template #last_solve-cell="{ row }">
-            {{ row.original.last_solve ? new Date(row.original.last_solve).toLocaleString() : '-' }}
-          </template>
-        </UTable>
+        <div class="space-y-6">
+          <UPageCard title="队伍总榜" icon="i-lucide-trophy">
+            <UTable
+              :data="scoreboard"
+              :columns="[
+                { accessorKey: 'rank', header: '#' },
+                { accessorKey: 'team_name', header: '队伍' },
+                { accessorKey: 'score', header: '分数' },
+                { accessorKey: 'solve_count', header: '解题数' },
+                { accessorKey: 'last_solve', header: '最后解题' },
+              ]"
+              :empty-state="{ icon: 'i-lucide-trophy', label: '暂无数据' }"
+            >
+              <template #rank-cell="{ row }">
+                <span :class="row.original.rank <= 3 ? 'font-bold text-warning' : ''">
+                  {{ row.original.rank }}
+                </span>
+              </template>
+              <template #last_solve-cell="{ row }">
+                {{ row.original.last_solve ? new Date(row.original.last_solve).toLocaleString() : '-' }}
+              </template>
+            </UTable>
+          </UPageCard>
+
+          <UPageCard title="分题统计" icon="i-lucide-chart-column-big">
+            <div v-if="scoreboardChallenges.length === 0" class="text-sm text-muted">
+              暂无题目统计
+            </div>
+            <div v-else class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <UPageCard
+                v-for="challenge in scoreboardChallenges"
+                :key="challenge.id"
+                :title="challenge.title"
+                :description="challenge.category"
+                :icon="challenge.blood_team ? 'i-lucide-droplets' : 'i-lucide-flag'"
+              >
+                <div class="space-y-3 text-sm">
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="text-muted">当前分值</span>
+                    <span>{{ challenge.score }} pts</span>
+                  </div>
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="text-muted">解出队伍</span>
+                    <span>{{ challenge.solved_count }}</span>
+                  </div>
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="text-muted">一血队伍</span>
+                    <span>{{ challenge.blood_team || '暂无' }}</span>
+                  </div>
+                </div>
+              </UPageCard>
+            </div>
+          </UPageCard>
+        </div>
       </div>
     </template>
 

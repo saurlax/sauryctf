@@ -499,7 +499,58 @@ func (s *Service) GetScoreboard(gameID uint) (*ScoreboardResponse, error) {
 		entries[i].Rank = i + 1
 	}
 
-	return &ScoreboardResponse{GameID: gameID, Entries: entries}, nil
+	type challengeRow struct {
+		ID            uint
+		Title         string
+		Category      string
+		BaseScore     int
+		ScoreOverride int
+		SolvedCount   int
+		BloodTeam     string
+	}
+
+	var challengeRows []challengeRow
+	if err := s.db.Table("game_challenges").
+		Select(`
+			game_challenges.challenge_id as id,
+			challenges.title,
+			challenges.category,
+			challenges.base_score,
+			game_challenges.score_override,
+			COUNT(solves.id) as solved_count,
+			COALESCE(MAX(CASE WHEN solves.blood_type = 'first' THEN teams.name END), '') as blood_team
+		`).
+		Joins("JOIN challenges ON challenges.id = game_challenges.challenge_id").
+		Joins("LEFT JOIN solves ON solves.challenge_id = game_challenges.challenge_id AND solves.game_id = game_challenges.game_id").
+		Joins("LEFT JOIN teams ON teams.id = solves.team_id").
+		Where("game_challenges.game_id = ? AND challenges.is_visible = ?", gameID, true).
+		Group("game_challenges.challenge_id, challenges.title, challenges.category, challenges.base_score, game_challenges.score_override").
+		Order("challenges.category ASC, game_challenges.challenge_id ASC").
+		Scan(&challengeRows).Error; err != nil {
+		return nil, err
+	}
+
+	challengeStats := make([]ScoreboardChallengeStat, 0, len(challengeRows))
+	for _, row := range challengeRows {
+		score := row.BaseScore
+		if row.ScoreOverride > 0 {
+			score = row.ScoreOverride
+		}
+		challengeStats = append(challengeStats, ScoreboardChallengeStat{
+			ID:          row.ID,
+			Title:       row.Title,
+			Category:    row.Category,
+			Score:       score,
+			SolvedCount: row.SolvedCount,
+			BloodTeam:   row.BloodTeam,
+		})
+	}
+
+	return &ScoreboardResponse{
+		GameID:     gameID,
+		Entries:    entries,
+		Challenges: challengeStats,
+	}, nil
 }
 
 func toResponse(g *models.Game) *GameResponse {
