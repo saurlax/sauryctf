@@ -233,6 +233,12 @@ const selectedGameDivisionOptions = computed(() => (selectedGame.value?.division
   label: division,
   value: division,
 })))
+const preferredSetupGame = computed(() =>
+  games.value.find(game => game.status === 'draft')
+  || games.value.find(game => game.status === 'active')
+  || games.value[0]
+  || null,
+)
 
 const selectedAdminOverview = computed(() => {
   if (!selectedGame.value) {
@@ -266,6 +272,8 @@ const selectedGamePreflightChecks = computed(() => {
       label: '比赛时间已配置',
       done: Boolean(overview.game.start_time && overview.game.end_time),
       description: `${new Date(overview.game.start_time).toLocaleString()} - ${new Date(overview.game.end_time).toLocaleString()}`,
+      actionLabel: '编辑比赛',
+      actionTo: '#edit-game',
     },
     {
       key: 'status',
@@ -276,6 +284,8 @@ const selectedGamePreflightChecks = computed(() => {
         : overview.game.status === 'active'
           ? '当前已经开赛，公开页应同步开放报名与题目可见性。'
           : '当前已结束，适合复核榜单、Writeup 和赛后练习状态。',
+      actionLabel: overview.game.status === 'active' ? '打开公开页' : '去比赛设置',
+      actionTo: overview.game.status === 'active' ? `/games/${overview.game.id}` : '#game-settings',
     },
     {
       key: 'challenge',
@@ -284,6 +294,8 @@ const selectedGamePreflightChecks = computed(() => {
       description: overview.mountedChallengeCount > 0
         ? `当前已挂载 ${overview.mountedChallengeCount} 道题目。`
         : '至少先挂载 1 道题目，否则公开比赛页不会有可做题目。',
+      actionLabel: '去挂题',
+      actionTo: '#attach-challenge',
     },
     {
       key: 'visibility',
@@ -292,12 +304,16 @@ const selectedGamePreflightChecks = computed(() => {
       description: overview.game.is_public
         ? '当前是公开比赛，普通用户可在公开比赛列表里看到它。'
         : '当前是私有比赛，只能通过管理路径继续核对。',
+      actionLabel: '去比赛设置',
+      actionTo: '#game-settings',
     },
     {
       key: 'registration',
       label: '报名规则已明确',
       done: true,
       description: `${getRegistrationModeLabel(overview.game.registration_mode)} · ${overview.game.max_team_members ? `队伍人数上限 ${overview.game.max_team_members} 人` : '队伍人数不限'}`,
+      actionLabel: '去比赛设置',
+      actionTo: '#game-settings',
     },
     {
       key: 'participant',
@@ -306,6 +322,8 @@ const selectedGamePreflightChecks = computed(() => {
       description: overview.participantCount > 0
         ? `当前 ${overview.participantCount} 支队伍，其中 ${overview.acceptedParticipantCount} 支已通过、${overview.pendingParticipantCount} 支待审核、${overview.rejectedParticipantCount} 支已拒绝。`
         : '当前还没有报名队伍，适合先用普通用户走一遍本地冒烟流程。',
+      actionLabel: overview.participantCount > 0 ? '查看报名队伍' : '打开公开页',
+      actionTo: overview.participantCount > 0 ? '#attach-challenge' : `/games/${overview.game.id}`,
     },
   ]
 })
@@ -326,6 +344,7 @@ const adminSetupSteps = computed(() => {
       done: hasGames,
       actionLabel: '创建比赛',
       actionTo: '#create-game',
+      contextGameId: undefined,
     },
     {
       key: 'challenge',
@@ -336,6 +355,7 @@ const adminSetupSteps = computed(() => {
       done: hasChallenges,
       actionLabel: '创建题目',
       actionTo: '#create-challenge',
+      contextGameId: undefined,
     },
     {
       key: 'attach',
@@ -348,6 +368,7 @@ const adminSetupSteps = computed(() => {
       done: hasMountedChallenges,
       actionLabel: '去挂题',
       actionTo: '#attach-challenge',
+      contextGameId: preferredSetupGame.value?.id,
     },
     {
       key: 'launch',
@@ -358,6 +379,7 @@ const adminSetupSteps = computed(() => {
       done: Boolean(activeGame),
       actionLabel: activeGame ? '打开公开页' : '去比赛设置',
       actionTo: activeGame ? `/games/${activeGame.id}` : '#game-settings',
+      contextGameId: (activeGame || preferredSetupGame.value)?.id,
     },
   ]
 })
@@ -637,6 +659,39 @@ function getRegistrationModeLabel(mode?: 'review' | 'auto_accept') {
 
 function getPracticeModeLabel(enabled?: boolean) {
   return enabled ? '赛后练习开启' : '仅正赛'
+}
+
+function jumpToAdminAnchor(target: string) {
+  if (!target.startsWith('#')) {
+    return
+  }
+
+  const id = target.slice(1)
+  const el = document.getElementById(id)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    window.location.hash = target
+  }
+}
+
+function handleSetupAction(step: { actionTo: string, contextGameId?: number }) {
+  if (step.contextGameId) {
+    selectGameContext(step.contextGameId)
+  }
+
+  if (step.actionTo.startsWith('#')) {
+    jumpToAdminAnchor(step.actionTo)
+  }
+}
+
+function handlePreflightAction(check: { actionTo?: string }) {
+  if (!check.actionTo) {
+    return
+  }
+
+  if (check.actionTo.startsWith('#')) {
+    jumpToAdminAnchor(check.actionTo)
+  }
 }
 
 function selectGameContext(gameId?: number) {
@@ -1242,7 +1297,7 @@ onMounted(async () => {
               </div>
 
               <div class="mt-3 flex justify-end">
-                <UButton size="sm" variant="outline" :to="step.actionTo">
+                <UButton size="sm" variant="outline" :to="step.actionTo" @click="handleSetupAction(step)">
                   {{ step.actionLabel }}
                 </UButton>
               </div>
@@ -1339,6 +1394,12 @@ onMounted(async () => {
                 <UBadge :color="check.done ? 'success' : 'warning'" variant="soft">
                   {{ check.done ? '通过' : '待补' }}
                 </UBadge>
+              </div>
+
+              <div v-if="check.actionLabel && check.actionTo" class="mt-3 flex justify-end">
+                <UButton size="sm" variant="outline" :to="check.actionTo" @click="handlePreflightAction(check)">
+                  {{ check.actionLabel }}
+                </UButton>
               </div>
             </div>
           </div>
