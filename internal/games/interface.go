@@ -26,6 +26,7 @@ type ServiceInterface interface {
 	SubmitFlag(gameID uint, challengeID uint, userID uint, teamID uint, flag string) (*SubmitResult, error)
 	// Scoreboard
 	GetScoreboard(gameID uint) (*ScoreboardResponse, error)
+	GetParticipants(gameID uint) ([]GameParticipantEntry, error)
 }
 
 type CreateGameRequest struct {
@@ -106,6 +107,15 @@ type ScoreboardResponse struct {
 	GameID     uint                    `json:"game_id"`
 	Entries    []ScoreboardEntry       `json:"entries"`
 	Challenges []ScoreboardChallengeStat `json:"challenges"`
+}
+
+type GameParticipantEntry struct {
+	TeamID     uint      `json:"team_id"`
+	TeamName   string    `json:"team_name"`
+	Status     string    `json:"status"`
+	JoinedAt   time.Time `json:"joined_at"`
+	Score      int       `json:"score"`
+	SolveCount int       `json:"solve_count"`
 }
 
 type GameParticipationTeam struct {

@@ -553,6 +553,55 @@ func (s *Service) GetScoreboard(gameID uint) (*ScoreboardResponse, error) {
 	}, nil
 }
 
+func (s *Service) GetParticipants(gameID uint) ([]GameParticipantEntry, error) {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		return nil, errors.New("game not found")
+	}
+
+	type participantRow struct {
+		TeamID     uint
+		TeamName   string
+		Status     string
+		JoinedAt   time.Time
+		Score      int
+		SolveCount int
+	}
+
+	var rows []participantRow
+	if err := s.db.Table("participations").
+		Select(`
+			participations.team_id,
+			teams.name as team_name,
+			participations.status,
+			participations.created_at as joined_at,
+			COALESCE(SUM(solves.score), 0) as score,
+			COUNT(solves.id) as solve_count
+		`).
+		Joins("JOIN teams ON teams.id = participations.team_id").
+		Joins("LEFT JOIN solves ON solves.team_id = participations.team_id AND solves.game_id = participations.game_id").
+		Where("participations.game_id = ?", gameID).
+		Group("participations.team_id, teams.name, participations.status, participations.created_at").
+		Order("participations.created_at ASC").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	result := make([]GameParticipantEntry, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, GameParticipantEntry{
+			TeamID:     row.TeamID,
+			TeamName:   row.TeamName,
+			Status:     row.Status,
+			JoinedAt:   row.JoinedAt,
+			Score:      row.Score,
+			SolveCount: row.SolveCount,
+		})
+	}
+
+	return result, nil
+}
+
 func toResponse(g *models.Game) *GameResponse {
 	return &GameResponse{
 		ID:          g.ID,

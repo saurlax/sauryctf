@@ -211,3 +211,31 @@ func (m *MockService) GetScoreboard(gameID uint) (*ScoreboardResponse, error) {
 	return &ScoreboardResponse{GameID: gameID, Entries: []ScoreboardEntry{}}, nil
 }
 
+func (m *MockService) GetParticipants(gameID uint) ([]GameParticipantEntry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.Games[gameID]; !ok {
+		return nil, fmt.Errorf("game not found")
+	}
+
+	var result []GameParticipantEntry
+	for userID, team := range m.UserTeams {
+		key := fmt.Sprintf("%d-%d", gameID, team.ID)
+		if !m.Participations[key] {
+			continue
+		}
+		result = append(result, GameParticipantEntry{
+			TeamID:     team.ID,
+			TeamName:   team.Name,
+			Status:     string(models.ParticipationAccepted),
+			JoinedAt:   time.Now(),
+			Score:      0,
+			SolveCount: 0,
+		})
+		_ = userID
+	}
+
+	return result, nil
+}
+

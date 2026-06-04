@@ -158,3 +158,10 @@ func (h *Handler) GetGameParticipation(c *gin.Context, id int) {
 func (h *Handler) GetScoreboard(c *gin.Context, id int) {
 	h.games.GetScoreboard(c, id)
 }
+func (h *Handler) GetGameParticipants(c *gin.Context, id int) {
+	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
+	if c.IsAborted() {
+		return
+	}
+	h.games.GetParticipants(c, id)
+}

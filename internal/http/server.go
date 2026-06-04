@@ -1,6 +1,8 @@
 package http
 
 import (
+	"fmt"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
@@ -38,5 +40,15 @@ func NewServer(db *gorm.DB, jwtSecret string) *gin.Engine {
 		},
 	})
 
+	engine.GET("/api/games/:id/participants", func(c *gin.Context) {
+		handler.GetGameParticipants(c, mustIntParam(c, "id"))
+	})
+
 	return engine
+}
+
+func mustIntParam(c *gin.Context, key string) int {
+	var value int
+	_, _ = fmt.Sscan(c.Param(key), &value)
+	return value
 }

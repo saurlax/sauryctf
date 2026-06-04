@@ -71,19 +71,28 @@ const gameEditing = ref(false)
 const challengeEditing = ref(false)
 const loadingResources = ref(false)
 const loadingGameChallenges = ref(false)
+const loadingParticipants = ref(false)
 const removingChallengeId = ref<number | null>(null)
 const deletingChallengeId = ref<number | null>(null)
 const games = ref<Array<{
   id: number
   name: string
+  description?: string
   status: 'draft' | 'active' | 'ended'
   start_time: string
   end_time: string
+  is_public?: boolean
 }>>([])
 const challenges = ref<Array<{
   id: number
   title: string
+  description?: string
   category: 'web' | 'pwn' | 'crypto' | 'reverse' | 'misc' | 'forensics' | 'awd'
+  type?: 'static' | 'dynamic'
+  difficulty?: 'easy' | 'medium' | 'hard'
+  base_score?: number
+  min_score?: number
+  decay_rate?: number
   is_visible?: boolean
 }>>([])
 const selectedGameChallenges = ref<Array<{
@@ -95,6 +104,14 @@ const selectedGameChallenges = ref<Array<{
   score: number
   solve_count?: number
   blood_team?: string
+}>>([])
+const participants = ref<Array<{
+  team_id: number
+  team_name: string
+  status: string
+  joined_at: string
+  score: number
+  solve_count: number
 }>>([])
 
 const categoryOptions = [
@@ -186,6 +203,25 @@ async function loadSelectedGameChallenges() {
   }
   finally {
     loadingGameChallenges.value = false
+  }
+}
+
+async function loadParticipants() {
+  if (!attachForm.game_id) {
+    participants.value = []
+    return
+  }
+
+  loadingParticipants.value = true
+  try {
+    participants.value = await $fetch(`/api/games/${attachForm.game_id}/participants`)
+  }
+  catch (e: any) {
+    participants.value = []
+    toast.add({ title: '参赛队伍加载失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    loadingParticipants.value = false
   }
 }
 
@@ -521,6 +557,7 @@ watch(() => gameSettingsForm.game_id, () => {
 
 watch(() => attachForm.game_id, async () => {
   await loadSelectedGameChallenges()
+  await loadParticipants()
 })
 
 onMounted(async () => {
@@ -867,8 +904,44 @@ onMounted(async () => {
           </div>
         </UPageCard>
 
-        <UPageCard title="已加载资源" icon="i-lucide-list">
-          <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-1">
+        <div class="space-y-6">
+          <UPageCard title="参赛队伍" icon="i-lucide-users">
+            <div v-if="selectedGame" class="mb-3 text-sm text-muted">
+              {{ selectedGame.name }} · {{ loadingParticipants ? '正在加载队伍...' : `${participants.length} 支队伍` }}
+            </div>
+            <div v-else class="text-sm text-muted">
+              先选择比赛，再查看这场比赛的参赛队伍。
+            </div>
+
+            <div v-if="participants.length" class="space-y-2">
+              <div
+                v-for="participant in participants"
+                :key="participant.team_id"
+                class="rounded-lg border border-default px-3 py-3 text-sm"
+              >
+                <div class="flex items-center justify-between gap-3">
+                  <div class="font-medium">
+                    {{ participant.team_name }}
+                  </div>
+                  <UBadge :color="participant.status === 'accepted' ? 'success' : participant.status === 'pending' ? 'warning' : 'error'" variant="soft">
+                    {{ participant.status }}
+                  </UBadge>
+                </div>
+                <div class="mt-2 grid gap-2 text-muted md:grid-cols-3">
+                  <div>报名时间：{{ new Date(participant.joined_at).toLocaleString() }}</div>
+                  <div>当前得分：{{ participant.score }}</div>
+                  <div>解题数量：{{ participant.solve_count }}</div>
+                </div>
+              </div>
+            </div>
+
+            <div v-else-if="selectedGame && !loadingParticipants" class="text-sm text-muted">
+              这场比赛还没有参赛队伍。
+            </div>
+          </UPageCard>
+
+          <UPageCard title="已加载资源" icon="i-lucide-list">
+            <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-1">
             <div>
               <div class="mb-2 text-sm font-medium">
                 比赛列表
@@ -959,7 +1032,8 @@ onMounted(async () => {
               </div>
             </div>
           </div>
-        </UPageCard>
+          </UPageCard>
+        </div>
       </div>
     </div>
   </div>

@@ -194,6 +194,20 @@ func (h *Handler) GetScoreboard(c *gin.Context, id int) {
 	c.JSON(http.StatusOK, scoreboard)
 }
 
+func (h *Handler) GetParticipants(c *gin.Context, id int) {
+	participants, err := h.svc.GetParticipants(uint(id))
+	if err != nil {
+		if err.Error() == "game not found" {
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, participants)
+}
+
 func (h *Handler) GetGameParticipation(c *gin.Context, id int) {
 	userID := c.MustGet("user_id").(uint)
 
