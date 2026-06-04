@@ -6,6 +6,11 @@ import (
 	"github.com/saurlax/sauryctf/internal/models"
 )
 
+const (
+	ExportPackageVersionV1 = "sauryctf.export.v1"
+	ExportPackageVersionV2 = "sauryctf.export.v2"
+)
+
 // ServiceInterface defines the game management contract.
 type ServiceInterface interface {
 	CreateGame(req CreateGameRequest, createdBy uint) (*GameResponse, error)
@@ -194,4 +199,11 @@ type ExportedGameChallenge struct {
 	MaxAttempts   int     `json:"max_attempts"`
 	IsVisible     bool    `json:"is_visible"`
 	ScoreOverride int     `json:"score_override"`
+	EmbeddedAttachments []ExportedAttachmentFile `json:"embedded_attachments,omitempty"`
+}
+
+type ExportedAttachmentFile struct {
+	Name        string `json:"name"`
+	ZipPath     string `json:"zip_path"`
+	OriginalURL string `json:"original_url"`
 }

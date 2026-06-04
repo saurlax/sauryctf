@@ -2,6 +2,7 @@ package http
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -17,6 +18,7 @@ func NewServer(db *gorm.DB, jwtSecret string) *gin.Engine {
 	engine := gin.New()
 	engine.Use(gin.Logger())
 	engine.Use(gin.Recovery())
+	engine.StaticFS("/attachments", http.Dir("./attachments"))
 
 	// 初始化各模块服务和 handler
 	authSvc := auth.NewService(db, jwtSecret)

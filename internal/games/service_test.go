@@ -4,6 +4,10 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -383,10 +387,17 @@ func TestService_ExportGamePackage_IncludesGameAndMountedChallenges(t *testing.T
 	svc := games.NewService(database)
 	gameID, challengeID, _, _ := createGameChallengeFixture(t, database)
 
+	require.NoError(t, os.MkdirAll("attachments", 0o755))
+	t.Cleanup(func() {
+		_ = os.RemoveAll("attachments")
+	})
+	localAttachmentPath := filepath.Join("attachments", "fixture-local.zip")
+	require.NoError(t, os.WriteFile(localAttachmentPath, []byte("fixture payload"), 0o644))
+
 	require.NoError(t, database.Model(&models.Challenge{}).Where("id = ?", challengeID).Updates(map[string]any{
 		"description":    "fixture statement",
 		"hints":          "[\"hint-1\"]",
-		"attachments":    "[\"https://example.com/fixture.zip\"]",
+		"attachments":    "[\"https://example.com/fixture.zip\",\"/attachments/fixture-local.zip\"]",
 		"flag_format":    "flag{...}",
 		"container_spec": "{\"image\":\"busybox\"}",
 		"max_attempts":   5,
@@ -402,28 +413,45 @@ func TestService_ExportGamePackage_IncludesGameAndMountedChallenges(t *testing.T
 
 	reader, err := zip.NewReader(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
 	require.NoError(t, err)
-	require.Len(t, reader.File, 1)
-	assert.Equal(t, "game.json", reader.File[0].Name)
+	require.Len(t, reader.File, 2)
+	var gameJSONFile *zip.File
+	for _, file := range reader.File {
+		if file.Name == "game.json" {
+			gameJSONFile = file
+			break
+		}
+	}
+	require.NotNil(t, gameJSONFile)
 
-	fileReader, err := reader.File[0].Open()
+	fileReader, err := gameJSONFile.Open()
 	require.NoError(t, err)
 	defer fileReader.Close()
 
 	var pkg games.ExportGamePackage
 	require.NoError(t, json.NewDecoder(fileReader).Decode(&pkg))
-	assert.Equal(t, "sauryctf.export.v1", pkg.Version)
+	assert.Equal(t, games.ExportPackageVersionV2, pkg.Version)
 	assert.Equal(t, gameID, pkg.Game.ID)
 	assert.Equal(t, "Fixture Game", pkg.Game.Name)
 	require.Len(t, pkg.Challenges, 1)
 	assert.Equal(t, challengeID, pkg.Challenges[0].ID)
 	assert.Equal(t, "fixture statement", pkg.Challenges[0].Description)
 	assert.Equal(t, "[\"hint-1\"]", pkg.Challenges[0].Hints)
-	assert.Equal(t, "[\"https://example.com/fixture.zip\"]", pkg.Challenges[0].Attachments)
+	assert.Equal(t, "[\"https://example.com/fixture.zip\",\"/attachments/fixture-local.zip\"]", pkg.Challenges[0].Attachments)
 	assert.Equal(t, "flag{fixture}", pkg.Challenges[0].Flag)
 	assert.Equal(t, "flag{...}", pkg.Challenges[0].FlagFormat)
 	assert.Equal(t, "{\"image\":\"busybox\"}", pkg.Challenges[0].ContainerSpec)
 	assert.Equal(t, 5, pkg.Challenges[0].MaxAttempts)
 	assert.Equal(t, 250, pkg.Challenges[0].ScoreOverride)
+	require.Len(t, pkg.Challenges[0].EmbeddedAttachments, 1)
+	assert.Equal(t, "/attachments/fixture-local.zip", pkg.Challenges[0].EmbeddedAttachments[0].OriginalURL)
+	assert.Equal(t, "fixture-local.zip", pkg.Challenges[0].EmbeddedAttachments[0].Name)
+
+	embeddedFile, err := reader.Open(pkg.Challenges[0].EmbeddedAttachments[0].ZipPath)
+	require.NoError(t, err)
+	defer embeddedFile.Close()
+	embeddedData, err := io.ReadAll(embeddedFile)
+	require.NoError(t, err)
+	assert.Equal(t, "fixture payload", string(embeddedData))
 }
 
 func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {
@@ -445,11 +473,18 @@ func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {
 		"max_team_members":     4,
 		"is_public":            false,
 	}).Error)
+	require.NoError(t, os.MkdirAll("attachments", 0o755))
+	t.Cleanup(func() {
+		_ = os.RemoveAll("attachments")
+	})
+	localAttachmentPath := filepath.Join("attachments", "import-source.bin")
+	require.NoError(t, os.WriteFile(localAttachmentPath, []byte("restored payload"), 0o644))
+
 	require.NoError(t, database.Model(&models.Challenge{}).Where("id = ?", challengeID).Updates(map[string]any{
 		"title":          "Imported Challenge",
 		"description":    "full imported statement",
 		"hints":          "[\"import hint\"]",
-		"attachments":    "[\"https://example.com/import.zip\"]",
+		"attachments":    "[\"https://example.com/import.zip\",\"/attachments/import-source.bin\"]",
 		"flag_format":    "flag{...}",
 		"container_spec": "{\"image\":\"busybox\"}",
 		"base_score":     150,
@@ -488,7 +523,15 @@ func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {
 	require.NoError(t, database.Where("created_by = ? AND title = ?", 99, "Imported Challenge").First(&importedChallenge).Error)
 	assert.Equal(t, "full imported statement", importedChallenge.Description)
 	assert.Equal(t, "[\"import hint\"]", importedChallenge.Hints)
-	assert.Equal(t, "[\"https://example.com/import.zip\"]", importedChallenge.Attachments)
+	var importedAttachments []string
+	require.NoError(t, json.Unmarshal([]byte(importedChallenge.Attachments), &importedAttachments))
+	require.Len(t, importedAttachments, 2)
+	assert.Equal(t, "https://example.com/import.zip", importedAttachments[0])
+	assert.Contains(t, importedAttachments[1], "/attachments/")
+	restoredAttachmentPath := filepath.Clean(strings.TrimPrefix(importedAttachments[1], "/"))
+	restoredData, err := os.ReadFile(restoredAttachmentPath)
+	require.NoError(t, err)
+	assert.Equal(t, "restored payload", string(restoredData))
 	assert.Equal(t, "flag{fixture}", importedChallenge.Flag)
 	assert.Equal(t, "flag{...}", importedChallenge.FlagFormat)
 	assert.Equal(t, "{\"image\":\"busybox\"}", importedChallenge.ContainerSpec)

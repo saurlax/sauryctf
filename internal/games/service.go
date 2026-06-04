@@ -7,6 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -20,10 +23,16 @@ import (
 const (
 	RegistrationModeReview     = "review"
 	RegistrationModeAutoAccept = "auto_accept"
+	exportAttachmentDir        = "attachments"
 )
 
 type Service struct {
 	db *gorm.DB
+}
+
+type exportedAttachmentPayload struct {
+	zipPath string
+	data    []byte
 }
 
 func NewService(db *gorm.DB) *Service {
@@ -308,7 +317,7 @@ func (s *Service) ExportGamePackage(id uint) ([]byte, string, error) {
 	}
 
 	pkg := ExportGamePackage{
-		Version:     "sauryctf.export.v1",
+		Version:     ExportPackageVersionV2,
 		GeneratedAt: time.Now().UTC(),
 		Game: ExportGameMetadata{
 			ID:                 game.ID,
@@ -326,8 +335,10 @@ func (s *Service) ExportGamePackage(id uint) ([]byte, string, error) {
 		Challenges: make([]ExportedGameChallenge, 0, len(rows)),
 	}
 
+	attachmentFiles := make([]exportedAttachmentPayload, 0)
+
 	for _, row := range rows {
-		pkg.Challenges = append(pkg.Challenges, ExportedGameChallenge{
+		exportedChallenge := ExportedGameChallenge{
 			ID:            row.ID,
 			Title:         row.Title,
 			Description:   row.Description,
@@ -345,7 +356,16 @@ func (s *Service) ExportGamePackage(id uint) ([]byte, string, error) {
 			MaxAttempts:   row.MaxAttempts,
 			IsVisible:     row.IsVisible,
 			ScoreOverride: row.ScoreOverride,
-		})
+		}
+
+		embeddedAttachments, files, err := collectEmbeddedAttachments(row.Attachments, row.ID)
+		if err != nil {
+			return nil, "", err
+		}
+		exportedChallenge.EmbeddedAttachments = embeddedAttachments
+		attachmentFiles = append(attachmentFiles, files...)
+
+		pkg.Challenges = append(pkg.Challenges, exportedChallenge)
 	}
 
 	payload, err := json.MarshalIndent(pkg, "", "  ")
@@ -362,6 +382,16 @@ func (s *Service) ExportGamePackage(id uint) ([]byte, string, error) {
 	}
 	if _, err := gameFile.Write(payload); err != nil {
 		return nil, "", err
+	}
+
+	for _, file := range attachmentFiles {
+		archiveFile, err := writer.Create(file.zipPath)
+		if err != nil {
+			return nil, "", err
+		}
+		if _, err := archiveFile.Write(file.data); err != nil {
+			return nil, "", err
+		}
 	}
 	if err := writer.Close(); err != nil {
 		return nil, "", err
@@ -403,7 +433,7 @@ func (s *Service) ImportGamePackage(data []byte, createdBy uint) (*GameResponse,
 	if err := json.Unmarshal(payload, &pkg); err != nil {
 		return nil, errors.New("invalid game.json")
 	}
-	if pkg.Version != "sauryctf.export.v1" {
+	if pkg.Version != ExportPackageVersionV1 && pkg.Version != ExportPackageVersionV2 {
 		return nil, errors.New("unsupported import package version")
 	}
 	if err := validateGameTimeline(pkg.Game.StartTime, pkg.Game.EndTime, pkg.Game.ScoreboardFreezeAt); err != nil {
@@ -442,6 +472,28 @@ func (s *Service) ImportGamePackage(data []byte, createdBy uint) (*GameResponse,
 		}
 
 		for _, item := range pkg.Challenges {
+			attachmentURLs, err := parseAttachmentURLs(item.Attachments)
+			if err != nil {
+				return err
+			}
+			if pkg.Version == ExportPackageVersionV2 && len(item.EmbeddedAttachments) > 0 {
+				attachmentURLs = filterRemoteAttachmentURLs(attachmentURLs)
+				restored, err := restoreEmbeddedAttachments(reader, item.EmbeddedAttachments)
+				if err != nil {
+					return err
+				}
+				attachmentURLs = mergeAttachmentURLs(attachmentURLs, restored)
+			}
+
+			attachments := item.Attachments
+			if attachmentURLs != nil {
+				encoded, err := json.Marshal(attachmentURLs)
+				if err != nil {
+					return err
+				}
+				attachments = string(encoded)
+			}
+
 			challenge := &models.Challenge{
 				Title:         item.Title,
 				Description:   item.Description,
@@ -455,7 +507,7 @@ func (s *Service) ImportGamePackage(data []byte, createdBy uint) (*GameResponse,
 				DecayRate:     item.DecayRate,
 				MaxAttempts:   item.MaxAttempts,
 				Hints:         item.Hints,
-				Attachments:   item.Attachments,
+				Attachments:   attachments,
 				ContainerSpec: item.ContainerSpec,
 				IsVisible:     item.IsVisible,
 				CreatedBy:     createdBy,
@@ -505,9 +557,153 @@ func (s *Service) ImportGamePackage(data []byte, createdBy uint) (*GameResponse,
 	return importedGame, nil
 }
 
+func collectEmbeddedAttachments(raw string, challengeID uint) ([]ExportedAttachmentFile, []exportedAttachmentPayload, error) {
+	urls, err := parseAttachmentURLs(raw)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	embedded := make([]ExportedAttachmentFile, 0)
+	files := make([]exportedAttachmentPayload, 0)
+
+	for index, attachmentURL := range urls {
+		if !isLocalAttachmentURL(attachmentURL) {
+			continue
+		}
+
+		sourcePath, fileName, err := resolveLocalAttachmentPath(attachmentURL)
+		if err != nil {
+			continue
+		}
+
+		data, err := os.ReadFile(sourcePath)
+		if err != nil {
+			continue
+		}
+
+		zipPath := fmt.Sprintf("%s/challenge-%d/%02d-%s", exportAttachmentDir, challengeID, index+1, sanitizeAttachmentName(fileName))
+		embedded = append(embedded, ExportedAttachmentFile{
+			Name:        fileName,
+			ZipPath:     zipPath,
+			OriginalURL: attachmentURL,
+		})
+		files = append(files, exportedAttachmentPayload{
+			zipPath: zipPath,
+			data:    data,
+		})
+	}
+
+	return embedded, files, nil
+}
+
+func parseAttachmentURLs(raw string) ([]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+
+	var items []string
+	if err := json.Unmarshal([]byte(raw), &items); err != nil {
+		return nil, errors.New("invalid attachments json")
+	}
+	return items, nil
+}
+
+func isLocalAttachmentURL(raw string) bool {
+	return strings.HasPrefix(raw, "/attachments/")
+}
+
+func resolveLocalAttachmentPath(raw string) (string, string, error) {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return "", "", err
+	}
+	cleanPath := filepath.Clean(strings.TrimPrefix(parsed.Path, "/"))
+	if !strings.HasPrefix(cleanPath, exportAttachmentDir+string(os.PathSeparator)) && cleanPath != exportAttachmentDir {
+		return "", "", errors.New("attachment path escapes attachment root")
+	}
+	fileName := filepath.Base(cleanPath)
+	return cleanPath, fileName, nil
+}
+
+func restoreEmbeddedAttachments(reader *zip.Reader, attachments []ExportedAttachmentFile) ([]string, error) {
+	if err := os.MkdirAll(exportAttachmentDir, 0o755); err != nil {
+		return nil, err
+	}
+
+	fileMap := make(map[string]*zip.File, len(reader.File))
+	for _, file := range reader.File {
+		fileMap[file.Name] = file
+	}
+
+	restored := make([]string, 0, len(attachments))
+	for _, attachment := range attachments {
+		source, ok := fileMap[attachment.ZipPath]
+		if !ok {
+			return nil, fmt.Errorf("embedded attachment missing: %s", attachment.ZipPath)
+		}
+
+		fileReader, err := source.Open()
+		if err != nil {
+			return nil, err
+		}
+		data, readErr := io.ReadAll(fileReader)
+		closeErr := fileReader.Close()
+		if readErr != nil {
+			return nil, readErr
+		}
+		if closeErr != nil {
+			return nil, closeErr
+		}
+
+		targetName := fmt.Sprintf("%d-%s", time.Now().UnixNano(), sanitizeAttachmentName(attachment.Name))
+		targetPath := filepath.Join(exportAttachmentDir, targetName)
+		if err := os.WriteFile(targetPath, data, 0o644); err != nil {
+			return nil, err
+		}
+
+		restored = append(restored, "/"+filepath.ToSlash(targetPath))
+	}
+
+	return restored, nil
+}
+
+func mergeAttachmentURLs(original []string, restored []string) []string {
+	merged := make([]string, 0, len(original)+len(restored))
+	seen := make(map[string]struct{}, len(original)+len(restored))
+
+	for _, item := range original {
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		seen[item] = struct{}{}
+		merged = append(merged, item)
+	}
+	for _, item := range restored {
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		seen[item] = struct{}{}
+		merged = append(merged, item)
+	}
+
+	return merged
+}
+
+func filterRemoteAttachmentURLs(items []string) []string {
+	filtered := make([]string, 0, len(items))
+	for _, item := range items {
+		if isLocalAttachmentURL(item) {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered
+}
+
 var (
 	exportNameSanitizer = regexp.MustCompile(`[^a-z0-9\-]+`)
 	exportNameSpaces    = regexp.MustCompile(`\s+`)
+	attachmentNameSanitizer = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 )
 
 func sanitizeExportName(name string) string {
@@ -518,6 +714,15 @@ func sanitizeExportName(name string) string {
 		return "game"
 	}
 	return normalized
+}
+
+func sanitizeAttachmentName(name string) string {
+	sanitized := attachmentNameSanitizer.ReplaceAllString(filepath.Base(name), "-")
+	sanitized = strings.Trim(sanitized, "-")
+	if sanitized == "" {
+		return "attachment.bin"
+	}
+	return sanitized
 }
 
 func (s *Service) AddChallenge(gameID uint, challengeID uint, scoreOverride int) error {

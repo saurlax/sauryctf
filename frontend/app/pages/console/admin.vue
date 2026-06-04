@@ -1248,10 +1248,10 @@ onMounted(async () => {
           <UPageCard title="导入比赛包" icon="i-lucide-upload">
             <div class="space-y-4">
               <p class="text-sm text-muted">
-                上传由后台导出的 `sauryctf.export.v1` ZIP 包，系统会创建一场新的比赛和一组新的题目副本。
+                上传由后台导出的比赛 ZIP 包，系统会创建一场新的比赛和一组新的题目副本。
               </p>
 
-              <UFormField label="ZIP 文件" name="import-file" description="当前仅支持包含 game.json 的导出包。">
+              <UFormField label="ZIP 文件" name="import-file" description="支持 `sauryctf.export.v1` / `v2`，其中 `v2` 会额外恢复包内嵌入的本地附件文件。">
                 <UFileUpload
                   v-model="importForm.file"
                   accept=".zip,application/zip"

@@ -426,6 +426,7 @@ func TestExportGamePackage_Success(t *testing.T) {
 
 	data, err := io.ReadAll(file)
 	assert.NoError(t, err)
+	assert.Contains(t, string(data), "\"version\":\"sauryctf.export.v2\"")
 	assert.Contains(t, string(data), "\"name\":\"Winter CTF 2026\"")
 	assert.Contains(t, string(data), "\"title\":\"Exported Challenge\"")
 }

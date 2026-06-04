@@ -189,7 +189,7 @@ func (m *MockService) ExportGamePackage(id uint) ([]byte, string, error) {
 	}
 
 	payload, err := json.Marshal(ExportGamePackage{
-		Version:     "sauryctf.export.v1",
+		Version:     ExportPackageVersionV2,
 		GeneratedAt: time.Now(),
 		Game: ExportGameMetadata{
 			ID:                 game.ID,
@@ -253,7 +253,7 @@ func (m *MockService) ImportGamePackage(data []byte, createdBy uint) (*GameRespo
 	if err := json.NewDecoder(fileReader).Decode(&pkg); err != nil {
 		return nil, fmt.Errorf("invalid game.json")
 	}
-	if pkg.Version != "sauryctf.export.v1" {
+	if pkg.Version != ExportPackageVersionV1 && pkg.Version != ExportPackageVersionV2 {
 		return nil, fmt.Errorf("unsupported import package version")
 	}
 

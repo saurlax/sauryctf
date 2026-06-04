@@ -161,17 +161,20 @@ internal/<module>/
   - current export scope:
     - game metadata
     - mounted challenges with full statement, hints, attachments, flag, scoring, visibility, and score override
-  - current export keeps attachment URLs in JSON and does not yet bundle attachment binaries
+  - current export package version is `sauryctf.export.v2`
+  - external attachment URLs stay in JSON as-is
+  - local attachments under `/attachments/**` are now also embedded into the ZIP for migration
 - Admins can now import a previously exported contest package:
   - endpoint: `POST /api/admin/games/import`
   - request: multipart form with a `file` field containing a ZIP export
   - current import scope:
-    - only accepts `sauryctf.export.v1`
+    - accepts both `sauryctf.export.v1` and `sauryctf.export.v2`
     - requires `game.json` inside the ZIP
     - creates a brand new game in `draft` status
     - recreates imported challenges as new records owned by the current admin
     - restores mounted challenge `score_override`
-  - current import still keeps attachments as URL arrays and does not restore bundled binaries
+    - restores embedded local attachments from `v2` packages into `./attachments`
+  - external attachment URLs still stay as URL arrays and are not downloaded during import
 - Challenge content delivery is now expected to use:
   - `description` for the main statement
   - `hints` as a JSON string array
