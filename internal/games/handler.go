@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -484,6 +485,10 @@ func (h *Handler) EnsureChallengeInstance(c *gin.Context, id int, challengeId in
 
 	instance, err := h.svc.EnsureChallengeInstance(uint(id), uint(challengeId), userID)
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "instance renewal is only available within ") {
+			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+			return
+		}
 		switch err.Error() {
 		case "game not found", "challenge not found", "challenge not in this game":
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})

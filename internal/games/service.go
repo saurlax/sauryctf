@@ -23,11 +23,12 @@ import (
 )
 
 const (
-	RegistrationModeReview     = "review"
-	RegistrationModeAutoAccept = "auto_accept"
-	exportAttachmentDir        = "attachments"
-	defaultInstanceLeaseDuration = 30 * time.Minute
-	defaultInstanceRenewalWindow = 10 * time.Minute
+	RegistrationModeReview           = "review"
+	RegistrationModeAutoAccept       = "auto_accept"
+	exportAttachmentDir              = "attachments"
+	defaultInstanceLeaseDuration     = 30 * time.Minute
+	defaultInstanceExtensionDuration = 30 * time.Minute
+	defaultInstanceRenewalWindow     = 10 * time.Minute
 )
 
 type Service struct {
@@ -42,13 +43,13 @@ type exportedAttachmentPayload struct {
 }
 
 type parsedInstanceSpec struct {
-	Provider string
-	Image    string
+	Provider  string
+	Image     string
 	LaunchURL string
-	Host     string
-	Port     string
-	Command  string
-	Note     string
+	Host      string
+	Port      string
+	Command   string
+	Note      string
 }
 
 func NewService(db *gorm.DB) *Service {
@@ -63,11 +64,18 @@ func NewServiceWithOptions(db *gorm.DB, providers map[string]ChallengeInstancePr
 	if policy.LeaseDuration <= 0 {
 		policy.LeaseDuration = defaultInstanceLeaseDuration
 	}
+	if policy.ExtensionDuration <= 0 {
+		policy.ExtensionDuration = defaultInstanceExtensionDuration
+	}
 	if policy.RenewalWindow <= 0 {
 		policy.RenewalWindow = defaultInstanceRenewalWindow
 	}
-	if policy.RenewalWindow > policy.LeaseDuration {
-		policy.RenewalWindow = policy.LeaseDuration
+	maxLifetime := policy.LeaseDuration
+	if policy.ExtensionDuration > maxLifetime {
+		maxLifetime = policy.ExtensionDuration
+	}
+	if policy.RenewalWindow > maxLifetime {
+		policy.RenewalWindow = maxLifetime
 	}
 
 	return &Service{
@@ -1577,8 +1585,8 @@ func filterRemoteAttachmentURLs(items []string) []string {
 }
 
 var (
-	exportNameSanitizer = regexp.MustCompile(`[^a-z0-9\-]+`)
-	exportNameSpaces    = regexp.MustCompile(`\s+`)
+	exportNameSanitizer     = regexp.MustCompile(`[^a-z0-9\-]+`)
+	exportNameSpaces        = regexp.MustCompile(`\s+`)
 	attachmentNameSanitizer = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 )
 
@@ -1679,10 +1687,10 @@ func (s *Service) JoinGame(gameID uint, teamID uint, userID uint, invitationCode
 	}
 
 	part := &models.Participation{
-		GameID: gameID,
-		TeamID: teamID,
-		UserID: userID,
-		Status: status,
+		GameID:   gameID,
+		TeamID:   teamID,
+		UserID:   userID,
+		Status:   status,
 		Division: defaultDivision,
 	}
 	return s.db.Create(part).Error
@@ -1737,10 +1745,10 @@ func (s *Service) GetParticipationStatus(gameID uint, userID uint) (*GamePartici
 	if err := s.db.Where("user_id = ?", userID).First(&member).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &GameParticipationResponse{
-				HasTeam:          false,
-				Participated:     false,
-				WriteupRequired:  game.WriteupRequired,
-				WriteupDeadline:  game.WriteupDeadline,
+				HasTeam:               false,
+				Participated:          false,
+				WriteupRequired:       game.WriteupRequired,
+				WriteupDeadline:       game.WriteupDeadline,
 				WriteupDeadlinePassed: game.WriteupDeadline != nil && time.Now().After(*game.WriteupDeadline),
 			}, nil
 		}
@@ -1753,10 +1761,10 @@ func (s *Service) GetParticipationStatus(gameID uint, userID uint) (*GamePartici
 	}
 
 	response := &GameParticipationResponse{
-		HasTeam:              true,
-		Divisions:            decodeDivisions(game.Divisions),
-		WriteupRequired:      game.WriteupRequired,
-		WriteupDeadline:      game.WriteupDeadline,
+		HasTeam:               true,
+		Divisions:             decodeDivisions(game.Divisions),
+		WriteupRequired:       game.WriteupRequired,
+		WriteupDeadline:       game.WriteupDeadline,
 		WriteupDeadlinePassed: game.WriteupDeadline != nil && time.Now().After(*game.WriteupDeadline),
 		Team: &GameParticipationTeam{
 			ID:   team.ID,
@@ -1800,21 +1808,21 @@ func (s *Service) GetAdminGameChallenges(gameID uint) ([]GameChallengeDetail, er
 
 func (s *Service) getGameChallenges(gameID uint, includeHidden bool) ([]GameChallengeDetail, error) {
 	type row struct {
-		ChallengeID      uint
-		ScoreOverride    int
-		Title            string
-		Description      string
-		Category         string
-		Type             string
-		Difficulty       string
-		Hints            string
-		Attachments      string
-		ContainerSpec    string
-		BaseScore        int
-		IsVisible        bool
-		BloodTeam        string
-		SecondBloodTeam  string
-		ThirdBloodTeam   string
+		ChallengeID     uint
+		ScoreOverride   int
+		Title           string
+		Description     string
+		Category        string
+		Type            string
+		Difficulty      string
+		Hints           string
+		Attachments     string
+		ContainerSpec   string
+		BaseScore       int
+		IsVisible       bool
+		BloodTeam       string
+		SecondBloodTeam string
+		ThirdBloodTeam  string
 	}
 
 	query := s.db.Table("game_challenges").
@@ -1955,14 +1963,15 @@ func (s *Service) EnsureChallengeInstance(gameID uint, challengeID uint, userID 
 	}
 	provider := resolveChallengeInstanceProvider(s.instanceProviders, spec.Provider)
 	leaseState, err := provider.EnsureLease(ChallengeInstanceProviderRequest{
-		GameID:        gameID,
-		ChallengeID:   challengeID,
-		TeamID:        participation.TeamID,
-		UserID:        userID,
-		Now:           now,
-		LeaseDuration: s.instancePolicy.LeaseDuration,
-		Runtime:       toChallengeInstanceRuntimeSpec(spec),
-		Existing:      existingLease,
+		GameID:            gameID,
+		ChallengeID:       challengeID,
+		TeamID:            participation.TeamID,
+		UserID:            userID,
+		Now:               now,
+		LeaseDuration:     s.instancePolicy.LeaseDuration,
+		ExtensionDuration: s.instancePolicy.ExtensionDuration,
+		Runtime:           toChallengeInstanceRuntimeSpec(spec),
+		Existing:          existingLease,
 	})
 	if err != nil {
 		return nil, err
@@ -1970,9 +1979,9 @@ func (s *Service) EnsureChallengeInstance(gameID uint, challengeID uint, userID 
 
 	if errors.Is(findErr, gorm.ErrRecordNotFound) {
 		lease = models.GameInstanceLease{
-			GameID:        gameID,
-			ChallengeID:   challengeID,
-			TeamID:        participation.TeamID,
+			GameID:      gameID,
+			ChallengeID: challengeID,
+			TeamID:      participation.TeamID,
 		}
 		applyLeaseState(&lease, leaseState, userID)
 		if err := s.db.Create(&lease).Error; err != nil {
@@ -2076,8 +2085,8 @@ func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID 
 
 	var (
 		solvesBefore int64
-		bloodType   string
-		score       int
+		bloodType    string
+		score        int
 	)
 	if !isPractice {
 		s.db.Model(&models.Solve{}).Where("challenge_id = ? AND game_id = ? AND is_practice = ?", challengeID, gameID, false).Count(&solvesBefore)

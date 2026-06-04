@@ -25,8 +25,9 @@ func NewServer(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	// 初始化各模块服务和 handler
 	authSvc := auth.NewService(db, cfg.JWTSecret)
 	gameSvc := games.NewServiceWithOptions(db, nil, games.InstancePolicy{
-		LeaseDuration: cfg.InstanceLeaseDuration,
-		RenewalWindow: cfg.InstanceRenewalWindow,
+		LeaseDuration:     cfg.InstanceLeaseDuration,
+		ExtensionDuration: cfg.InstanceExtensionDuration,
+		RenewalWindow:     cfg.InstanceRenewalWindow,
 	})
 	handler := NewHandler(
 		auth.NewHandler(authSvc),

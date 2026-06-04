@@ -4,8 +4,8 @@ import (
 	"archive/zip"
 	"bytes"
 	"crypto/sha1"
-	"encoding/json"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -1584,20 +1584,20 @@ func TestService_GetGameChallenges_ReturnsChallengeContent(t *testing.T) {
 	require.NoError(t, database.Create(&user).Error)
 
 	challenge := models.Challenge{
-		Title:       "Visible Challenge",
-		Description: "challenge body",
-		Category:    models.CategoryWeb,
-		Type:        models.TypeStatic,
-		Difficulty:  "easy",
-		Hints:       "[\"hint\"]",
-		Attachments: "[\"https://example.com/file.zip\"]",
+		Title:         "Visible Challenge",
+		Description:   "challenge body",
+		Category:      models.CategoryWeb,
+		Type:          models.TypeStatic,
+		Difficulty:    "easy",
+		Hints:         "[\"hint\"]",
+		Attachments:   "[\"https://example.com/file.zip\"]",
 		ContainerSpec: "{\"connection\":{\"url\":\"http://127.0.0.1:8081\"}}",
-		Flag:        "flag{visible}",
-		BaseScore:   100,
-		MinScore:    10,
-		DecayRate:   0.1,
-		IsVisible:   true,
-		CreatedBy:   user.ID,
+		Flag:          "flag{visible}",
+		BaseScore:     100,
+		MinScore:      10,
+		DecayRate:     0.1,
+		IsVisible:     true,
+		CreatedBy:     user.ID,
 	}
 	require.NoError(t, database.Create(&challenge).Error)
 
@@ -1635,20 +1635,20 @@ func TestService_GetAdminGameChallenges_IncludesHiddenMountedChallenges(t *testi
 	require.NoError(t, database.Create(&user).Error)
 
 	hiddenChallenge := models.Challenge{
-		Title:       "Hidden Challenge",
-		Description: "internal statement",
-		Category:    models.CategoryWeb,
-		Type:        models.TypeStatic,
-		Difficulty:  "easy",
-		Hints:       "[\"private hint\"]",
-		Attachments: "[\"https://example.com/private.zip\"]",
+		Title:         "Hidden Challenge",
+		Description:   "internal statement",
+		Category:      models.CategoryWeb,
+		Type:          models.TypeStatic,
+		Difficulty:    "easy",
+		Hints:         "[\"private hint\"]",
+		Attachments:   "[\"https://example.com/private.zip\"]",
 		ContainerSpec: "{\"connection\":{\"url\":\"http://127.0.0.1:8081\"}}",
-		Flag:        "flag{hidden}",
-		BaseScore:   200,
-		MinScore:    20,
-		DecayRate:   0.1,
-		IsVisible:   false,
-		CreatedBy:   user.ID,
+		Flag:          "flag{hidden}",
+		BaseScore:     200,
+		MinScore:      20,
+		DecayRate:     0.1,
+		IsVisible:     false,
+		CreatedBy:     user.ID,
 	}
 	require.NoError(t, database.Create(&hiddenChallenge).Error)
 
@@ -1860,7 +1860,7 @@ func TestService_ChallengeInstanceLifecycle_OnlyRenewsWithinWindow(t *testing.T)
 	require.NoError(t, err)
 	assert.False(t, renewed.CanRenew)
 	require.NotNil(t, renewed.ExpiresAt)
-	assert.True(t, renewed.ExpiresAt.After(time.Now().Add(20 * time.Minute)))
+	assert.True(t, renewed.ExpiresAt.After(time.Now().Add(30*time.Minute)))
 	assert.Contains(t, renewed.Message, "需在到期前 10 分钟内续期")
 }
 
@@ -1872,8 +1872,9 @@ func TestService_InstancePolicy_UsesConfiguredDurations(t *testing.T) {
 	db.CleanTables(database)
 
 	svc := games.NewServiceWithOptions(database, nil, games.InstancePolicy{
-		LeaseDuration: 12 * time.Minute,
-		RenewalWindow: 3 * time.Minute,
+		LeaseDuration:     12 * time.Minute,
+		ExtensionDuration: 7 * time.Minute,
+		RenewalWindow:     3 * time.Minute,
 	})
 
 	user := models.User{Username: "policy-user", Email: "policy@example.com", PasswordHash: "hash"}
@@ -1932,6 +1933,14 @@ func TestService_InstancePolicy_UsesConfiguredDurations(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, state.CanRenew)
 	assert.Contains(t, state.Message, "需在到期前 3 分钟内续期")
+
+	lease.ExpiresAt = time.Now().Add(2 * time.Minute)
+	require.NoError(t, database.Save(&lease).Error)
+
+	renewed, err := svc.EnsureChallengeInstance(game.ID, challenge.ID, user.ID)
+	require.NoError(t, err)
+	require.NotNil(t, renewed.ExpiresAt)
+	assert.WithinDuration(t, lease.ExpiresAt.Add(7*time.Minute), *renewed.ExpiresAt, 5*time.Second)
 }
 
 func TestService_ChallengeInstanceLifecycle_RendersTemplateFieldsPerTeam(t *testing.T) {

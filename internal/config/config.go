@@ -9,24 +9,26 @@ import (
 )
 
 type Config struct {
-	Host                  string
-	Port                  string
-	DatabaseURL           string
-	JWTSecret             string
-	InstanceLeaseDuration time.Duration
-	InstanceRenewalWindow time.Duration
+	Host                      string
+	Port                      string
+	DatabaseURL               string
+	JWTSecret                 string
+	InstanceLeaseDuration     time.Duration
+	InstanceExtensionDuration time.Duration
+	InstanceRenewalWindow     time.Duration
 }
 
 func Load() *Config {
 	loadDotEnv(".env")
 
 	return &Config{
-		Host:                  getEnv("HOST", "0.0.0.0"),
-		Port:                  getEnv("PORT", "8080"),
-		DatabaseURL:           getEnv("DATABASE_URL", ""),
-		JWTSecret:             getEnv("JWT_SECRET", "dev-secret-change-in-production"),
-		InstanceLeaseDuration: getEnvMinutes("INSTANCE_LEASE_DURATION_MINUTES", 30),
-		InstanceRenewalWindow: getEnvMinutes("INSTANCE_RENEWAL_WINDOW_MINUTES", 10),
+		Host:                      getEnv("HOST", "0.0.0.0"),
+		Port:                      getEnv("PORT", "8080"),
+		DatabaseURL:               getEnv("DATABASE_URL", ""),
+		JWTSecret:                 getEnv("JWT_SECRET", "dev-secret-change-in-production"),
+		InstanceLeaseDuration:     getEnvMinutes("INSTANCE_LEASE_DURATION_MINUTES", 30),
+		InstanceExtensionDuration: getEnvMinutes("INSTANCE_EXTENSION_DURATION_MINUTES", 30),
+		InstanceRenewalWindow:     getEnvMinutes("INSTANCE_RENEWAL_WINDOW_MINUTES", 10),
 	}
 }
 

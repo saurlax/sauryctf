@@ -22,14 +22,15 @@ type ChallengeInstanceRuntimeSpec struct {
 }
 
 type ChallengeInstanceProviderRequest struct {
-	GameID        uint
-	ChallengeID   uint
-	TeamID        uint
-	UserID        uint
-	Now           time.Time
-	LeaseDuration time.Duration
-	Runtime       ChallengeInstanceRuntimeSpec
-	Existing      *models.GameInstanceLease
+	GameID            uint
+	ChallengeID       uint
+	TeamID            uint
+	UserID            uint
+	Now               time.Time
+	LeaseDuration     time.Duration
+	ExtensionDuration time.Duration
+	Runtime           ChallengeInstanceRuntimeSpec
+	Existing          *models.GameInstanceLease
 }
 
 type ChallengeInstanceLeaseState struct {
@@ -51,8 +52,9 @@ type ChallengeInstanceProvider interface {
 }
 
 type InstancePolicy struct {
-	LeaseDuration time.Duration
-	RenewalWindow time.Duration
+	LeaseDuration     time.Duration
+	ExtensionDuration time.Duration
+	RenewalWindow     time.Duration
 }
 
 // ServiceInterface defines the game management contract.
@@ -186,32 +188,32 @@ type GameChallengeDetail struct {
 }
 
 type ChallengeInstanceResponse struct {
-	GameID         uint       `json:"game_id"`
-	ChallengeID    uint       `json:"challenge_id"`
-	TeamID         uint       `json:"team_id"`
-	Status         string     `json:"status"`
-	Provider       string     `json:"provider,omitempty"`
-	Image          string     `json:"image,omitempty"`
-	LaunchURL      string     `json:"launch_url,omitempty"`
-	Host           string     `json:"host,omitempty"`
-	Port           string     `json:"port,omitempty"`
-	Command        string     `json:"command,omitempty"`
-	Note           string     `json:"note,omitempty"`
-	StartedAt      *time.Time `json:"started_at,omitempty"`
-	LastRenewedAt  *time.Time `json:"last_renewed_at,omitempty"`
-	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
-	SecondsLeft    int        `json:"seconds_left"`
-	CanStart       bool       `json:"can_start"`
-	CanRenew       bool       `json:"can_renew"`
-	Message        string     `json:"message"`
+	GameID        uint       `json:"game_id"`
+	ChallengeID   uint       `json:"challenge_id"`
+	TeamID        uint       `json:"team_id"`
+	Status        string     `json:"status"`
+	Provider      string     `json:"provider,omitempty"`
+	Image         string     `json:"image,omitempty"`
+	LaunchURL     string     `json:"launch_url,omitempty"`
+	Host          string     `json:"host,omitempty"`
+	Port          string     `json:"port,omitempty"`
+	Command       string     `json:"command,omitempty"`
+	Note          string     `json:"note,omitempty"`
+	StartedAt     *time.Time `json:"started_at,omitempty"`
+	LastRenewedAt *time.Time `json:"last_renewed_at,omitempty"`
+	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
+	SecondsLeft   int        `json:"seconds_left"`
+	CanStart      bool       `json:"can_start"`
+	CanRenew      bool       `json:"can_renew"`
+	Message       string     `json:"message"`
 }
 
 type SubmitResult struct {
-	Correct   bool   `json:"correct"`
-	Score     int    `json:"score,omitempty"`
-	BloodType string `json:"blood_type,omitempty"`
-	IsPractice bool  `json:"is_practice,omitempty"`
-	Message   string `json:"message"`
+	Correct    bool   `json:"correct"`
+	Score      int    `json:"score,omitempty"`
+	BloodType  string `json:"blood_type,omitempty"`
+	IsPractice bool   `json:"is_practice,omitempty"`
+	Message    string `json:"message"`
 }
 
 // ScoreboardEntry is one team's row in the scoreboard.
@@ -261,18 +263,18 @@ type GameParticipationTeam struct {
 }
 
 type GameParticipationResponse struct {
-	HasTeam              bool                   `json:"has_team"`
-	Participated         bool                   `json:"participated"`
-	Status               string                 `json:"status,omitempty"`
-	Division             string                 `json:"division,omitempty"`
-	Divisions            []string               `json:"divisions"`
-	Team                 *GameParticipationTeam `json:"team,omitempty"`
-	WriteupRequired      bool                   `json:"writeup_required"`
-	WriteupSubmitted     bool                   `json:"writeup_submitted"`
-	WriteupStatus        string                 `json:"writeup_status,omitempty"`
-	WriteupDeadline      *time.Time             `json:"writeup_deadline,omitempty"`
-	WriteupDeadlinePassed bool                  `json:"writeup_deadline_passed"`
-	MissingWriteup       bool                   `json:"missing_writeup"`
+	HasTeam               bool                   `json:"has_team"`
+	Participated          bool                   `json:"participated"`
+	Status                string                 `json:"status,omitempty"`
+	Division              string                 `json:"division,omitempty"`
+	Divisions             []string               `json:"divisions"`
+	Team                  *GameParticipationTeam `json:"team,omitempty"`
+	WriteupRequired       bool                   `json:"writeup_required"`
+	WriteupSubmitted      bool                   `json:"writeup_submitted"`
+	WriteupStatus         string                 `json:"writeup_status,omitempty"`
+	WriteupDeadline       *time.Time             `json:"writeup_deadline,omitempty"`
+	WriteupDeadlinePassed bool                   `json:"writeup_deadline_passed"`
+	MissingWriteup        bool                   `json:"missing_writeup"`
 }
 
 type SubmitGameWriteupRequest struct {
@@ -331,14 +333,14 @@ type GameSubmissionRecord struct {
 }
 
 type GameSubmissionCheatClue struct {
-	SubmittedFlag  string    `json:"submitted_flag"`
-	ChallengeID    uint      `json:"challenge_id"`
-	ChallengeTitle string    `json:"challenge_title"`
-	FirstSeenAt    time.Time `json:"first_seen_at"`
-	LastSeenAt     time.Time `json:"last_seen_at"`
-	TeamCount      int       `json:"team_count"`
-	SubmissionCount int      `json:"submission_count"`
-	Teams          []string  `json:"teams"`
+	SubmittedFlag   string    `json:"submitted_flag"`
+	ChallengeID     uint      `json:"challenge_id"`
+	ChallengeTitle  string    `json:"challenge_title"`
+	FirstSeenAt     time.Time `json:"first_seen_at"`
+	LastSeenAt      time.Time `json:"last_seen_at"`
+	TeamCount       int       `json:"team_count"`
+	SubmissionCount int       `json:"submission_count"`
+	Teams           []string  `json:"teams"`
 }
 
 type AdminDashboardSummaryResponse struct {
@@ -442,23 +444,23 @@ type ExportGameMetadata struct {
 }
 
 type ExportedGameChallenge struct {
-	ID            uint    `json:"id"`
-	Title         string  `json:"title"`
-	Description   string  `json:"description"`
-	Category      string  `json:"category"`
-	Type          string  `json:"type"`
-	Difficulty    string  `json:"difficulty"`
-	Flag          string  `json:"flag"`
-	FlagFormat    string  `json:"flag_format"`
-	Hints         string  `json:"hints"`
-	Attachments   string  `json:"attachments"`
-	ContainerSpec string  `json:"container_spec"`
-	BaseScore     int     `json:"base_score"`
-	MinScore      int     `json:"min_score"`
-	DecayRate     float64 `json:"decay_rate"`
-	MaxAttempts   int     `json:"max_attempts"`
-	IsVisible     bool    `json:"is_visible"`
-	ScoreOverride int     `json:"score_override"`
+	ID                  uint                     `json:"id"`
+	Title               string                   `json:"title"`
+	Description         string                   `json:"description"`
+	Category            string                   `json:"category"`
+	Type                string                   `json:"type"`
+	Difficulty          string                   `json:"difficulty"`
+	Flag                string                   `json:"flag"`
+	FlagFormat          string                   `json:"flag_format"`
+	Hints               string                   `json:"hints"`
+	Attachments         string                   `json:"attachments"`
+	ContainerSpec       string                   `json:"container_spec"`
+	BaseScore           int                      `json:"base_score"`
+	MinScore            int                      `json:"min_score"`
+	DecayRate           float64                  `json:"decay_rate"`
+	MaxAttempts         int                      `json:"max_attempts"`
+	IsVisible           bool                     `json:"is_visible"`
+	ScoreOverride       int                      `json:"score_override"`
 	EmbeddedAttachments []ExportedAttachmentFile `json:"embedded_attachments,omitempty"`
 }
 

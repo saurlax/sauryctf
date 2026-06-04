@@ -20,6 +20,10 @@ func (p *leaseSkeletonProvider) EnsureLease(req ChallengeInstanceProviderRequest
 	if req.Existing != nil && !req.Existing.StartedAt.IsZero() {
 		startedAt = req.Existing.StartedAt
 	}
+	expiresAt := req.Now.Add(req.LeaseDuration)
+	if req.Existing != nil && req.Existing.ExpiresAt.After(req.Now) {
+		expiresAt = req.Existing.ExpiresAt.Add(req.ExtensionDuration)
+	}
 
 	provider := templateChallengeInstanceValue(req.Runtime.Provider, req)
 	if provider == "" && req.Existing != nil {
@@ -67,7 +71,7 @@ func (p *leaseSkeletonProvider) EnsureLease(req ChallengeInstanceProviderRequest
 		Note:          note,
 		StartedAt:     startedAt,
 		LastRenewedAt: req.Now,
-		ExpiresAt:     req.Now.Add(req.LeaseDuration),
+		ExpiresAt:     expiresAt,
 	}, nil
 }
 

@@ -20,9 +20,16 @@ pnpm dev
 当前动态题实例的最小容器策略也可以直接通过环境变量调整：
 
 - `INSTANCE_LEASE_DURATION_MINUTES`
+- `INSTANCE_EXTENSION_DURATION_MINUTES`
 - `INSTANCE_RENEWAL_WINDOW_MINUTES`
 
-默认分别是 `30` 分钟和 `10` 分钟，适合本地 smoke 流程。
+默认分别是：
+
+- 首次启动租约：`30` 分钟
+- 每次续期追加：`30` 分钟
+- 可续期窗口：到期前 `10` 分钟
+
+这组语义现在更接近 GZCTF 的 `defaultLifetime / extensionDuration / renewalWindow`，适合本地 smoke 流程。
 
 如果当前数据库是空的，后端启动后会自动创建：
 
