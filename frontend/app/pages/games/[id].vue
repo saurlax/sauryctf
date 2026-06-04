@@ -787,6 +787,63 @@ const divisionOptions = computed(() => [
   })),
 ])
 
+const contestFactRows = computed(() => [
+  {
+    label: '报名方式',
+    value: game.value?.registration_mode === 'auto_accept' ? '自动通过' : '人工审核',
+  },
+  {
+    label: '队伍人数限制',
+    value: game.value?.max_team_members ? `${game.value.max_team_members} 人` : '不限',
+  },
+  {
+    label: '比赛分组',
+    value: availableDivisions.value.length ? availableDivisions.value.join(' / ') : '未启用',
+  },
+  {
+    label: '我的分组',
+    value: participation.value?.division || '未分配',
+  },
+  {
+    label: '赛后练习',
+    value: game.value?.practice_mode ? '开启' : '关闭',
+  },
+  {
+    label: 'Writeup 要求',
+    value: game.value?.writeup_required ? '需要' : '不需要',
+  },
+  {
+    label: 'Writeup 截止',
+    value: game.value?.writeup_deadline ? new Date(game.value.writeup_deadline).toLocaleString() : '未设置',
+  },
+  {
+    label: '当前可提交 Flag',
+    value: canSubmitFlag.value ? '是' : '否',
+  },
+])
+
+const contestGuideItems = computed(() => [
+  '先在控制台创建或加入队伍，再完成比赛报名。',
+  game.value?.registration_mode === 'auto_accept'
+    ? '当前比赛报名后会自动通过。'
+    : '当前比赛报名后需要等待管理员审核。',
+  game.value?.max_team_members
+    ? `当前队伍人数上限为 ${game.value.max_team_members} 人，超出将无法报名。`
+    : '当前比赛不限制队伍人数。',
+  game.value?.scoreboard_freeze_at
+    ? `公开榜单将于 ${new Date(game.value.scoreboard_freeze_at).toLocaleString()} 封榜。`
+    : '当前比赛不启用封榜。',
+  game.value?.practice_mode
+    ? '比赛结束后会继续保留练习模式，便于复盘和补题。'
+    : '当前比赛为纯正赛模式，结束后不会继续开放练习。',
+  game.value?.writeup_required
+    ? (game.value?.writeup_deadline
+        ? `当前比赛要求提交 Writeup，截止时间为 ${new Date(game.value.writeup_deadline).toLocaleString()}。`
+        : '当前比赛要求提交 Writeup，具体截止时间请留意公告。')
+    : '当前比赛不强制要求提交 Writeup。',
+  '待审核或已拒绝的报名可以撤回；已通过报名后队伍将锁定，不能再撤回。',
+])
+
 function formatDuration(ms: number) {
   if (ms <= 0) {
     return '0 分钟'
@@ -989,122 +1046,131 @@ onMounted(async () => {
 
       <UTabs v-model="activeTab" :items="tabItems" class="mb-6" />
 
-      <div v-if="activeTab === 'overview'" class="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
-        <UPageCard title="比赛规则" icon="i-lucide-scroll-text">
+      <div v-if="activeTab === 'overview'" class="space-y-6">
+        <div class="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.95fr)]">
+          <UPageCard title="比赛简介" icon="i-lucide-scroll-text">
             <div class="space-y-4 text-sm leading-7">
-              <p class="text-default">
+              <p class="text-default whitespace-pre-wrap">
                 {{ game.description || '当前比赛暂未填写详细规则。你可以先完成队伍准备与比赛报名。' }}
               </p>
-            <UAlert
-              v-if="game.notice"
-              color="info"
-              variant="soft"
-              title="比赛公告"
-              :description="game.notice"
-            />
-            <div class="rounded-lg border border-default bg-muted/40 p-4">
-              <p class="font-medium mb-2">
-                参赛提示
-              </p>
-              <ul class="space-y-2 text-muted">
-                <li>1. 先在控制台创建或加入队伍，再报名比赛。</li>
-                <li>2. 当前比赛报名方式：{{ game.registration_mode === 'auto_accept' ? '自动通过' : '人工审核' }}。</li>
-                <li>3. {{ game.max_team_members ? `当前队伍人数上限为 ${game.max_team_members} 人，超出将无法报名。` : '当前比赛不限制队伍人数。' }}</li>
-                <li>4. 只有处于可用状态的比赛才会开放报名与正式提交。</li>
-                <li>5. {{ game.scoreboard_freeze_at ? `公开榜单将于 ${new Date(game.scoreboard_freeze_at).toLocaleString()} 封榜。` : '当前比赛不启用封榜。' }}</li>
-                <li>6. {{ game.practice_mode ? '比赛结束后会继续保留练习模式，便于复盘和补题。' : '当前比赛为纯正赛模式，结束后不会继续开放练习。' }}</li>
-                <li>7. {{ game.writeup_required ? (game.writeup_deadline ? `当前比赛要求提交 Writeup，截止时间为 ${new Date(game.writeup_deadline).toLocaleString()}。` : '当前比赛要求提交 Writeup，具体截止时间请留意公告。') : '当前比赛不强制要求提交 Writeup。' }}</li>
-                <li>8. 题目页会根据你当前队伍显示已解状态，以及一血 / 二血 / 三血队伍。</li>
-                <li>9. 待审核或已拒绝的报名可以撤回；已通过报名后队伍将锁定，不能再撤回。</li>
-                <li>10. 比赛结束后将无法继续得分。</li>
-              </ul>
-            </div>
-          </div>
-        </UPageCard>
 
-        <div class="space-y-6">
-          <UPageCard title="快速入口" icon="i-lucide-rocket">
-            <div class="flex flex-col gap-3">
-              <UButton icon="i-lucide-flag" variant="outline" @click="activeTab = 'challenges'">
-                浏览题目
-              </UButton>
-              <UButton icon="i-lucide-trophy" variant="outline" @click="activeTab = 'scoreboard'">
-                查看排行榜
-              </UButton>
-              <UButton icon="i-lucide-users" variant="outline" to="/console/team">
-                管理我的队伍
-              </UButton>
-            </div>
-          </UPageCard>
+              <UAlert
+                v-if="game.notice"
+                color="info"
+                variant="soft"
+                title="比赛公告"
+                :description="game.notice"
+              />
 
-          <UPageCard v-if="isAdmin" title="管理快捷入口" icon="i-lucide-shield-check">
-            <div class="space-y-3 text-sm">
-              <p class="text-muted">
-                你当前拥有赛事管理权限，可以继续前往管理端更新比赛信息、题目配置和挂题关系。
-              </p>
-              <div class="flex flex-col gap-3">
-                <UButton icon="i-lucide-settings-2" to="/console/admin" block>
-                  打开赛事管理
-                </UButton>
-                <UButton icon="i-lucide-layout-dashboard" to="/console" variant="outline" block>
-                  返回控制台
-                </UButton>
+              <div class="rounded-lg border border-default bg-muted/40 p-4">
+                <p class="mb-3 font-medium">
+                  参赛须知
+                </p>
+                <ul class="space-y-2 text-muted">
+                  <li
+                    v-for="(item, index) in contestGuideItems"
+                    :key="`${index}-${item}`"
+                  >
+                    {{ index + 1 }}. {{ item }}
+                  </li>
+                </ul>
               </div>
             </div>
           </UPageCard>
 
-          <UPageCard title="当前报名情况" icon="i-lucide-badge-check">
-            <div class="space-y-3 text-sm">
-              <div class="flex items-center justify-between gap-3">
-                <span class="text-muted">队伍状态</span>
-                <span>{{ participation?.team?.name || '未加入队伍' }}</span>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <span class="text-muted">比赛报名</span>
-                <UBadge
-                  :color="participationSummaryColor"
+          <div class="space-y-6">
+            <UPageCard title="当前行动" icon="i-lucide-list-checks">
+              <div class="space-y-4">
+                <UAlert
+                  :color="nextStepMeta.color"
                   variant="soft"
+                  :title="nextStepMeta.title"
+                  :description="nextStepMeta.description"
                 >
-                  {{ participationSummaryLabel }}
-                </UBadge>
+                  <template #actions>
+                    <div class="flex gap-2 flex-wrap">
+                      <UButton
+                        size="sm"
+                        :to="nextStepMeta.actionTo"
+                        :color="nextStepMeta.color === 'neutral' ? 'neutral' : 'primary'"
+                        @click="handleNextStepAction(nextStepMeta)"
+                      >
+                        {{ nextStepMeta.actionLabel }}
+                      </UButton>
+                      <UButton
+                        v-if="nextStepMeta.secondaryLabel && nextStepMeta.secondaryTo"
+                        size="sm"
+                        variant="outline"
+                        :to="nextStepMeta.secondaryTo"
+                      >
+                        {{ nextStepMeta.secondaryLabel }}
+                      </UButton>
+                    </div>
+                  </template>
+                </UAlert>
+
+                <div class="rounded-lg border border-default px-3 py-3">
+                  <div class="mb-2 flex items-center justify-between gap-3">
+                    <span class="text-sm text-muted">{{ authState.user ? '当前报名状态' : '公开浏览状态' }}</span>
+                    <UBadge :color="participationSummaryColor" variant="soft">
+                      {{ participationSummaryLabel }}
+                    </UBadge>
+                  </div>
+                  <p class="text-sm text-muted leading-6">
+                    {{ participationHint.description }}
+                  </p>
+                  <p class="mt-2 text-sm text-muted leading-6">
+                    {{ submitHint }}
+                  </p>
+                </div>
+
+                <div class="flex flex-col gap-3">
+                  <UButton icon="i-lucide-flag" variant="outline" @click="activeTab = 'challenges'">
+                    浏览题目
+                  </UButton>
+                  <UButton icon="i-lucide-trophy" variant="outline" @click="activeTab = 'scoreboard'">
+                    查看排行榜
+                  </UButton>
+                  <UButton icon="i-lucide-users" variant="outline" to="/console/team">
+                    管理我的队伍
+                  </UButton>
+                </div>
               </div>
-              <div class="flex items-center justify-between gap-3">
-                <span class="text-muted">报名方式</span>
-                <span>{{ game.registration_mode === 'auto_accept' ? '自动通过' : '人工审核' }}</span>
+            </UPageCard>
+
+            <UPageCard title="比赛信息" icon="i-lucide-badge-check">
+              <div class="space-y-3 text-sm">
+                <div class="flex items-center justify-between gap-3">
+                  <span class="text-muted">当前队伍</span>
+                  <span>{{ participation?.team?.name || '未加入队伍' }}</span>
+                </div>
+                <div
+                  v-for="row in contestFactRows"
+                  :key="row.label"
+                  class="flex items-center justify-between gap-3"
+                >
+                  <span class="text-muted">{{ row.label }}</span>
+                  <span class="text-right">{{ row.value }}</span>
+                </div>
               </div>
-              <div class="flex items-center justify-between gap-3">
-                <span class="text-muted">比赛分组</span>
-                <span>{{ availableDivisions.length ? availableDivisions.join(' / ') : '未启用' }}</span>
+            </UPageCard>
+
+            <UPageCard v-if="isAdmin" title="管理快捷入口" icon="i-lucide-shield-check">
+              <div class="space-y-3 text-sm">
+                <p class="text-muted">
+                  你当前拥有赛事管理权限，可以继续前往管理端更新比赛信息、题目配置和挂题关系。
+                </p>
+                <div class="flex flex-col gap-3">
+                  <UButton icon="i-lucide-settings-2" to="/console/admin" block>
+                    打开赛事管理
+                  </UButton>
+                  <UButton icon="i-lucide-layout-dashboard" to="/console" variant="outline" block>
+                    返回控制台
+                  </UButton>
+                </div>
               </div>
-              <div v-if="participation?.division" class="flex items-center justify-between gap-3">
-                <span class="text-muted">我的分组</span>
-                <span>{{ participation.division }}</span>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <span class="text-muted">队伍人数限制</span>
-                <span>{{ game.max_team_members ? `${game.max_team_members} 人` : '不限' }}</span>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <span class="text-muted">赛后练习</span>
-                <span>{{ game.practice_mode ? '开启' : '关闭' }}</span>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <span class="text-muted">Writeup 要求</span>
-                <span>{{ game.writeup_required ? '需要' : '不需要' }}</span>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <span class="text-muted">Writeup 截止</span>
-                <span>{{ game.writeup_deadline ? new Date(game.writeup_deadline).toLocaleString() : '未设置' }}</span>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <span class="text-muted">可提交 Flag</span>
-                <span>{{ canSubmitFlag ? '是' : '否' }}</span>
-              </div>
-              <p class="text-muted leading-6">
-                {{ participationHint.title }}。{{ submitHint }}
-              </p>
-            </div>
-          </UPageCard>
+            </UPageCard>
+          </div>
         </div>
       </div>
 
