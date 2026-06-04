@@ -64,6 +64,19 @@ func normalizeMaxTeamMembers(limit int) (int, error) {
 	return limit, nil
 }
 
+func normalizeInvitationCode(code string) string {
+	return strings.TrimSpace(code)
+}
+
+func sanitizePublicGameResponse(game *GameResponse) *GameResponse {
+	if game == nil {
+		return nil
+	}
+	copy := *game
+	copy.InvitationCode = ""
+	return &copy
+}
+
 func validateGameTimeline(startTime, endTime time.Time, freezeAt *time.Time) error {
 	if !endTime.After(startTime) {
 		return errors.New("invalid game timeline")
@@ -196,6 +209,7 @@ func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameRespon
 		Name:               req.Name,
 		Description:        req.Description,
 		Notice:             req.Notice,
+		InvitationCode:     normalizeInvitationCode(req.InvitationCode),
 		Divisions:          divisions,
 		StartTime:          req.StartTime,
 		EndTime:            req.EndTime,
@@ -213,7 +227,7 @@ func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameRespon
 	}
 
 	if err := s.db.Select(
-		"Name", "Description", "Notice", "Divisions", "StartTime", "EndTime", "ScoreboardFreezeAt", "Status", "RegistrationMode", "MaxTeamMembers", "PracticeMode", "WriteupRequired", "WriteupDeadline", "IsPublic", "CreatedBy",
+		"Name", "Description", "Notice", "InvitationCode", "Divisions", "StartTime", "EndTime", "ScoreboardFreezeAt", "Status", "RegistrationMode", "MaxTeamMembers", "PracticeMode", "WriteupRequired", "WriteupDeadline", "IsPublic", "CreatedBy",
 	).Create(game).Error; err != nil {
 		return nil, err
 	}
@@ -244,7 +258,11 @@ func (s *Service) ListGames(showAll bool) ([]GameResponse, error) {
 
 	result := make([]GameResponse, len(games))
 	for i, g := range games {
-		result[i] = *toResponse(&g)
+		item := toResponse(&g)
+		if !showAll {
+			item = sanitizePublicGameResponse(item)
+		}
+		result[i] = *item
 	}
 	return result, nil
 }
@@ -257,7 +275,7 @@ func (s *Service) GetPublicGame(id uint) (*GameResponse, error) {
 	if !game.IsPublic || game.Status == "draft" {
 		return nil, errors.New("game not found")
 	}
-	return game, nil
+	return sanitizePublicGameResponse(game), nil
 }
 
 func (s *Service) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, error) {
@@ -315,6 +333,9 @@ func (s *Service) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, err
 	}
 	if req.Notice != nil {
 		updates["notice"] = *req.Notice
+	}
+	if req.InvitationCode != nil {
+		updates["invitation_code"] = normalizeInvitationCode(*req.InvitationCode)
 	}
 	if req.Divisions != nil {
 		updates["divisions"] = encodedDivisions
@@ -467,6 +488,7 @@ func (s *Service) ExportGamePackage(id uint) ([]byte, string, error) {
 			Name:               game.Name,
 			Description:        game.Description,
 			Notice:             game.Notice,
+			InvitationCode:     normalizeInvitationCode(game.InvitationCode),
 			Divisions:          decodeDivisions(game.Divisions),
 			StartTime:          game.StartTime,
 			EndTime:            game.EndTime,
@@ -609,6 +631,7 @@ func (s *Service) ImportGamePackage(data []byte, createdBy uint) (*GameResponse,
 			Name:               pkg.Game.Name,
 			Description:        pkg.Game.Description,
 			Notice:             pkg.Game.Notice,
+			InvitationCode:     normalizeInvitationCode(pkg.Game.InvitationCode),
 			Divisions:          divisions,
 			StartTime:          pkg.Game.StartTime,
 			EndTime:            pkg.Game.EndTime,
@@ -624,7 +647,7 @@ func (s *Service) ImportGamePackage(data []byte, createdBy uint) (*GameResponse,
 		}
 
 		if err := tx.Select(
-			"Name", "Description", "Notice", "Divisions", "StartTime", "EndTime", "ScoreboardFreezeAt", "Status", "RegistrationMode", "MaxTeamMembers", "PracticeMode", "WriteupRequired", "WriteupDeadline", "IsPublic", "CreatedBy",
+			"Name", "Description", "Notice", "InvitationCode", "Divisions", "StartTime", "EndTime", "ScoreboardFreezeAt", "Status", "RegistrationMode", "MaxTeamMembers", "PracticeMode", "WriteupRequired", "WriteupDeadline", "IsPublic", "CreatedBy",
 		).Create(game).Error; err != nil {
 			return err
 		}
@@ -914,7 +937,7 @@ func (s *Service) RemoveChallenge(gameID uint, challengeID uint) error {
 // JoinGame registers a team to a game.
 // Depending on the game configuration, registrations are either created as
 // pending for review or directly accepted for small local events.
-func (s *Service) JoinGame(gameID uint, teamID uint, userID uint) error {
+func (s *Service) JoinGame(gameID uint, teamID uint, userID uint, invitationCode string) error {
 	var game models.Game
 	if err := s.db.First(&game, gameID).Error; err != nil {
 		return errors.New("game not found")
@@ -924,6 +947,9 @@ func (s *Service) JoinGame(gameID uint, teamID uint, userID uint) error {
 	}
 	if time.Now().After(game.EndTime) {
 		return errors.New("game has already ended")
+	}
+	if normalizeInvitationCode(game.InvitationCode) != "" && normalizeInvitationCode(invitationCode) != normalizeInvitationCode(game.InvitationCode) {
+		return errors.New("invalid game invitation code")
 	}
 
 	// Prevent duplicate participation
@@ -1771,6 +1797,8 @@ func toResponse(g *models.Game) *GameResponse {
 		Name:               g.Name,
 		Description:        g.Description,
 		Notice:             g.Notice,
+		InvitationCode:     normalizeInvitationCode(g.InvitationCode),
+		InvitationRequired: normalizeInvitationCode(g.InvitationCode) != "",
 		Divisions:          decodeDivisions(g.Divisions),
 		StartTime:          g.StartTime,
 		EndTime:            g.EndTime,

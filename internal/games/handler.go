@@ -195,7 +195,8 @@ func (h *Handler) RemoveChallengeFromGame(c *gin.Context, id int, challengeId in
 
 func (h *Handler) JoinGame(c *gin.Context, id int) {
 	var req struct {
-		TeamID uint `json:"team_id" binding:"required"`
+		TeamID         uint   `json:"team_id" binding:"required"`
+		InvitationCode string `json:"invitation_code"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
@@ -203,7 +204,7 @@ func (h *Handler) JoinGame(c *gin.Context, id int) {
 	}
 
 	userID := c.MustGet("user_id").(uint)
-	if err := h.svc.JoinGame(uint(id), req.TeamID, userID); err != nil {
+	if err := h.svc.JoinGame(uint(id), req.TeamID, userID, req.InvitationCode); err != nil {
 		c.JSON(http.StatusConflict, gin.H{"message": err.Error()})
 		return
 	}

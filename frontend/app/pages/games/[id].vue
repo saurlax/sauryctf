@@ -35,6 +35,9 @@ const flagInputs = reactive<Record<number, string>>({})
 const writeupForm = reactive({
   content: '',
 })
+const registrationForm = reactive({
+  invitation_code: '',
+})
 const now = ref(Date.now())
 
 const gameId = route.params.id as string
@@ -192,7 +195,10 @@ async function joinGame() {
   try {
     await $api('post', '/api/games/{id}/join', {
       params: { id: Number(gameId) },
-      body: { team_id: teamId },
+      body: {
+        team_id: teamId,
+        invitation_code: registrationForm.invitation_code,
+      },
     })
     toast.add({
       title: game.value?.registration_mode === 'auto_accept' ? '报名成功' : '报名申请已提交',
@@ -201,6 +207,7 @@ async function joinGame() {
         : '等待管理员审核通过后即可正式参赛。',
       color: 'success',
     })
+    registrationForm.invitation_code = ''
     await refreshParticipationView()
   }
   catch (e: any) {
@@ -837,6 +844,10 @@ const contestFactRows = computed(() => [
     value: game.value?.registration_mode === 'auto_accept' ? '自动通过' : '人工审核',
   },
   {
+    label: '比赛邀请码',
+    value: game.value?.invitation_required ? '需要' : '不需要',
+  },
+  {
     label: '队伍人数限制',
     value: game.value?.max_team_members ? `${game.value.max_team_members} 人` : '不限',
   },
@@ -942,6 +953,9 @@ const contestGuideItems = computed(() => [
   game.value?.registration_mode === 'auto_accept'
     ? '当前比赛报名后会自动通过。'
     : '当前比赛报名后需要等待管理员审核。',
+  game.value?.invitation_required
+    ? '当前比赛要求输入正确的邀请码后才能完成报名。'
+    : '当前比赛不要求额外的邀请码。',
   game.value?.max_team_members
     ? `当前队伍人数上限为 ${game.value.max_team_members} 人，超出将无法报名。`
     : '当前比赛不限制队伍人数。',
@@ -1217,6 +1231,22 @@ onMounted(async () => {
               <p class="mt-2 text-sm text-muted max-w-2xl">
                 {{ participationHint.description }}
               </p>
+              <div
+                v-if="game?.invitation_required && authState.user && participation?.has_team && !participation?.participated"
+                class="mt-3 max-w-md"
+              >
+                <UFormField
+                  label="比赛邀请码"
+                  name="invitation_code"
+                  description="当前比赛设置了邀请码门槛，报名时需要提交正确的邀请码。"
+                >
+                  <UInput
+                    v-model="registrationForm.invitation_code"
+                    class="w-full"
+                    placeholder="请输入比赛邀请码"
+                  />
+                </UFormField>
+              </div>
             </div>
 
             <div class="flex gap-2">

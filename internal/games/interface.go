@@ -24,7 +24,7 @@ type ServiceInterface interface {
 	AddChallenge(gameID uint, challengeID uint, scoreOverride int) error
 	RemoveChallenge(gameID uint, challengeID uint) error
 	// Participation
-	JoinGame(gameID uint, teamID uint, userID uint) error
+	JoinGame(gameID uint, teamID uint, userID uint, invitationCode string) error
 	LeaveGame(gameID uint, teamID uint, userID uint) error
 	GetParticipation(gameID uint, teamID uint) (*models.Participation, error)
 	GetParticipationStatus(gameID uint, userID uint) (*GameParticipationResponse, error)
@@ -49,6 +49,7 @@ type CreateGameRequest struct {
 	Name               string     `json:"name" binding:"required"`
 	Description        string     `json:"description"`
 	Notice             string     `json:"notice"`
+	InvitationCode     string     `json:"invitation_code"`
 	Divisions          []string   `json:"divisions"`
 	StartTime          time.Time  `json:"start_time" binding:"required"`
 	EndTime            time.Time  `json:"end_time" binding:"required"`
@@ -65,6 +66,7 @@ type UpdateGameRequest struct {
 	Name                  *string    `json:"name"`
 	Description           *string    `json:"description"`
 	Notice                *string    `json:"notice"`
+	InvitationCode        *string    `json:"invitation_code"`
 	Divisions             *[]string  `json:"divisions"`
 	StartTime             *time.Time `json:"start_time"`
 	EndTime               *time.Time `json:"end_time"`
@@ -85,6 +87,8 @@ type GameResponse struct {
 	Name               string     `json:"name"`
 	Description        string     `json:"description"`
 	Notice             string     `json:"notice"`
+	InvitationCode     string     `json:"invitation_code,omitempty"`
+	InvitationRequired bool       `json:"invitation_required"`
 	Divisions          []string   `json:"divisions"`
 	StartTime          time.Time  `json:"start_time"`
 	EndTime            time.Time  `json:"end_time"`
@@ -229,6 +233,7 @@ type ExportGameMetadata struct {
 	Name               string     `json:"name"`
 	Description        string     `json:"description"`
 	Notice             string     `json:"notice"`
+	InvitationCode     string     `json:"invitation_code,omitempty"`
 	Divisions          []string   `json:"divisions"`
 	StartTime          time.Time  `json:"start_time"`
 	EndTime            time.Time  `json:"end_time"`

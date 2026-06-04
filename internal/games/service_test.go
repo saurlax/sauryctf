@@ -847,7 +847,7 @@ func TestService_JoinGame_CreatesPendingParticipation(t *testing.T) {
 	}
 	require.NoError(t, database.Create(&game).Error)
 
-	require.NoError(t, svc.JoinGame(game.ID, team.ID, user.ID))
+	require.NoError(t, svc.JoinGame(game.ID, team.ID, user.ID, ""))
 
 	participation, err := svc.GetParticipation(game.ID, team.ID)
 	require.NoError(t, err)
@@ -877,7 +877,7 @@ func TestService_JoinGame_AutoAcceptsWhenConfigured(t *testing.T) {
 	}
 	require.NoError(t, database.Create(&game).Error)
 
-	require.NoError(t, svc.JoinGame(game.ID, team.ID, user.ID))
+	require.NoError(t, svc.JoinGame(game.ID, team.ID, user.ID, ""))
 
 	participation, err := svc.GetParticipation(game.ID, team.ID)
 	require.NoError(t, err)
@@ -906,7 +906,7 @@ func TestService_LeaveGame_AllowsPendingWithdrawal(t *testing.T) {
 	}
 	require.NoError(t, database.Create(&game).Error)
 
-	require.NoError(t, svc.JoinGame(game.ID, team.ID, user.ID))
+	require.NoError(t, svc.JoinGame(game.ID, team.ID, user.ID, ""))
 	require.NoError(t, svc.LeaveGame(game.ID, team.ID, user.ID))
 
 	_, err = svc.GetParticipation(game.ID, team.ID)
@@ -937,7 +937,7 @@ func TestService_LeaveGame_RejectsAcceptedWithdrawal(t *testing.T) {
 	}
 	require.NoError(t, database.Create(&game).Error)
 
-	require.NoError(t, svc.JoinGame(game.ID, team.ID, user.ID))
+	require.NoError(t, svc.JoinGame(game.ID, team.ID, user.ID, ""))
 
 	err = svc.LeaveGame(game.ID, team.ID, user.ID)
 	require.Error(t, err)
@@ -978,7 +978,7 @@ func TestService_JoinGame_RejectsTeamExceedingGameMemberLimit(t *testing.T) {
 	}
 	require.NoError(t, database.Create(&game).Error)
 
-	err = svc.JoinGame(game.ID, team.ID, captain.ID)
+	err = svc.JoinGame(game.ID, team.ID, captain.ID, "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "maximum member limit")
 }
@@ -1085,9 +1085,39 @@ func TestService_JoinGame_RejectsDraftGame(t *testing.T) {
 	}
 	require.NoError(t, database.Create(&game).Error)
 
-	err = svc.JoinGame(game.ID, team.ID, user.ID)
+	err = svc.JoinGame(game.ID, team.ID, user.ID, "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not open for registration")
+}
+
+func TestService_JoinGame_RequiresInvitationCodeWhenConfigured(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+
+	user := models.User{Username: "invite-captain", Email: "invite-captain@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+	team := models.Team{Name: "Invite Team", InviteCode: "invite01", CaptainID: user.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team).Error)
+	game := models.Game{
+		Name:           "Invite Only Game",
+		InvitationCode: "spring-2026",
+		StartTime:      time.Now().Add(time.Hour),
+		EndTime:        time.Now().Add(2 * time.Hour),
+		Status:         "active",
+		IsPublic:       true,
+		CreatedBy:      user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+
+	err = svc.JoinGame(game.ID, team.ID, user.ID, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid game invitation code")
+
+	require.NoError(t, svc.JoinGame(game.ID, team.ID, user.ID, "spring-2026"))
 }
 
 func TestService_SubmitFlag_RejectsBeforeGameStart(t *testing.T) {

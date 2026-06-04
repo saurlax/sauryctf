@@ -13,6 +13,14 @@ import (
 	"github.com/saurlax/sauryctf/internal/teams"
 )
 
+func requireAdminForExpandedGameAccess(c *gin.Context) bool {
+	if c.Query("all") != "true" {
+		return true
+	}
+	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
+	return !c.IsAborted()
+}
+
 // Handler 聚合所有子模块 handler，实现 ServerInterface。
 type Handler struct {
 	auth       *auth.Handler
@@ -113,6 +121,9 @@ func (h *Handler) ListGames(c *gin.Context, params ListGamesParams) {
 	if params.All != nil {
 		showAll = *params.All
 	}
+	if showAll && !requireAdminForExpandedGameAccess(c) {
+		return
+	}
 	h.games.ListGames(c, showAll)
 }
 
@@ -124,6 +135,9 @@ func (h *Handler) CreateGame(c *gin.Context) {
 	h.games.CreateGame(c)
 }
 func (h *Handler) GetGame(c *gin.Context, id int) {
+	if !requireAdminForExpandedGameAccess(c) {
+		return
+	}
 	h.games.GetGame(c, id)
 }
 func (h *Handler) UpdateGame(c *gin.Context, id int) {

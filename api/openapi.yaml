@@ -323,6 +323,8 @@ components:
           type: string
         notice:
           type: string
+        invitation_code:
+          type: string
         divisions:
           type: array
           items:
@@ -355,6 +357,8 @@ components:
           nullable: true
         is_public:
           type: boolean
+        invitation_required:
+          type: boolean
         created_by:
           type: integer
         created_at:
@@ -370,6 +374,8 @@ components:
         description:
           type: string
         notice:
+          type: string
+        invitation_code:
           type: string
         divisions:
           type: array
@@ -409,6 +415,8 @@ components:
         description:
           type: string
         notice:
+          type: string
+        invitation_code:
           type: string
         divisions:
           type: array
@@ -493,6 +501,8 @@ components:
       properties:
         team_id:
           type: integer
+        invitation_code:
+          type: string
 
     GameSubmitFlagRequest:
       type: object

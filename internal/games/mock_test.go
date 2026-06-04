@@ -52,6 +52,8 @@ func (m *MockService) CreateGame(req CreateGameRequest, createdBy uint) (*GameRe
 		Name:               req.Name,
 		Description:        req.Description,
 		Notice:             req.Notice,
+		InvitationCode:     normalizeInvitationCode(req.InvitationCode),
+		InvitationRequired: normalizeInvitationCode(req.InvitationCode) != "",
 		Divisions:          append([]string(nil), req.Divisions...),
 		StartTime:          req.StartTime,
 		EndTime:            req.EndTime,
@@ -93,7 +95,7 @@ func (m *MockService) GetPublicGame(id uint) (*GameResponse, error) {
 	if !ok || !game.IsPublic || game.Status == "draft" {
 		return nil, fmt.Errorf("game not found")
 	}
-	return game, nil
+	return sanitizePublicGameResponse(game), nil
 }
 
 func (m *MockService) ListGames(showAll bool) ([]GameResponse, error) {
@@ -105,7 +107,11 @@ func (m *MockService) ListGames(showAll bool) ([]GameResponse, error) {
 		if !showAll && (!g.IsPublic || g.Status == "draft") {
 			continue
 		}
-		result = append(result, *g)
+		item := *g
+		if !showAll {
+			item.InvitationCode = ""
+		}
+		result = append(result, item)
 	}
 	return result, nil
 }
@@ -154,6 +160,10 @@ func (m *MockService) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse,
 	}
 	if req.Notice != nil {
 		game.Notice = *req.Notice
+	}
+	if req.InvitationCode != nil {
+		game.InvitationCode = normalizeInvitationCode(*req.InvitationCode)
+		game.InvitationRequired = game.InvitationCode != ""
 	}
 	if req.Status != nil {
 		game.Status = *req.Status
@@ -357,19 +367,23 @@ func (m *MockService) RemoveChallenge(gameID uint, challengeID uint) error {
 	return nil
 }
 
-func (m *MockService) JoinGame(gameID uint, teamID uint, userID uint) error {
+func (m *MockService) JoinGame(gameID uint, teamID uint, userID uint, invitationCode string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if _, ok := m.Games[gameID]; !ok {
+	game, ok := m.Games[gameID]
+	if !ok {
 		return fmt.Errorf("game not found")
+	}
+	if normalizeInvitationCode(game.InvitationCode) != "" && normalizeInvitationCode(invitationCode) != normalizeInvitationCode(game.InvitationCode) {
+		return fmt.Errorf("invalid game invitation code")
 	}
 	key := fmt.Sprintf("%d-%d", gameID, teamID)
 	if _, exists := m.Participations[key]; exists {
 		return fmt.Errorf("team already joined this game")
 	}
 	status := models.ParticipationPending
-	if game, ok := m.Games[gameID]; ok && game.RegistrationMode == RegistrationModeAutoAccept {
+	if game.RegistrationMode == RegistrationModeAutoAccept {
 		status = models.ParticipationAccepted
 	}
 	m.Participations[key] = status

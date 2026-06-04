@@ -621,7 +621,10 @@ func TestServer_AdminCanExportImportAndDeleteGamePackage(t *testing.T) {
 	defer deleteResp.Body.Close()
 	require.Equal(t, http.StatusOK, deleteResp.StatusCode)
 
-	deletedGameResp, err := http.Get(server.URL + "/api/games/" + idPath(game.ID) + "?all=true")
+	deletedGameReq, err := http.NewRequest(http.MethodGet, server.URL+"/api/games/"+idPath(game.ID)+"?all=true", nil)
+	require.NoError(t, err)
+	deletedGameReq.AddCookie(tokenCookie)
+	deletedGameResp, err := http.DefaultClient.Do(deletedGameReq)
 	require.NoError(t, err)
 	defer deletedGameResp.Body.Close()
 	require.Equal(t, http.StatusNotFound, deletedGameResp.StatusCode)

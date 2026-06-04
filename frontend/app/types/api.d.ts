@@ -299,6 +299,7 @@ export interface components {
       name: string;
       description?: string;
       notice?: string;
+      invitation_code?: string;
       divisions?: string[];
       /** Format: date-time */
       start_time: string;
@@ -316,6 +317,7 @@ export interface components {
       /** Format: date-time */
       writeup_deadline?: string | null;
       is_public?: boolean;
+      invitation_required?: boolean;
       created_by?: number;
       /** Format: date-time */
       created_at?: string;
@@ -324,6 +326,7 @@ export interface components {
       name: string;
       description?: string;
       notice?: string;
+      invitation_code?: string;
       divisions?: string[];
       /** Format: date-time */
       start_time: string;
@@ -344,6 +347,7 @@ export interface components {
       name?: string;
       description?: string;
       notice?: string;
+      invitation_code?: string;
       divisions?: string[];
       /** Format: date-time */
       start_time?: string;
@@ -387,6 +391,7 @@ export interface components {
     };
     JoinGameRequest: {
       team_id: number;
+      invitation_code?: string;
     };
     GameSubmitFlagRequest: {
       flag: string;

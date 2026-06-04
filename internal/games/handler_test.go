@@ -322,6 +322,35 @@ func TestListGames_Filtered(t *testing.T) {
 	assert.Equal(t, "Public Game", games_list[0]["name"])
 }
 
+func TestListGames_PublicViewHidesInvitationCode(t *testing.T) {
+	svc := games.NewMockService()
+	r := setupTestRouter(svc)
+
+	public := true
+	created, _ := svc.CreateGame(games.CreateGameRequest{
+		Name:           "Invite Game",
+		InvitationCode: "spring-2026",
+		StartTime:      time.Now(),
+		EndTime:        time.Now().Add(time.Hour),
+		IsPublic:       &public,
+	}, 1)
+	active := "active"
+	_, _ = svc.UpdateGame(created.ID, games.UpdateGameRequest{Status: &active})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/games", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var gamesList []map[string]any
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &gamesList))
+	assert.Len(t, gamesList, 1)
+	assert.Equal(t, true, gamesList[0]["invitation_required"])
+	_, hasCode := gamesList[0]["invitation_code"]
+	assert.False(t, hasCode)
+}
+
 func TestUpdateGame_Success(t *testing.T) {
 	svc := games.NewMockService()
 	r := setupTestRouter(svc)

@@ -13,6 +13,7 @@ const gameForm = reactive({
   name: '',
   description: '',
   notice: '',
+  invitation_code: '',
   divisions_text: '',
   start_time: '',
   end_time: '',
@@ -50,6 +51,7 @@ const attachForm = reactive({
 const gameSettingsForm = reactive({
   game_id: undefined as number | undefined,
   status: 'draft' as 'draft' | 'active' | 'ended',
+  invitation_code: '',
   divisions_text: '',
   scoreboard_freeze_at: '',
   registration_mode: 'review' as 'review' | 'auto_accept',
@@ -65,6 +67,7 @@ const gameEditForm = reactive({
   name: '',
   description: '',
   notice: '',
+  invitation_code: '',
   divisions_text: '',
   start_time: '',
   end_time: '',
@@ -115,6 +118,8 @@ const games = ref<Array<{
   name: string
   description?: string
   notice?: string
+  invitation_code?: string
+  invitation_required?: boolean
   divisions?: string[]
   status: 'draft' | 'active' | 'ended'
   scoreboard_freeze_at?: string | null
@@ -934,6 +939,7 @@ async function createGame() {
         name: gameForm.name,
         description: gameForm.description,
         notice: gameForm.notice,
+        invitation_code: gameForm.invitation_code,
         divisions: parseDivisionList(gameForm.divisions_text),
         start_time: new Date(gameForm.start_time).toISOString(),
         end_time: new Date(gameForm.end_time).toISOString(),
@@ -950,6 +956,7 @@ async function createGame() {
     gameForm.name = ''
     gameForm.description = ''
     gameForm.notice = ''
+    gameForm.invitation_code = ''
     gameForm.divisions_text = ''
     gameForm.start_time = ''
     gameForm.end_time = ''
@@ -1096,6 +1103,7 @@ async function updateGameSettings() {
   try {
     const body: {
       status: 'draft' | 'active' | 'ended'
+      invitation_code: string
       divisions: string[]
       registration_mode: 'review' | 'auto_accept'
       max_team_members: number
@@ -1106,6 +1114,7 @@ async function updateGameSettings() {
       scoreboard_freeze_at?: string | null
     } = {
       status: gameSettingsForm.status,
+      invitation_code: gameSettingsForm.invitation_code,
       divisions: parseDivisionList(gameSettingsForm.divisions_text),
       registration_mode: gameSettingsForm.registration_mode,
       max_team_members: gameSettingsForm.max_team_members,
@@ -1154,6 +1163,7 @@ async function updateGameDetails() {
         name: gameEditForm.name,
         description: gameEditForm.description,
         notice: gameEditForm.notice,
+        invitation_code: gameEditForm.invitation_code,
         divisions: parseDivisionList(gameEditForm.divisions_text),
         start_time: new Date(gameEditForm.start_time).toISOString(),
         end_time: new Date(gameEditForm.end_time).toISOString(),
@@ -1383,6 +1393,7 @@ watch(() => gameEditForm.game_id, () => {
     gameEditForm.name = ''
     gameEditForm.description = ''
     gameEditForm.notice = ''
+    gameEditForm.invitation_code = ''
     gameEditForm.divisions_text = ''
     gameEditForm.start_time = ''
     gameEditForm.end_time = ''
@@ -1400,6 +1411,7 @@ watch(() => gameEditForm.game_id, () => {
   gameEditForm.name = game.name
   gameEditForm.description = game.description || ''
   gameEditForm.notice = game.notice || ''
+  gameEditForm.invitation_code = game.invitation_code || ''
   gameEditForm.divisions_text = formatDivisionList(game.divisions)
   gameEditForm.start_time = game.start_time.slice(0, 16)
   gameEditForm.end_time = game.end_time.slice(0, 16)
@@ -1411,6 +1423,7 @@ watch(() => gameEditForm.game_id, () => {
 watch(() => gameSettingsForm.game_id, () => {
   if (!gameSettingsForm.game_id) {
     gameSettingsForm.status = 'draft'
+    gameSettingsForm.invitation_code = ''
     gameSettingsForm.divisions_text = ''
     gameSettingsForm.scoreboard_freeze_at = ''
     gameSettingsForm.registration_mode = 'review'
@@ -1428,6 +1441,7 @@ watch(() => gameSettingsForm.game_id, () => {
   }
 
   gameSettingsForm.status = game.status
+  gameSettingsForm.invitation_code = game.invitation_code || ''
   gameSettingsForm.divisions_text = formatDivisionList(game.divisions)
   gameSettingsForm.scoreboard_freeze_at = game.scoreboard_freeze_at ? game.scoreboard_freeze_at.slice(0, 16) : ''
   gameSettingsForm.registration_mode = game.registration_mode || 'review'
@@ -1698,6 +1712,10 @@ onMounted(async () => {
               <UTextarea v-model="gameForm.notice" class="w-full" :rows="4" placeholder="例如：开赛前 15 分钟开放平台，禁止共享 Flag。" />
             </UFormField>
 
+            <UFormField label="比赛邀请码" name="invitation_code" description="留空表示任何队伍都能直接报名；填写后需要在公开页输入正确邀请码">
+              <UInput v-model="gameForm.invitation_code" class="w-full" placeholder="例如：spring-2026" />
+            </UFormField>
+
             <UFormField label="比赛分组" name="divisions_text" description="按行或逗号分隔，例如：本科组, 公开组">
               <UTextarea v-model="gameForm.divisions_text" class="w-full" :rows="3" placeholder="本科组, 公开组" />
             </UFormField>
@@ -1773,6 +1791,10 @@ onMounted(async () => {
               <UTextarea v-model="gameEditForm.notice" class="w-full" :rows="4" placeholder="例如：开赛前 15 分钟开放平台，禁止共享 Flag。" />
             </UFormField>
 
+            <UFormField label="比赛邀请码" name="invitation_code" description="留空表示关闭邀请码门槛">
+              <UInput v-model="gameEditForm.invitation_code" class="w-full" placeholder="例如：spring-2026" />
+            </UFormField>
+
             <UFormField label="比赛分组" name="divisions_text" description="按行或逗号分隔，留空表示不分组">
               <UTextarea v-model="gameEditForm.divisions_text" class="w-full" :rows="3" placeholder="本科组, 公开组" />
             </UFormField>
@@ -1834,6 +1856,10 @@ onMounted(async () => {
               />
             </UFormField>
 
+            <UFormField label="比赛邀请码" name="invitation_code" description="公开接口只会暴露“需要邀请码”，不会返回这里的明文">
+              <UInput v-model="gameSettingsForm.invitation_code" class="w-full" placeholder="留空表示不需要邀请码" />
+            </UFormField>
+
             <UFormField label="比赛分组" name="divisions_text" description="按行或逗号分隔，榜单和参赛分配都会使用这里的分组">
               <UTextarea v-model="gameSettingsForm.divisions_text" class="w-full" :rows="3" placeholder="本科组, 公开组" />
             </UFormField>
@@ -1873,7 +1899,7 @@ onMounted(async () => {
             </div>
 
             <div v-if="selectedSettingsGame" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              当前比赛：{{ selectedSettingsGame.name }} · {{ new Date(selectedSettingsGame.start_time).toLocaleString() }} · {{ getRegistrationModeLabel(selectedSettingsGame.registration_mode) }} · {{ selectedSettingsGame.max_team_members ? `最多 ${selectedSettingsGame.max_team_members} 人` : '人数不限' }} · {{ getPracticeModeLabel(selectedSettingsGame.practice_mode) }} · {{ selectedSettingsGame.writeup_required ? '需要 Writeup' : '不要求 Writeup' }} · {{ selectedSettingsGame.scoreboard_freeze_at ? `封榜于 ${new Date(selectedSettingsGame.scoreboard_freeze_at).toLocaleString()}` : '不封榜' }}
+              当前比赛：{{ selectedSettingsGame.name }} · {{ new Date(selectedSettingsGame.start_time).toLocaleString() }} · {{ getRegistrationModeLabel(selectedSettingsGame.registration_mode) }} · {{ selectedSettingsGame.max_team_members ? `最多 ${selectedSettingsGame.max_team_members} 人` : '人数不限' }} · {{ selectedSettingsGame.invitation_required ? '需要邀请码' : '无需邀请码' }} · {{ getPracticeModeLabel(selectedSettingsGame.practice_mode) }} · {{ selectedSettingsGame.writeup_required ? '需要 Writeup' : '不要求 Writeup' }} · {{ selectedSettingsGame.scoreboard_freeze_at ? `封榜于 ${new Date(selectedSettingsGame.scoreboard_freeze_at).toLocaleString()}` : '不封榜' }}
             </div>
 
             <UButton type="submit" :loading="settingsSubmitting">

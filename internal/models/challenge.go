@@ -68,6 +68,7 @@ type Game struct {
 	Name               string     `gorm:"size:255;not null" json:"name"`
 	Description        string     `gorm:"type:text" json:"description"`
 	Notice             string     `gorm:"type:text" json:"notice"`
+	InvitationCode     string     `gorm:"size:128" json:"invitation_code"`
 	Divisions          string     `gorm:"type:text" json:"divisions"` // JSON array of division names
 	StartTime          time.Time  `gorm:"not null" json:"start_time"`
 	EndTime            time.Time  `gorm:"not null" json:"end_time"`
