@@ -223,6 +223,47 @@ func TestService_GetPublicGame_ReturnsActivePublicGame(t *testing.T) {
 	assert.Equal(t, "Public Active", fetched.Name)
 }
 
+func TestService_GetGame_AutoMarksExpiredActiveGameAsEnded(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	public := true
+	game, _ := svc.CreateGame(games.CreateGameRequest{
+		Name:      "Expired Active",
+		StartTime: time.Now().Add(-2 * time.Hour),
+		EndTime:   time.Now().Add(-time.Hour),
+		IsPublic:  &public,
+	}, 1)
+	active := "active"
+	_, err := svc.UpdateGame(game.ID, games.UpdateGameRequest{Status: &active})
+	require.NoError(t, err)
+
+	fetched, err := svc.GetGame(game.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "ended", fetched.Status)
+}
+
+func TestService_ListGames_UsesEffectiveEndedStatusForExpiredGame(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	public := true
+	game, _ := svc.CreateGame(games.CreateGameRequest{
+		Name:      "Expired Public",
+		StartTime: time.Now().Add(-2 * time.Hour),
+		EndTime:   time.Now().Add(-time.Hour),
+		IsPublic:  &public,
+	}, 1)
+	active := "active"
+	_, err := svc.UpdateGame(game.ID, games.UpdateGameRequest{Status: &active})
+	require.NoError(t, err)
+
+	items, err := svc.ListGames(false)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, "ended", items[0].Status)
+}
+
 func TestService_UpdateGame(t *testing.T) {
 	svc, cleanup := setupService(t)
 	defer cleanup()

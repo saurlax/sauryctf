@@ -23,6 +23,13 @@ func NewService(db *gorm.DB) *Service {
 	return &Service{db: db}
 }
 
+func effectiveGameStatus(game *models.Game) string {
+	if game.Status == "active" && time.Now().After(game.EndTime) {
+		return "ended"
+	}
+	return game.Status
+}
+
 func normalizeRegistrationMode(mode string) (string, error) {
 	switch mode {
 	case "", RegistrationModeReview:
@@ -834,7 +841,7 @@ func toResponse(g *models.Game) *GameResponse {
 		StartTime:        g.StartTime,
 		EndTime:          g.EndTime,
 		ScoreboardFreezeAt: g.ScoreboardFreezeAt,
-		Status:           g.Status,
+		Status:           effectiveGameStatus(g),
 		RegistrationMode: g.RegistrationMode,
 		MaxTeamMembers:   g.MaxTeamMembers,
 		IsPublic:         g.IsPublic,

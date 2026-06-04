@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -21,7 +22,9 @@ func NewService(db *gorm.DB) *Service {
 func (s *Service) ensureTeamUnlocked(teamID uint) error {
 	var count int64
 	if err := s.db.Model(&models.Participation{}).
-		Where("team_id = ? AND status = ?", teamID, models.ParticipationAccepted).
+		Joins("JOIN games ON games.id = participations.game_id").
+		Where("participations.team_id = ? AND participations.status = ?", teamID, models.ParticipationAccepted).
+		Where("games.end_time > ?", time.Now()).
 		Count(&count).Error; err != nil {
 		return err
 	}

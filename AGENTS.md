@@ -130,6 +130,7 @@ internal/<module>/
   - only `active` games accept registrations
   - only `active` games within `start_time` / `end_time` accept flag submissions
   - ended games stay browsable, but no longer allow registration or scoring
+  - if an `active` game has already passed `end_time`, read APIs now surface it as `ended` automatically
 - Game challenge content now follows a safer visibility rule:
   - everyone can still see basic challenge metadata such as title, category, score, and solve count
   - full `description`, `hints`, and `attachments` are only exposed after a team is `accepted` and the contest has started
@@ -137,7 +138,7 @@ internal/<module>/
 - Registration withdrawal now follows the current GZCTF-style rule:
   - `pending` / `rejected` participations can be withdrawn
   - `accepted` participations are locked and can no longer be withdrawn
-  - once a team is `accepted` in any game, team membership is also locked:
+  - while a team is `accepted` in any not-yet-ended game, team membership is also locked:
     - no new members can join that team
     - existing members cannot leave
     - captains cannot remove members
