@@ -4,6 +4,7 @@ import type { FormSubmitEvent } from '@nuxt/ui'
 
 const { authState, fetchUser, register } = useAuth()
 const router = useRouter()
+const route = useRoute()
 const toast = useToast()
 
 const registerSchema = z.object({
@@ -23,12 +24,20 @@ const state = reactive<Partial<RegisterSchema>>({
 async function onRegister(payload: FormSubmitEvent<RegisterSchema>) {
   try {
     await register(payload.data.username, payload.data.email, payload.data.password)
-    toast.add({ title: '注册成功', description: '已自动登录，正在进入控制台。', color: 'success' })
-    router.push('/console')
+    toast.add({ title: '注册成功', description: '已自动登录，正在跳转。', color: 'success' })
+    await router.push(resolveRedirect())
   }
   catch (e: any) {
     toast.add({ title: '注册失败', description: e.data?.message || e.message, color: 'error' })
   }
+}
+
+function resolveRedirect() {
+  const redirect = route.query.redirect
+  if (typeof redirect === 'string' && redirect.startsWith('/')) {
+    return redirect
+  }
+  return '/console'
 }
 
 onMounted(async () => {
@@ -37,7 +46,7 @@ onMounted(async () => {
   }
 
   if (authState.user) {
-    await router.push('/console')
+    await router.push(resolveRedirect())
   }
 })
 </script>
@@ -68,7 +77,7 @@ onMounted(async () => {
 
       <div class="mt-4 text-sm text-muted">
         已有账号？
-        <ULink to="/login" class="font-medium">
+        <ULink :to="route.query.redirect ? `/login?redirect=${route.query.redirect}` : '/login'" class="font-medium">
           去登录
         </ULink>
       </div>

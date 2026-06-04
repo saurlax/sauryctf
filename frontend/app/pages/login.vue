@@ -4,6 +4,7 @@ import type { FormSubmitEvent } from '@nuxt/ui'
 
 const { authState, fetchUser, login } = useAuth()
 const router = useRouter()
+const route = useRoute()
 const toast = useToast()
 
 const loginSchema = z.object({
@@ -17,11 +18,19 @@ async function onLogin(payload: FormSubmitEvent<LoginSchema>) {
   try {
     await login(payload.data.username, payload.data.password)
     toast.add({ title: '登录成功', color: 'success' })
-    router.push('/console')
+    await router.push(resolveRedirect())
   }
   catch (e: any) {
     toast.add({ title: '登录失败', description: e.data?.message || e.message, color: 'error' })
   }
+}
+
+function resolveRedirect() {
+  const redirect = route.query.redirect
+  if (typeof redirect === 'string' && redirect.startsWith('/')) {
+    return redirect
+  }
+  return '/console'
 }
 
 const state = reactive<Partial<LoginSchema>>({
@@ -35,7 +44,7 @@ onMounted(async () => {
   }
 
   if (authState.user) {
-    await router.push('/console')
+    await router.push(resolveRedirect())
   }
 })
 </script>
@@ -65,12 +74,12 @@ onMounted(async () => {
           <UInput v-model="state.password" class="w-full" type="password" placeholder="请输入密码" />
         </UFormField>
 
-        <UButton type="submit" block label="进入控制台" icon="i-lucide-log-in" />
+        <UButton type="submit" block label="登录" icon="i-lucide-log-in" />
       </UForm>
 
       <div class="mt-4 text-sm text-muted">
         还没有账号？
-        <ULink to="/register" class="font-medium">
+        <ULink :to="route.query.redirect ? `/register?redirect=${route.query.redirect}` : '/register'" class="font-medium">
           去注册
         </ULink>
       </div>

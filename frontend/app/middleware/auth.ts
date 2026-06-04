@@ -13,6 +13,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   }
 
   if (!authState.user) {
-    return navigateTo('/login')
+    const redirect = encodeURIComponent(to.fullPath)
+    return navigateTo(`/login?redirect=${redirect}`)
   }
 })

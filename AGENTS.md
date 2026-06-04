@@ -119,6 +119,7 @@ internal/<module>/
 - Current blood metadata (`first`, `second`, `third`) is retained for display, but does not apply an extra score multiplier.
 - Only when the `users` table is completely empty, backend startup auto-creates a bootstrap admin user: `admin / sauryctf`.
 - The frontend now exposes separate `/login` and `/register` entries in the top-right navigation for basic account onboarding.
+- When a guest is redirected from a protected page such as `/console/**`, the target path is preserved in `?redirect=...` so login/register can return the user to the original destination.
 - Game registration now follows a lightweight review flow:
   - player join requests create `pending` participations
   - admins can change participant status to `accepted` or `rejected` from the admin contest page
