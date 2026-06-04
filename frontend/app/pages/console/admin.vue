@@ -1722,25 +1722,11 @@ async function deleteGame(gameId: number) {
 async function exportGame(gameId: number) {
   exportingGameId.value = gameId
   try {
-    const response = await $fetch.raw(`/api/admin/games/${gameId}/export`, {
-      method: 'POST',
-      responseType: 'blob',
-    })
-
-    const blob = response._data as Blob
-    const contentDisposition = response.headers.get('content-disposition') || ''
-    const match = contentDisposition.match(/filename="([^"]+)"/)
-    const filename = match?.[1] || `game-${gameId}-export.zip`
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
-
-    toast.add({ title: '比赛导出成功', description: `已下载 ${filename}`, color: 'success' })
+    await downloadArchive(
+      `/api/admin/games/${gameId}/export`,
+      `game-${gameId}-export.zip`,
+      '比赛导出成功',
+    )
   }
   catch (e: any) {
     toast.add({ title: '比赛导出失败', description: e.data?.message || e.message, color: 'error' })
@@ -1750,28 +1736,40 @@ async function exportGame(gameId: number) {
   }
 }
 
-async function exportScoreboard(gameId: number) {
+async function downloadArchive(url: string, fallbackFilename: string, successTitle: string) {
+  const response = await $fetch.raw(url, {
+    method: 'POST',
+    responseType: 'blob',
+  })
+
+  const blob = response._data as Blob
+  const contentDisposition = response.headers.get('content-disposition') || ''
+  const match = contentDisposition.match(/filename="([^"]+)"/)
+  const filename = match?.[1] || fallbackFilename
+  const objectUrl = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(objectUrl)
+
+  toast.add({ title: successTitle, description: `已下载 ${filename}`, color: 'success' })
+}
+
+async function exportScoreboard(gameId: number, division?: string) {
   exportingScoreboardGameId.value = gameId
   try {
-    const response = await $fetch.raw(`/api/admin/games/${gameId}/scoreboard/export`, {
-      method: 'POST',
-      responseType: 'blob',
-    })
-
-    const blob = response._data as Blob
-    const contentDisposition = response.headers.get('content-disposition') || ''
-    const match = contentDisposition.match(/filename="([^"]+)"/)
-    const filename = match?.[1] || `game-${gameId}-scoreboard-export.zip`
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
-
-    toast.add({ title: '榜单导出成功', description: `已下载 ${filename}`, color: 'success' })
+    const query = division ? `?division=${encodeURIComponent(division)}` : ''
+    const fallbackFilename = division
+      ? `game-${gameId}-scoreboard-${division}-export.zip`
+      : `game-${gameId}-scoreboard-export.zip`
+    await downloadArchive(
+      `/api/admin/games/${gameId}/scoreboard/export${query}`,
+      fallbackFilename,
+      '榜单导出成功',
+    )
   }
   catch (e: any) {
     toast.add({ title: '榜单导出失败', description: e.data?.message || e.message, color: 'error' })
@@ -1784,25 +1782,11 @@ async function exportScoreboard(gameId: number) {
 async function exportWriteups(gameId: number) {
   exportingWriteupsGameId.value = gameId
   try {
-    const response = await $fetch.raw(`/api/admin/games/${gameId}/writeups/export`, {
-      method: 'POST',
-      responseType: 'blob',
-    })
-
-    const blob = response._data as Blob
-    const contentDisposition = response.headers.get('content-disposition') || ''
-    const match = contentDisposition.match(/filename="([^"]+)"/)
-    const filename = match?.[1] || `game-${gameId}-writeups-export.zip`
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
-
-    toast.add({ title: 'Writeup 导出成功', description: `已下载 ${filename}`, color: 'success' })
+    await downloadArchive(
+      `/api/admin/games/${gameId}/writeups/export`,
+      `game-${gameId}-writeups-export.zip`,
+      'Writeup 导出成功',
+    )
   }
   catch (e: any) {
     toast.add({ title: 'Writeup 导出失败', description: e.data?.message || e.message, color: 'error' })
@@ -1815,25 +1799,11 @@ async function exportWriteups(gameId: number) {
 async function exportSubmissions(gameId: number) {
   exportingSubmissionsGameId.value = gameId
   try {
-    const response = await $fetch.raw(`/api/admin/games/${gameId}/submissions/export`, {
-      method: 'POST',
-      responseType: 'blob',
-    })
-
-    const blob = response._data as Blob
-    const contentDisposition = response.headers.get('content-disposition') || ''
-    const match = contentDisposition.match(/filename="([^"]+)"/)
-    const filename = match?.[1] || `game-${gameId}-submissions-export.zip`
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
-
-    toast.add({ title: '提交记录导出成功', description: `已下载 ${filename}`, color: 'success' })
+    await downloadArchive(
+      `/api/admin/games/${gameId}/submissions/export`,
+      `game-${gameId}-submissions-export.zip`,
+      '提交记录导出成功',
+    )
   }
   catch (e: any) {
     toast.add({ title: '提交记录导出失败', description: e.data?.message || e.message, color: 'error' })
@@ -2507,7 +2477,7 @@ onMounted(async () => {
                       variant="outline"
                       icon="i-lucide-download"
                       :loading="exportingScoreboardGameId === selectedGame.id"
-                      @click="exportScoreboard(selectedGame.id)"
+                      @click="exportScoreboard(selectedGame.id, selectedScoreboardDivision || undefined)"
                     >
                       导出榜单
                     </UButton>
@@ -2732,6 +2702,64 @@ onMounted(async () => {
           </div>
 
           <div v-else class="grid gap-4 xl:grid-cols-2">
+            <div class="rounded-lg border border-default px-3 py-3">
+              <div class="mb-3 flex items-center justify-between gap-2">
+                <div class="font-medium">
+                  赛后归档
+                </div>
+                <UBadge color="info" variant="soft">
+                  ZIP
+                </UBadge>
+              </div>
+              <div class="space-y-2 text-sm text-muted">
+                <p>适合把当前比赛的配置、榜单、Writeup 和提交记录统一下载下来，留给赛后复盘、存档或交付。</p>
+                <p v-if="selectedScoreboardDivision">
+                  当前榜单导出会跟随“榜单”标签里的分组选择：{{ selectedScoreboardDivision }}。
+                </p>
+              </div>
+              <div v-if="selectedAdminOverview" class="mt-3 grid gap-2 md:grid-cols-2">
+                <UButton
+                  size="sm"
+                  variant="outline"
+                  icon="i-lucide-package"
+                  :loading="exportingGameId === selectedAdminOverview.game.id"
+                  @click="exportGame(selectedAdminOverview.game.id)"
+                >
+                  导出比赛包
+                </UButton>
+                <UButton
+                  size="sm"
+                  variant="outline"
+                  icon="i-lucide-trophy"
+                  :loading="exportingScoreboardGameId === selectedAdminOverview.game.id"
+                  @click="exportScoreboard(selectedAdminOverview.game.id, selectedScoreboardDivision || undefined)"
+                >
+                  导出榜单包
+                </UButton>
+                <UButton
+                  size="sm"
+                  variant="outline"
+                  icon="i-lucide-file-text"
+                  :loading="exportingWriteupsGameId === selectedAdminOverview.game.id"
+                  @click="exportWriteups(selectedAdminOverview.game.id)"
+                >
+                  导出 Writeup
+                </UButton>
+                <UButton
+                  size="sm"
+                  variant="outline"
+                  icon="i-lucide-file-stack"
+                  :loading="exportingSubmissionsGameId === selectedAdminOverview.game.id"
+                  @click="exportSubmissions(selectedAdminOverview.game.id)"
+                >
+                  导出提交记录
+                </UButton>
+              </div>
+              <div v-else class="mt-3 text-sm text-muted">
+                先选中一场比赛，这里才会显示可用的归档导出动作。
+              </div>
+            </div>
+
             <div class="rounded-lg border border-default px-3 py-3">
               <div class="mb-3 flex items-center justify-between gap-2">
                 <div class="font-medium">
@@ -3392,15 +3420,6 @@ onMounted(async () => {
                 {{ selectedGame.name }} · {{ writeups.length }} 份 Writeup
               </div>
               <div class="flex items-center gap-2">
-                <UButton
-                  size="sm"
-                  variant="ghost"
-                  icon="i-lucide-file-stack"
-                  :loading="exportingSubmissionsGameId === selectedGame.id"
-                  @click="exportSubmissions(selectedGame.id)"
-                >
-                  导出提交记录
-                </UButton>
                 <UButton
                   size="sm"
                   variant="ghost"
