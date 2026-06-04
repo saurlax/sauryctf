@@ -56,7 +56,6 @@ func (s *Service) EnsureBootstrapAdmin() (*models.User, bool, error) {
 	if err := s.db.Model(&models.User{}).Count(&count).Error; err != nil {
 		return nil, false, err
 	}
-
 	if count > 0 {
 		return nil, false, nil
 	}

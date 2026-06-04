@@ -39,7 +39,7 @@ type UserInfo struct {
 }
 
 type ErrorResponse struct {
-	Error string `json:"error"`
+	Message string `json:"message"`
 }
 
 // Register godoc
@@ -55,13 +55,13 @@ type ErrorResponse struct {
 func (h *Handler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
 
 	user, err := h.svc.Register(req.Username, req.Email, req.Password)
 	if err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		c.JSON(http.StatusConflict, gin.H{"message": err.Error()})
 		return
 	}
 
@@ -90,13 +90,13 @@ func (h *Handler) Register(c *gin.Context) {
 func (h *Handler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
 
 	token, user, err := h.svc.Login(req.Username, req.Password)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, gin.H{"message": err.Error()})
 		return
 	}
 
@@ -115,12 +115,12 @@ func (h *Handler) Login(c *gin.Context) {
 func (h *Handler) Logout(c *gin.Context) {
 	token, err := c.Cookie("token")
 	if err != nil || token == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing token cookie"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "missing token cookie"})
 		return
 	}
 
 	if err := h.svc.Logout(token); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to logout"})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to logout"})
 		return
 	}
 
@@ -142,7 +142,7 @@ func (h *Handler) GetMe(c *gin.Context) {
 
 	user, err := h.svc.GetUserByID(userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		c.JSON(http.StatusNotFound, gin.H{"message": "user not found"})
 		return
 	}
 

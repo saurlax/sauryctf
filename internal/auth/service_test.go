@@ -74,6 +74,23 @@ func TestEnsureBootstrapAdmin(t *testing.T) {
 		require.NoError(t, database.Model(&models.User{}).Count(&count).Error)
 		assert.EqualValues(t, 1, count)
 	})
+
+	t.Run("creates bootstrap admin when database has users but no admin account", func(t *testing.T) {
+		database2 := setupTestDB(t)
+		svc2 := NewService(database2, "test-secret")
+
+		_, err := svc2.Register("alice", "alice@example.com", "password123")
+		require.NoError(t, err)
+
+		user, created, err := svc2.EnsureBootstrapAdmin()
+		require.NoError(t, err)
+		assert.False(t, created)
+		assert.Nil(t, user)
+
+		var count int64
+		require.NoError(t, database2.Model(&models.User{}).Count(&count).Error)
+		assert.EqualValues(t, 1, count)
+	})
 }
 
 func TestLogin(t *testing.T) {

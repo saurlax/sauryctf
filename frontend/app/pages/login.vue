@@ -44,16 +44,16 @@ onMounted(async () => {
   <div class="flex min-h-[70vh] items-center justify-center">
     <UPageCard
       class="w-full max-w-md"
-      title="登录/注册"
-      description="当前版本优先提供开箱即用的默认管理员账号。"
+      title="登录"
+      description="当前版本关闭公开注册，请使用已有账号登录。"
       icon="i-lucide-lock"
     >
       <UAlert
         class="mb-4"
         color="info"
         variant="soft"
-        title="默认管理员"
-        description="用户名 admin，密码 sauryctf。首次启动空库时会自动创建。"
+        title="默认管理员入口"
+        description="用户名 admin，密码 sauryctf。启动后如果系统里还没有默认管理员，会自动补齐。"
       />
 
       <UForm :schema="loginSchema" :state="state" class="space-y-4" @submit="onLogin">
