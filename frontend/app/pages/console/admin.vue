@@ -294,7 +294,11 @@ async function loadSelectedGameChallenges() {
 
   loadingGameChallenges.value = true
   try {
-    selectedGameChallenges.value = await $fetch(`/api/admin/games/${attachForm.game_id}/challenges`)
+    selectedGameChallenges.value = await $api('get', '/api/admin/games/{id}/challenges', {
+      params: {
+        id: attachForm.game_id,
+      },
+    })
   }
   catch (e: any) {
     selectedGameChallenges.value = []
@@ -339,7 +343,11 @@ async function loadWriteups() {
   }
 
   try {
-    writeups.value = await $fetch(`/api/admin/games/${attachForm.game_id}/writeups`)
+    writeups.value = await $api('get', '/api/admin/games/{id}/writeups', {
+      params: {
+        id: attachForm.game_id,
+      },
+    })
     for (const writeup of writeups.value) {
       writeupReviewDrafts[writeup.team_id] = writeup.status === 'rejected' ? 'rejected' : 'approved'
       writeupRemarkDrafts[writeup.team_id] = writeup.review_remark || ''
@@ -429,10 +437,19 @@ async function reviewWriteup(teamId: number) {
   }
 
   try {
-    const updated = await $fetch(`/api/admin/games/${attachForm.game_id}/writeups/${teamId}`, {
-      method: 'PUT',
+    const status = writeupReviewDrafts[teamId]
+    if (!status) {
+      toast.add({ title: '请先选择审核结果', color: 'warning' })
+      return
+    }
+
+    const updated = await $api('put', '/api/admin/games/{id}/writeups/{teamId}', {
+      params: {
+        id: attachForm.game_id,
+        teamId,
+      },
       body: {
-        status: writeupReviewDrafts[teamId],
+        status,
         remark: writeupRemarkDrafts[teamId] || '',
       },
     })
@@ -731,8 +748,10 @@ async function deleteGame(gameId: number) {
 
   deletingGameId.value = gameId
   try {
-    await $fetch(`/api/admin/games/${gameId}`, {
-      method: 'DELETE',
+    await $api('delete', '/api/admin/games/{id}', {
+      params: {
+        id: gameId,
+      },
     })
 
     if (attachForm.game_id === gameId) {

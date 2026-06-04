@@ -628,6 +628,48 @@ components:
           type: string
           nullable: true
 
+    ReviewGameWriteupRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [approved, rejected]
+        remark:
+          type: string
+
+    GameWriteup:
+      type: object
+      required: [game_id, team_id, team_name, submitted_by, content, status, review_remark, submitted_at, can_submit]
+      properties:
+        game_id:
+          type: integer
+        team_id:
+          type: integer
+        team_name:
+          type: string
+        submitted_by:
+          type: integer
+        content:
+          type: string
+        status:
+          type: string
+          enum: [submitted, approved, rejected]
+        reviewer_id:
+          type: integer
+          nullable: true
+        review_remark:
+          type: string
+        submitted_at:
+          type: string
+          format: date-time
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+        can_submit:
+          type: boolean
+
     HealthResponse:
       type: object
       required: [status, version]
@@ -1457,6 +1499,153 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+
+  /api/admin/games/{id}:
+    delete:
+      operationId: deleteAdminGame
+      summary: Delete a game and its game-scoped relations (admin)
+      tags: [games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /api/admin/games/import:
+    post:
+      operationId: importAdminGamePackage
+      summary: Import a game package (admin)
+      tags: [games]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Imported
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Game"
+
+  /api/admin/games/{id}/export:
+    post:
+      operationId: exportAdminGamePackage
+      summary: Export a game package (admin)
+      tags: [games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: ZIP package download
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+
+  /api/admin/games/{id}/challenges:
+    get:
+      operationId: getAdminGameChallenges
+      summary: Get full mounted challenges for management (admin)
+      tags: [games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Mounted challenge list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GameChallengeDetail"
+
+  /api/admin/games/{id}/writeups:
+    get:
+      operationId: getAdminGameWriteups
+      summary: List game writeups for review (admin)
+      tags: [games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Writeup list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GameWriteup"
+
+  /api/admin/games/{id}/writeups/{teamId}:
+    put:
+      operationId: updateAdminGameWriteup
+      summary: Review a game writeup (admin)
+      tags: [games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewGameWriteupRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameWriteup"
         "404":
           description: Not found
           content:

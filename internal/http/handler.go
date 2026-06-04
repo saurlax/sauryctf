@@ -137,6 +137,9 @@ func (h *Handler) DeleteGame(c *gin.Context, id int) {
 	}
 	h.games.DeleteGame(c, id)
 }
+func (h *Handler) DeleteAdminGame(c *gin.Context, id int) {
+	h.DeleteGame(c, id)
+}
 func (h *Handler) ExportGamePackage(c *gin.Context, id int) {
 	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
 	if c.IsAborted() {
@@ -144,12 +147,18 @@ func (h *Handler) ExportGamePackage(c *gin.Context, id int) {
 	}
 	h.games.ExportGamePackage(c, id)
 }
+func (h *Handler) ExportAdminGamePackage(c *gin.Context, id int) {
+	h.ExportGamePackage(c, id)
+}
 func (h *Handler) ImportGamePackage(c *gin.Context) {
 	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
 	if c.IsAborted() {
 		return
 	}
 	h.games.ImportGamePackage(c)
+}
+func (h *Handler) ImportAdminGamePackage(c *gin.Context) {
+	h.ImportGamePackage(c)
 }
 func (h *Handler) GetGameChallenges(c *gin.Context, id int) {
 	h.games.GetGameChallenges(c, id)
@@ -199,6 +208,9 @@ func (h *Handler) GetAdminGameChallenges(c *gin.Context, id int) {
 	}
 	h.games.GetAdminGameChallenges(c, id)
 }
+func (h *Handler) GetAdminGameWriteups(c *gin.Context, id int) {
+	h.GetGameWriteups(c, id)
+}
 func (h *Handler) UpdateGameParticipant(c *gin.Context, id int, teamId int) {
 	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
 	if c.IsAborted() {
@@ -226,4 +238,7 @@ func (h *Handler) UpdateGameWriteup(c *gin.Context, id int, teamId int) {
 		return
 	}
 	h.games.ReviewWriteup(c, id, teamId)
+}
+func (h *Handler) UpdateAdminGameWriteup(c *gin.Context, id int, teamId int) {
+	h.UpdateGameWriteup(c, id, teamId)
 }

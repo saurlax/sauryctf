@@ -332,6 +332,45 @@ func (e GameParticipationWriteupStatus) Valid() bool {
 	}
 }
 
+// Defines values for GameWriteupStatus.
+const (
+	GameWriteupStatusApproved  GameWriteupStatus = "approved"
+	GameWriteupStatusRejected  GameWriteupStatus = "rejected"
+	GameWriteupStatusSubmitted GameWriteupStatus = "submitted"
+)
+
+// Valid indicates whether the value is a known member of the GameWriteupStatus enum.
+func (e GameWriteupStatus) Valid() bool {
+	switch e {
+	case GameWriteupStatusApproved:
+		return true
+	case GameWriteupStatusRejected:
+		return true
+	case GameWriteupStatusSubmitted:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReviewGameWriteupRequestStatus.
+const (
+	ReviewGameWriteupRequestStatusApproved ReviewGameWriteupRequestStatus = "approved"
+	ReviewGameWriteupRequestStatusRejected ReviewGameWriteupRequestStatus = "rejected"
+)
+
+// Valid indicates whether the value is a known member of the ReviewGameWriteupRequestStatus enum.
+func (e ReviewGameWriteupRequestStatus) Valid() bool {
+	switch e {
+	case ReviewGameWriteupRequestStatusApproved:
+		return true
+	case ReviewGameWriteupRequestStatusRejected:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SubmitResultBloodType.
 const (
 	First  SubmitResultBloodType = "first"
@@ -650,6 +689,24 @@ type GameSubmitFlagRequest struct {
 	TeamId int    `json:"team_id"`
 }
 
+// GameWriteup defines model for GameWriteup.
+type GameWriteup struct {
+	CanSubmit    bool              `json:"can_submit"`
+	Content      string            `json:"content"`
+	GameId       int               `json:"game_id"`
+	ReviewRemark string            `json:"review_remark"`
+	ReviewedAt   *time.Time        `json:"reviewed_at,omitempty"`
+	ReviewerId   *int              `json:"reviewer_id,omitempty"`
+	Status       GameWriteupStatus `json:"status"`
+	SubmittedAt  time.Time         `json:"submitted_at"`
+	SubmittedBy  int               `json:"submitted_by"`
+	TeamId       int               `json:"team_id"`
+	TeamName     string            `json:"team_name"`
+}
+
+// GameWriteupStatus defines model for GameWriteup.Status.
+type GameWriteupStatus string
+
 // HealthResponse defines model for HealthResponse.
 type HealthResponse struct {
 	Status  string `json:"status"`
@@ -685,6 +742,15 @@ type RegisterRequest struct {
 	Password string              `json:"password"`
 	Username string              `json:"username"`
 }
+
+// ReviewGameWriteupRequest defines model for ReviewGameWriteupRequest.
+type ReviewGameWriteupRequest struct {
+	Remark *string                        `json:"remark,omitempty"`
+	Status ReviewGameWriteupRequestStatus `json:"status"`
+}
+
+// ReviewGameWriteupRequestStatus defines model for ReviewGameWriteupRequest.Status.
+type ReviewGameWriteupRequestStatus string
 
 // Scoreboard defines model for Scoreboard.
 type Scoreboard struct {
@@ -840,6 +906,11 @@ type UserInfoStatus string
 // bearerAuthContextKey is the context key for BearerAuth security scheme
 type bearerAuthContextKey string
 
+// ImportAdminGamePackageMultipartBody defines parameters for ImportAdminGamePackage.
+type ImportAdminGamePackageMultipartBody struct {
+	File openapi_types.File `json:"file"`
+}
+
 // ListChallengesParams defines parameters for ListChallenges.
 type ListChallengesParams struct {
 	Category   *string `form:"category,omitempty" json:"category,omitempty"`
@@ -855,6 +926,12 @@ type ListGamesParams struct {
 type GetScoreboardParams struct {
 	Division *string `form:"division,omitempty" json:"division,omitempty"`
 }
+
+// ImportAdminGamePackageMultipartRequestBody defines body for ImportAdminGamePackage for multipart/form-data ContentType.
+type ImportAdminGamePackageMultipartRequestBody ImportAdminGamePackageMultipartBody
+
+// UpdateAdminGameWriteupJSONRequestBody defines body for UpdateAdminGameWriteup for application/json ContentType.
+type UpdateAdminGameWriteupJSONRequestBody = ReviewGameWriteupRequest
 
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
@@ -900,6 +977,24 @@ type JoinTeamJSONRequestBody = JoinTeamRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Import a game package (admin)
+	// (POST /api/admin/games/import)
+	ImportAdminGamePackage(c *gin.Context)
+	// Delete a game and its game-scoped relations (admin)
+	// (DELETE /api/admin/games/{id})
+	DeleteAdminGame(c *gin.Context, id int)
+	// Get full mounted challenges for management (admin)
+	// (GET /api/admin/games/{id}/challenges)
+	GetAdminGameChallenges(c *gin.Context, id int)
+	// Export a game package (admin)
+	// (POST /api/admin/games/{id}/export)
+	ExportAdminGamePackage(c *gin.Context, id int)
+	// List game writeups for review (admin)
+	// (GET /api/admin/games/{id}/writeups)
+	GetAdminGameWriteups(c *gin.Context, id int)
+	// Review a game writeup (admin)
+	// (PUT /api/admin/games/{id}/writeups/{teamId})
+	UpdateAdminGameWriteup(c *gin.Context, id int, teamId int)
 	// Login with username or email
 	// (POST /api/auth/login)
 	Login(c *gin.Context)
@@ -1003,6 +1098,165 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(c *gin.Context)
+
+// ImportAdminGamePackage operation middleware
+func (siw *ServerInterfaceWrapper) ImportAdminGamePackage(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ImportAdminGamePackage(c)
+}
+
+// DeleteAdminGame operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminGame(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteAdminGame(c, id)
+}
+
+// GetAdminGameChallenges operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminGameChallenges(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminGameChallenges(c, id)
+}
+
+// ExportAdminGamePackage operation middleware
+func (siw *ServerInterfaceWrapper) ExportAdminGamePackage(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ExportAdminGamePackage(c, id)
+}
+
+// GetAdminGameWriteups operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminGameWriteups(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminGameWriteups(c, id)
+}
+
+// UpdateAdminGameWriteup operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminGameWriteup(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "teamId" -------------
+	var teamId int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "teamId", c.Param("teamId"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter teamId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateAdminGameWriteup(c, id, teamId)
+}
 
 // Login operation middleware
 func (siw *ServerInterfaceWrapper) Login(c *gin.Context) {
@@ -1792,6 +2046,12 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 		ErrorHandler:       errorHandler,
 	}
 
+	router.POST(options.BaseURL+"/api/admin/games/import", wrapper.ImportAdminGamePackage)
+	router.DELETE(options.BaseURL+"/api/admin/games/:id", wrapper.DeleteAdminGame)
+	router.GET(options.BaseURL+"/api/admin/games/:id/challenges", wrapper.GetAdminGameChallenges)
+	router.POST(options.BaseURL+"/api/admin/games/:id/export", wrapper.ExportAdminGamePackage)
+	router.GET(options.BaseURL+"/api/admin/games/:id/writeups", wrapper.GetAdminGameWriteups)
+	router.PUT(options.BaseURL+"/api/admin/games/:id/writeups/:teamId", wrapper.UpdateAdminGameWriteup)
 	router.POST(options.BaseURL+"/api/auth/login", wrapper.Login)
 	router.POST(options.BaseURL+"/api/auth/logout", wrapper.Logout)
 	router.GET(options.BaseURL+"/api/auth/me", wrapper.GetMe)

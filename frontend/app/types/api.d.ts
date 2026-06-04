@@ -115,6 +115,30 @@ export interface paths {
     /** Remove participant from a game (admin) */
     delete: operations["deleteGameParticipant"];
   };
+  "/api/admin/games/{id}": {
+    /** Delete a game and its game-scoped relations (admin) */
+    delete: operations["deleteAdminGame"];
+  };
+  "/api/admin/games/import": {
+    /** Import a game package (admin) */
+    post: operations["importAdminGamePackage"];
+  };
+  "/api/admin/games/{id}/export": {
+    /** Export a game package (admin) */
+    post: operations["exportAdminGamePackage"];
+  };
+  "/api/admin/games/{id}/challenges": {
+    /** Get full mounted challenges for management (admin) */
+    get: operations["getAdminGameChallenges"];
+  };
+  "/api/admin/games/{id}/writeups": {
+    /** List game writeups for review (admin) */
+    get: operations["getAdminGameWriteups"];
+  };
+  "/api/admin/games/{id}/writeups/{teamId}": {
+    /** Review a game writeup (admin) */
+    put: operations["updateAdminGameWriteup"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -415,6 +439,27 @@ export interface components {
       /** @enum {string} */
       status: "pending" | "accepted" | "rejected";
       division?: string | null;
+    };
+    ReviewGameWriteupRequest: {
+      /** @enum {string} */
+      status: "approved" | "rejected";
+      remark?: string;
+    };
+    GameWriteup: {
+      game_id: number;
+      team_id: number;
+      team_name: string;
+      submitted_by: number;
+      content: string;
+      /** @enum {string} */
+      status: "submitted" | "approved" | "rejected";
+      reviewer_id?: number | null;
+      review_remark: string;
+      /** Format: date-time */
+      submitted_at: string;
+      /** Format: date-time */
+      reviewed_at?: string | null;
+      can_submit: boolean;
     };
     HealthResponse: {
       status: string;
@@ -1070,6 +1115,111 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["MessageResponse"];
+        };
+      };
+    };
+  };
+  /** Delete a game and its game-scoped relations (admin) */
+  deleteAdminGame: {
+    parameters: {
+      path: {
+        id: number;
+      };
+    };
+    responses: {
+      /** @description Deleted */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MessageResponse"];
+        };
+      };
+    };
+  };
+  /** Import a game package (admin) */
+  importAdminGamePackage: {
+    requestBody: {
+      content: {
+        "multipart/form-data": {
+          /** Format: binary */
+          file: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Imported */
+      201: {
+        content: {
+          "application/json": components["schemas"]["Game"];
+        };
+      };
+    };
+  };
+  /** Export a game package (admin) */
+  exportAdminGamePackage: {
+    parameters: {
+      path: {
+        id: number;
+      };
+    };
+    responses: {
+      /** @description ZIP package download */
+      200: {
+        content: {
+          "application/zip": string;
+        };
+      };
+    };
+  };
+  /** Get full mounted challenges for management (admin) */
+  getAdminGameChallenges: {
+    parameters: {
+      path: {
+        id: number;
+      };
+    };
+    responses: {
+      /** @description Mounted challenge list */
+      200: {
+        content: {
+          "application/json": components["schemas"]["GameChallengeDetail"][];
+        };
+      };
+    };
+  };
+  /** List game writeups for review (admin) */
+  getAdminGameWriteups: {
+    parameters: {
+      path: {
+        id: number;
+      };
+    };
+    responses: {
+      /** @description Writeup list */
+      200: {
+        content: {
+          "application/json": components["schemas"]["GameWriteup"][];
+        };
+      };
+    };
+  };
+  /** Review a game writeup (admin) */
+  updateAdminGameWriteup: {
+    parameters: {
+      path: {
+        id: number;
+        teamId: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReviewGameWriteupRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        content: {
+          "application/json": components["schemas"]["GameWriteup"];
         };
       };
       /** @description Not found */
