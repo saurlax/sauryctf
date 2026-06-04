@@ -97,6 +97,7 @@ const attachSubmitting = ref(false)
 const settingsSubmitting = ref(false)
 const gameEditing = ref(false)
 const challengeEditing = ref(false)
+const smokeProvisioning = ref(false)
 const loadingResources = ref(false)
 const loadingGameChallenges = ref(false)
 const loadingParticipants = ref(false)
@@ -738,6 +739,79 @@ function fillSmokeChallengeTemplate() {
   toast.add({ title: '已填充题目模板', description: '当前题目适合用来验证最小提交闭环。', color: 'success' })
 }
 
+async function createSmokeProvision() {
+  const now = new Date()
+  const start = new Date(now.getTime() + 30 * 60 * 1000)
+  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000)
+  const freeze = new Date(end.getTime() - 30 * 60 * 1000)
+
+  smokeProvisioning.value = true
+  try {
+    const game = await $api('post', '/api/games', {
+      body: {
+        name: `Smoke Flow ${start.getFullYear()}`,
+        description: '本地冒烟用最小比赛模板。建议先用它验证报名、题目显示、Flag 提交和排行榜更新。',
+        notice: '这是本地联调用的最小模板比赛。先用普通用户走一遍注册、建队、报名和提交流程，再继续补题或调规则。',
+        divisions: [],
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
+        scoreboard_freeze_at: freeze.toISOString(),
+        registration_mode: 'auto_accept',
+        max_team_members: 4,
+        practice_mode: true,
+        writeup_required: false,
+        writeup_deadline: null,
+        is_public: true,
+      },
+    })
+
+    const challenge = await $api('post', '/api/challenges', {
+      body: {
+        title: 'Warmup Flag',
+        description: '这是一个本地冒烟用的最小题目模板。创建后把它挂到比赛里，再用普通用户提交 `flag{warmup}` 验证整条链路。',
+        hints: JSON.stringify([
+          '直接提交标准示例 Flag 即可。',
+          '如果提交失败，优先检查报名状态和比赛是否已开始。',
+        ]),
+        attachments: '[]',
+        category: 'misc',
+        type: 'static',
+        difficulty: 'easy',
+        flag: 'flag{warmup}',
+        base_score: 100,
+        min_score: 100,
+        decay_rate: 0,
+        is_visible: true,
+      },
+    })
+
+    await $api('post', '/api/games/{id}/challenges', {
+      params: {
+        id: game.id,
+      },
+      body: {
+        challenge_id: challenge.id,
+      },
+    })
+
+    await loadAdminResources()
+    selectGameContext(game.id)
+    attachForm.challenge_id = challenge.id
+    toast.add({
+      title: '冒烟比赛已创建',
+      description: `已创建 ${game.name}，并自动挂上 Warmup Flag。现在可以直接去公开页验证整条链路。`,
+      color: 'success',
+    })
+    jumpToAdminAnchor('#attach-challenge')
+  }
+  catch (e: any) {
+    toast.add({ title: '创建冒烟比赛失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    smokeProvisioning.value = false
+  }
+}
+
 function selectGameContext(gameId?: number) {
   attachForm.game_id = gameId
   gameSettingsForm.game_id = gameId
@@ -1303,6 +1377,34 @@ onMounted(async () => {
           icon="i-lucide-link"
         />
       </div>
+
+      <UPageCard title="本地冒烟入口" icon="i-lucide-flask-conical">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div class="space-y-2">
+            <p class="text-sm text-muted">
+              一次点击自动创建一场公开比赛、一道 `flag{warmup}` 题目，并完成挂题。适合空库首次启动后的最小联调。
+            </p>
+            <UAlert
+              color="info"
+              variant="soft"
+              title="推荐用途"
+              description="先用这条入口跑通管理员建赛、普通用户报名、Flag 提交和排行榜更新，再继续补更复杂的比赛配置。"
+            />
+          </div>
+
+          <div class="flex shrink-0 flex-wrap gap-2">
+            <UButton icon="i-lucide-flask-conical" :loading="smokeProvisioning" @click="createSmokeProvision">
+              一键创建冒烟比赛
+            </UButton>
+            <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeGameTemplate">
+              只填比赛模板
+            </UButton>
+            <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeChallengeTemplate">
+              只填题目模板
+            </UButton>
+          </div>
+        </div>
+      </UPageCard>
 
       <UPageCard title="首次建赛路径" icon="i-lucide-list-checks">
         <div class="space-y-3">
