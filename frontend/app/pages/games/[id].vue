@@ -822,6 +822,77 @@ const contestFactRows = computed(() => [
   },
 ])
 
+const divisionRuleDescription = computed(() => {
+  if (!availableDivisions.value.length) {
+    return '当前比赛不区分分组榜，报名后直接进入统一榜单。'
+  }
+
+  if (availableDivisions.value.length === 1) {
+    return `当前比赛只配置了一个分组：${availableDivisions.value[0]}。报名成功后会自动归入这个分组。`
+  }
+
+  if (participation.value?.division) {
+    return `当前比赛配置了 ${availableDivisions.value.length} 个分组。你的队伍目前被分配到 ${participation.value.division}。`
+  }
+
+  return `当前比赛配置了 ${availableDivisions.value.length} 个分组。报名后会先建立参赛记录，随后由管理员按需要分配到具体分组。`
+})
+
+const registrationStepCards = computed(() => [
+  {
+    label: '1. 登录账号',
+    value: authState.user ? '已完成' : '待完成',
+    hint: authState.user ? `当前账号：${authState.user.username}` : '登录后才能看到你的队伍状态并提交报名',
+    icon: authState.user ? 'i-lucide-check-circle-2' : 'i-lucide-log-in',
+    color: authState.user ? 'success' as const : 'neutral' as const,
+  },
+  {
+    label: '2. 准备队伍',
+    value: participation.value?.has_team ? '已完成' : '待完成',
+    hint: participation.value?.team?.name ? `当前队伍：${participation.value.team.name}` : '比赛以内队形式参赛，请先创建或加入队伍',
+    icon: participation.value?.has_team ? 'i-lucide-users-round' : 'i-lucide-users',
+    color: participation.value?.has_team ? 'success' as const : 'warning' as const,
+  },
+  {
+    label: '3. 完成报名',
+    value: participation.value?.participated
+      ? (participation.value.status === 'accepted' ? '已通过' : participation.value.status === 'pending' ? '待审核' : '已拒绝')
+      : '待完成',
+    hint: participation.value?.participated
+      ? (
+          participation.value.status === 'accepted'
+            ? '当前队伍已经具备正式参赛资格'
+            : participation.value.status === 'pending'
+              ? '报名已提交，等待管理员审核'
+              : '可先撤回报名，调整后重新提交'
+        )
+      : (game.value?.registration_mode === 'auto_accept' ? '报名后会直接通过' : '报名后需等待管理员审核'),
+    icon: participation.value?.status === 'accepted'
+      ? 'i-lucide-badge-check'
+      : participation.value?.status === 'pending'
+        ? 'i-lucide-hourglass'
+        : participation.value?.status === 'rejected'
+          ? 'i-lucide-badge-x'
+          : 'i-lucide-clipboard-check',
+    color: participation.value?.status === 'accepted'
+      ? 'success' as const
+      : participation.value?.status === 'pending'
+        ? 'warning' as const
+        : participation.value?.status === 'rejected'
+          ? 'error' as const
+          : 'info' as const,
+  },
+  {
+    label: '4. 开始解题',
+    value: canSubmitFlag.value ? '当前可提交' : '暂未开放',
+    hint: canSubmitFlag.value
+      ? (gameStatusMeta.value.label === '已结束' ? '当前为赛后练习提交，不计入正式榜单' : '可以直接切换到题目标签提交 Flag')
+      : submitHint.value,
+    icon: canSubmitFlag.value ? 'i-lucide-flag' : 'i-lucide-lock',
+    color: canSubmitFlag.value ? 'success' as const : 'neutral' as const,
+  },
+])
+
 const contestGuideItems = computed(() => [
   '先在控制台创建或加入队伍，再完成比赛报名。',
   game.value?.registration_mode === 'auto_accept'
@@ -841,6 +912,7 @@ const contestGuideItems = computed(() => [
         ? `当前比赛要求提交 Writeup，截止时间为 ${new Date(game.value.writeup_deadline).toLocaleString()}。`
         : '当前比赛要求提交 Writeup，具体截止时间请留意公告。')
     : '当前比赛不强制要求提交 Writeup。',
+  divisionRuleDescription.value,
   '待审核或已拒绝的报名可以撤回；已通过报名后队伍将锁定，不能再撤回。',
 ])
 
@@ -1260,6 +1332,27 @@ onMounted(async () => {
               </div>
             </UPageCard>
 
+            <UPageCard title="参赛步骤" icon="i-lucide-route">
+              <UPageGrid :cols="{ default: 1, sm: 2 }">
+                <UPageCard
+                  v-for="card in registrationStepCards"
+                  :key="card.label"
+                  :title="card.value"
+                  :description="card.label"
+                  :icon="card.icon"
+                >
+                  <template #footer>
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-xs text-muted">{{ card.hint }}</span>
+                      <UBadge :color="card.color" variant="subtle" size="sm">
+                        {{ card.label }}
+                      </UBadge>
+                    </div>
+                  </template>
+                </UPageCard>
+              </UPageGrid>
+            </UPageCard>
+
             <UPageCard title="比赛信息" icon="i-lucide-badge-check">
               <div class="space-y-3 text-sm">
                 <div class="flex items-center justify-between gap-3">
@@ -1273,6 +1366,14 @@ onMounted(async () => {
                 >
                   <span class="text-muted">{{ row.label }}</span>
                   <span class="text-right">{{ row.value }}</span>
+                </div>
+                <div class="rounded-lg border border-default px-3 py-3">
+                  <div class="text-muted">
+                    分组规则
+                  </div>
+                  <div class="mt-2 leading-6">
+                    {{ divisionRuleDescription }}
+                  </div>
                 </div>
               </div>
             </UPageCard>
