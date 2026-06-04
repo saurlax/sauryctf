@@ -28,6 +28,8 @@ interface GameSummary {
   status: 'draft' | 'active' | 'ended'
   is_public?: boolean
   registration_mode?: 'review' | 'auto_accept'
+  practice_mode?: boolean
+  writeup_required?: boolean
 }
 
 type GameParticipation = components['schemas']['GameParticipation']
@@ -35,6 +37,7 @@ type GameParticipation = components['schemas']['GameParticipation']
 const isAdmin = computed(() => ['admin', 'super_admin'].includes(authState.user?.role || ''))
 const { fetchParticipationMap } = useGameParticipationMap()
 const loading = ref(true)
+const adminActionGameId = ref<number | null>(null)
 const team = ref<TeamSummary | null>(null)
 const games = ref<GameSummary[]>([])
 const participationMap = ref<Record<number, GameParticipation>>({})
@@ -68,7 +71,11 @@ async function fetchConsoleData() {
   try {
     const [teamRes, gamesRes] = await Promise.allSettled([
       $api('get', '/api/teams/my'),
-      $api('get', '/api/games'),
+      $api('get', '/api/games', {
+        query: isAdmin.value
+          ? { all: true }
+          : undefined,
+      }),
     ])
 
     if (teamRes.status === 'fulfilled') {
@@ -91,6 +98,32 @@ async function fetchConsoleData() {
   }
   finally {
     loading.value = false
+  }
+}
+
+async function updateGameStatusQuick(game: GameSummary, status: GameSummary['status']) {
+  adminActionGameId.value = game.id
+  try {
+    await $api('put', '/api/games/{id}', {
+      params: {
+        id: game.id,
+      },
+      body: {
+        status,
+      },
+    })
+    toast.add({
+      title: '比赛状态已更新',
+      description: `${game.name} 已切换为 ${getStatusMeta(status).label}。`,
+      color: 'success',
+    })
+    await fetchConsoleData()
+  }
+  catch (e: any) {
+    toast.add({ title: '比赛状态更新失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    adminActionGameId.value = null
   }
 }
 
@@ -277,6 +310,12 @@ function getStatusMeta(status: GameSummary['status']) {
   return meta[status] || meta.draft
 }
 
+const adminManagedGames = computed(() =>
+  [...games.value]
+    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+    .slice(0, 5),
+)
+
 onMounted(async () => {
   await ensureInitialized()
   await fetchConsoleData()
@@ -323,6 +362,96 @@ onMounted(async () => {
 
       <div class="mt-8 grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-6">
         <div class="space-y-6">
+          <UPageCard v-if="isAdmin" title="管理员快捷操作" icon="i-lucide-shield-check">
+            <div class="space-y-3">
+              <div class="flex flex-wrap gap-2">
+                <UButton label="打开管理端" icon="i-lucide-settings-2" to="/console/admin" variant="outline" />
+                <UButton label="浏览公开页" icon="i-lucide-arrow-up-right" to="/games" variant="outline" />
+              </div>
+
+              <div
+                v-for="game in adminManagedGames"
+                :key="game.id"
+                class="rounded-lg border border-default px-3 py-3"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <div class="font-medium">
+                        {{ game.name }}
+                      </div>
+                      <UBadge :color="getStatusMeta(game.status).color" variant="soft">
+                        {{ getStatusMeta(game.status).label }}
+                      </UBadge>
+                      <UBadge :color="game.is_public ? 'info' : 'neutral'" variant="soft">
+                        {{ game.is_public ? '公开' : '私有' }}
+                      </UBadge>
+                    </div>
+                    <div class="mt-2 text-sm text-muted">
+                      {{ new Date(game.start_time).toLocaleString() }} - {{ new Date(game.end_time).toLocaleString() }}
+                    </div>
+                    <div class="mt-1 text-sm text-muted">
+                      {{ game.registration_mode === 'auto_accept' ? '自动通过报名' : '人工审核报名' }} · {{ game.practice_mode ? '赛后练习开启' : '仅正赛' }} · {{ game.writeup_required ? '需要 Writeup' : '不要求 Writeup' }}
+                    </div>
+                  </div>
+
+                  <div class="flex flex-wrap justify-end gap-2">
+                    <UButton
+                      size="sm"
+                      variant="ghost"
+                      icon="i-lucide-settings-2"
+                      to="/console/admin"
+                    >
+                      管理
+                    </UButton>
+                    <UButton
+                      size="sm"
+                      variant="ghost"
+                      icon="i-lucide-arrow-up-right"
+                      :to="`/games/${game.id}`"
+                    >
+                      打开
+                    </UButton>
+                    <UButton
+                      v-if="game.status === 'draft'"
+                      size="sm"
+                      icon="i-lucide-play"
+                      :loading="adminActionGameId === game.id"
+                      @click="updateGameStatusQuick(game, 'active')"
+                    >
+                      立即开赛
+                    </UButton>
+                    <UButton
+                      v-else-if="game.status === 'active'"
+                      size="sm"
+                      color="warning"
+                      variant="soft"
+                      icon="i-lucide-circle-stop"
+                      :loading="adminActionGameId === game.id"
+                      @click="updateGameStatusQuick(game, 'ended')"
+                    >
+                      结束比赛
+                    </UButton>
+                    <UButton
+                      v-else
+                      size="sm"
+                      color="neutral"
+                      variant="soft"
+                      icon="i-lucide-archive"
+                      disabled
+                    >
+                      已归档
+                    </UButton>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="!adminManagedGames.length" class="text-sm text-muted">
+                当前还没有可管理的比赛，先去管理端创建一场比赛。
+              </div>
+            </div>
+          </UPageCard>
+
           <UPageCard title="下一步" icon="i-lucide-list-checks">
             <div class="space-y-3">
               <div
