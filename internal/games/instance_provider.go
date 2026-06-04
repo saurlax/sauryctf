@@ -1,6 +1,9 @@
 package games
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
+	"fmt"
 	"strings"
 
 	"github.com/saurlax/sauryctf/internal/models"
@@ -18,37 +21,37 @@ func (p *leaseSkeletonProvider) EnsureLease(req ChallengeInstanceProviderRequest
 		startedAt = req.Existing.StartedAt
 	}
 
-	provider := strings.TrimSpace(req.Runtime.Provider)
+	provider := templateChallengeInstanceValue(req.Runtime.Provider, req)
 	if provider == "" && req.Existing != nil {
 		provider = req.Existing.Provider
 	}
 
-	image := strings.TrimSpace(req.Runtime.Image)
+	image := templateChallengeInstanceValue(req.Runtime.Image, req)
 	if image == "" && req.Existing != nil {
 		image = req.Existing.Image
 	}
 
-	launchURL := strings.TrimSpace(req.Runtime.LaunchURL)
+	launchURL := templateChallengeInstanceValue(req.Runtime.LaunchURL, req)
 	if launchURL == "" && req.Existing != nil {
 		launchURL = req.Existing.LaunchURL
 	}
 
-	host := strings.TrimSpace(req.Runtime.Host)
+	host := templateChallengeInstanceValue(req.Runtime.Host, req)
 	if host == "" && req.Existing != nil {
 		host = req.Existing.Host
 	}
 
-	port := strings.TrimSpace(req.Runtime.Port)
+	port := templateChallengeInstanceValue(req.Runtime.Port, req)
 	if port == "" && req.Existing != nil {
 		port = req.Existing.Port
 	}
 
-	command := strings.TrimSpace(req.Runtime.Command)
+	command := templateChallengeInstanceValue(req.Runtime.Command, req)
 	if command == "" && req.Existing != nil {
 		command = req.Existing.Command
 	}
 
-	note := strings.TrimSpace(req.Runtime.Note)
+	note := templateChallengeInstanceValue(req.Runtime.Note, req)
 	if note == "" && req.Existing != nil {
 		note = req.Existing.Note
 	}
@@ -66,6 +69,28 @@ func (p *leaseSkeletonProvider) EnsureLease(req ChallengeInstanceProviderRequest
 		LastRenewedAt: req.Now,
 		ExpiresAt:     req.Now.Add(req.LeaseDuration),
 	}, nil
+}
+
+func templateChallengeInstanceValue(input string, req ChallengeInstanceProviderRequest) string {
+	source := strings.TrimSpace(input)
+	if source == "" {
+		return ""
+	}
+
+	replacer := strings.NewReplacer(
+		"{{game_id}}", fmt.Sprintf("%d", req.GameID),
+		"{{challenge_id}}", fmt.Sprintf("%d", req.ChallengeID),
+		"{{team_id}}", fmt.Sprintf("%d", req.TeamID),
+		"{{user_id}}", fmt.Sprintf("%d", req.UserID),
+		"{{team_hash}}", challengeInstanceTeamHash(req),
+	)
+
+	return replacer.Replace(source)
+}
+
+func challengeInstanceTeamHash(req ChallengeInstanceProviderRequest) string {
+	sum := sha1.Sum([]byte(fmt.Sprintf("%d:%d:%d", req.GameID, req.ChallengeID, req.TeamID)))
+	return hex.EncodeToString(sum[:6])
 }
 
 func defaultChallengeInstanceProviders() map[string]ChallengeInstanceProvider {

@@ -3,7 +3,10 @@ package games_test
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/sha1"
 	"encoding/json"
+	"encoding/hex"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -1781,6 +1784,65 @@ func TestService_ChallengeInstanceLifecycle_ForAcceptedTeam(t *testing.T) {
 	assert.Equal(t, "http://127.0.0.1:8081", running.LaunchURL)
 }
 
+func TestService_ChallengeInstanceLifecycle_RendersTemplateFieldsPerTeam(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	database := svcDB(t, svc)
+
+	user := models.User{Username: "templated-user", Email: "templated@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+
+	team := models.Team{Name: "Templated Team", InviteCode: "templated-team", CaptainID: user.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team.ID,
+		UserID: user.ID,
+		Role:   models.MemberRoleCaptain,
+	}).Error)
+
+	challenge := models.Challenge{
+		Title:         "Templated Lease",
+		Category:      models.CategoryWeb,
+		Type:          models.TypeDynamic,
+		Flag:          "flag{templated}",
+		BaseScore:     100,
+		MinScore:      100,
+		DecayRate:     0,
+		IsVisible:     true,
+		CreatedBy:     user.ID,
+		ContainerSpec: `{"runtime":{"provider":"docker","image":"ctf/example:latest"},"connection":{"url":"https://{{team_hash}}.instance.local/games/{{game_id}}/challenges/{{challenge_id}}","host":"{{team_hash}}.instance.local","port":"{{team_id}}","command":"ssh ctf@{{team_hash}}.instance.local -p {{team_id}}","note":"team {{team_id}} for game {{game_id}}"}}`,
+	}
+	require.NoError(t, database.Create(&challenge).Error)
+
+	game := models.Game{
+		Name:         "Templated Game",
+		StartTime:    time.Now().Add(-time.Hour),
+		EndTime:      time.Now().Add(time.Hour),
+		Status:       "active",
+		IsPublic:     true,
+		PracticeMode: true,
+		CreatedBy:    user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+	require.NoError(t, database.Create(&models.GameChallenge{
+		GameID: game.ID, ChallengeID: challenge.ID,
+	}).Error)
+	require.NoError(t, database.Create(&models.Participation{
+		GameID: game.ID, TeamID: team.ID, UserID: user.ID, Status: models.ParticipationAccepted,
+	}).Error)
+
+	running, err := svc.EnsureChallengeInstance(game.ID, challenge.ID, user.ID)
+	require.NoError(t, err)
+
+	expectedHash := shortTeamHash(game.ID, challenge.ID, team.ID)
+	assert.Equal(t, fmt.Sprintf("https://%s.instance.local/games/%d/challenges/%d", expectedHash, game.ID, challenge.ID), running.LaunchURL)
+	assert.Equal(t, fmt.Sprintf("%s.instance.local", expectedHash), running.Host)
+	assert.Equal(t, fmt.Sprintf("%d", team.ID), running.Port)
+	assert.Equal(t, fmt.Sprintf("ssh ctf@%s.instance.local -p %d", expectedHash, team.ID), running.Command)
+	assert.Equal(t, fmt.Sprintf("team %d for game %d", team.ID, game.ID), running.Note)
+}
+
 func TestService_ChallengeInstanceLifecycle_UsesCustomProvider(t *testing.T) {
 	database, err := db.ConnectTest()
 	require.NoError(t, err)
@@ -1865,6 +1927,11 @@ func svcDB(t *testing.T, svc *games.Service) *gorm.DB {
 	require.NotNil(t, svc)
 	require.NotNil(t, lastTestDB)
 	return lastTestDB
+}
+
+func shortTeamHash(gameID uint, challengeID uint, teamID uint) string {
+	sum := sha1.Sum([]byte(fmt.Sprintf("%d:%d:%d", gameID, challengeID, teamID)))
+	return hex.EncodeToString(sum[:6])
 }
 
 func TestService_SubmitWriteup_RequiresAcceptedParticipation(t *testing.T) {

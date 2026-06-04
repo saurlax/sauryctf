@@ -168,6 +168,7 @@ internal/<module>/
   - only `accepted` teams after contest start can use them; post-contest renewals remain available only when `practice_mode` is enabled
   - this is intentionally a database-backed lease skeleton for now, not a real container orchestrator yet
   - the backend now routes lease creation/renewal through a small provider abstraction so future Docker/K8s integrations can replace the skeleton behavior without rewriting the game service
+  - the default skeleton provider also supports simple per-team templating in `container_spec.connection.*` using `{{game_id}}`, `{{challenge_id}}`, `{{team_id}}`, `{{user_id}}`, and `{{team_hash}}`, so local dynamic challenges can expose stable team-specific entry data before real providers land
 - Registration withdrawal now follows the current GZCTF-style rule:
   - `pending` / `rejected` participations can be withdrawn
   - `accepted` participations are locked and can no longer be withdrawn

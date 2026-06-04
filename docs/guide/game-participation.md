@@ -182,6 +182,15 @@
 - 现在默认还是占位实现：
   - 只负责生成租约状态
   - 不会真的起 Docker / K8s 容器
+- 这个占位 provider 现在也支持一层最小模板展开：
+  - `{{game_id}}`
+  - `{{challenge_id}}`
+  - `{{team_id}}`
+  - `{{user_id}}`
+  - `{{team_hash}}`
+- 适合先把动态题的连接入口做成“每队不同但稳定”的本地形态
+  - 例如 `connection.url` 可以写成 `https://{{team_hash}}.instance.local/chal/{{challenge_id}}`
+  - 当前仍然只是在租约响应里生成差异化入口，不会真的创建容器或反代
 - 这样做是为了向 GZCTF 的 `ContainerProvider` 模型靠拢
   - 后续可以按 `runtime.provider` 继续接 `docker`、`k8s` 或代理型 provider
   - 当前 `docker`、`k8s`、`proxy` 等名称都会先落到同一套占位 provider
