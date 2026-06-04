@@ -18,8 +18,10 @@ type ServiceInterface interface {
 	JoinGame(gameID uint, teamID uint, userID uint) error
 	LeaveGame(gameID uint, teamID uint, userID uint) error
 	GetParticipation(gameID uint, teamID uint) (*models.Participation, error)
+	GetParticipationStatus(gameID uint, userID uint) (*GameParticipationResponse, error)
 	// Challenges in game
 	GetGameChallenges(gameID uint) ([]GameChallengeDetail, error)
+	GetGameChallengesForTeam(gameID uint, teamID uint) ([]GameChallengeDetail, error)
 	// Flag submission (game-scoped, replaces the standalone submit)
 	SubmitFlag(gameID uint, challengeID uint, userID uint, teamID uint, flag string) (*SubmitResult, error)
 	// Scoreboard
@@ -94,4 +96,16 @@ type ScoreboardEntry struct {
 type ScoreboardResponse struct {
 	GameID  uint              `json:"game_id"`
 	Entries []ScoreboardEntry `json:"entries"`
+}
+
+type GameParticipationTeam struct {
+	ID   uint   `json:"id"`
+	Name string `json:"name"`
+}
+
+type GameParticipationResponse struct {
+	HasTeam      bool                   `json:"has_team"`
+	Participated bool                   `json:"participated"`
+	Status       string                 `json:"status,omitempty"`
+	Team         *GameParticipationTeam `json:"team,omitempty"`
 }

@@ -190,6 +190,53 @@ func (s *Service) GetParticipation(gameID uint, teamID uint) (*models.Participat
 	return &part, nil
 }
 
+func (s *Service) GetParticipationStatus(gameID uint, userID uint) (*GameParticipationResponse, error) {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("game not found")
+		}
+		return nil, err
+	}
+
+	var member models.TeamMember
+	if err := s.db.Where("user_id = ?", userID).First(&member).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &GameParticipationResponse{
+				HasTeam:      false,
+				Participated: false,
+			}, nil
+		}
+		return nil, err
+	}
+
+	var team models.Team
+	if err := s.db.First(&team, member.TeamID).Error; err != nil {
+		return nil, err
+	}
+
+	response := &GameParticipationResponse{
+		HasTeam: true,
+		Team: &GameParticipationTeam{
+			ID:   team.ID,
+			Name: team.Name,
+		},
+	}
+
+	var participation models.Participation
+	if err := s.db.Where("game_id = ? AND team_id = ?", gameID, team.ID).First(&participation).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Participated = false
+			return response, nil
+		}
+		return nil, err
+	}
+
+	response.Participated = true
+	response.Status = string(participation.Status)
+	return response, nil
+}
+
 // GetGameChallenges returns challenges for a game with solve counts and team solve status.
 func (s *Service) GetGameChallenges(gameID uint) ([]GameChallengeDetail, error) {
 	type row struct {
@@ -248,6 +295,52 @@ func (s *Service) GetGameChallenges(gameID uint) ([]GameChallengeDetail, error) 
 		})
 	}
 	return result, nil
+}
+
+func (s *Service) GetGameChallengesForTeam(gameID uint, teamID uint) ([]GameChallengeDetail, error) {
+	challenges, err := s.GetGameChallenges(gameID)
+	if err != nil {
+		return nil, err
+	}
+
+	var solves []models.Solve
+	if err := s.db.Where("game_id = ? AND team_id = ?", gameID, teamID).Find(&solves).Error; err != nil {
+		return nil, err
+	}
+
+	solvedMap := make(map[uint]models.Solve, len(solves))
+	for _, solve := range solves {
+		solvedMap[solve.ChallengeID] = solve
+	}
+
+	type bloodRow struct {
+		ChallengeID uint
+		TeamName    string
+	}
+	var bloodRows []bloodRow
+	if err := s.db.Table("solves").
+		Select("solves.challenge_id, teams.name as team_name").
+		Joins("JOIN teams ON teams.id = solves.team_id").
+		Where("solves.game_id = ? AND solves.blood_type = ?", gameID, "first").
+		Scan(&bloodRows).Error; err != nil {
+		return nil, err
+	}
+
+	bloodMap := map[uint]string{}
+	for _, row := range bloodRows {
+		bloodMap[row.ChallengeID] = row.TeamName
+	}
+
+	for i := range challenges {
+		if _, ok := solvedMap[challenges[i].ID]; ok {
+			challenges[i].Solved = true
+		}
+		if teamName, ok := bloodMap[challenges[i].ID]; ok {
+			challenges[i].BloodTeam = teamName
+		}
+	}
+
+	return challenges, nil
 }
 
 // SubmitFlag handles flag submission scoped to a game.
@@ -365,11 +458,31 @@ func (s *Service) GetScoreboard(gameID uint) (*ScoreboardResponse, error) {
 		LastSolve  time.Time
 	}
 
+	var participationRows []struct {
+		TeamID   uint
+		TeamName string
+	}
+	if err := s.db.Table("participations").
+		Select("participations.team_id, teams.name as team_name").
+		Joins("JOIN teams ON teams.id = participations.team_id").
+		Where("participations.game_id = ? AND participations.status = ?", gameID, models.ParticipationAccepted).
+		Scan(&participationRows).Error; err != nil {
+		return nil, err
+	}
+
+	teamMap := map[uint]*teamScore{}
+	for _, row := range participationRows {
+		teamMap[row.TeamID] = &teamScore{
+			TeamID:   row.TeamID,
+			TeamName: row.TeamName,
+		}
+	}
+
 	var rows []struct {
-		TeamID    uint
-		TeamName  string
-		Score     int
-		SolvedAt  time.Time
+		TeamID   uint
+		TeamName string
+		Score    int
+		SolvedAt time.Time
 	}
 
 	if err := s.db.Table("solves").
@@ -381,8 +494,6 @@ func (s *Service) GetScoreboard(gameID uint) (*ScoreboardResponse, error) {
 		return nil, err
 	}
 
-	// Aggregate per team
-	teamMap := map[uint]*teamScore{}
 	for _, r := range rows {
 		entry, exists := teamMap[r.TeamID]
 		if !exists {
@@ -396,7 +507,7 @@ func (s *Service) GetScoreboard(gameID uint) (*ScoreboardResponse, error) {
 		}
 	}
 
-	// Sort: higher score first; tie-break by earlier last solve
+	// Sort: higher score first; tie-break by earlier last solve; teams with no solves last among same score.
 	entries := make([]ScoreboardEntry, 0, len(teamMap))
 	for _, ts := range teamMap {
 		entries = append(entries, ScoreboardEntry{
@@ -411,7 +522,20 @@ func (s *Service) GetScoreboard(gameID uint) (*ScoreboardResponse, error) {
 	for i := 0; i < len(entries); i++ {
 		for j := i + 1; j < len(entries); j++ {
 			a, b := entries[i], entries[j]
-			if b.Score > a.Score || (b.Score == a.Score && b.LastSolve.Before(a.LastSolve)) {
+			aHasSolve := !a.LastSolve.IsZero()
+			bHasSolve := !b.LastSolve.IsZero()
+			shouldSwap := false
+			if b.Score > a.Score {
+				shouldSwap = true
+			} else if b.Score == a.Score {
+				if aHasSolve && bHasSolve && b.LastSolve.Before(a.LastSolve) {
+					shouldSwap = true
+				}
+				if !aHasSolve && bHasSolve {
+					shouldSwap = true
+				}
+			}
+			if shouldSwap {
 				entries[i], entries[j] = entries[j], entries[i]
 			}
 		}

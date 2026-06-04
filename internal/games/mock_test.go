@@ -9,11 +9,12 @@ import (
 )
 
 type MockService struct {
-	mu            sync.Mutex
-	Games         map[uint]*GameResponse
-	GameChs       map[string]bool // "gameID-challengeID"
-	Participations map[string]bool // "gameID-teamID"
-	nextID        uint
+	mu              sync.Mutex
+	Games           map[uint]*GameResponse
+	GameChs         map[string]bool // "gameID-challengeID"
+	Participations  map[string]bool // "gameID-teamID"
+	UserTeams       map[uint]*GameParticipationTeam
+	nextID          uint
 }
 
 func NewMockService() *MockService {
@@ -21,6 +22,7 @@ func NewMockService() *MockService {
 		Games:          make(map[uint]*GameResponse),
 		GameChs:        make(map[string]bool),
 		Participations: make(map[string]bool),
+		UserTeams:      make(map[uint]*GameParticipationTeam),
 		nextID:         1,
 	}
 }
@@ -156,6 +158,31 @@ func (m *MockService) GetParticipation(gameID uint, teamID uint) (*models.Partic
 	return &models.Participation{GameID: gameID, TeamID: teamID, Status: models.ParticipationAccepted}, nil
 }
 
+func (m *MockService) GetParticipationStatus(gameID uint, userID uint) (*GameParticipationResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.Games[gameID]; !ok {
+		return nil, fmt.Errorf("game not found")
+	}
+
+	team := m.UserTeams[userID]
+	if team == nil {
+		return &GameParticipationResponse{
+			HasTeam:      false,
+			Participated: false,
+		}, nil
+	}
+
+	key := fmt.Sprintf("%d-%d", gameID, team.ID)
+	return &GameParticipationResponse{
+		HasTeam:      true,
+		Participated: m.Participations[key],
+		Status:       string(models.ParticipationAccepted),
+		Team:         team,
+	}, nil
+}
+
 func (m *MockService) GetGameChallenges(gameID uint) ([]GameChallengeDetail, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -164,6 +191,10 @@ func (m *MockService) GetGameChallenges(gameID uint) ([]GameChallengeDetail, err
 		return nil, fmt.Errorf("game not found")
 	}
 	return []GameChallengeDetail{}, nil
+}
+
+func (m *MockService) GetGameChallengesForTeam(gameID uint, teamID uint) ([]GameChallengeDetail, error) {
+	return m.GetGameChallenges(gameID)
 }
 
 func (m *MockService) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID uint, flag string) (*SubmitResult, error) {

@@ -79,6 +79,10 @@ export interface paths {
     /** Join a game with a team */
     post: operations["joinGame"];
   };
+  "/api/games/{id}/participation": {
+    /** Get my participation status in a game */
+    get: operations["getGameParticipation"];
+  };
   "/api/games/{id}/leave": {
     /** Leave a game */
     delete: operations["leaveGame"];
@@ -292,6 +296,16 @@ export interface components {
     Scoreboard: {
       game_id: number;
       entries: components["schemas"]["ScoreboardEntry"][];
+    };
+    GameParticipation: {
+      has_team: boolean;
+      participated: boolean;
+      /** @enum {string} */
+      status?: "pending" | "accepted" | "rejected";
+      team?: {
+        id: number;
+        name: string;
+      };
     };
     HealthResponse: {
       status: string;
@@ -728,6 +742,28 @@ export interface operations {
       };
       /** @description Already joined */
       409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /** Get my participation status in a game */
+  getGameParticipation: {
+    parameters: {
+      path: {
+        id: number;
+      };
+    };
+    responses: {
+      /** @description Participation status */
+      200: {
+        content: {
+          "application/json": components["schemas"]["GameParticipation"];
+        };
+      };
+      /** @description Game not found */
+      404: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };

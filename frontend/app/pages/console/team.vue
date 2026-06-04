@@ -3,20 +3,22 @@ definePageMeta({
   middleware: 'auth',
 })
 
-const { authState, isLoggedIn, fetchUser } = useAuth()
-const router = useRouter()
+const { authState, fetchUser } = useAuth()
 const toast = useToast()
 
 interface TeamInfo {
   id: number
   name: string
   invite_code: string
-  status: string
-  members: Array<{
+  status?: string
+  members?: Array<{
     id: number
     user_id: number
     role: string
     username?: string
+    user?: {
+      username?: string
+    }
   }>
 }
 
@@ -28,19 +30,11 @@ const joinForm = reactive({ invite_code: '' })
 const createLoading = ref(false)
 const joinLoading = ref(false)
 
-const apiBase = '/api/teams'
-
-async function authHeaders(): Promise<Record<string, string>> {
-  const token = import.meta.client ? localStorage.getItem('token') : null
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
-
 async function fetchTeam() {
-  if (!import.meta.client) return
   loading.value = true
   try {
-    const headers = await authHeaders()
-    team.value = await $fetch<TeamInfo>(`${apiBase}/my`, { headers })
+    const res = await $api('get', '/api/teams/my')
+    team.value = res.team
   }
   catch {
     team.value = null
@@ -57,12 +51,10 @@ async function createTeam() {
   }
   createLoading.value = true
   try {
-    const headers = await authHeaders()
-    team.value = await $fetch<TeamInfo>(apiBase, {
-      method: 'POST',
+    const res = await $api('post', '/api/teams', {
       body: { name: createForm.name },
-      headers,
     })
+    team.value = res.team
     toast.add({ title: '队伍创建成功', color: 'success' })
     createForm.name = ''
   }
@@ -81,12 +73,10 @@ async function joinTeam() {
   }
   joinLoading.value = true
   try {
-    const headers = await authHeaders()
-    team.value = await $fetch<TeamInfo>(`${apiBase}/join`, {
-      method: 'POST',
+    await $api('post', '/api/teams/join', {
       body: { invite_code: joinForm.invite_code },
-      headers,
     })
+    await fetchTeam()
     toast.add({ title: '加入成功', color: 'success' })
     joinForm.invite_code = ''
   }
@@ -100,8 +90,7 @@ async function joinTeam() {
 
 async function leaveTeam() {
   try {
-    const headers = await authHeaders()
-    await $fetch(`${apiBase}/leave`, { method: 'POST', headers })
+    await $api('post', '/api/teams/leave')
     team.value = null
     toast.add({ title: '已退出队伍', color: 'success' })
   }
@@ -116,10 +105,12 @@ async function copyInviteCode() {
   toast.add({ title: '已复制', color: 'success' })
 }
 
-if (import.meta.client) {
-  if (!authState.user) await fetchUser()
+onMounted(async () => {
+  if (!authState.user) {
+    await fetchUser()
+  }
   await fetchTeam()
-}
+})
 </script>
 
 <template>
@@ -175,7 +166,7 @@ if (import.meta.client) {
               >
                 <div class="flex items-center gap-2">
                   <UIcon name="i-lucide-user" class="size-4" />
-                  <span>{{ member.username || `用户 #${member.user_id}` }}</span>
+                  <span>{{ member.username || member.user?.username || `用户 #${member.user_id}` }}</span>
                 </div>
                 <UBadge
                   :label="member.role === 'captain' ? '队长' : '队员'"

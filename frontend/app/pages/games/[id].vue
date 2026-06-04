@@ -4,14 +4,20 @@ import type { components } from '~/types/api'
 type Game = components['schemas']['Game']
 type GameChallengeDetail = components['schemas']['GameChallengeDetail']
 type ScoreboardEntry = components['schemas']['ScoreboardEntry']
+type GameParticipation = components['schemas']['GameParticipation']
 
 const route = useRoute()
 const toast = useToast()
+const { authState, fetchUser } = useAuth()
 
 const game = ref<Game | null>(null)
 const challenges = ref<GameChallengeDetail[]>([])
 const scoreboard = ref<ScoreboardEntry[]>([])
+const participation = ref<GameParticipation | null>(null)
 const loading = ref(true)
+const participationLoading = ref(false)
+const joining = ref(false)
+const leaving = ref(false)
 const activeTab = ref('challenges')
 const submitting = ref<number | null>(null) // challenge id being submitted
 const flagInputs = reactive<Record<number, string>>({})
@@ -21,18 +27,46 @@ const gameId = route.params.id as string
 async function fetchAll() {
   loading.value = true
   try {
-    const [gameRes, challengesRes] = await Promise.all([
+    const tasks: Promise<unknown>[] = [
       $api('get', '/api/games/{id}', { params: { id: Number(gameId) } }),
       $api('get', '/api/games/{id}/challenges', { params: { id: Number(gameId) } }),
-    ])
+    ]
+
+    if (authState.user) {
+      tasks.push($api('get', '/api/games/{id}/participation', { params: { id: Number(gameId) } }))
+    }
+
+    const [gameRes, challengesRes, participationRes] = await Promise.all(tasks)
     game.value = gameRes
     challenges.value = challengesRes || []
+    participation.value = (participationRes as GameParticipation | undefined) || null
   }
   catch (e: any) {
     toast.add({ title: '获取比赛信息失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
     loading.value = false
+  }
+}
+
+async function fetchParticipation() {
+  if (!authState.user) {
+    participation.value = null
+    return
+  }
+
+  participationLoading.value = true
+  try {
+    participation.value = await $api('get', '/api/games/{id}/participation', {
+      params: { id: Number(gameId) },
+    })
+  }
+  catch (e: any) {
+    participation.value = null
+    toast.add({ title: '获取报名状态失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    participationLoading.value = false
   }
 }
 
@@ -50,11 +84,8 @@ async function submitFlag(challengeId: number) {
   const flag = flagInputs[challengeId]
   if (!flag) return
 
-  // Need team_id — get from authState or team info
-  // For now, prompt user's team from the teams API
-  const team = await $api('get', '/api/teams/my').catch(() => null)
-
-  if (!team) {
+  const teamId = participation.value?.team?.id
+  if (!teamId || !participation.value?.participated) {
     toast.add({ title: '请先加入队伍再提交', color: 'warning' })
     return
   }
@@ -63,7 +94,7 @@ async function submitFlag(challengeId: number) {
   try {
     const res = await $api('post', '/api/games/{id}/challenges/{challengeId}/submit', {
       params: { id: Number(gameId), challengeId: challengeId },
-      body: { flag, team_id: team.team.id },
+      body: { flag, team_id: teamId },
     })
     if (res.correct) {
       toast.add({ title: '🎉 Flag 正确！', description: `+${res.score} 分${res.blood_type ? ` (${res.blood_type === 'first' ? '一血' : res.blood_type === 'second' ? '二血' : '三血'})` : ''}`, color: 'success' })
@@ -79,6 +110,53 @@ async function submitFlag(challengeId: number) {
   }
   finally {
     submitting.value = null
+  }
+}
+
+async function joinGame() {
+  const teamId = participation.value?.team?.id
+  if (!teamId) {
+    toast.add({ title: '请先创建或加入队伍', color: 'warning' })
+    return
+  }
+
+  joining.value = true
+  try {
+    await $api('post', '/api/games/{id}/join', {
+      params: { id: Number(gameId) },
+      body: { team_id: teamId },
+    })
+    toast.add({ title: '报名成功', color: 'success' })
+    await Promise.all([fetchParticipation(), fetchAll()])
+  }
+  catch (e: any) {
+    toast.add({ title: '报名失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    joining.value = false
+  }
+}
+
+async function leaveGame() {
+  const teamId = participation.value?.team?.id
+  if (!teamId) {
+    return
+  }
+
+  leaving.value = true
+  try {
+    await $api('delete', '/api/games/{id}/leave', {
+      params: { id: Number(gameId) },
+      body: { team_id: teamId },
+    })
+    toast.add({ title: '已退出比赛', color: 'success' })
+    await Promise.all([fetchParticipation(), fetchAll()])
+  }
+  catch (e: any) {
+    toast.add({ title: '退出失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    leaving.value = false
   }
 }
 
@@ -106,7 +184,12 @@ watch(activeTab, (v) => {
   if (v === 'scoreboard') fetchScoreboard()
 })
 
-onMounted(fetchAll)
+onMounted(async () => {
+  if (!authState.user) {
+    await fetchUser()
+  }
+  await fetchAll()
+})
 </script>
 
 <template>
@@ -139,6 +222,60 @@ onMounted(fetchAll)
           </div>
         </div>
       </div>
+
+      <UPageCard v-if="authState.user" class="mb-6">
+        <div class="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <p class="text-sm text-muted mb-1">
+              我的报名状态
+            </p>
+            <div v-if="participationLoading" class="flex items-center gap-2 text-sm text-muted">
+              <UIcon name="i-lucide-loader-2" class="size-4 animate-spin" />
+              <span>加载中...</span>
+            </div>
+            <div v-else class="flex items-center gap-2 flex-wrap">
+              <UBadge
+                :color="participation?.participated ? 'success' : participation?.has_team ? 'warning' : 'neutral'"
+                variant="soft"
+              >
+                {{ participation?.participated ? '已报名' : participation?.has_team ? '未报名' : '未加入队伍' }}
+              </UBadge>
+              <span v-if="participation?.team" class="text-sm text-muted">
+                当前队伍：{{ participation.team.name }}
+              </span>
+            </div>
+          </div>
+
+          <div class="flex gap-2">
+            <UButton
+              v-if="participation?.has_team && !participation?.participated"
+              icon="i-lucide-badge-plus"
+              :loading="joining"
+              @click="joinGame"
+            >
+              报名比赛
+            </UButton>
+            <UButton
+              v-else-if="participation?.participated"
+              color="error"
+              variant="outline"
+              icon="i-lucide-log-out"
+              :loading="leaving"
+              @click="leaveGame"
+            >
+              退出比赛
+            </UButton>
+            <UButton
+              v-else
+              to="/console/team"
+              variant="outline"
+              icon="i-lucide-users"
+            >
+              去加入队伍
+            </UButton>
+          </div>
+        </div>
+      </UPageCard>
 
       <UTabs v-model="activeTab" :items="tabItems" class="mb-6" />
 

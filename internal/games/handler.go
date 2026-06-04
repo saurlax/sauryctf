@@ -131,7 +131,25 @@ func (h *Handler) LeaveGame(c *gin.Context, id int) {
 }
 
 func (h *Handler) GetGameChallenges(c *gin.Context, id int) {
-	challenges, err := h.svc.GetGameChallenges(uint(id))
+	var challenges []GameChallengeDetail
+	var err error
+
+	userID := c.MustGet("user_id").(uint)
+	participation, statusErr := h.svc.GetParticipationStatus(uint(id), userID)
+	if statusErr != nil {
+		if statusErr.Error() == "game not found" {
+			c.JSON(http.StatusNotFound, gin.H{"message": statusErr.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"message": statusErr.Error()})
+		return
+	}
+
+	if participation.HasTeam && participation.Participated && participation.Team != nil {
+		challenges, err = h.svc.GetGameChallengesForTeam(uint(id), participation.Team.ID)
+	} else {
+		challenges, err = h.svc.GetGameChallenges(uint(id))
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
@@ -174,4 +192,20 @@ func (h *Handler) GetScoreboard(c *gin.Context, id int) {
 		return
 	}
 	c.JSON(http.StatusOK, scoreboard)
+}
+
+func (h *Handler) GetGameParticipation(c *gin.Context, id int) {
+	userID := c.MustGet("user_id").(uint)
+
+	participation, err := h.svc.GetParticipationStatus(uint(id), userID)
+	if err != nil {
+		if err.Error() == "game not found" {
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, participation)
 }

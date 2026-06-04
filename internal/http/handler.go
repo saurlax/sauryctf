@@ -152,6 +152,9 @@ func (h *Handler) SubmitGameFlag(c *gin.Context, id int, challengeId int) {
 }
 func (h *Handler) JoinGame(c *gin.Context, id int)  { h.games.JoinGame(c, id) }
 func (h *Handler) LeaveGame(c *gin.Context, id int) { h.games.LeaveGame(c, id) }
+func (h *Handler) GetGameParticipation(c *gin.Context, id int) {
+	h.games.GetGameParticipation(c, id)
+}
 func (h *Handler) GetScoreboard(c *gin.Context, id int) {
 	h.games.GetScoreboard(c, id)
 }

@@ -68,6 +68,11 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 		fmt.Sscan(c.Param("id"), &id)
 		h.JoinGame(c, id)
 	})
+	api.GET("/games/:id/participation", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.GetGameParticipation(c, id)
+	})
 	api.DELETE("/games/:id/leave", func(c *gin.Context) {
 		var id int
 		fmt.Sscan(c.Param("id"), &id)
@@ -236,4 +241,28 @@ func TestRemoveChallenge_Success(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestGetGameParticipation_WithTeamAndJoined(t *testing.T) {
+	svc := games.NewMockService()
+	svc.UserTeams[1] = &games.GameParticipationTeam{ID: 7, Name: "Blue Team"}
+	svc.Participations["1-7"] = true
+
+	r := setupTestRouter(svc)
+
+	public := true
+	svc.CreateGame(games.CreateGameRequest{
+		Name: "Game", StartTime: time.Now(), EndTime: time.Now().Add(time.Hour), IsPublic: &public,
+	}, 1)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/games/1/participation", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]any
+	json.Unmarshal(w.Body.Bytes(), &response)
+	assert.Equal(t, true, response["has_team"])
+	assert.Equal(t, true, response["participated"])
 }

@@ -400,6 +400,26 @@ components:
           items:
             $ref: "#/components/schemas/ScoreboardEntry"
 
+    GameParticipation:
+      type: object
+      required: [has_team, participated]
+      properties:
+        has_team:
+          type: boolean
+        participated:
+          type: boolean
+        status:
+          type: string
+          enum: [pending, accepted, rejected]
+        team:
+          type: object
+          required: [id, name]
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+
     HealthResponse:
       type: object
       required: [status, version]
@@ -941,6 +961,33 @@ paths:
                 $ref: "#/components/schemas/MessageResponse"
         "409":
           description: Already joined
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/games/{id}/participation:
+    get:
+      operationId: getGameParticipation
+      summary: Get my participation status in a game
+      tags: [games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Participation status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameParticipation"
+        "404":
+          description: Game not found
           content:
             application/json:
               schema:

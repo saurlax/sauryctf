@@ -488,6 +488,29 @@ type Scoreboard struct {
 	GameId  int               `json:"game_id"`
 }
 
+// GameParticipation defines model for GameParticipation.
+type GameParticipation struct {
+	HasTeam      bool                  `json:"has_team"`
+	Participated bool                  `json:"participated"`
+	Status       *GameParticipationStatus `json:"status,omitempty"`
+	Team         *GameParticipationTeam `json:"team,omitempty"`
+}
+
+// GameParticipationStatus defines model for GameParticipation.Status.
+type GameParticipationStatus string
+
+const (
+	GameParticipationStatusAccepted GameParticipationStatus = "accepted"
+	GameParticipationStatusPending  GameParticipationStatus = "pending"
+	GameParticipationStatusRejected GameParticipationStatus = "rejected"
+)
+
+// GameParticipationTeam defines model for GameParticipation.Team.
+type GameParticipationTeam struct {
+	Id   int    `json:"id"`
+	Name string `json:"name"`
+}
+
 // ScoreboardEntry defines model for ScoreboardEntry.
 type ScoreboardEntry struct {
 	LastSolve  *time.Time `json:"last_solve,omitempty"`
@@ -693,6 +716,9 @@ type ServerInterface interface {
 	// Get game scoreboard
 	// (GET /api/games/{id}/scoreboard)
 	GetScoreboard(c *gin.Context, id int)
+	// Get my participation status in a game
+	// (GET /api/games/{id}/participation)
+	GetGameParticipation(c *gin.Context, id int)
 	// Health check
 	// (GET /api/healthz)
 	Healthz(c *gin.Context)
@@ -1189,6 +1215,32 @@ func (siw *ServerInterfaceWrapper) JoinGame(c *gin.Context) {
 	siw.Handler.JoinGame(c, id)
 }
 
+// GetGameParticipation operation middleware
+func (siw *ServerInterfaceWrapper) GetGameParticipation(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetGameParticipation(c, id)
+}
+
 // LeaveGame operation middleware
 func (siw *ServerInterfaceWrapper) LeaveGame(c *gin.Context) {
 
@@ -1398,6 +1450,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/api/games/:id/challenges/:challengeId", wrapper.RemoveChallengeFromGame)
 	router.POST(options.BaseURL+"/api/games/:id/challenges/:challengeId/submit", wrapper.SubmitGameFlag)
 	router.POST(options.BaseURL+"/api/games/:id/join", wrapper.JoinGame)
+	router.GET(options.BaseURL+"/api/games/:id/participation", wrapper.GetGameParticipation)
 	router.DELETE(options.BaseURL+"/api/games/:id/leave", wrapper.LeaveGame)
 	router.GET(options.BaseURL+"/api/games/:id/scoreboard", wrapper.GetScoreboard)
 	router.GET(options.BaseURL+"/api/healthz", wrapper.Healthz)
