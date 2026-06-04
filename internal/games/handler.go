@@ -97,6 +97,20 @@ func (h *Handler) UpdateGame(c *gin.Context, id int) {
 	c.JSON(http.StatusOK, game)
 }
 
+func (h *Handler) DeleteGame(c *gin.Context, id int) {
+	if err := h.svc.DeleteGame(uint(id)); err != nil {
+		switch err.Error() {
+		case "game not found":
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
+}
+
 func (h *Handler) AddChallengeToGame(c *gin.Context, id int) {
 	var req struct {
 		ChallengeID   uint `json:"challenge_id" binding:"required"`

@@ -87,6 +87,7 @@ const loadingParticipants = ref(false)
 const updatingParticipantId = ref<number | null>(null)
 const removingParticipantId = ref<number | null>(null)
 const removingChallengeId = ref<number | null>(null)
+const deletingGameId = ref<number | null>(null)
 const deletingChallengeId = ref<number | null>(null)
 const games = ref<Array<{
   id: number
@@ -574,6 +575,42 @@ async function updateGameDetails() {
   }
   finally {
     gameEditing.value = false
+  }
+}
+
+async function deleteGame(gameId: number) {
+  const game = games.value.find(item => item.id === gameId)
+  const confirmed = window.confirm(`确认删除比赛「${game?.name || `#${gameId}`}」吗？这会清理该比赛的报名、解题记录和挂题关系。`)
+  if (!confirmed) {
+    return
+  }
+
+  deletingGameId.value = gameId
+  try {
+    await $fetch(`/api/admin/games/${gameId}`, {
+      method: 'DELETE',
+    })
+
+    if (attachForm.game_id === gameId) {
+      attachForm.game_id = undefined
+      selectedGameChallenges.value = []
+      participants.value = []
+    }
+    if (gameSettingsForm.game_id === gameId) {
+      gameSettingsForm.game_id = undefined
+    }
+    if (gameEditForm.game_id === gameId) {
+      gameEditForm.game_id = undefined
+    }
+
+    toast.add({ title: '比赛已删除', color: 'success' })
+    await loadAdminResources()
+  }
+  catch (e: any) {
+    toast.add({ title: '删除比赛失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    deletingGameId.value = null
   }
 }
 
@@ -1250,6 +1287,16 @@ onMounted(async () => {
                       :to="`/games/${game.id}`"
                     >
                       打开
+                    </UButton>
+                    <UButton
+                      color="error"
+                      variant="soft"
+                      size="sm"
+                      icon="i-lucide-trash-2"
+                      :loading="deletingGameId === game.id"
+                      @click="deleteGame(game.id)"
+                    >
+                      删除
                     </UButton>
                   </div>
                 </div>

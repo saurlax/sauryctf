@@ -13,6 +13,7 @@ type ServiceInterface interface {
 	GetPublicGame(id uint) (*GameResponse, error)
 	ListGames(showAll bool) ([]GameResponse, error)
 	UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, error)
+	DeleteGame(id uint) error
 	AddChallenge(gameID uint, challengeID uint, scoreOverride int) error
 	RemoveChallenge(gameID uint, challengeID uint) error
 	// Participation

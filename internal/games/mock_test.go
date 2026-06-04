@@ -2,6 +2,7 @@ package games
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -154,6 +155,25 @@ func (m *MockService) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse,
 		game.IsPublic = *req.IsPublic
 	}
 	return game, nil
+}
+
+func (m *MockService) DeleteGame(id uint) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.Games[id]; !ok {
+		return fmt.Errorf("game not found")
+	}
+
+	delete(m.Games, id)
+	delete(m.ChallengesByGame, id)
+	prefix := fmt.Sprintf("%d-", id)
+	for key := range m.Participations {
+		if strings.HasPrefix(key, prefix) {
+			delete(m.Participations, key)
+		}
+	}
+	return nil
 }
 
 func (m *MockService) AddChallenge(gameID uint, challengeID uint, scoreOverride int) error {

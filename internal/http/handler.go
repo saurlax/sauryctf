@@ -130,6 +130,13 @@ func (h *Handler) UpdateGame(c *gin.Context, id int) {
 	}
 	h.games.UpdateGame(c, id)
 }
+func (h *Handler) DeleteGame(c *gin.Context, id int) {
+	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
+	if c.IsAborted() {
+		return
+	}
+	h.games.DeleteGame(c, id)
+}
 func (h *Handler) GetGameChallenges(c *gin.Context, id int) {
 	h.games.GetGameChallenges(c, id)
 }

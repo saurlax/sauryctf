@@ -217,6 +217,32 @@ func (s *Service) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, err
 	return s.GetGame(id)
 }
 
+func (s *Service) DeleteGame(id uint) error {
+	var game models.Game
+	if err := s.db.First(&game, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("game not found")
+		}
+		return err
+	}
+
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("game_id = ?", id).Delete(&models.Participation{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("game_id = ?", id).Delete(&models.Solve{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("game_id = ?", id).Delete(&models.GameChallenge{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&game).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
 func (s *Service) AddChallenge(gameID uint, challengeID uint, scoreOverride int) error {
 	var game models.Game
 	if err := s.db.First(&game, gameID).Error; err != nil {

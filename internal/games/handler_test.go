@@ -41,6 +41,11 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 		fmt.Sscan(c.Param("id"), &id)
 		h.UpdateGame(c, id)
 	})
+	api.DELETE("/admin/games/:id", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.DeleteGame(c, id)
+	})
 	api.GET("/games/:id/challenges", func(c *gin.Context) {
 		var id int
 		fmt.Sscan(c.Param("id"), &id)
@@ -334,6 +339,30 @@ func TestUpdateGame_ClearScoreboardFreeze_Success(t *testing.T) {
 	var game map[string]any
 	json.Unmarshal(w.Body.Bytes(), &game)
 	assert.Nil(t, game["scoreboard_freeze_at"])
+}
+
+func TestDeleteGame_Success(t *testing.T) {
+	svc := games.NewMockService()
+	r := setupTestRouter(svc)
+
+	public := true
+	svc.CreateGame(games.CreateGameRequest{
+		Name:      "Delete Me",
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(time.Hour),
+		IsPublic:  &public,
+	}, 1)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("DELETE", "/api/admin/games/1", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest("GET", "/api/games/1?all=true", nil)
+	r.ServeHTTP(w2, req2)
+	assert.Equal(t, http.StatusNotFound, w2.Code)
 }
 
 func TestAddChallenge_Success(t *testing.T) {

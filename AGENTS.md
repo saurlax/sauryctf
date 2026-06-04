@@ -96,6 +96,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 | `GET` | `/api/games` | ✓ | List (query: `all=true`) |
 | `GET` | `/api/games/:id` | ✓ | Get game |
 | `PUT` | `/api/games/:id` | admin | Update game |
+| `DELETE` | `/api/admin/games/:id` | admin | Delete game and its game-scoped relations |
 | `POST` | `/api/games/:id/challenges` | admin | Add challenge to game |
 | `DELETE` | `/api/games/:id/challenges/:cid` | admin | Remove challenge from game |
 
@@ -151,6 +152,9 @@ internal/<module>/
   - public game lists hide `draft` contests
   - direct public detail lookup also hides private or draft contests
   - admins can still inspect them through the `all=true` management path
+- Admins can now delete a contest directly from the management page:
+  - this removes the game itself plus its participations, solves, and mounted challenge relations
+  - original challenge records stay in the challenge library for reuse
 - Challenge content delivery is now expected to use:
   - `description` for the main statement
   - `hints` as a JSON string array
