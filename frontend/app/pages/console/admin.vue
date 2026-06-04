@@ -118,6 +118,7 @@ const loadingParticipants = ref(false)
 const loadingSubmissions = ref(false)
 const loadingCheatClues = ref(false)
 const loadingAnnouncements = ref(false)
+const loadingScoreboard = ref(false)
 const announcementSubmitting = ref(false)
 const updatingParticipantId = ref<number | null>(null)
 const removingParticipantId = ref<number | null>(null)
@@ -231,6 +232,27 @@ const announcements = ref<Array<{
   created_by: number
   created_at: string
 }>>([])
+const scoreboardEntries = ref<Array<{
+  rank: number
+  team_id: number
+  team_name: string
+  score: number
+  solve_count: number
+  last_solve?: string | null
+}>>([])
+const scoreboardChallenges = ref<Array<{
+  id: number
+  title: string
+  category: string
+  score: number
+  solved_count: number
+  blood_team?: string | null
+  second_blood_team?: string | null
+  third_blood_team?: string | null
+}>>([])
+const scoreboardFrozen = ref(false)
+const scoreboardFreezeTime = ref<string | null>(null)
+const selectedScoreboardDivision = ref('')
 type AdminGameSummary = (typeof games.value)[number]
 
 const participantStatusDrafts = reactive<Record<number, 'pending' | 'accepted' | 'rejected'>>({})
@@ -328,10 +350,11 @@ const selectedAdminOverview = computed(() => {
   }
 })
 
-const activeMonitorTab = ref<'overview' | 'submissions' | 'clues' | 'timeline' | 'ops'>('overview')
+const activeMonitorTab = ref<'overview' | 'scoreboard' | 'submissions' | 'clues' | 'timeline' | 'ops'>('overview')
 
 const monitorTabItems = [
   { label: '总览', value: 'overview', icon: 'i-lucide-layout-dashboard' },
+  { label: '榜单', value: 'scoreboard', icon: 'i-lucide-trophy' },
   { label: '提交流', value: 'submissions', icon: 'i-lucide-activity' },
   { label: '线索', value: 'clues', icon: 'i-lucide-shield-alert' },
   { label: '时间线', value: 'timeline', icon: 'i-lucide-timeline' },
@@ -479,6 +502,75 @@ const selectedMonitorTimeline = computed(() => {
     .filter(item => Number.isFinite(item.timestamp))
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, 12)
+})
+
+const scoreboardDivisionOptions = computed(() => [
+  { label: '全部队伍', value: '' },
+  ...((selectedGame.value?.divisions || []).map(division => ({
+    label: division,
+    value: division,
+  }))),
+])
+
+const scoreboardSummaryCards = computed(() => {
+  const topTeam = scoreboardEntries.value[0]
+
+  return [
+    {
+      label: '上榜队伍',
+      value: String(scoreboardEntries.value.length),
+      hint: selectedScoreboardDivision.value ? `当前分组：${selectedScoreboardDivision.value}` : '当前查看总榜',
+      icon: 'i-lucide-users',
+    },
+    {
+      label: '榜首队伍',
+      value: topTeam?.team_name || '暂无',
+      hint: topTeam ? `${topTeam.score} 分 / ${topTeam.solve_count} 题` : '还没有正式解题',
+      icon: 'i-lucide-crown',
+    },
+    {
+      label: '已统计题目',
+      value: String(scoreboardChallenges.value.length),
+      hint: '当前公开榜单口径下的题目统计',
+      icon: 'i-lucide-chart-column-big',
+    },
+    {
+      label: '封榜状态',
+      value: scoreboardFrozen.value ? '已封榜' : '未封榜',
+      hint: scoreboardFrozen.value
+        ? (scoreboardFreezeTime.value ? `冻结于 ${new Date(scoreboardFreezeTime.value).toLocaleString()}` : '公开榜单已冻结')
+        : (selectedGame.value?.scoreboard_freeze_at ? `将于 ${new Date(selectedGame.value.scoreboard_freeze_at).toLocaleString()} 封榜` : '当前比赛不启用封榜'),
+      icon: 'i-lucide-timer',
+    },
+  ]
+})
+
+const scoreboardViewDescription = computed(() => {
+  if (scoreboardFrozen.value && scoreboardFreezeTime.value) {
+    return `当前看到的是冻结在 ${new Date(scoreboardFreezeTime.value).toLocaleString()} 的公开榜单视图。封榜后的新解题不会继续显示在公开排名中。`
+  }
+
+  if (selectedScoreboardDivision.value) {
+    return `当前只查看 ${selectedScoreboardDivision.value} 分组的公开榜单。`
+  }
+
+  return '当前显示这场比赛的公开总榜视图，可直接用于赛时观察排名变化。'
+})
+
+const scoreboardCategoryGroups = computed(() => {
+  const groups = new Map<string, typeof scoreboardChallenges.value>()
+
+  for (const challenge of scoreboardChallenges.value) {
+    const category = challenge.category || 'unknown'
+    const current = groups.get(category) || []
+    current.push(challenge)
+    groups.set(category, current)
+  }
+
+  return Array.from(groups.entries()).map(([category, items]) => ({
+    category,
+    items,
+  }))
 })
 
 const selectedGamePreflightChecks = computed(() => {
@@ -796,6 +888,45 @@ async function loadAnnouncements() {
   }
 }
 
+async function loadScoreboard() {
+  if (!attachForm.game_id) {
+    scoreboardEntries.value = []
+    scoreboardChallenges.value = []
+    scoreboardFrozen.value = false
+    scoreboardFreezeTime.value = null
+    return
+  }
+
+  loadingScoreboard.value = true
+  try {
+    const scoreboard = await $api('get', '/api/games/{id}/scoreboard', {
+      params: {
+        id: attachForm.game_id,
+      },
+      query: selectedScoreboardDivision.value ? { division: selectedScoreboardDivision.value } : {},
+    })
+    scoreboardEntries.value = scoreboard.entries || []
+    scoreboardChallenges.value = scoreboard.challenges || []
+    scoreboardFrozen.value = !!scoreboard.is_frozen
+    scoreboardFreezeTime.value = scoreboard.freeze_time || null
+
+    const validDivisions = selectedGame.value?.divisions || []
+    if (selectedScoreboardDivision.value && !validDivisions.includes(selectedScoreboardDivision.value)) {
+      selectedScoreboardDivision.value = ''
+    }
+  }
+  catch (e: any) {
+    scoreboardEntries.value = []
+    scoreboardChallenges.value = []
+    scoreboardFrozen.value = false
+    scoreboardFreezeTime.value = null
+    toast.add({ title: '排行榜加载失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    loadingScoreboard.value = false
+  }
+}
+
 function resetSelectedGameContext() {
   selectedGameChallenges.value = []
   participants.value = []
@@ -803,6 +934,11 @@ function resetSelectedGameContext() {
   submissions.value = []
   cheatClues.value = []
   announcements.value = []
+  scoreboardEntries.value = []
+  scoreboardChallenges.value = []
+  scoreboardFrozen.value = false
+  scoreboardFreezeTime.value = null
+  selectedScoreboardDivision.value = ''
   announcementForm.content = ''
 
   for (const key of Object.keys(participantStatusDrafts)) {
@@ -1909,6 +2045,7 @@ watch(() => attachForm.game_id, async () => {
   await loadSelectedGameChallenges()
   await loadParticipants()
   await loadWriteups()
+  await loadScoreboard()
   await loadSubmissions()
   await loadCheatClues()
   await loadAnnouncements()
@@ -1919,6 +2056,13 @@ watch(() => [submissionFilters.type, submissionFilters.count], async () => {
     return
   }
   await loadSubmissions()
+})
+
+watch(() => selectedScoreboardDivision.value, async () => {
+  if (!attachForm.game_id) {
+    return
+  }
+  await loadScoreboard()
 })
 
 onMounted(async () => {
@@ -2309,6 +2453,144 @@ onMounted(async () => {
               <div v-else class="text-sm text-muted">
                 当前没有待审 Writeup。
               </div>
+            </div>
+          </div>
+
+          <div v-else-if="activeMonitorTab === 'scoreboard'" class="space-y-4">
+            <UAlert
+              :color="scoreboardFrozen ? 'warning' : 'info'"
+              variant="soft"
+              title="当前榜单视图"
+              :description="scoreboardViewDescription"
+            />
+
+            <UPageGrid :cols="{ default: 1, sm: 2, xl: 4 }">
+              <UPageCard
+                v-for="card in scoreboardSummaryCards"
+                :key="card.label"
+                :title="card.value"
+                :description="card.label"
+                :icon="card.icon"
+              >
+                <template #footer>
+                  <div class="text-xs text-muted">
+                    {{ card.hint }}
+                  </div>
+                </template>
+              </UPageCard>
+            </UPageGrid>
+
+            <div class="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+              <UPageCard title="队伍榜单" icon="i-lucide-trophy">
+                <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                  <UFormField label="查看分组" name="scoreboard-division" class="max-w-sm">
+                    <USelect
+                      v-model="selectedScoreboardDivision"
+                      :items="scoreboardDivisionOptions"
+                      class="w-full"
+                    />
+                  </UFormField>
+
+                  <div class="flex flex-wrap gap-2">
+                    <UButton
+                      size="sm"
+                      variant="outline"
+                      icon="i-lucide-refresh-cw"
+                      :loading="loadingScoreboard"
+                      @click="loadScoreboard"
+                    >
+                      刷新榜单
+                    </UButton>
+                    <UButton
+                      v-if="selectedGame"
+                      size="sm"
+                      variant="outline"
+                      icon="i-lucide-download"
+                      :loading="exportingScoreboardGameId === selectedGame.id"
+                      @click="exportScoreboard(selectedGame.id)"
+                    >
+                      导出榜单
+                    </UButton>
+                  </div>
+                </div>
+
+                <UAlert
+                  v-if="scoreboardFrozen && scoreboardFreezeTime"
+                  class="mb-4"
+                  color="warning"
+                  variant="soft"
+                  title="排行榜已封榜"
+                  :description="`公开榜单当前冻结在 ${new Date(scoreboardFreezeTime).toLocaleString()}，后续解题不会继续显示在公开排名中。`"
+                />
+
+                <UTable
+                  :data="scoreboardEntries"
+                  :columns="[
+                    { accessorKey: 'rank', header: '#' },
+                    { accessorKey: 'team_name', header: '队伍' },
+                    { accessorKey: 'score', header: '分数' },
+                    { accessorKey: 'solve_count', header: '解题数' },
+                    { accessorKey: 'last_solve', header: '最后解题' },
+                  ]"
+                  :loading="loadingScoreboard"
+                  :empty-state="{ icon: 'i-lucide-trophy', label: '当前没有榜单数据' }"
+                >
+                  <template #rank-cell="{ row }">
+                    <span :class="row.original.rank <= 3 ? 'font-bold text-warning' : ''">
+                      {{ row.original.rank }}
+                    </span>
+                  </template>
+                  <template #last_solve-cell="{ row }">
+                    {{ row.original.last_solve ? new Date(row.original.last_solve).toLocaleString() : '-' }}
+                  </template>
+                </UTable>
+              </UPageCard>
+
+              <UPageCard title="分题观察" icon="i-lucide-chart-column-big">
+                <div v-if="scoreboardCategoryGroups.length" class="space-y-4">
+                  <div
+                    v-for="group in scoreboardCategoryGroups"
+                    :key="group.category"
+                    class="rounded-lg border border-default px-3 py-3"
+                  >
+                    <div class="mb-3 flex items-center justify-between gap-2">
+                      <div class="font-medium">
+                        {{ group.category.toUpperCase() }}
+                      </div>
+                      <UBadge color="info" variant="soft">
+                        {{ group.items.length }} 道题
+                      </UBadge>
+                    </div>
+
+                    <div class="space-y-2">
+                      <div
+                        v-for="challenge in group.items"
+                        :key="challenge.id"
+                        class="rounded-md bg-elevated/60 px-3 py-2 text-sm"
+                      >
+                        <div class="flex items-center justify-between gap-3">
+                          <div class="font-medium">
+                            {{ challenge.title }}
+                          </div>
+                          <UBadge :color="challenge.blood_team ? 'error' : 'neutral'" variant="soft">
+                            {{ challenge.score }} pts
+                          </UBadge>
+                        </div>
+                        <div class="mt-2 grid gap-2 text-muted">
+                          <div>解出队伍：{{ challenge.solved_count }}</div>
+                          <div>一血队伍：{{ challenge.blood_team || '暂无' }}</div>
+                          <div>二血队伍：{{ challenge.second_blood_team || '暂无' }}</div>
+                          <div>三血队伍：{{ challenge.third_blood_team || '暂无' }}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-else class="text-sm text-muted">
+                  当前还没有可展示的分题统计。
+                </div>
+              </UPageCard>
             </div>
           </div>
 
