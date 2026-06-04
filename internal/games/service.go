@@ -1380,13 +1380,15 @@ func (s *Service) GetScoreboard(gameID uint, division string) (*ScoreboardRespon
 	}
 
 	type challengeRow struct {
-		ID            uint
-		Title         string
-		Category      string
-		BaseScore     int
-		ScoreOverride int
-		SolvedCount   int
-		BloodTeam     string
+		ID              uint
+		Title           string
+		Category        string
+		BaseScore       int
+		ScoreOverride   int
+		SolvedCount     int
+		BloodTeam       string
+		SecondBloodTeam string
+		ThirdBloodTeam  string
 	}
 
 	var challengeRows []challengeRow
@@ -1398,7 +1400,9 @@ func (s *Service) GetScoreboard(gameID uint, division string) (*ScoreboardRespon
 			challenges.base_score,
 			game_challenges.score_override,
 			COUNT(solves.id) as solved_count,
-			COALESCE(MAX(CASE WHEN solves.blood_type = 'first' THEN teams.name END), '') as blood_team
+			COALESCE(MAX(CASE WHEN solves.blood_type = 'first' THEN teams.name END), '') as blood_team,
+			COALESCE(MAX(CASE WHEN solves.blood_type = 'second' THEN teams.name END), '') as second_blood_team,
+			COALESCE(MAX(CASE WHEN solves.blood_type = 'third' THEN teams.name END), '') as third_blood_team
 		`).
 		Joins("JOIN challenges ON challenges.id = game_challenges.challenge_id").
 		Joins("LEFT JOIN solves ON solves.challenge_id = game_challenges.challenge_id AND solves.game_id = game_challenges.game_id").
@@ -1424,12 +1428,14 @@ func (s *Service) GetScoreboard(gameID uint, division string) (*ScoreboardRespon
 			score = row.ScoreOverride
 		}
 		challengeStats = append(challengeStats, ScoreboardChallengeStat{
-			ID:          row.ID,
-			Title:       row.Title,
-			Category:    row.Category,
-			Score:       score,
-			SolvedCount: row.SolvedCount,
-			BloodTeam:   row.BloodTeam,
+			ID:              row.ID,
+			Title:           row.Title,
+			Category:        row.Category,
+			Score:           score,
+			SolvedCount:     row.SolvedCount,
+			BloodTeam:       row.BloodTeam,
+			SecondBloodTeam: row.SecondBloodTeam,
+			ThirdBloodTeam:  row.ThirdBloodTeam,
 		})
 	}
 

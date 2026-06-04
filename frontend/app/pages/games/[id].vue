@@ -618,6 +618,14 @@ function formatDuration(ms: number) {
   return parts.join(' ')
 }
 
+function getBloodRows(challenge: ScoreboardChallengeStat) {
+  return [
+    { label: '一血', team: challenge.blood_team },
+    { label: '二血', team: challenge.second_blood_team },
+    { label: '三血', team: challenge.third_blood_team },
+  ]
+}
+
 const tabItems = [
   { label: '概览', value: 'overview', icon: 'i-lucide-layout-template' },
   { label: '题目', value: 'challenges', icon: 'i-lucide-flag' },
@@ -798,7 +806,7 @@ onMounted(async () => {
                 <li>5. {{ game.scoreboard_freeze_at ? `公开榜单将于 ${new Date(game.scoreboard_freeze_at).toLocaleString()} 封榜。` : '当前比赛不启用封榜。' }}</li>
                 <li>6. {{ game.practice_mode ? '比赛结束后会继续保留练习模式，便于复盘和补题。' : '当前比赛为纯正赛模式，结束后不会继续开放练习。' }}</li>
                 <li>7. {{ game.writeup_required ? (game.writeup_deadline ? `当前比赛要求提交 Writeup，截止时间为 ${new Date(game.writeup_deadline).toLocaleString()}。` : '当前比赛要求提交 Writeup，具体截止时间请留意公告。') : '当前比赛不强制要求提交 Writeup。' }}</li>
-                <li>8. 题目页会根据你当前队伍显示已解状态和一血队伍。</li>
+                <li>8. 题目页会根据你当前队伍显示已解状态，以及一血 / 二血 / 三血队伍。</li>
                 <li>9. 待审核或已拒绝的报名可以撤回；已通过报名后队伍将锁定，不能再撤回。</li>
                 <li>10. 比赛结束后将无法继续得分。</li>
               </ul>
@@ -1103,13 +1111,17 @@ onMounted(async () => {
                         <span class="text-muted">解出队伍</span>
                         <span>{{ challenge.solved_count }}</span>
                       </div>
-                      <div class="flex items-center justify-between gap-3">
-                        <span class="text-muted">一血队伍</span>
-                        <span>{{ challenge.blood_team || '暂无' }}</span>
+                        <div
+                          v-for="blood in getBloodRows(challenge)"
+                          :key="blood.label"
+                          class="flex items-center justify-between gap-3"
+                        >
+                          <span class="text-muted">{{ blood.label }}队伍</span>
+                          <span>{{ blood.team || '暂无' }}</span>
+                        </div>
                       </div>
-                    </div>
-                  </UPageCard>
-                </div>
+                    </UPageCard>
+                  </div>
               </UPageCard>
             </div>
           </UPageCard>

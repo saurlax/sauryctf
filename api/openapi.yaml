@@ -520,6 +520,10 @@ components:
           type: integer
         blood_team:
           type: string
+        second_blood_team:
+          type: string
+        third_blood_team:
+          type: string
 
     Scoreboard:
       type: object

@@ -697,12 +697,14 @@ type Scoreboard struct {
 
 // ScoreboardChallengeStat defines model for ScoreboardChallengeStat.
 type ScoreboardChallengeStat struct {
-	BloodTeam   *string `json:"blood_team,omitempty"`
-	Category    string  `json:"category"`
-	Id          int     `json:"id"`
-	Score       int     `json:"score"`
-	SolvedCount int     `json:"solved_count"`
-	Title       string  `json:"title"`
+	BloodTeam       *string `json:"blood_team,omitempty"`
+	Category        string  `json:"category"`
+	Id              int     `json:"id"`
+	Score           int     `json:"score"`
+	SecondBloodTeam *string `json:"second_blood_team,omitempty"`
+	SolvedCount     int     `json:"solved_count"`
+	ThirdBloodTeam  *string `json:"third_blood_team,omitempty"`
+	Title           string  `json:"title"`
 }
 
 // ScoreboardEntry defines model for ScoreboardEntry.

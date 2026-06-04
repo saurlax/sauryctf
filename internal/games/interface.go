@@ -140,12 +140,14 @@ type ScoreboardEntry struct {
 }
 
 type ScoreboardChallengeStat struct {
-	ID          uint   `json:"id"`
-	Title       string `json:"title"`
-	Category    string `json:"category"`
-	Score       int    `json:"score"`
-	SolvedCount int    `json:"solved_count"`
-	BloodTeam   string `json:"blood_team,omitempty"`
+	ID              uint   `json:"id"`
+	Title           string `json:"title"`
+	Category        string `json:"category"`
+	Score           int    `json:"score"`
+	SolvedCount     int    `json:"solved_count"`
+	BloodTeam       string `json:"blood_team,omitempty"`
+	SecondBloodTeam string `json:"second_blood_team,omitempty"`
+	ThirdBloodTeam  string `json:"third_blood_team,omitempty"`
 }
 
 type ScoreboardResponse struct {

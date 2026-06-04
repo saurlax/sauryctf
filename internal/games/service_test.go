@@ -733,13 +733,27 @@ func TestService_GetScoreboard_IncludesChallengeStats(t *testing.T) {
 	require.NoError(t, err)
 	_, err = svc.SubmitFlag(gameID, challengeID, 2, team2ID, "flag{fixture}")
 	require.NoError(t, err)
+	team3User := models.User{Username: "team3", Email: "team3@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&team3User).Error)
+	team3 := models.Team{Name: "Team Three", InviteCode: "team03", CaptainID: team3User.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team3).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team3.ID, UserID: team3User.ID, Role: models.MemberRoleCaptain,
+	}).Error)
+	require.NoError(t, database.Create(&models.Participation{
+		GameID: gameID, TeamID: team3.ID, UserID: team3User.ID, Status: models.ParticipationAccepted,
+	}).Error)
+	_, err = svc.SubmitFlag(gameID, challengeID, team3User.ID, team3.ID, "flag{fixture}")
+	require.NoError(t, err)
 
 	scoreboard, err := svc.GetScoreboard(gameID, "")
 	require.NoError(t, err)
 	require.Len(t, scoreboard.Challenges, 1)
 	assert.Equal(t, challengeID, scoreboard.Challenges[0].ID)
-	assert.Equal(t, 2, scoreboard.Challenges[0].SolvedCount)
+	assert.Equal(t, 3, scoreboard.Challenges[0].SolvedCount)
 	assert.Equal(t, "Team One", scoreboard.Challenges[0].BloodTeam)
+	assert.Equal(t, "Team Two", scoreboard.Challenges[0].SecondBloodTeam)
+	assert.Equal(t, "Team Three", scoreboard.Challenges[0].ThirdBloodTeam)
 	assert.False(t, scoreboard.IsFrozen)
 	assert.Nil(t, scoreboard.FreezeTime)
 }

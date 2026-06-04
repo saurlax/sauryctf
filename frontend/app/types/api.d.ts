@@ -365,6 +365,8 @@ export interface components {
       score: number;
       solved_count: number;
       blood_team?: string;
+      second_blood_team?: string;
+      third_blood_team?: string;
     };
     Scoreboard: {
       game_id: number;
