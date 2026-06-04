@@ -53,6 +53,7 @@ const joinInviteFromRoute = computed(() => {
   const invite = route.query.invite
   return typeof invite === 'string' ? invite.trim() : ''
 })
+const contestRedirect = computed(() => resolveRedirect())
 const summaryCards = computed(() => [
   {
     label: '当前成员',
@@ -76,6 +77,21 @@ const summaryCards = computed(() => [
     color: lockedGames.value.length ? 'warning' as const : 'neutral' as const,
   },
 ])
+
+function resolveRedirect() {
+  const redirect = route.query.redirect
+  if (typeof redirect === 'string' && redirect.startsWith('/')) {
+    return redirect
+  }
+  return ''
+}
+
+async function navigateBackToContestIfNeeded() {
+  if (!contestRedirect.value) {
+    return
+  }
+  await navigateTo(contestRedirect.value)
+}
 
 async function fetchTeam() {
   loading.value = true
@@ -104,6 +120,7 @@ async function createTeam() {
     team.value = res.team
     toast.add({ title: '队伍创建成功', color: 'success' })
     createForm.name = ''
+    await navigateBackToContestIfNeeded()
   }
   catch (e: any) {
     toast.add({ title: '创建失败', description: e.data?.message || e.message, color: 'error' })
@@ -126,6 +143,7 @@ async function joinTeam() {
     await fetchTeam()
     toast.add({ title: '加入成功', color: 'success' })
     joinForm.invite_code = ''
+    await navigateBackToContestIfNeeded()
   }
   catch (e: any) {
     toast.add({ title: '加入失败', description: e.data?.message || e.message, color: 'error' })
@@ -188,9 +206,20 @@ async function copyInviteCode() {
 async function copyInviteLink() {
   if (!team.value) return
   try {
-    const inviteLink = `${window.location.origin}/console/team?invite=${encodeURIComponent(team.value.invite_code)}`
+    const inviteUrl = new URL('/console/team', window.location.origin)
+    inviteUrl.searchParams.set('invite', team.value.invite_code)
+    if (contestRedirect.value) {
+      inviteUrl.searchParams.set('redirect', contestRedirect.value)
+    }
+    const inviteLink = inviteUrl.toString()
     await navigator.clipboard.writeText(inviteLink)
-    toast.add({ title: '邀请链接已复制', description: '队友打开后会自动填入邀请码。', color: 'success' })
+    toast.add({
+      title: '邀请链接已复制',
+      description: contestRedirect.value
+        ? '队友打开后会自动填入邀请码，加入后也会回到原比赛。'
+        : '队友打开后会自动填入邀请码。',
+      color: 'success',
+    })
   }
   catch (e: any) {
     toast.add({ title: '复制失败', description: e.data?.message || e.message, color: 'error' })
@@ -220,6 +249,25 @@ onMounted(async () => {
 
     <template v-else-if="team">
       <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+        <div v-if="contestRedirect" class="xl:col-span-2">
+          <UAlert
+            color="info"
+            variant="soft"
+            icon="i-lucide-undo-2"
+            title="当前来自比赛报名流程"
+            description="你现在可以先维护队伍；完成后可直接返回原比赛继续报名或查看题目。"
+          >
+            <template #actions>
+              <UButton
+                label="返回原比赛"
+                color="info"
+                variant="outline"
+                size="sm"
+                :to="contestRedirect"
+              />
+            </template>
+          </UAlert>
+        </div>
         <div class="xl:col-span-2">
           <UPageGrid :cols="{ default: 1, sm: 3 }" class="mb-6">
             <UPageCard
@@ -420,6 +468,25 @@ onMounted(async () => {
 
     <template v-else>
       <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1.25fr)_320px]">
+        <div v-if="contestRedirect" class="xl:col-span-3">
+          <UAlert
+            color="info"
+            variant="soft"
+            icon="i-lucide-route"
+            title="完成队伍准备后会自动回到原比赛"
+            description="当前页面是从比赛详情跳转过来的。创建或加入队伍成功后，系统会直接带你返回刚才的比赛。"
+          >
+            <template #actions>
+              <UButton
+                label="先看原比赛"
+                color="info"
+                variant="outline"
+                size="sm"
+                :to="contestRedirect"
+              />
+            </template>
+          </UAlert>
+        </div>
         <UPageCard title="创建队伍">
           <UForm :state="createForm" class="space-y-4" @submit="createTeam">
             <UFormField label="队伍名称" name="name">
@@ -463,6 +530,9 @@ onMounted(async () => {
             </p>
             <p>
               如果你是队长，创建成功后会立刻拿到邀请码和邀请链接；如果你是队员，直接粘贴邀请码即可加入。
+            </p>
+            <p v-if="contestRedirect">
+              当前来自某个比赛详情页，创建或加入成功后会自动回到原比赛继续操作。
             </p>
           </div>
 

@@ -44,6 +44,7 @@ const currentGameRedirect = computed(() => {
 })
 const loginEntry = computed(() => `/login?redirect=${currentGameRedirect.value}`)
 const registerEntry = computed(() => `/register?redirect=${currentGameRedirect.value}`)
+const teamEntry = computed(() => `/console/team?redirect=${currentGameRedirect.value}`)
 
 const hasChallengeContent = computed(() =>
   challenges.value.some(ch =>
@@ -441,7 +442,7 @@ const nextStepMeta = computed(() => {
       description: '当前比赛以内队形式参赛。先去控制台创建或加入队伍，再回来完成报名。',
       color: 'warning' as const,
       actionLabel: '去队伍页',
-      actionTo: '/console/team',
+      actionTo: teamEntry.value,
     }
   }
 
@@ -476,7 +477,7 @@ const nextStepMeta = computed(() => {
       description: '你的队伍报名已经提交成功。现在无需重复操作，等待管理员审核通过后就能正式参赛。',
       color: 'warning' as const,
       actionLabel: '查看队伍',
-      actionTo: '/console/team',
+      actionTo: teamEntry.value,
     }
   }
 
@@ -594,7 +595,7 @@ const detailSecondaryAction = computed(() => {
   if (!participation.value?.has_team) {
     return {
       label: '去加入队伍',
-      to: '/console/team',
+      to: teamEntry.value,
       icon: 'i-lucide-users',
     }
   }
@@ -602,7 +603,7 @@ const detailSecondaryAction = computed(() => {
   if (participation.value?.participated && !canLeaveGame.value) {
     return {
       label: '查看队伍',
-      to: '/console/team',
+      to: teamEntry.value,
       icon: 'i-lucide-users',
     }
   }
@@ -1331,7 +1332,7 @@ onMounted(async () => {
                   <UButton icon="i-lucide-trophy" variant="outline" @click="activeTab = 'scoreboard'">
                     查看排行榜
                   </UButton>
-                  <UButton icon="i-lucide-users" variant="outline" to="/console/team">
+                  <UButton icon="i-lucide-users" variant="outline" :to="teamEntry">
                     管理我的队伍
                   </UButton>
                 </div>
