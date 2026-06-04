@@ -754,6 +754,99 @@ function fillSmokeChallengeTemplate() {
   toast.add({ title: '已填充题目模板', description: '当前题目适合用来验证最小提交闭环。', color: 'success' })
 }
 
+function fillStaticWebTemplate() {
+  challengeForm.title = 'Web Instance'
+  challengeForm.description = '这是一个带实例入口的 Web 题模板。适合先把题面、提示和访问地址一起沉淀到平台里。'
+  challengeForm.hints = JSON.stringify([
+    '先确认比赛页里的实例入口是否能打开。',
+    '如果题目依赖账号或 token，可以继续写到接入说明里。',
+  ], null, 2)
+  challengeForm.attachments = '[]'
+  challengeForm.container_spec = JSON.stringify({
+    connection: {
+      url: 'http://127.0.0.1:8081',
+      note: '把这里替换成题目统一访问入口，例如反代、LB 或静态靶机地址。',
+    },
+    links: [
+      {
+        label: '打开 Web 实例',
+        url: 'http://127.0.0.1:8081',
+      },
+    ],
+  }, null, 2)
+  challengeForm.category = 'web'
+  challengeForm.type = 'static'
+  challengeForm.difficulty = 'easy'
+  challengeForm.flag = ''
+  challengeForm.base_score = 100
+  challengeForm.min_score = 10
+  challengeForm.decay_rate = 0.1
+  challengeForm.is_visible = true
+
+  toast.add({ title: '已填充 Web 实例模板', description: '适合录入统一入口型 Web 题。', color: 'success' })
+}
+
+function fillPwnNetcatTemplate() {
+  challengeForm.title = 'Pwn Service'
+  challengeForm.description = '这是一个 nc / tcp 服务题模板。适合先记录 host、port、连接命令和附件。'
+  challengeForm.hints = JSON.stringify([
+    '优先把题目附件放到 attachments 里。',
+    '如果服务地址会变化，建议保留一个稳定代理入口。',
+  ], null, 2)
+  challengeForm.attachments = JSON.stringify([
+    'https://example.com/files/pwn.tar.gz',
+  ], null, 2)
+  challengeForm.container_spec = JSON.stringify({
+    connection: {
+      host: '127.0.0.1',
+      port: 1337,
+      command: 'nc 127.0.0.1 1337',
+      note: '把这里替换成实际的 tcp 服务地址；如果有公网代理，也可以额外填写 url。',
+    },
+  }, null, 2)
+  challengeForm.category = 'pwn'
+  challengeForm.type = 'static'
+  challengeForm.difficulty = 'medium'
+  challengeForm.flag = ''
+  challengeForm.base_score = 300
+  challengeForm.min_score = 100
+  challengeForm.decay_rate = 0.1
+  challengeForm.is_visible = true
+
+  toast.add({ title: '已填充 Pwn 服务模板', description: '适合录入 host / port / nc 连接方式。', color: 'success' })
+}
+
+function fillDynamicContainerTemplate() {
+  challengeForm.title = 'Dynamic Container'
+  challengeForm.description = '这是一个面向后续动态容器的题目模板。当前版本先沉淀镜像、端口和实例说明，后续再接真正的编排。'
+  challengeForm.hints = JSON.stringify([
+    '如果题目需要每队独立环境，先把镜像和暴露端口写进接入信息。',
+    '后续真正接入容器编排时，可以继续沿用这份结构。',
+  ], null, 2)
+  challengeForm.attachments = '[]'
+  challengeForm.container_spec = JSON.stringify({
+    runtime: {
+      provider: 'docker',
+      image: 'ctf/example:latest',
+      expose: [8080],
+      note: '这里先沉淀镜像与端口；后续可扩展成真正的动态容器参数。',
+    },
+    connection: {
+      note: '当前版本尚未自动创建实例。可以先手动部署，并把实际入口回填到这里。',
+    },
+  }, null, 2)
+  challengeForm.category = 'web'
+  challengeForm.type = 'dynamic'
+  challengeForm.difficulty = 'hard'
+  challengeForm.flag = ''
+  challengeForm.base_score = 500
+  challengeForm.min_score = 200
+  challengeForm.decay_rate = 0.1
+  challengeForm.is_visible = true
+
+  toast.add({ title: '已填充动态容器模板', description: '适合为后续独立实例题预留结构。', color: 'success' })
+}
+
 async function createSmokeProvision() {
   const now = new Date()
   const start = new Date(now.getTime() + 30 * 60 * 1000)
@@ -1793,11 +1886,22 @@ onMounted(async () => {
           <template #footer>
             <div class="flex flex-wrap items-center justify-between gap-3">
               <p class="text-sm text-muted">
-                冒烟题目会直接填入一个可验证的示例 Flag，适合首次联调排行榜与提交链路。
+                可以直接套用冒烟题、Web 实例、Pwn 服务或动态容器模板，加快录题速度。
               </p>
-              <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeChallengeTemplate">
-                填充冒烟题目
-              </UButton>
+              <div class="flex flex-wrap gap-2">
+                <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeChallengeTemplate">
+                  冒烟题
+                </UButton>
+                <UButton size="sm" variant="outline" icon="i-lucide-globe" @click="fillStaticWebTemplate">
+                  Web 实例
+                </UButton>
+                <UButton size="sm" variant="outline" icon="i-lucide-terminal" @click="fillPwnNetcatTemplate">
+                  Pwn 服务
+                </UButton>
+                <UButton size="sm" variant="outline" icon="i-lucide-box" @click="fillDynamicContainerTemplate">
+                  动态容器
+                </UButton>
+              </div>
             </div>
           </template>
 
