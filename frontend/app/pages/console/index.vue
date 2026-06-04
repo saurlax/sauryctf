@@ -98,6 +98,62 @@ const pendingWriteupGames = computed(() =>
   games.value.filter(game => participationMap.value[game.id]?.missing_writeup),
 )
 
+const primaryPendingEntry = computed(() => myGameEntries.value[0] || null)
+
+const nextStepItems = computed(() => {
+  const items = [
+    {
+      key: 'team',
+      title: '准备队伍',
+      description: team.value
+        ? `当前队伍为 ${team.value.name}，已经可以进入比赛报名流程。`
+        : '先创建自己的队伍，或使用邀请码加入队伍，这是后续报名和提交 Flag 的前提。',
+      done: Boolean(team.value),
+      buttonLabel: team.value ? '管理队伍' : '去队伍页',
+      buttonTo: '/console/team',
+      buttonVariant: team.value ? 'outline' as const : 'solid' as const,
+    },
+  ]
+
+  const joinedGame = myGameEntries.value.find(entry => entry.participation?.participated)
+  items.push({
+    key: 'game',
+    title: '选择比赛',
+    description: joinedGame
+      ? `你已经和队伍关联到 ${joinedGame.game.name}，现在可以继续查看当前报名状态。`
+      : team.value
+        ? '接下来进入公开比赛详情页完成报名；自动通过比赛会直接获得参赛资格。'
+        : '准备好队伍后，再去公开比赛列表选择目标比赛并完成报名。',
+    done: Boolean(joinedGame),
+    buttonLabel: joinedGame ? '查看比赛' : '浏览比赛',
+    buttonTo: joinedGame ? `/games/${joinedGame.game.id}` : '/games',
+    buttonVariant: joinedGame ? 'outline' as const : 'solid' as const,
+  })
+
+  const writeupGame = pendingWriteupGames.value[0]
+  items.push({
+    key: 'writeup',
+    title: '处理当前待办',
+    description: writeupGame
+      ? `${writeupGame.name} 当前还需要补交 Writeup，请优先进入比赛详情页处理。`
+      : primaryPendingEntry.value
+        ? `${primaryPendingEntry.value.meta.label}：${primaryPendingEntry.value.meta.description}`
+        : '当比赛进入审核、开赛或 Writeup 阶段后，这里会优先提示你下一步该处理的事项。',
+    done: !writeupGame && !primaryPendingEntry.value,
+    buttonLabel: writeupGame
+      ? '去补交'
+      : primaryPendingEntry.value
+        ? primaryPendingEntry.value.meta.actionLabel
+        : '查看控制台',
+    buttonTo: writeupGame
+      ? `/games/${writeupGame.id}`
+      : primaryPendingEntry.value?.meta.actionTo || '/console',
+    buttonVariant: writeupGame ? 'solid' as const : 'outline' as const,
+  })
+
+  return items
+})
+
 function getParticipationMeta(game: GameSummary) {
   const participation = participationMap.value[game.id]
 
@@ -267,6 +323,46 @@ onMounted(async () => {
 
       <div class="mt-8 grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-6">
         <div class="space-y-6">
+          <UPageCard title="下一步" icon="i-lucide-list-checks">
+            <div class="space-y-3">
+              <div
+                v-for="item in nextStepItems"
+                :key="item.key"
+                class="rounded-lg border border-default px-3 py-3"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-2">
+                      <UIcon
+                        :name="item.done ? 'i-lucide-circle-check-big' : 'i-lucide-arrow-right-circle'"
+                        :class="item.done ? 'text-success' : 'text-primary'"
+                        class="size-4 shrink-0"
+                      />
+                      <div class="font-medium">
+                        {{ item.title }}
+                      </div>
+                    </div>
+                    <div class="mt-2 text-sm text-muted">
+                      {{ item.description }}
+                    </div>
+                  </div>
+                  <UBadge :color="item.done ? 'success' : 'warning'" variant="soft">
+                    {{ item.done ? '已就绪' : '待处理' }}
+                  </UBadge>
+                </div>
+
+                <div class="mt-3 flex justify-end">
+                  <UButton
+                    size="sm"
+                    :variant="item.buttonVariant"
+                    :to="item.buttonTo"
+                    :label="item.buttonLabel"
+                  />
+                </div>
+              </div>
+            </div>
+          </UPageCard>
+
           <UPageCard title="快捷操作" icon="i-lucide-rocket">
             <div class="flex flex-col gap-3">
               <UButton label="我的队伍" icon="i-lucide-users" to="/console/team" variant="outline" block />
