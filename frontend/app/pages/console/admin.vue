@@ -3,7 +3,7 @@ definePageMeta({
   middleware: 'admin',
 })
 
-const { authState, fetchUser } = useAuth()
+const { authState, ensureInitialized } = useAuth()
 const router = useRouter()
 const toast = useToast()
 
@@ -1006,9 +1006,7 @@ watch(() => attachForm.game_id, async () => {
 })
 
 onMounted(async () => {
-  if (!authState.user) {
-    await fetchUser()
-  }
+  await ensureInitialized()
 
   if (!isAdmin.value) {
     await router.push('/console')

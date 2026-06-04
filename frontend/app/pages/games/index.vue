@@ -5,7 +5,7 @@ type Game = components['schemas']['Game']
 type GameParticipation = components['schemas']['GameParticipation']
 
 const toast = useToast()
-const { authState, fetchUser } = useAuth()
+const { authState, ensureInitialized } = useAuth()
 const games = ref<Game[]>([])
 const participationMap = ref<Record<number, GameParticipation>>({})
 const loading = ref(true)
@@ -162,10 +162,7 @@ function getParticipationMeta(game: Game) {
 }
 
 onMounted(async () => {
-  if (!authState.user) {
-    await fetchUser()
-  }
-
+  await ensureInitialized()
   await fetchGames()
 })
 </script>

@@ -51,6 +51,14 @@ export function useAuth() {
     return fetchUserPromise
   }
 
+  async function ensureInitialized() {
+    if (authState.initialized) {
+      return authState.user
+    }
+
+    return fetchUser()
+  }
+
   async function login(username: string, password: string) {
     const res = await $api('post', '/api/auth/login', {
       body: { username, password },
@@ -82,6 +90,7 @@ export function useAuth() {
     isLoggedIn,
     clearAuth,
     fetchUser,
+    ensureInitialized,
     login,
     register,
     logout,

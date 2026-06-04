@@ -1,11 +1,9 @@
 export default defineNuxtRouteMiddleware(async (to) => {
   if (import.meta.server) return
 
-  const { authState, fetchUser } = useAuth()
+  const { authState, ensureInitialized } = useAuth()
 
-  if (!authState.user) {
-    await fetchUser()
-  }
+  await ensureInitialized()
 
   if (!authState.user) {
     return

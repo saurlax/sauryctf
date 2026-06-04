@@ -5,7 +5,7 @@ definePageMeta({
 
 import type { components } from '~/types/api'
 
-const { authState, fetchUser } = useAuth()
+const { authState, ensureInitialized } = useAuth()
 const toast = useToast()
 
 interface TeamSummary {
@@ -236,10 +236,7 @@ function getStatusMeta(status: GameSummary['status']) {
 }
 
 onMounted(async () => {
-  if (!authState.user) {
-    await fetchUser()
-  }
-
+  await ensureInitialized()
   await fetchConsoleData()
 })
 </script>

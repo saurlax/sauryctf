@@ -3,7 +3,7 @@ definePageMeta({
   middleware: 'auth',
 })
 
-const { authState, fetchUser } = useAuth()
+const { authState, ensureInitialized } = useAuth()
 const toast = useToast()
 
 interface TeamInfo {
@@ -152,9 +152,7 @@ async function copyInviteCode() {
 }
 
 onMounted(async () => {
-  if (!authState.user) {
-    await fetchUser()
-  }
+  await ensureInitialized()
   await fetchTeam()
 })
 </script>

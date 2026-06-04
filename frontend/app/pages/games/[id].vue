@@ -10,7 +10,7 @@ type GameWriteupView = components['schemas']['GameWriteup']
 
 const route = useRoute()
 const toast = useToast()
-const { authState, fetchUser } = useAuth()
+const { authState, ensureInitialized } = useAuth()
 const isAdmin = computed(() => ['admin', 'super_admin'].includes(authState.user?.role || ''))
 
 const game = ref<Game | null>(null)
@@ -636,9 +636,7 @@ watch(selectedDivision, () => {
 })
 
 onMounted(async () => {
-  if (!authState.user) {
-    await fetchUser()
-  }
+  await ensureInitialized()
   const timer = window.setInterval(() => {
     now.value = Date.now()
   }, 60_000)
