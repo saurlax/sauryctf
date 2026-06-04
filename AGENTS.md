@@ -31,7 +31,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - `app/pages/games/index.vue` — Games list
 - `app/pages/games/[id].vue` — Game detail + challenges
 - `app/pages/console/index.vue` — Console dashboard (protected)
-- `app/pages/console/team.vue` — Team management (protected)
+- `app/pages/console/team.vue` — Team management with captain/member-specific actions
 - `app/layouts/default.vue` — Global layout (Header/Footer/Navigation)
 - `app/composables/useAuth.ts` — Auth state management with client-side session restore and request deduping
 - `app/middleware/auth.ts` — Route guard (protects /console/* routes)

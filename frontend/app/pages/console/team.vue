@@ -29,6 +29,12 @@ const createForm = reactive({ name: '' })
 const joinForm = reactive({ invite_code: '' })
 const createLoading = ref(false)
 const joinLoading = ref(false)
+const removingMemberId = ref<number | null>(null)
+
+const currentUserId = computed(() => authState.user?.id)
+const isCaptain = computed(() => team.value?.members?.some(member => member.user_id === currentUserId.value && member.role === 'captain') || false)
+const teamMembers = computed(() => team.value?.members || [])
+const removableMembers = computed(() => teamMembers.value.filter(member => member.user_id !== currentUserId.value))
 
 async function fetchTeam() {
   loading.value = true
@@ -99,6 +105,34 @@ async function leaveTeam() {
   }
 }
 
+async function removeMember(memberUserId: number, username?: string) {
+  if (!team.value) {
+    return
+  }
+
+  removingMemberId.value = memberUserId
+  try {
+    await $api('delete', '/api/teams/{teamId}/members/{memberId}', {
+      params: {
+        teamId: team.value.id,
+        memberId: memberUserId,
+      },
+    })
+    await fetchTeam()
+    toast.add({
+      title: '成员已移除',
+      description: username ? `${username} 已被移出队伍` : undefined,
+      color: 'success',
+    })
+  }
+  catch (e: any) {
+    toast.add({ title: '移除失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    removingMemberId.value = null
+  }
+}
+
 async function copyInviteCode() {
   if (!team.value) return
   await navigator.clipboard.writeText(team.value.invite_code)
@@ -126,7 +160,8 @@ onMounted(async () => {
     </template>
 
     <template v-else-if="team">
-      <UPageCard>
+      <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+        <UPageCard>
         <template #header>
           <div class="flex items-center justify-between">
             <h2 class="text-xl font-semibold">
@@ -168,11 +203,22 @@ onMounted(async () => {
                   <UIcon name="i-lucide-user" class="size-4" />
                   <span>{{ member.username || member.user?.username || `用户 #${member.user_id}` }}</span>
                 </div>
-                <UBadge
-                  :label="member.role === 'captain' ? '队长' : '队员'"
-                  :color="member.role === 'captain' ? 'primary' : 'neutral'"
-                  size="sm"
-                />
+                <div class="flex items-center gap-2">
+                  <UBadge
+                    :label="member.role === 'captain' ? '队长' : '队员'"
+                    :color="member.role === 'captain' ? 'primary' : 'neutral'"
+                    size="sm"
+                  />
+                  <UButton
+                    v-if="isCaptain && member.user_id !== currentUserId"
+                    color="error"
+                    variant="ghost"
+                    size="xs"
+                    icon="i-lucide-user-round-minus"
+                    :loading="removingMemberId === member.user_id"
+                    @click="removeMember(member.user_id, member.username || member.user?.username)"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -184,10 +230,44 @@ onMounted(async () => {
             color="error"
             variant="outline"
             icon="i-lucide-log-out"
+            :disabled="isCaptain"
             @click="leaveTeam"
           />
         </template>
-      </UPageCard>
+        </UPageCard>
+
+        <div class="space-y-6">
+          <UPageCard title="队伍提示" icon="i-lucide-info">
+            <div class="space-y-3 text-sm text-muted">
+              <p>
+                当前邀请码可直接分享给队友，队友登录后即可在此页面加入队伍。
+              </p>
+              <p v-if="isCaptain">
+                你当前是队长，可以移除其他成员。当前版本下，队长不能直接退出队伍。
+              </p>
+              <p v-else>
+                如果你需要离队，可以直接使用下方退出按钮，之后可重新加入其他队伍。
+              </p>
+            </div>
+          </UPageCard>
+
+          <UPageCard v-if="isCaptain" title="队长操作" icon="i-lucide-shield-check">
+            <div class="space-y-3 text-sm">
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-muted">可移除成员</span>
+                <span>{{ removableMembers.length }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-muted">是否可直接退队</span>
+                <span>否</span>
+              </div>
+              <p class="text-muted">
+                如果需要调整队伍，请先移除成员或保留当前队伍结构，再继续报名比赛。
+              </p>
+            </div>
+          </UPageCard>
+        </div>
+      </div>
     </template>
 
     <template v-else>
@@ -199,6 +279,11 @@ onMounted(async () => {
             </UFormField>
             <UButton type="submit" label="创建" :loading="createLoading" block />
           </UForm>
+          <template #footer>
+            <p class="text-sm text-muted">
+              创建者会自动成为队长，并获得邀请其他队员的权限。
+            </p>
+          </template>
         </UPageCard>
 
         <UPageCard title="加入队伍">
@@ -208,6 +293,11 @@ onMounted(async () => {
             </UFormField>
             <UButton type="submit" label="加入" :loading="joinLoading" block />
           </UForm>
+          <template #footer>
+            <p class="text-sm text-muted">
+              通过队长分享的邀请码即可快速加入，加入后就能前往比赛页面完成报名。
+            </p>
+          </template>
         </UPageCard>
       </div>
     </template>

@@ -53,5 +53,6 @@ pnpm dev
 
 - `docs/get-started/overview.md`
 - `docs/guide/console-home.md`
+- `docs/guide/team-management.md`
 - `docs/guide/game-participation.md`
 - `AGENTS.md`
