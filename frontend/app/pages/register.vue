@@ -48,6 +48,15 @@ function resolveRedirect() {
   }
   return '/console'
 }
+
+const loginTo = computed(() => {
+  const redirect = route.query.redirect
+  if (typeof redirect === 'string' && redirect.startsWith('/')) {
+    return `/login?redirect=${encodeURIComponent(redirect)}`
+  }
+
+  return '/login'
+})
 </script>
 
 <template>
@@ -76,7 +85,7 @@ function resolveRedirect() {
 
       <div class="mt-4 text-sm text-muted">
         已有账号？
-        <ULink :to="route.query.redirect ? `/login?redirect=${route.query.redirect}` : '/login'" class="font-medium">
+        <ULink :to="loginTo" class="font-medium">
           去登录页面
         </ULink>
       </div>

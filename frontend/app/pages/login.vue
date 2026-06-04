@@ -38,6 +38,15 @@ function resolveRedirect() {
   return '/console'
 }
 
+const registerTo = computed(() => {
+  const redirect = route.query.redirect
+  if (typeof redirect === 'string' && redirect.startsWith('/')) {
+    return `/register?redirect=${encodeURIComponent(redirect)}`
+  }
+
+  return '/register'
+})
+
 const state = reactive<Partial<LoginSchema>>({
   username: setupStatus.value?.bootstrap_admin_available ? setupStatus.value.default_admin_username || 'admin' : '',
   password: setupStatus.value?.bootstrap_admin_available ? setupStatus.value.default_admin_password || 'sauryctf' : '',
@@ -84,7 +93,7 @@ const state = reactive<Partial<LoginSchema>>({
 
       <div class="mt-4 text-sm text-muted">
         还没有账号？
-        <ULink :to="route.query.redirect ? `/register?redirect=${route.query.redirect}` : '/register'" class="font-medium">
+        <ULink :to="registerTo" class="font-medium">
           去注册页面
         </ULink>
       </div>
