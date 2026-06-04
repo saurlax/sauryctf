@@ -112,6 +112,7 @@ const settingsSubmitting = ref(false)
 const gameEditing = ref(false)
 const challengeEditing = ref(false)
 const smokeProvisioning = ref(false)
+const dynamicSmokeProvisioning = ref(false)
 const loadingResources = ref(false)
 const loadingGameChallenges = ref(false)
 const loadingParticipants = ref(false)
@@ -1471,6 +1472,99 @@ async function createSmokeProvision() {
   }
 }
 
+async function createDynamicSmokeProvision() {
+  const now = new Date()
+  const start = new Date(now.getTime() + 30 * 60 * 1000)
+  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000)
+  const freeze = new Date(end.getTime() - 30 * 60 * 1000)
+
+  dynamicSmokeProvisioning.value = true
+  try {
+    const game = await $api('post', '/api/games', {
+      body: {
+        name: `Dynamic Smoke ${start.getFullYear()}`,
+        description: '本地动态实例冒烟用比赛模板。建议先用它验证 team-scoped 租约、实例入口展示和常规提交流程。',
+        notice: '这是本地动态题联调用的最小模板比赛。先验证实例状态与入口，再继续做普通报名和解题流程。',
+        divisions: [],
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
+        scoreboard_freeze_at: freeze.toISOString(),
+        registration_mode: 'auto_accept',
+        max_team_members: 4,
+        practice_mode: true,
+        writeup_required: false,
+        writeup_deadline: null,
+        is_public: true,
+      },
+    })
+
+    const challenge = await $api('post', '/api/challenges', {
+      body: {
+        title: 'Dynamic Team Lease',
+        description: '这是一个本地动态实例冒烟题模板。创建后可以直接在公开比赛页验证实例租约、模板入口解析和当前队伍独立地址展示。',
+        hints: JSON.stringify([
+          '先用普通用户报名比赛，再到题目卡片里点击启动实例。',
+          '启动后应优先看到当前队伍真实实例入口，而不是 {{team_hash}} 这类模板值。',
+        ]),
+        attachments: '[]',
+        container_spec: JSON.stringify({
+          runtime: {
+            provider: 'docker',
+            image: 'ctf/example:latest',
+            expose: [8080],
+          },
+          connection: {
+            url: 'https://{{team_hash}}.instance.local/games/{{game_id}}/challenges/{{challenge_id}}',
+            host: '{{team_hash}}.instance.local',
+            port: '{{team_id}}',
+            command: 'ssh ctf@{{team_hash}}.instance.local -p {{team_id}}',
+            note: '当前队伍 {{team_id}} 会看到独立入口。后续可替换成真实网关、平台代理或容器反代地址。',
+          },
+          links: [
+            {
+              label: '题目入口',
+              url: 'https://{{team_hash}}.instance.local/games/{{game_id}}/challenges/{{challenge_id}}',
+            },
+          ],
+        }),
+        category: 'web',
+        type: 'dynamic',
+        difficulty: 'hard',
+        flag: 'flag{dynamic-smoke}',
+        base_score: 300,
+        min_score: 100,
+        decay_rate: 0.1,
+        is_visible: true,
+      },
+    })
+
+    await $api('post', '/api/games/{id}/challenges', {
+      params: {
+        id: game.id,
+      },
+      body: {
+        challenge_id: challenge.id,
+      },
+    })
+
+    await loadAdminResources()
+    selectGameContext(game.id)
+    attachForm.challenge_id = challenge.id
+    toast.add({
+      title: '动态实例冒烟赛已创建',
+      description: `已创建 ${game.name}，并自动挂上 Dynamic Team Lease。现在可以直接去公开页验证实例租约链路。`,
+      color: 'success',
+    })
+    jumpToAdminAnchor('#attach-challenge')
+  }
+  catch (e: any) {
+    toast.add({ title: '创建动态实例冒烟赛失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    dynamicSmokeProvisioning.value = false
+  }
+}
+
 function selectGameContext(gameId?: number) {
   attachForm.game_id = gameId
   gameSettingsForm.game_id = gameId
@@ -2149,6 +2243,14 @@ onMounted(async () => {
           <div class="flex shrink-0 flex-wrap gap-2">
             <UButton icon="i-lucide-flask-conical" :loading="smokeProvisioning" @click="createSmokeProvision">
               一键创建冒烟比赛
+            </UButton>
+            <UButton
+              variant="outline"
+              icon="i-lucide-box"
+              :loading="dynamicSmokeProvisioning"
+              @click="createDynamicSmokeProvision"
+            >
+              一键创建动态实例冒烟赛
             </UButton>
             <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeGameTemplate">
               只填比赛模板

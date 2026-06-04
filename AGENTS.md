@@ -40,6 +40,10 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
   - `GET /api/games/:id/challenges/:challengeId/instance` returns `idle`
   - `POST /api/games/:id/challenges/:challengeId/instance` returns a running lease
   - the returned launch data no longer contains unresolved `{{team_hash}}`-style placeholders
+- `/console/admin` now also exposes a one-click dynamic smoke provision flow:
+  - creates one public auto-accept game
+  - creates one `dynamic` challenge with team-scoped instance templates
+  - mounts it automatically so operators can jump straight into public-page lease verification
 
 ## Frontend (`frontend/`)
 
