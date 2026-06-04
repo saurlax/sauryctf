@@ -35,13 +35,47 @@ interface GameSummary {
 
 type GameParticipation = components['schemas']['GameParticipation']
 
+interface AdminParticipantEntry {
+  team_id: number
+  team_name: string
+  status: 'pending' | 'accepted' | 'rejected'
+  division?: string
+  joined_at: string
+  score: number
+  solve_count: number
+}
+
+interface AdminWriteupEntry {
+  game_id: number
+  team_id: number
+  team_name: string
+  submitted_by: number
+  content: string
+  status: 'submitted' | 'approved' | 'rejected'
+  review_remark?: string
+  submitted_at: string
+  reviewed_at?: string | null
+}
+
+interface AdminAnnouncementEntry {
+  id: number
+  game_id: number
+  content: string
+  created_by: number
+  created_at: string
+}
+
 const isAdmin = computed(() => ['admin', 'super_admin'].includes(authState.user?.role || ''))
 const { fetchParticipationMap } = useGameParticipationMap()
 const loading = ref(true)
+const loadingAdminTodo = ref(false)
 const adminActionGameId = ref<number | null>(null)
 const team = ref<TeamSummary | null>(null)
 const games = ref<GameSummary[]>([])
 const participationMap = ref<Record<number, GameParticipation>>({})
+const adminPendingParticipants = ref<Array<AdminParticipantEntry & { game: GameSummary }>>([])
+const adminPendingWriteups = ref<Array<AdminWriteupEntry & { game: GameSummary }>>([])
+const adminLatestAnnouncements = ref<Array<AdminAnnouncementEntry & { game: GameSummary }>>([])
 
 const activeGames = computed(() => games.value.filter(game => game.status === 'active'))
 const upcomingGames = computed(() => games.value.filter(game => game.status === 'draft'))
@@ -96,16 +130,103 @@ async function fetchConsoleData() {
     if (gamesRes.status === 'fulfilled') {
       games.value = gamesRes.value
       participationMap.value = await fetchParticipationMap(games.value.map(game => game.id))
+      await loadAdminTodoData(games.value)
     }
     else {
       games.value = []
       participationMap.value = {}
+      resetAdminTodoData()
       const e = gamesRes.reason as any
       toast.add({ title: '比赛列表加载失败', description: e.data?.message || e.message, color: 'error' })
     }
   }
   finally {
     loading.value = false
+  }
+}
+
+function resetAdminTodoData() {
+  adminPendingParticipants.value = []
+  adminPendingWriteups.value = []
+  adminLatestAnnouncements.value = []
+}
+
+async function loadAdminTodoData(gameList: GameSummary[]) {
+  if (!isAdmin.value) {
+    resetAdminTodoData()
+    return
+  }
+
+  const targetGames = [...gameList]
+    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+    .slice(0, 5)
+
+  if (!targetGames.length) {
+    resetAdminTodoData()
+    return
+  }
+
+  loadingAdminTodo.value = true
+  try {
+    const settled = await Promise.allSettled(targetGames.map(async (game) => {
+      const [participants, writeups, announcements] = await Promise.all([
+        $api('get', '/api/games/{id}/participants', {
+          params: { id: game.id },
+        }),
+        $api('get', '/api/admin/games/{id}/writeups', {
+          params: { id: game.id },
+        }),
+        $fetch<AdminAnnouncementEntry[]>(`/api/admin/games/${game.id}/announcements`),
+      ])
+
+      return {
+        game,
+        participants,
+        writeups,
+        announcements,
+      }
+    }))
+
+    const pendingParticipants: Array<AdminParticipantEntry & { game: GameSummary }> = []
+    const pendingWriteups: Array<AdminWriteupEntry & { game: GameSummary }> = []
+    const latestAnnouncements: Array<AdminAnnouncementEntry & { game: GameSummary }> = []
+
+    for (const result of settled) {
+      if (result.status !== 'fulfilled') {
+        continue
+      }
+
+      const { game, participants, writeups, announcements } = result.value
+
+      pendingParticipants.push(
+        ...participants
+          .filter(item => item.status === 'pending')
+          .map(item => ({ ...item, game })),
+      )
+
+      pendingWriteups.push(
+        ...writeups
+          .filter(item => item.status === 'submitted')
+          .map(item => ({ ...item, game })),
+      )
+
+      latestAnnouncements.push(
+        ...announcements.map(item => ({ ...item, game })),
+      )
+    }
+
+    adminPendingParticipants.value = pendingParticipants
+      .sort((a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime())
+      .slice(0, 6)
+    adminPendingWriteups.value = pendingWriteups
+      .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime())
+      .slice(0, 6)
+    adminLatestAnnouncements.value = latestAnnouncements
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 5)
+  }
+  finally {
+    loadingAdminTodo.value = false
   }
 }
 
@@ -138,6 +259,30 @@ async function updateGameStatusQuick(game: GameSummary, status: GameSummary['sta
 const pendingWriteupGames = computed(() =>
   games.value.filter(game => participationMap.value[game.id]?.missing_writeup),
 )
+
+const adminTodoCards = computed(() => [
+  {
+    label: '待审核报名',
+    value: String(adminPendingParticipants.value.length),
+    hint: '最近 5 场比赛里仍待审核的队伍报名',
+    icon: 'i-lucide-hourglass',
+    color: 'warning' as const,
+  },
+  {
+    label: '待审 Writeup',
+    value: String(adminPendingWriteups.value.length),
+    hint: '最近 5 场比赛里等待管理员处理的 Writeup',
+    icon: 'i-lucide-file-clock',
+    color: 'info' as const,
+  },
+  {
+    label: '最新公告',
+    value: String(adminLatestAnnouncements.value.length),
+    hint: '最近 5 场比赛里已发布的最新公告记录',
+    icon: 'i-lucide-megaphone',
+    color: 'success' as const,
+  },
+])
 
 const primaryPendingEntry = computed(() => myGameEntries.value[0] || null)
 
@@ -649,6 +794,139 @@ onMounted(async () => {
         </div>
 
         <div class="space-y-6">
+          <UPageCard v-if="isAdmin" title="管理待办" icon="i-lucide-list-todo">
+            <div v-if="loadingAdminTodo" class="flex justify-center py-8">
+              <UIcon name="i-lucide-loader-2" class="animate-spin size-6 text-muted" />
+            </div>
+            <div v-else class="space-y-4">
+              <UPageGrid :cols="{ default: 1, sm: 3 }">
+                <UPageCard
+                  v-for="card in adminTodoCards"
+                  :key="card.label"
+                  :title="card.value"
+                  :description="card.label"
+                  :icon="card.icon"
+                >
+                  <template #footer>
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-xs text-muted">{{ card.hint }}</span>
+                      <UBadge :color="card.color" variant="subtle" size="sm">
+                        {{ card.label }}
+                      </UBadge>
+                    </div>
+                  </template>
+                </UPageCard>
+              </UPageGrid>
+
+              <div class="grid gap-4 xl:grid-cols-2">
+                <div class="rounded-lg border border-default px-3 py-3">
+                  <div class="mb-3 flex items-center justify-between gap-2">
+                    <div class="font-medium">
+                      最近待审核报名
+                    </div>
+                    <UButton size="sm" variant="ghost" icon="i-lucide-settings-2" to="/console/admin">
+                      去管理
+                    </UButton>
+                  </div>
+                  <div v-if="adminPendingParticipants.length" class="space-y-2">
+                    <div
+                      v-for="item in adminPendingParticipants"
+                      :key="`${item.game.id}-${item.team_id}`"
+                      class="rounded-md bg-elevated/60 px-3 py-2"
+                    >
+                      <div class="flex items-center justify-between gap-3">
+                        <div class="min-w-0">
+                          <div class="text-sm font-medium">
+                            {{ item.team_name }}
+                          </div>
+                          <div class="text-xs text-muted">
+                            {{ item.game.name }} · {{ new Date(item.joined_at).toLocaleString() }}
+                          </div>
+                        </div>
+                        <UBadge color="warning" variant="soft">
+                          待审核
+                        </UBadge>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else class="text-sm text-muted">
+                    最近 5 场比赛当前没有待审核报名。
+                  </div>
+                </div>
+
+                <div class="rounded-lg border border-default px-3 py-3">
+                  <div class="mb-3 flex items-center justify-between gap-2">
+                    <div class="font-medium">
+                      最近待审 Writeup
+                    </div>
+                    <UButton size="sm" variant="ghost" icon="i-lucide-file-text" to="/console/admin">
+                      去处理
+                    </UButton>
+                  </div>
+                  <div v-if="adminPendingWriteups.length" class="space-y-2">
+                    <div
+                      v-for="item in adminPendingWriteups"
+                      :key="`${item.game.id}-${item.team_id}`"
+                      class="rounded-md bg-elevated/60 px-3 py-2"
+                    >
+                      <div class="flex items-center justify-between gap-3">
+                        <div class="min-w-0">
+                          <div class="text-sm font-medium">
+                            {{ item.team_name }}
+                          </div>
+                          <div class="text-xs text-muted">
+                            {{ item.game.name }} · {{ new Date(item.submitted_at).toLocaleString() }}
+                          </div>
+                        </div>
+                        <UBadge color="info" variant="soft">
+                          待审
+                        </UBadge>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else class="text-sm text-muted">
+                    最近 5 场比赛当前没有待审核的 Writeup。
+                  </div>
+                </div>
+              </div>
+
+              <div class="rounded-lg border border-default px-3 py-3">
+                <div class="mb-3 flex items-center justify-between gap-2">
+                  <div class="font-medium">
+                    最新公告
+                  </div>
+                  <UButton size="sm" variant="ghost" icon="i-lucide-megaphone" to="/console/admin">
+                    去公告区
+                  </UButton>
+                </div>
+                <div v-if="adminLatestAnnouncements.length" class="space-y-2">
+                  <div
+                    v-for="item in adminLatestAnnouncements"
+                    :key="item.id"
+                    class="rounded-md bg-elevated/60 px-3 py-2"
+                  >
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="text-sm font-medium">
+                          {{ item.game.name }}
+                        </div>
+                        <div class="mt-1 text-xs text-muted line-clamp-2">
+                          {{ item.content }}
+                        </div>
+                      </div>
+                      <span class="shrink-0 text-xs text-muted">
+                        {{ new Date(item.created_at).toLocaleString() }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="text-sm text-muted">
+                  最近 5 场比赛还没有发布公告。
+                </div>
+              </div>
+            </div>
+          </UPageCard>
+
           <UPageCard :title="team ? '我的队伍概览' : '队伍状态'" icon="i-lucide-users-round">
             <div v-if="team" class="space-y-3 text-sm">
               <div class="flex items-center justify-between gap-3">

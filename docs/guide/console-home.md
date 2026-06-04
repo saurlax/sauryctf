@@ -12,6 +12,10 @@
 - 展示最近比赛列表
 - 提供最近比赛快捷入口
 - 管理员可直接跳转到 `/console/admin`
+- 管理员现在也会在首页看到一组轻量待办摘要：
+  - 最近 5 场比赛里的待审核报名
+  - 最近 5 场比赛里的待审 Writeup
+  - 最近 5 场比赛里的最新公告
 - 管理员现在也可以直接在控制台首页快速切换最近比赛状态：
   - `draft -> active`
   - `active -> ended`
@@ -26,6 +30,10 @@
 - 不新增后端聚合接口
 - 前端保持 Nuxt UI 极简卡片式布局
 - 注册后直达 `/console?onboarding=team` 时，会优先用一条顶部提示把用户带去 `/console/team`
+- 管理员待办当前直接复用已有接口逐场拉取，不新增专门的 dashboard summary API：
+  - `GET /api/games/{id}/participants`
+  - `GET /api/admin/games/{id}/writeups`
+  - `GET /api/admin/games/{id}/announcements`
 - “下一步”卡片当前会固定覆盖最小参赛路径：
   - 先准备队伍
   - 再选择比赛
