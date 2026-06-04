@@ -23,6 +23,7 @@ pnpm dev
 - `INSTANCE_EXTENSION_DURATION_MINUTES`
 - `INSTANCE_RENEWAL_WINDOW_MINUTES`
 - `INSTANCE_TEAM_ACTIVE_LIMIT`
+- `INSTANCE_CLEANUP_INTERVAL_SECONDS`
 
 默认分别是：
 
@@ -30,6 +31,7 @@ pnpm dev
 - 每次续期追加：`30` 分钟
 - 可续期窗口：到期前 `10` 分钟
 - 每支队伍同时运行实例上限：`3`
+- 过期实例后台清理间隔：`60` 秒
 
 这组语义现在更接近 GZCTF 的 `defaultLifetime / extensionDuration / renewalWindow`，适合本地 smoke 流程。
 

@@ -2308,6 +2308,119 @@ func TestService_ChallengeInstanceLifecycle_DestroyPropagatesProviderError(t *te
 	assert.Equal(t, int64(1), leaseCount)
 }
 
+func TestService_CleanupExpiredChallengeInstances_UsesProviderAndRemovesLease(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	lastTestDB = database
+	db.CleanTables(database)
+
+	provider := &testInstanceProvider{}
+	svc := games.NewServiceWithOptions(database, map[string]games.ChallengeInstanceProvider{
+		"custom": provider,
+	}, games.InstancePolicy{})
+
+	user := models.User{Username: "cleanup-user", Email: "cleanup@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+
+	challenge := models.Challenge{
+		Title:         "Cleanup Lease",
+		Category:      models.CategoryWeb,
+		Type:          models.TypeDynamic,
+		Flag:          "flag{cleanup}",
+		BaseScore:     100,
+		MinScore:      100,
+		DecayRate:     0,
+		IsVisible:     true,
+		CreatedBy:     user.ID,
+		ContainerSpec: `{"runtime":{"provider":"custom","image":"ctf/custom:1.0"},"connection":{"url":"https://placeholder.local"}}`,
+	}
+	require.NoError(t, database.Create(&challenge).Error)
+
+	expiredAt := time.Now().Add(-2 * time.Minute)
+	lease := models.GameInstanceLease{
+		GameID:        1,
+		ChallengeID:   challenge.ID,
+		TeamID:        1,
+		UserID:        user.ID,
+		Status:        "running",
+		Provider:      "custom",
+		Image:         "ctf/custom:1.0",
+		LaunchURL:     "https://placeholder.local",
+		StartedAt:     expiredAt.Add(-10 * time.Minute),
+		LastRenewedAt: expiredAt.Add(-5 * time.Minute),
+		ExpiresAt:     expiredAt,
+	}
+	require.NoError(t, database.Create(&lease).Error)
+
+	cleaned, err := svc.CleanupExpiredChallengeInstances(time.Now())
+	require.NoError(t, err)
+	assert.Equal(t, 1, cleaned)
+	assert.Equal(t, 1, provider.destroyCalled)
+
+	var leaseCount int64
+	require.NoError(t, database.Model(&models.GameInstanceLease{}).Count(&leaseCount).Error)
+	assert.Equal(t, int64(0), leaseCount)
+}
+
+func TestService_CleanupExpiredChallengeInstances_StopsOnProviderError(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	lastTestDB = database
+	db.CleanTables(database)
+
+	provider := &testInstanceProvider{
+		destroyErr: fmt.Errorf("cleanup destroy failed"),
+	}
+	svc := games.NewServiceWithOptions(database, map[string]games.ChallengeInstanceProvider{
+		"custom": provider,
+	}, games.InstancePolicy{})
+
+	user := models.User{Username: "cleanup-fail-user", Email: "cleanup-fail@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+
+	challenge := models.Challenge{
+		Title:         "Cleanup Lease Fail",
+		Category:      models.CategoryWeb,
+		Type:          models.TypeDynamic,
+		Flag:          "flag{cleanup-fail}",
+		BaseScore:     100,
+		MinScore:      100,
+		DecayRate:     0,
+		IsVisible:     true,
+		CreatedBy:     user.ID,
+		ContainerSpec: `{"runtime":{"provider":"custom","image":"ctf/custom:1.0"},"connection":{"url":"https://placeholder.local"}}`,
+	}
+	require.NoError(t, database.Create(&challenge).Error)
+
+	expiredAt := time.Now().Add(-2 * time.Minute)
+	lease := models.GameInstanceLease{
+		GameID:        1,
+		ChallengeID:   challenge.ID,
+		TeamID:        1,
+		UserID:        user.ID,
+		Status:        "running",
+		Provider:      "custom",
+		Image:         "ctf/custom:1.0",
+		LaunchURL:     "https://placeholder.local",
+		StartedAt:     expiredAt.Add(-10 * time.Minute),
+		LastRenewedAt: expiredAt.Add(-5 * time.Minute),
+		ExpiresAt:     expiredAt,
+	}
+	require.NoError(t, database.Create(&lease).Error)
+
+	cleaned, err := svc.CleanupExpiredChallengeInstances(time.Now())
+	require.Error(t, err)
+	assert.Equal(t, 0, cleaned)
+	assert.Equal(t, "cleanup destroy failed", err.Error())
+	assert.Equal(t, 1, provider.destroyCalled)
+
+	var leaseCount int64
+	require.NoError(t, database.Model(&models.GameInstanceLease{}).Count(&leaseCount).Error)
+	assert.Equal(t, int64(1), leaseCount)
+}
+
 func svcDB(t *testing.T, svc *games.Service) *gorm.DB {
 	t.Helper()
 	require.NotNil(t, svc)

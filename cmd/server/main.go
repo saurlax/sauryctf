@@ -74,6 +74,22 @@ func main() {
 		}
 	}()
 
+	go func() {
+		ticker := time.NewTicker(cfg.InstanceCleanupInterval)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			cleaned, err := httphandler.CleanupExpiredChallengeInstances(database, cfg, time.Now())
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "instance cleanup error: %v\n", err)
+				continue
+			}
+			if cleaned > 0 {
+				fmt.Printf("Cleaned up %d expired instance lease(s)\n", cleaned)
+			}
+		}
+	}()
+
 	fmt.Printf("Server starting on %s\n", addr)
 
 	sigChan := make(chan os.Signal, 1)

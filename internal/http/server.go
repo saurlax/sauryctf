@@ -3,6 +3,7 @@ package http
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -97,6 +98,16 @@ func NewServer(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	})
 
 	return engine
+}
+
+func CleanupExpiredChallengeInstances(db *gorm.DB, cfg *config.Config, now time.Time) (int, error) {
+	gameSvc := games.NewServiceWithOptions(db, nil, games.InstancePolicy{
+		LeaseDuration:     cfg.InstanceLeaseDuration,
+		ExtensionDuration: cfg.InstanceExtensionDuration,
+		RenewalWindow:     cfg.InstanceRenewalWindow,
+		TeamActiveLimit:   cfg.InstanceTeamActiveLimit,
+	})
+	return gameSvc.CleanupExpiredChallengeInstances(now)
 }
 
 func mustIntParam(c *gin.Context, key string) int {

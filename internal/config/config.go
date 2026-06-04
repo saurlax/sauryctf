@@ -17,6 +17,7 @@ type Config struct {
 	InstanceExtensionDuration time.Duration
 	InstanceRenewalWindow     time.Duration
 	InstanceTeamActiveLimit   int
+	InstanceCleanupInterval   time.Duration
 }
 
 func Load() *Config {
@@ -31,6 +32,7 @@ func Load() *Config {
 		InstanceExtensionDuration: getEnvMinutes("INSTANCE_EXTENSION_DURATION_MINUTES", 30),
 		InstanceRenewalWindow:     getEnvMinutes("INSTANCE_RENEWAL_WINDOW_MINUTES", 10),
 		InstanceTeamActiveLimit:   getEnvInt("INSTANCE_TEAM_ACTIVE_LIMIT", 3),
+		InstanceCleanupInterval:   getEnvSeconds("INSTANCE_CLEANUP_INTERVAL_SECONDS", 60),
 	}
 }
 
@@ -67,6 +69,20 @@ func getEnvInt(key string, fallback int) int {
 	}
 
 	return value
+}
+
+func getEnvSeconds(key string, fallback int) time.Duration {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return time.Duration(fallback) * time.Second
+	}
+
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return time.Duration(fallback) * time.Second
+	}
+
+	return time.Duration(value) * time.Second
 }
 
 // loadDotEnv reads a .env file and sets environment variables (without overriding existing ones).

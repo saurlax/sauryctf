@@ -195,6 +195,10 @@ internal/<module>/
   - `INSTANCE_EXTENSION_DURATION_MINUTES` for each successful renewal
   - `INSTANCE_RENEWAL_WINDOW_MINUTES` for how close to expiry a team may renew
   - `INSTANCE_TEAM_ACTIVE_LIMIT` for how many dynamic instances one team may keep running at the same time inside a single game
+- the monolith now also performs a minimal expired-lease cleanup loop:
+  - it scans expired challenge-instance leases on a timer
+  - it asks the provider to destroy the expired instance before deleting the local lease row
+  - the interval is configurable with `INSTANCE_CLEANUP_INTERVAL_SECONDS`
 - local dynamic instance renewal now behaves closer to GZCTF's `defaultLifetime / extensionDuration / renewalWindow` split, instead of reusing the initial lease duration for every renewal
 - Registration withdrawal now follows the current GZCTF-style rule:
   - `pending` / `rejected` participations can be withdrawn

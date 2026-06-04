@@ -2060,6 +2060,49 @@ func (s *Service) DestroyChallengeInstance(gameID uint, challengeID uint, userID
 	return result, nil
 }
 
+func (s *Service) CleanupExpiredChallengeInstances(now time.Time) (int, error) {
+	var leases []models.GameInstanceLease
+	if err := s.db.Where("expires_at <= ?", now).Find(&leases).Error; err != nil {
+		return 0, err
+	}
+
+	cleaned := 0
+	for _, lease := range leases {
+		var challenge models.Challenge
+		err := s.db.First(&challenge, lease.ChallengeID).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return cleaned, err
+		}
+
+		if err == nil {
+			spec := parseManagedInstanceSpec(challenge.ContainerSpec)
+			if challenge.Type == models.TypeDynamic && spec != nil && (spec.Provider != "" || spec.Image != "") {
+				provider := resolveChallengeInstanceProvider(s.instanceProviders, spec.Provider)
+				if destroyErr := provider.DestroyLease(ChallengeInstanceProviderRequest{
+					GameID:            lease.GameID,
+					ChallengeID:       lease.ChallengeID,
+					TeamID:            lease.TeamID,
+					UserID:            lease.UserID,
+					Now:               now,
+					LeaseDuration:     s.instancePolicy.LeaseDuration,
+					ExtensionDuration: s.instancePolicy.ExtensionDuration,
+					Runtime:           toChallengeInstanceRuntimeSpec(spec),
+					Existing:          &lease,
+				}); destroyErr != nil {
+					return cleaned, destroyErr
+				}
+			}
+		}
+
+		if err := s.db.Delete(&lease).Error; err != nil {
+			return cleaned, err
+		}
+		cleaned++
+	}
+
+	return cleaned, nil
+}
+
 // SubmitFlag handles flag submission scoped to a game.
 // Uses exponential decay scoring identical to the standalone challenges service.
 func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID uint, flag string) (*SubmitResult, error) {
