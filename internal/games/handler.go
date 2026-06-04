@@ -301,6 +301,7 @@ func redactChallengeContent(challenges []GameChallengeDetail) []GameChallengeDet
 		result[i].Description = ""
 		result[i].Hints = ""
 		result[i].Attachments = ""
+		result[i].ContainerSpec = ""
 	}
 	return result
 }

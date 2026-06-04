@@ -758,6 +758,7 @@ func TestGetGameChallenges_RedactsContentBeforeAcceptedStart(t *testing.T) {
 				Category:    "web",
 				Hints:       "[\"hint\"]",
 				Attachments: "[\"https://example.com/web.zip\"]",
+				ContainerSpec: "{\"connection\":{\"url\":\"http://127.0.0.1:8081\"}}",
 				Score:       100,
 			},
 		},
@@ -789,6 +790,7 @@ func TestGetGameChallenges_RedactsContentBeforeAcceptedStart(t *testing.T) {
 	assert.Equal(t, "", response[0]["description"])
 	assert.Equal(t, "", response[0]["hints"])
 	assert.Equal(t, "", response[0]["attachments"])
+	assert.Equal(t, "", response[0]["container_spec"])
 }
 
 func TestGetGameChallenges_ExposesContentForAcceptedTeamAfterStart(t *testing.T) {
@@ -804,6 +806,7 @@ func TestGetGameChallenges_ExposesContentForAcceptedTeamAfterStart(t *testing.T)
 				Category:    "web",
 				Hints:       "[\"hint\"]",
 				Attachments: "[\"https://example.com/web.zip\"]",
+				ContainerSpec: "{\"connection\":{\"url\":\"http://127.0.0.1:8081\"}}",
 				Score:       100,
 			},
 		},
@@ -835,6 +838,7 @@ func TestGetGameChallenges_ExposesContentForAcceptedTeamAfterStart(t *testing.T)
 	assert.Equal(t, "full statement", response[0]["description"])
 	assert.Equal(t, "[\"hint\"]", response[0]["hints"])
 	assert.Equal(t, "[\"https://example.com/web.zip\"]", response[0]["attachments"])
+	assert.Equal(t, "{\"connection\":{\"url\":\"http://127.0.0.1:8081\"}}", response[0]["container_spec"])
 }
 
 func TestGetAdminGameChallenges_ExposesFullContentForManagement(t *testing.T) {
@@ -848,6 +852,7 @@ func TestGetAdminGameChallenges_ExposesFullContentForManagement(t *testing.T) {
 				Category:    "web",
 				Hints:       "[\"hint\"]",
 				Attachments: "[\"https://example.com/web.zip\"]",
+				ContainerSpec: "{\"connection\":{\"url\":\"http://127.0.0.1:8081\"}}",
 				Score:       100,
 			},
 		},
@@ -875,6 +880,7 @@ func TestGetAdminGameChallenges_ExposesFullContentForManagement(t *testing.T) {
 	assert.Equal(t, "full statement", response[0]["description"])
 	assert.Equal(t, "[\"hint\"]", response[0]["hints"])
 	assert.Equal(t, "[\"https://example.com/web.zip\"]", response[0]["attachments"])
+	assert.Equal(t, "{\"connection\":{\"url\":\"http://127.0.0.1:8081\"}}", response[0]["container_spec"])
 }
 
 func TestSubmitWriteup_Success(t *testing.T) {

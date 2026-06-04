@@ -30,6 +30,7 @@ const challengeForm = reactive({
   description: '',
   hints: '[]',
   attachments: '[]',
+  container_spec: '',
   category: 'web',
   type: 'static',
   difficulty: 'easy',
@@ -78,6 +79,7 @@ const challengeEditForm = reactive({
   description: '',
   hints: '[]',
   attachments: '[]',
+  container_spec: '',
   category: 'web',
   type: 'static',
   difficulty: 'easy',
@@ -131,6 +133,7 @@ const challenges = ref<Array<{
   description?: string
   hints?: string
   attachments?: string
+  container_spec?: string
   category: 'web' | 'pwn' | 'crypto' | 'reverse' | 'misc' | 'forensics' | 'awd'
   type?: 'static' | 'dynamic'
   difficulty?: 'easy' | 'medium' | 'hard'
@@ -727,6 +730,18 @@ function fillSmokeChallengeTemplate() {
     '如果提交失败，优先检查报名状态和比赛是否已开始。',
   ])
   challengeForm.attachments = '[]'
+  challengeForm.container_spec = JSON.stringify({
+    connection: {
+      url: 'http://127.0.0.1:8081',
+      note: '把这里替换成题目实例、靶机或代理入口。',
+    },
+    links: [
+      {
+        label: '打开题目实例',
+        url: 'http://127.0.0.1:8081',
+      },
+    ],
+  }, null, 2)
   challengeForm.category = 'misc'
   challengeForm.type = 'static'
   challengeForm.difficulty = 'easy'
@@ -871,6 +886,7 @@ async function createChallenge() {
         description: challengeForm.description,
         hints: challengeForm.hints,
         attachments: challengeForm.attachments,
+        container_spec: challengeForm.container_spec,
         category: challengeForm.category as 'web',
         type: challengeForm.type as 'static',
         difficulty: challengeForm.difficulty as 'easy',
@@ -886,6 +902,7 @@ async function createChallenge() {
     challengeForm.description = ''
     challengeForm.hints = '[]'
     challengeForm.attachments = '[]'
+    challengeForm.container_spec = ''
     challengeForm.category = 'web'
     challengeForm.type = 'static'
     challengeForm.difficulty = 'easy'
@@ -921,6 +938,7 @@ async function updateChallengeDetails() {
         description: challengeEditForm.description,
         hints: challengeEditForm.hints,
         attachments: challengeEditForm.attachments,
+        container_spec: challengeEditForm.container_spec,
         category: challengeEditForm.category,
         type: challengeEditForm.type,
         difficulty: challengeEditForm.difficulty,
@@ -1237,6 +1255,7 @@ watch(() => challengeEditForm.challenge_id, () => {
     challengeEditForm.description = ''
     challengeEditForm.hints = '[]'
     challengeEditForm.attachments = '[]'
+    challengeEditForm.container_spec = ''
     challengeEditForm.category = 'web'
     challengeEditForm.type = 'static'
     challengeEditForm.difficulty = 'easy'
@@ -1256,6 +1275,7 @@ watch(() => challengeEditForm.challenge_id, () => {
   challengeEditForm.description = challenge.description || ''
   challengeEditForm.hints = challenge.hints || '[]'
   challengeEditForm.attachments = challenge.attachments || '[]'
+  challengeEditForm.container_spec = challenge.container_spec || ''
   challengeEditForm.category = challenge.category
   challengeEditForm.type = challenge.type || 'static'
   challengeEditForm.difficulty = challenge.difficulty || 'easy'
@@ -1806,6 +1826,14 @@ onMounted(async () => {
               <UTextarea v-model="challengeForm.attachments" class="w-full" :rows="3" placeholder='["https://example.com/files/challenge.zip"]' />
             </UFormField>
 
+            <UFormField
+              label="实例接入信息"
+              name="container_spec"
+              description='使用 JSON 记录实例 URL、host/port、连接命令或代理入口'
+            >
+              <UTextarea v-model="challengeForm.container_spec" class="w-full font-mono" :rows="8" placeholder='{"connection":{"url":"http://127.0.0.1:8081","note":"instance entry"}}' />
+            </UFormField>
+
             <div class="grid gap-4 md:grid-cols-3">
               <UFormField label="分类" name="category">
                 <USelect v-model="challengeForm.category" :items="categoryOptions" class="w-full" />
@@ -1881,6 +1909,14 @@ onMounted(async () => {
               description='使用 JSON 数组，例如 ["https://example.com/files/web.zip"]'
             >
               <UTextarea v-model="challengeEditForm.attachments" class="w-full" :rows="3" placeholder='["https://example.com/files/challenge.zip"]' />
+            </UFormField>
+
+            <UFormField
+              label="实例接入信息"
+              name="container_spec"
+              description='使用 JSON 记录实例 URL、host/port、连接命令或代理入口'
+            >
+              <UTextarea v-model="challengeEditForm.container_spec" class="w-full font-mono" :rows="8" placeholder='{"connection":{"url":"http://127.0.0.1:8081","note":"instance entry"}}' />
             </UFormField>
 
             <div class="grid gap-4 md:grid-cols-3">
@@ -2291,6 +2327,9 @@ onMounted(async () => {
                     </div>
                     <div v-if="challenge.hints" class="text-muted line-clamp-2">
                       提示：{{ challenge.hints }}
+                    </div>
+                    <div v-if="challenge.container_spec" class="text-muted line-clamp-2">
+                      接入：{{ challenge.container_spec }}
                     </div>
                   </div>
 

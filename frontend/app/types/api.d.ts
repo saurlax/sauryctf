@@ -368,6 +368,7 @@ export interface components {
       difficulty?: string;
       hints?: string;
       attachments?: string;
+      container_spec?: string;
       score: number;
       solved?: boolean;
       solve_count?: number;

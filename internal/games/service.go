@@ -1088,6 +1088,7 @@ func (s *Service) getGameChallenges(gameID uint, includeHidden bool) ([]GameChal
 		Difficulty       string
 		Hints            string
 		Attachments      string
+		ContainerSpec    string
 		BaseScore        int
 		IsVisible        bool
 		BloodTeam        string
@@ -1098,7 +1099,7 @@ func (s *Service) getGameChallenges(gameID uint, includeHidden bool) ([]GameChal
 	query := s.db.Table("game_challenges").
 		Select("game_challenges.challenge_id, game_challenges.score_override, "+
 			"challenges.title, challenges.description, challenges.category, challenges.type, challenges.difficulty, "+
-			"challenges.hints, challenges.attachments, "+
+			"challenges.hints, challenges.attachments, challenges.container_spec, "+
 			"challenges.base_score, challenges.is_visible, "+
 			"COALESCE(MAX(CASE WHEN solves.blood_type = 'first' THEN teams.name END), '') as blood_team, "+
 			"COALESCE(MAX(CASE WHEN solves.blood_type = 'second' THEN teams.name END), '') as second_blood_team, "+
@@ -1110,7 +1111,7 @@ func (s *Service) getGameChallenges(gameID uint, includeHidden bool) ([]GameChal
 	if !includeHidden {
 		query = query.Where("challenges.is_visible = ?", true)
 	}
-	query = query.Group("game_challenges.challenge_id, game_challenges.score_override, challenges.title, challenges.description, challenges.category, challenges.type, challenges.difficulty, challenges.hints, challenges.attachments, challenges.base_score, challenges.is_visible")
+	query = query.Group("game_challenges.challenge_id, game_challenges.score_override, challenges.title, challenges.description, challenges.category, challenges.type, challenges.difficulty, challenges.hints, challenges.attachments, challenges.container_spec, challenges.base_score, challenges.is_visible")
 
 	var rows []row
 	if err := query.Scan(&rows).Error; err != nil {
@@ -1149,6 +1150,7 @@ func (s *Service) getGameChallenges(gameID uint, includeHidden bool) ([]GameChal
 			Difficulty:      r.Difficulty,
 			Hints:           r.Hints,
 			Attachments:     r.Attachments,
+			ContainerSpec:   r.ContainerSpec,
 			Score:           score,
 			SolveCount:      countMap[r.ChallengeID],
 			BloodTeam:       r.BloodTeam,

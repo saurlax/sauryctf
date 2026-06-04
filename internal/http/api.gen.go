@@ -625,6 +625,7 @@ type GameChallengeDetail struct {
 	Attachments     *string                     `json:"attachments,omitempty"`
 	BloodTeam       *string                     `json:"blood_team,omitempty"`
 	Category        GameChallengeDetailCategory `json:"category"`
+	ContainerSpec   *string                     `json:"container_spec,omitempty"`
 	Description     *string                     `json:"description,omitempty"`
 	Difficulty      *string                     `json:"difficulty,omitempty"`
 	Hints           *string                     `json:"hints,omitempty"`

@@ -286,6 +286,40 @@ function parseStringList(raw?: string) {
   return raw.split('\n').map(item => item.trim()).filter(Boolean)
 }
 
+function parseContainerSpec(raw?: string) {
+  if (!raw) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as {
+        connection?: {
+          url?: string
+          host?: string
+          port?: string | number
+          command?: string
+          note?: string
+        }
+        links?: Array<{
+          label?: string
+          url?: string
+        }>
+      }
+    }
+  }
+  catch {
+    // Keep compatibility with older free-form text specs.
+  }
+
+  return {
+    connection: {
+      note: raw,
+    },
+  }
+}
+
 const gameStatusMeta = computed(() => {
   if (!game.value) {
     return { label: '未知', color: 'neutral' as const, description: '' }
@@ -1500,6 +1534,53 @@ onMounted(async () => {
                       >
                         附件 {{ attachmentIndex + 1 }}
                       </UButton>
+                    </div>
+                  </div>
+
+                  <div
+                    v-if="parseContainerSpec(ch.container_spec)"
+                    class="rounded-lg border border-default bg-muted/40 px-3 py-3"
+                  >
+                    <div class="mb-2 flex items-center gap-2 text-sm font-medium">
+                      <UIcon name="i-lucide-box" class="size-4 text-success" />
+                      <span>实例接入信息</span>
+                    </div>
+                    <div class="space-y-2 text-muted">
+                      <p v-if="parseContainerSpec(ch.container_spec)?.connection?.note" class="leading-6 whitespace-pre-wrap">
+                        {{ parseContainerSpec(ch.container_spec)?.connection?.note }}
+                      </p>
+                      <div v-if="parseContainerSpec(ch.container_spec)?.connection?.url" class="flex flex-col gap-2">
+                        <UButton
+                          :to="parseContainerSpec(ch.container_spec)?.connection?.url"
+                          target="_blank"
+                          variant="outline"
+                          size="sm"
+                          icon="i-lucide-external-link"
+                          class="justify-start"
+                        >
+                          打开实例入口
+                        </UButton>
+                      </div>
+                      <div v-if="parseContainerSpec(ch.container_spec)?.connection?.host || parseContainerSpec(ch.container_spec)?.connection?.port" class="text-sm">
+                        {{ parseContainerSpec(ch.container_spec)?.connection?.host || 'host' }}<template v-if="parseContainerSpec(ch.container_spec)?.connection?.port">:{{ parseContainerSpec(ch.container_spec)?.connection?.port }}</template>
+                      </div>
+                      <div v-if="parseContainerSpec(ch.container_spec)?.connection?.command" class="rounded-md border border-default bg-default px-3 py-2 font-mono text-xs whitespace-pre-wrap">
+                        {{ parseContainerSpec(ch.container_spec)?.connection?.command }}
+                      </div>
+                      <div v-if="parseContainerSpec(ch.container_spec)?.links?.length" class="flex flex-col gap-2">
+                        <UButton
+                          v-for="(link, linkIndex) in parseContainerSpec(ch.container_spec)?.links || []"
+                          :key="`${ch.id}-instance-link-${linkIndex}`"
+                          :to="link.url"
+                          target="_blank"
+                          variant="outline"
+                          size="sm"
+                          icon="i-lucide-link"
+                          class="justify-start"
+                        >
+                          {{ link.label || `实例链接 ${linkIndex + 1}` }}
+                        </UButton>
+                      </div>
                     </div>
                   </div>
 

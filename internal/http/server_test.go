@@ -321,6 +321,7 @@ func TestServer_PublicVisitorCanBrowsePublicGameMetadata(t *testing.T) {
 		"base_score":  300,
 		"hints":       `["hint one"]`,
 		"attachments": `["/attachments/example.txt"]`,
+		"container_spec": `{"connection":{"url":"http://127.0.0.1:8081","note":"private instance"}}`,
 		"is_visible":  true,
 	})
 
@@ -378,6 +379,7 @@ func TestServer_PublicVisitorCanBrowsePublicGameMetadata(t *testing.T) {
 	assert.Equal(t, 300, publicChallenges[0].Score)
 	assert.Empty(t, publicChallenges[0].Description)
 	assert.Empty(t, publicChallenges[0].Hints)
+	assert.Empty(t, publicChallenges[0].ContainerSpec)
 	assert.Empty(t, publicChallenges[0].Attachments)
 }
 

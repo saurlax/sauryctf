@@ -1196,6 +1196,7 @@ func TestService_GetGameChallenges_ReturnsChallengeContent(t *testing.T) {
 		Difficulty:  "easy",
 		Hints:       "[\"hint\"]",
 		Attachments: "[\"https://example.com/file.zip\"]",
+		ContainerSpec: "{\"connection\":{\"url\":\"http://127.0.0.1:8081\"}}",
 		Flag:        "flag{visible}",
 		BaseScore:   100,
 		MinScore:    10,
@@ -1224,6 +1225,7 @@ func TestService_GetGameChallenges_ReturnsChallengeContent(t *testing.T) {
 	assert.Equal(t, "challenge body", items[0].Description)
 	assert.Equal(t, "[\"hint\"]", items[0].Hints)
 	assert.Equal(t, "[\"https://example.com/file.zip\"]", items[0].Attachments)
+	assert.Equal(t, "{\"connection\":{\"url\":\"http://127.0.0.1:8081\"}}", items[0].ContainerSpec)
 }
 
 func TestService_GetAdminGameChallenges_IncludesHiddenMountedChallenges(t *testing.T) {
@@ -1245,6 +1247,7 @@ func TestService_GetAdminGameChallenges_IncludesHiddenMountedChallenges(t *testi
 		Difficulty:  "easy",
 		Hints:       "[\"private hint\"]",
 		Attachments: "[\"https://example.com/private.zip\"]",
+		ContainerSpec: "{\"connection\":{\"url\":\"http://127.0.0.1:8081\"}}",
 		Flag:        "flag{hidden}",
 		BaseScore:   200,
 		MinScore:    20,
@@ -1315,6 +1318,7 @@ func TestService_GetAdminGameChallenges_IncludesHiddenMountedChallenges(t *testi
 	assert.Equal(t, "internal statement", adminItems[0].Description)
 	assert.Equal(t, "[\"private hint\"]", adminItems[0].Hints)
 	assert.Equal(t, "[\"https://example.com/private.zip\"]", adminItems[0].Attachments)
+	assert.Equal(t, "{\"connection\":{\"url\":\"http://127.0.0.1:8081\"}}", adminItems[0].ContainerSpec)
 	assert.Equal(t, 3, adminItems[0].SolveCount)
 	assert.Equal(t, "First Team", adminItems[0].BloodTeam)
 	assert.Equal(t, "Second Team", adminItems[0].SecondBloodTeam)

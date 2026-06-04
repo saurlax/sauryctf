@@ -116,6 +116,7 @@ type GameChallengeDetail struct {
 	Difficulty      string `json:"difficulty"`
 	Hints           string `json:"hints"`
 	Attachments     string `json:"attachments"`
+	ContainerSpec   string `json:"container_spec"`
 	Score           int    `json:"score"`  // effective score (override or base)
 	Solved          bool   `json:"solved"` // whether this team solved it
 	SolveCount      int    `json:"solve_count"`
