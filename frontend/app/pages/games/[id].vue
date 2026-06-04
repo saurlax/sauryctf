@@ -353,9 +353,40 @@ function getChallengeInstanceSpec(raw?: string) {
   return parseChallengeInstanceSpec(raw)
 }
 
+function hasChallengeInstanceTemplate(raw?: string) {
+  return hasChallengeInstanceTemplateTokens(raw)
+}
+
 function supportsManagedInstance(challenge: GameChallengeDetail) {
   const spec = getChallengeInstanceSpec(challenge.container_spec)
   return challenge.type === 'dynamic' && !!spec && (!!spec.runtimeProvider || !!spec.runtimeImage)
+}
+
+function getDisplayedInstanceLaunchUrl(challenge: GameChallengeDetail) {
+  return instanceStates[challenge.id]?.launch_url || getChallengeInstanceSpec(challenge.container_spec)?.url || ''
+}
+
+function getDisplayedInstanceHost(challenge: GameChallengeDetail) {
+  return instanceStates[challenge.id]?.host || getChallengeInstanceSpec(challenge.container_spec)?.host || ''
+}
+
+function getDisplayedInstancePort(challenge: GameChallengeDetail) {
+  return instanceStates[challenge.id]?.port || getChallengeInstanceSpec(challenge.container_spec)?.port || ''
+}
+
+function getDisplayedInstanceCommand(challenge: GameChallengeDetail) {
+  return instanceStates[challenge.id]?.command || getChallengeInstanceSpec(challenge.container_spec)?.command || ''
+}
+
+function getDisplayedInstanceLinks(challenge: GameChallengeDetail) {
+  if (instanceStates[challenge.id]?.launch_url) {
+    return [{
+      label: '当前队伍实例',
+      url: instanceStates[challenge.id]?.launch_url || '',
+    }]
+  }
+
+  return getChallengeInstanceSpec(challenge.container_spec)?.links || []
 }
 
 function formatDateTime(value?: string | null) {
@@ -1685,30 +1716,37 @@ onMounted(async () => {
                       <span>实例接入信息</span>
                     </div>
                     <div class="space-y-2 text-muted">
+                      <UAlert
+                        v-if="hasChallengeInstanceTemplate(ch.container_spec) && !instanceStates[ch.id]?.launch_url"
+                        color="info"
+                        variant="soft"
+                        title="当前显示的是模板入口"
+                        description="这道题的接入信息带有每队占位符。启动实例后，这里会优先显示已经为当前队伍解析好的真实入口。"
+                      />
                       <p v-if="getChallengeInstanceSpec(ch.container_spec)?.note" class="leading-6 whitespace-pre-wrap">
                         {{ getChallengeInstanceSpec(ch.container_spec)?.note }}
                       </p>
-                      <div v-if="getChallengeInstanceSpec(ch.container_spec)?.url" class="flex flex-col gap-2">
+                      <div v-if="getDisplayedInstanceLaunchUrl(ch)" class="flex flex-col gap-2">
                         <UButton
-                          :to="getChallengeInstanceSpec(ch.container_spec)?.url"
+                          :to="getDisplayedInstanceLaunchUrl(ch)"
                           target="_blank"
                           variant="outline"
                           size="sm"
                           icon="i-lucide-external-link"
                           class="justify-start"
                         >
-                          打开实例入口
+                          {{ instanceStates[ch.id]?.launch_url ? '打开当前队伍实例' : '打开实例入口' }}
                         </UButton>
                       </div>
-                      <div v-if="getChallengeInstanceSpec(ch.container_spec)?.host || getChallengeInstanceSpec(ch.container_spec)?.port" class="text-sm">
-                        {{ getChallengeInstanceSpec(ch.container_spec)?.host || 'host' }}<template v-if="getChallengeInstanceSpec(ch.container_spec)?.port">:{{ getChallengeInstanceSpec(ch.container_spec)?.port }}</template>
+                      <div v-if="getDisplayedInstanceHost(ch) || getDisplayedInstancePort(ch)" class="text-sm">
+                        {{ getDisplayedInstanceHost(ch) || 'host' }}<template v-if="getDisplayedInstancePort(ch)">:{{ getDisplayedInstancePort(ch) }}</template>
                       </div>
-                      <div v-if="getChallengeInstanceSpec(ch.container_spec)?.command" class="rounded-md border border-default bg-default px-3 py-2 font-mono text-xs whitespace-pre-wrap">
-                        {{ getChallengeInstanceSpec(ch.container_spec)?.command }}
+                      <div v-if="getDisplayedInstanceCommand(ch)" class="rounded-md border border-default bg-default px-3 py-2 font-mono text-xs whitespace-pre-wrap">
+                        {{ getDisplayedInstanceCommand(ch) }}
                       </div>
-                      <div v-if="getChallengeInstanceSpec(ch.container_spec)?.links?.length" class="flex flex-col gap-2">
+                      <div v-if="getDisplayedInstanceLinks(ch).length" class="flex flex-col gap-2">
                         <UButton
-                          v-for="(link, linkIndex) in getChallengeInstanceSpec(ch.container_spec)?.links || []"
+                          v-for="(link, linkIndex) in getDisplayedInstanceLinks(ch)"
                           :key="`${ch.id}-instance-link-${linkIndex}`"
                           :to="link.url"
                           target="_blank"
@@ -1752,7 +1790,7 @@ onMounted(async () => {
                           :color="getInstanceStatusColor(ch.id)"
                           variant="soft"
                           title="当前队伍实例"
-                          :description="instanceStates[ch.id]?.message || '当前题目支持最小实例租约，启动后会返回当前队伍的运行状态。'"
+                          :description="instanceStates[ch.id]?.message || (hasChallengeInstanceTemplate(ch.container_spec) ? '当前题目支持最小实例租约，并会把模板入口解析成当前队伍可用的独立地址。' : '当前题目支持最小实例租约，启动后会返回当前队伍的运行状态。')"
                         />
 
                         <div class="grid gap-3 text-xs text-muted md:grid-cols-2">

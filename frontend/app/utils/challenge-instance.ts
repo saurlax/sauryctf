@@ -113,3 +113,12 @@ export function hasChallengeInstanceSpec(raw?: string) {
     || spec.runtimeExpose.length,
   )
 }
+
+export function hasChallengeInstanceTemplateTokens(raw?: string) {
+  const spec = parseChallengeInstanceSpec(raw)
+  if (!spec) {
+    return false
+  }
+
+  return /\{\{\s*(game_id|challenge_id|team_id|user_id|team_hash)\s*\}\}/.test(spec.raw)
+}
