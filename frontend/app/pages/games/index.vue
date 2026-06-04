@@ -90,6 +90,26 @@ function getParticipationMeta(game: Game) {
   }
 
   if (participation.participated) {
+    if (participation.status === 'pending') {
+      return {
+        label: '待审核',
+        color: 'warning' as const,
+        description: `当前队伍 ${participation.team?.name || ''} 已提交报名，等待管理员审核。`,
+        actionLabel: '查看详情',
+        actionTo: `/games/${game.id}`,
+      }
+    }
+
+    if (participation.status === 'rejected') {
+      return {
+        label: '已拒绝',
+        color: 'error' as const,
+        description: `当前队伍 ${participation.team?.name || ''} 的报名未通过，可进入详情页重新确认。`,
+        actionLabel: '重新报名',
+        actionTo: `/games/${game.id}`,
+      }
+    }
+
     return {
       label: '已报名',
       color: 'success' as const,

@@ -9,19 +9,19 @@ import (
 )
 
 type MockService struct {
-	mu              sync.Mutex
-	Games           map[uint]*GameResponse
-	GameChs         map[string]bool // "gameID-challengeID"
-	Participations  map[string]bool // "gameID-teamID"
-	UserTeams       map[uint]*GameParticipationTeam
-	nextID          uint
+	mu             sync.Mutex
+	Games          map[uint]*GameResponse
+	GameChs        map[string]bool                       // "gameID-challengeID"
+	Participations map[string]models.ParticipationStatus // "gameID-teamID"
+	UserTeams      map[uint]*GameParticipationTeam
+	nextID         uint
 }
 
 func NewMockService() *MockService {
 	return &MockService{
 		Games:          make(map[uint]*GameResponse),
 		GameChs:        make(map[string]bool),
-		Participations: make(map[string]bool),
+		Participations: make(map[string]models.ParticipationStatus),
 		UserTeams:      make(map[uint]*GameParticipationTeam),
 		nextID:         1,
 	}
@@ -135,10 +135,10 @@ func (m *MockService) JoinGame(gameID uint, teamID uint, userID uint) error {
 		return fmt.Errorf("game not found")
 	}
 	key := fmt.Sprintf("%d-%d", gameID, teamID)
-	if m.Participations[key] {
+	if _, exists := m.Participations[key]; exists {
 		return fmt.Errorf("team already joined this game")
 	}
-	m.Participations[key] = true
+	m.Participations[key] = models.ParticipationPending
 	return nil
 }
 
@@ -147,7 +147,7 @@ func (m *MockService) LeaveGame(gameID uint, teamID uint, userID uint) error {
 	defer m.mu.Unlock()
 
 	key := fmt.Sprintf("%d-%d", gameID, teamID)
-	if !m.Participations[key] {
+	if _, exists := m.Participations[key]; !exists {
 		return fmt.Errorf("not joined this game")
 	}
 	delete(m.Participations, key)
@@ -159,10 +159,11 @@ func (m *MockService) GetParticipation(gameID uint, teamID uint) (*models.Partic
 	defer m.mu.Unlock()
 
 	key := fmt.Sprintf("%d-%d", gameID, teamID)
-	if !m.Participations[key] {
+	status, exists := m.Participations[key]
+	if !exists {
 		return nil, fmt.Errorf("participation not found")
 	}
-	return &models.Participation{GameID: gameID, TeamID: teamID, Status: models.ParticipationAccepted}, nil
+	return &models.Participation{GameID: gameID, TeamID: teamID, Status: status}, nil
 }
 
 func (m *MockService) GetParticipationStatus(gameID uint, userID uint) (*GameParticipationResponse, error) {
@@ -182,10 +183,11 @@ func (m *MockService) GetParticipationStatus(gameID uint, userID uint) (*GamePar
 	}
 
 	key := fmt.Sprintf("%d-%d", gameID, team.ID)
+	status, participated := m.Participations[key]
 	return &GameParticipationResponse{
 		HasTeam:      true,
-		Participated: m.Participations[key],
-		Status:       string(models.ParticipationAccepted),
+		Participated: participated,
+		Status:       string(status),
 		Team:         team,
 	}, nil
 }
@@ -229,13 +231,14 @@ func (m *MockService) GetParticipants(gameID uint) ([]GameParticipantEntry, erro
 	var result []GameParticipantEntry
 	for userID, team := range m.UserTeams {
 		key := fmt.Sprintf("%d-%d", gameID, team.ID)
-		if !m.Participations[key] {
+		status, exists := m.Participations[key]
+		if !exists {
 			continue
 		}
 		result = append(result, GameParticipantEntry{
 			TeamID:     team.ID,
 			TeamName:   team.Name,
-			Status:     string(models.ParticipationAccepted),
+			Status:     string(status),
 			JoinedAt:   time.Now(),
 			Score:      0,
 			SolveCount: 0,
@@ -246,3 +249,49 @@ func (m *MockService) GetParticipants(gameID uint) ([]GameParticipantEntry, erro
 	return result, nil
 }
 
+func (m *MockService) UpdateParticipationStatus(gameID uint, teamID uint, status string) (*GameParticipantEntry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	key := fmt.Sprintf("%d-%d", gameID, teamID)
+	if _, ok := m.Participations[key]; !ok {
+		return nil, fmt.Errorf("participation not found")
+	}
+
+	nextStatus := models.ParticipationStatus(status)
+	switch nextStatus {
+	case models.ParticipationPending, models.ParticipationAccepted, models.ParticipationRejected:
+	default:
+		return nil, fmt.Errorf("invalid participation status")
+	}
+
+	m.Participations[key] = nextStatus
+
+	for _, team := range m.UserTeams {
+		if team.ID == teamID {
+			return &GameParticipantEntry{
+				TeamID:     team.ID,
+				TeamName:   team.Name,
+				Status:     string(nextStatus),
+				JoinedAt:   time.Now(),
+				Score:      0,
+				SolveCount: 0,
+			}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("participation not found")
+}
+
+func (m *MockService) RemoveParticipation(gameID uint, teamID uint) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	key := fmt.Sprintf("%d-%d", gameID, teamID)
+	if _, ok := m.Participations[key]; !ok {
+		return fmt.Errorf("participation not found")
+	}
+
+	delete(m.Participations, key)
+	return nil
+}

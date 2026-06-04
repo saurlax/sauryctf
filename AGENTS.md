@@ -116,6 +116,10 @@ internal/<module>/
 - Dynamic scoring is shared across standalone challenge submission and game-scoped submission.
 - Current blood metadata (`first`, `second`, `third`) is retained for display, but does not apply an extra score multiplier.
 - On a fresh database, backend startup auto-creates a bootstrap admin user: `admin / sauryctf`.
+- Game registration now follows a lightweight review flow:
+  - player join requests create `pending` participations
+  - admins can change participant status to `accepted` or `rejected` from the admin contest page
+  - only `accepted` teams can submit flags during an active game
 
 ## Makefile (legacy — prefer pnpm scripts above)
 

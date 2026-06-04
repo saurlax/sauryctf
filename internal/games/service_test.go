@@ -41,14 +41,14 @@ func createGameChallengeFixture(t *testing.T, database *gorm.DB) (uint, uint, ui
 	require.NoError(t, database.Create(&team2).Error)
 
 	challenge := models.Challenge{
-		Title:      "Fixture Challenge",
-		Category:   models.CategoryWeb,
-		Flag:       "flag{fixture}",
-		BaseScore:  100,
-		MinScore:   10,
-		DecayRate:  0.1,
-		IsVisible:  true,
-		CreatedBy:  user1.ID,
+		Title:     "Fixture Challenge",
+		Category:  models.CategoryWeb,
+		Flag:      "flag{fixture}",
+		BaseScore: 100,
+		MinScore:  10,
+		DecayRate: 0.1,
+		IsVisible: true,
+		CreatedBy: user1.ID,
 	}
 	require.NoError(t, database.Create(&challenge).Error)
 
@@ -225,4 +225,80 @@ func TestService_GetScoreboard_IncludesChallengeStats(t *testing.T) {
 	assert.Equal(t, challengeID, scoreboard.Challenges[0].ID)
 	assert.Equal(t, 2, scoreboard.Challenges[0].SolvedCount)
 	assert.Equal(t, "Team One", scoreboard.Challenges[0].BloodTeam)
+}
+
+func TestService_JoinGame_CreatesPendingParticipation(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+
+	user := models.User{Username: "captain", Email: "captain@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+	team := models.Team{Name: "Blue Team", InviteCode: "blue01", CaptainID: user.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team).Error)
+	game := models.Game{
+		Name:      "Join Game",
+		StartTime: time.Now().Add(time.Hour),
+		EndTime:   time.Now().Add(2 * time.Hour),
+		Status:    "draft",
+		IsPublic:  true,
+		CreatedBy: user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+
+	require.NoError(t, svc.JoinGame(game.ID, team.ID, user.ID))
+
+	participation, err := svc.GetParticipation(game.ID, team.ID)
+	require.NoError(t, err)
+	assert.Equal(t, models.ParticipationPending, participation.Status)
+}
+
+func TestService_UpdateParticipationStatus(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, _, team1ID, _ := createGameChallengeFixture(t, database)
+
+	updated, err := svc.UpdateParticipationStatus(gameID, team1ID, "rejected")
+	require.NoError(t, err)
+	assert.Equal(t, "rejected", updated.Status)
+}
+
+func TestService_RemoveParticipation(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, _, team1ID, _ := createGameChallengeFixture(t, database)
+
+	require.NoError(t, svc.RemoveParticipation(gameID, team1ID))
+
+	_, err = svc.GetParticipation(gameID, team1ID)
+	assert.Error(t, err)
+}
+
+func TestService_SubmitFlag_RejectsPendingParticipation(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, team1ID, _ := createGameChallengeFixture(t, database)
+
+	require.NoError(t, database.Model(&models.Participation{}).
+		Where("game_id = ? AND team_id = ?", gameID, team1ID).
+		Update("status", models.ParticipationPending).Error)
+
+	_, err = svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not approved")
 }

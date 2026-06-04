@@ -447,6 +447,33 @@ components:
             name:
               type: string
 
+    GameParticipantEntry:
+      type: object
+      required: [team_id, team_name, status, joined_at, score, solve_count]
+      properties:
+        team_id:
+          type: integer
+        team_name:
+          type: string
+        status:
+          type: string
+          enum: [pending, accepted, rejected]
+        joined_at:
+          type: string
+          format: date-time
+        score:
+          type: integer
+        solve_count:
+          type: integer
+
+    UpdateParticipationStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [pending, accepted, rejected]
+
     HealthResponse:
       type: object
       required: [status, version]
@@ -1180,6 +1207,104 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Scoreboard"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/games/{id}/participants:
+    get:
+      operationId: getGameParticipants
+      summary: Get game participants (admin)
+      tags: [games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Participants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GameParticipantEntry"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/games/{id}/participants/{teamId}:
+    put:
+      operationId: updateGameParticipant
+      summary: Update participant status in a game (admin)
+      tags: [games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateParticipationStatusRequest"
+      responses:
+        "200":
+          description: Updated participant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameParticipantEntry"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      operationId: deleteGameParticipant
+      summary: Remove participant from a game (admin)
+      tags: [games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
         "404":
           description: Not found
           content:

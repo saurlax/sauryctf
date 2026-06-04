@@ -43,6 +43,12 @@ func NewServer(db *gorm.DB, jwtSecret string) *gin.Engine {
 	engine.GET("/api/games/:id/participants", func(c *gin.Context) {
 		handler.GetGameParticipants(c, mustIntParam(c, "id"))
 	})
+	engine.PUT("/api/games/:id/participants/:teamId", func(c *gin.Context) {
+		handler.UpdateGameParticipant(c, mustIntParam(c, "id"), mustIntParam(c, "teamId"))
+	})
+	engine.DELETE("/api/games/:id/participants/:teamId", func(c *gin.Context) {
+		handler.DeleteGameParticipant(c, mustIntParam(c, "id"), mustIntParam(c, "teamId"))
+	})
 
 	return engine
 }

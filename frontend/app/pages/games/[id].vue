@@ -95,6 +95,10 @@ async function submitFlag(challengeId: number) {
     toast.add({ title: '请先加入队伍再提交', color: 'warning' })
     return
   }
+  if (participation.value.status !== 'accepted') {
+    toast.add({ title: '当前还不能提交', description: submitHint.value, color: 'warning' })
+    return
+  }
 
   submitting.value = challengeId
   try {
@@ -132,7 +136,7 @@ async function joinGame() {
       params: { id: Number(gameId) },
       body: { team_id: teamId },
     })
-    toast.add({ title: '报名成功', color: 'success' })
+    toast.add({ title: '报名申请已提交', description: '等待管理员审核通过后即可正式参赛。', color: 'success' })
     await Promise.all([fetchParticipation(), fetchAll()])
   }
   catch (e: any) {
@@ -215,19 +219,19 @@ const gameStatusMeta = computed(() => {
 const canJoinGame = computed(() =>
   !!authState.user
   && !!participation.value?.has_team
-  && !participation.value?.participated
+  && participation.value?.status !== 'accepted'
   && gameStatusMeta.value.label !== '已结束',
 )
 
 const canLeaveGame = computed(() =>
   !!authState.user
-  && !!participation.value?.participated
+  && !!participation.value?.status
   && gameStatusMeta.value.label === '未开始',
 )
 
 const canSubmitFlag = computed(() =>
   !!authState.user
-  && !!participation.value?.participated
+  && participation.value?.status === 'accepted'
   && gameStatusMeta.value.label === '进行中',
 )
 
@@ -249,6 +253,22 @@ const participationHint = computed(() => {
   }
 
   if (participation.value.participated) {
+    if (participation.value.status === 'pending') {
+      return {
+        title: '报名待审核',
+        description: '当前队伍已经提交报名，等待管理员审核通过后才能正式参赛与提交 Flag。',
+        color: 'warning' as const,
+      }
+    }
+
+    if (participation.value.status === 'rejected') {
+      return {
+        title: '报名已被拒绝',
+        description: '当前队伍的报名未通过。你可以根据比赛公告调整后重新提交报名申请。',
+        color: 'error' as const,
+      }
+    }
+
     if (canLeaveGame.value) {
       return {
         title: '当前已报名，可在开赛前退赛',
@@ -290,6 +310,12 @@ const submitHint = computed(() => {
   }
   if (!participation.value.participated) {
     return '当前队伍尚未报名本场比赛，请先在上方完成报名。'
+  }
+  if (participation.value.status === 'pending') {
+    return '当前报名还在等待管理员审核，审核通过后才可以提交 Flag。'
+  }
+  if (participation.value.status === 'rejected') {
+    return '当前报名已被拒绝，请重新报名或联系管理员确认参赛资格。'
   }
   if (gameStatusMeta.value.label === '未开始') {
     return '比赛尚未开始，当前暂时不能提交 Flag。'

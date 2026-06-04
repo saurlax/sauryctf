@@ -105,6 +105,16 @@ export interface paths {
     /** Get game scoreboard */
     get: operations["getScoreboard"];
   };
+  "/api/games/{id}/participants": {
+    /** Get game participants (admin) */
+    get: operations["getGameParticipants"];
+  };
+  "/api/games/{id}/participants/{teamId}": {
+    /** Update participant status in a game (admin) */
+    put: operations["updateGameParticipant"];
+    /** Remove participant from a game (admin) */
+    delete: operations["deleteGameParticipant"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -318,6 +328,20 @@ export interface components {
         id: number;
         name: string;
       };
+    };
+    GameParticipantEntry: {
+      team_id: number;
+      team_name: string;
+      /** @enum {string} */
+      status: "pending" | "accepted" | "rejected";
+      /** Format: date-time */
+      joined_at: string;
+      score: number;
+      solve_count: number;
+    };
+    UpdateParticipationStatusRequest: {
+      /** @enum {string} */
+      status: "pending" | "accepted" | "rejected";
     };
     HealthResponse: {
       status: string;
@@ -897,6 +921,79 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["Scoreboard"];
+        };
+      };
+      /** @description Not found */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /** Get game participants (admin) */
+  getGameParticipants: {
+    parameters: {
+      path: {
+        id: number;
+      };
+    };
+    responses: {
+      /** @description Participants */
+      200: {
+        content: {
+          "application/json": components["schemas"]["GameParticipantEntry"][];
+        };
+      };
+      /** @description Not found */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /** Update participant status in a game (admin) */
+  updateGameParticipant: {
+    parameters: {
+      path: {
+        id: number;
+        teamId: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateParticipationStatusRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated participant */
+      200: {
+        content: {
+          "application/json": components["schemas"]["GameParticipantEntry"];
+        };
+      };
+      /** @description Not found */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /** Remove participant from a game (admin) */
+  deleteGameParticipant: {
+    parameters: {
+      path: {
+        id: number;
+        teamId: number;
+      };
+    };
+    responses: {
+      /** @description Removed */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MessageResponse"];
         };
       };
       /** @description Not found */

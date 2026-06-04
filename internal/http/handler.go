@@ -165,3 +165,17 @@ func (h *Handler) GetGameParticipants(c *gin.Context, id int) {
 	}
 	h.games.GetParticipants(c, id)
 }
+func (h *Handler) UpdateGameParticipant(c *gin.Context, id int, teamId int) {
+	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
+	if c.IsAborted() {
+		return
+	}
+	h.games.UpdateParticipantStatus(c, id, teamId)
+}
+func (h *Handler) DeleteGameParticipant(c *gin.Context, id int, teamId int) {
+	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
+	if c.IsAborted() {
+		return
+	}
+	h.games.RemoveParticipant(c, id, teamId)
+}

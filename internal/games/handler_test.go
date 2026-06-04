@@ -88,6 +88,18 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 		fmt.Sscan(c.Param("id"), &id)
 		h.GetParticipants(c, id)
 	})
+	api.PUT("/games/:id/participants/:teamId", func(c *gin.Context) {
+		var id, teamId int
+		fmt.Sscan(c.Param("id"), &id)
+		fmt.Sscan(c.Param("teamId"), &teamId)
+		h.UpdateParticipantStatus(c, id, teamId)
+	})
+	api.DELETE("/games/:id/participants/:teamId", func(c *gin.Context) {
+		var id, teamId int
+		fmt.Sscan(c.Param("id"), &id)
+		fmt.Sscan(c.Param("teamId"), &teamId)
+		h.RemoveParticipant(c, id, teamId)
+	})
 	return r
 }
 
@@ -251,7 +263,7 @@ func TestRemoveChallenge_Success(t *testing.T) {
 func TestGetGameParticipation_WithTeamAndJoined(t *testing.T) {
 	svc := games.NewMockService()
 	svc.UserTeams[1] = &games.GameParticipationTeam{ID: 7, Name: "Blue Team"}
-	svc.Participations["1-7"] = true
+	svc.Participations["1-7"] = "accepted"
 
 	r := setupTestRouter(svc)
 
@@ -275,7 +287,7 @@ func TestGetGameParticipation_WithTeamAndJoined(t *testing.T) {
 func TestGetParticipants_Success(t *testing.T) {
 	svc := games.NewMockService()
 	svc.UserTeams[1] = &games.GameParticipationTeam{ID: 7, Name: "Blue Team"}
-	svc.Participations["1-7"] = true
+	svc.Participations["1-7"] = "accepted"
 
 	r := setupTestRouter(svc)
 
@@ -294,4 +306,50 @@ func TestGetParticipants_Success(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &response)
 	assert.Len(t, response, 1)
 	assert.Equal(t, "Blue Team", response[0]["team_name"])
+}
+
+func TestUpdateParticipantStatus_Success(t *testing.T) {
+	svc := games.NewMockService()
+	svc.UserTeams[1] = &games.GameParticipationTeam{ID: 7, Name: "Blue Team"}
+	svc.Participations["1-7"] = "pending"
+
+	r := setupTestRouter(svc)
+
+	public := true
+	svc.CreateGame(games.CreateGameRequest{
+		Name: "Game", StartTime: time.Now(), EndTime: time.Now().Add(time.Hour), IsPublic: &public,
+	}, 1)
+
+	body := map[string]string{"status": "accepted"}
+	b, _ := json.Marshal(body)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/games/1/participants/7", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]any
+	json.Unmarshal(w.Body.Bytes(), &response)
+	assert.Equal(t, "accepted", response["status"])
+}
+
+func TestRemoveParticipant_Success(t *testing.T) {
+	svc := games.NewMockService()
+	svc.UserTeams[1] = &games.GameParticipationTeam{ID: 7, Name: "Blue Team"}
+	svc.Participations["1-7"] = "pending"
+
+	r := setupTestRouter(svc)
+
+	public := true
+	svc.CreateGame(games.CreateGameRequest{
+		Name: "Game", StartTime: time.Now(), EndTime: time.Now().Add(time.Hour), IsPublic: &public,
+	}, 1)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("DELETE", "/api/games/1/participants/7", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
 }

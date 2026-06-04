@@ -139,7 +139,7 @@ func (s *Service) RemoveChallenge(gameID uint, challengeID uint) error {
 }
 
 // JoinGame registers a team to a game.
-// Simplified vs GZCTF: no invite code or review — all joins are auto-accepted.
+// New registrations are created as pending so admins can review them.
 func (s *Service) JoinGame(gameID uint, teamID uint, userID uint) error {
 	var game models.Game
 	if err := s.db.First(&game, gameID).Error; err != nil {
@@ -160,7 +160,7 @@ func (s *Service) JoinGame(gameID uint, teamID uint, userID uint) error {
 		GameID: gameID,
 		TeamID: teamID,
 		UserID: userID,
-		Status: models.ParticipationAccepted,
+		Status: models.ParticipationPending,
 	}
 	return s.db.Create(part).Error
 }
@@ -172,14 +172,20 @@ func (s *Service) LeaveGame(gameID uint, teamID uint, userID uint) error {
 	if err := s.db.First(&game, gameID).Error; err != nil {
 		return errors.New("game not found")
 	}
-	if time.Now().After(game.StartTime) {
+
+	var participation models.Participation
+	if err := s.db.Where("game_id = ? AND team_id = ?", gameID, teamID).First(&participation).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("not joined this game")
+		}
+		return err
+	}
+
+	if participation.Status == models.ParticipationAccepted && time.Now().After(game.StartTime) {
 		return errors.New("cannot leave a game that has already started")
 	}
 
 	result := s.db.Where("game_id = ? AND team_id = ?", gameID, teamID).Delete(&models.Participation{})
-	if result.RowsAffected == 0 {
-		return errors.New("not joined this game")
-	}
 	return result.Error
 }
 
@@ -354,6 +360,9 @@ func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID 
 	var part models.Participation
 	if err := s.db.Where("game_id = ? AND team_id = ?", gameID, teamID).First(&part).Error; err != nil {
 		return nil, errors.New("team has not joined this game")
+	}
+	if part.Status != models.ParticipationAccepted {
+		return nil, errors.New("team is not approved for this game yet")
 	}
 
 	// Verify challenge is in this game
@@ -606,6 +615,58 @@ func (s *Service) GetParticipants(gameID uint) ([]GameParticipantEntry, error) {
 	return result, nil
 }
 
+func (s *Service) UpdateParticipationStatus(gameID uint, teamID uint, status string) (*GameParticipantEntry, error) {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		return nil, errors.New("game not found")
+	}
+
+	nextStatus := models.ParticipationStatus(status)
+	switch nextStatus {
+	case models.ParticipationPending, models.ParticipationAccepted, models.ParticipationRejected:
+	default:
+		return nil, errors.New("invalid participation status")
+	}
+
+	var participation models.Participation
+	if err := s.db.Where("game_id = ? AND team_id = ?", gameID, teamID).First(&participation).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("participation not found")
+		}
+		return nil, err
+	}
+
+	if err := s.db.Model(&participation).Update("status", nextStatus).Error; err != nil {
+		return nil, err
+	}
+
+	entries, err := s.GetParticipants(gameID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range entries {
+		if entries[i].TeamID == teamID {
+			return &entries[i], nil
+		}
+	}
+
+	return nil, errors.New("participation not found")
+}
+
+func (s *Service) RemoveParticipation(gameID uint, teamID uint) error {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		return errors.New("game not found")
+	}
+
+	result := s.db.Where("game_id = ? AND team_id = ?", gameID, teamID).Delete(&models.Participation{})
+	if result.RowsAffected == 0 {
+		return errors.New("participation not found")
+	}
+
+	return result.Error
+}
+
 func toResponse(g *models.Game) *GameResponse {
 	return &GameResponse{
 		ID:          g.ID,
@@ -620,4 +681,3 @@ func toResponse(g *models.Game) *GameResponse {
 		CreatedAt:   g.CreatedAt,
 	}
 }
-

@@ -74,6 +74,8 @@ const challengeEditing = ref(false)
 const loadingResources = ref(false)
 const loadingGameChallenges = ref(false)
 const loadingParticipants = ref(false)
+const updatingParticipantId = ref<number | null>(null)
+const removingParticipantId = ref<number | null>(null)
 const removingChallengeId = ref<number | null>(null)
 const deletingChallengeId = ref<number | null>(null)
 const games = ref<Array<{
@@ -111,11 +113,13 @@ const selectedGameChallenges = ref<Array<{
 const participants = ref<Array<{
   team_id: number
   team_name: string
-  status: string
+  status: 'pending' | 'accepted' | 'rejected'
   joined_at: string
   score: number
   solve_count: number
 }>>([])
+
+const participantStatusDrafts = reactive<Record<number, 'pending' | 'accepted' | 'rejected'>>({})
 
 const categoryOptions = [
   { label: 'Web', value: 'web' },
@@ -142,6 +146,12 @@ const gameStatusOptions = [
   { label: 'Draft', value: 'draft' },
   { label: 'Active', value: 'active' },
   { label: 'Ended', value: 'ended' },
+]
+
+const participantStatusOptions = [
+  { label: '待审核', value: 'pending' },
+  { label: '已通过', value: 'accepted' },
+  { label: '已拒绝', value: 'rejected' },
 ]
 
 const gameOptions = computed(() => games.value.map(game => ({
@@ -217,7 +227,14 @@ async function loadParticipants() {
 
   loadingParticipants.value = true
   try {
-    participants.value = await $fetch(`/api/games/${attachForm.game_id}/participants`)
+    participants.value = await $api('get', '/api/games/{id}/participants', {
+      params: {
+        id: attachForm.game_id,
+      },
+    })
+    for (const participant of participants.value) {
+      participantStatusDrafts[participant.team_id] = participant.status
+    }
   }
   catch (e: any) {
     participants.value = []
@@ -226,6 +243,95 @@ async function loadParticipants() {
   finally {
     loadingParticipants.value = false
   }
+}
+
+async function updateParticipantStatus(teamId: number) {
+  if (!attachForm.game_id) {
+    return
+  }
+
+  updatingParticipantId.value = teamId
+  try {
+    const status = participantStatusDrafts[teamId]
+    if (!status) {
+      toast.add({ title: '请先选择参赛状态', color: 'warning' })
+      return
+    }
+
+    const updated = await $api('put', '/api/games/{id}/participants/{teamId}', {
+      params: {
+        id: attachForm.game_id,
+        teamId,
+      },
+      body: {
+        status,
+      },
+    })
+
+    const index = participants.value.findIndex(item => item.team_id === teamId)
+    if (index >= 0) {
+      participants.value[index] = updated
+    }
+    participantStatusDrafts[teamId] = updated.status
+    toast.add({ title: '参赛状态已更新', color: 'success' })
+  }
+  catch (e: any) {
+    toast.add({ title: '更新参赛状态失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    updatingParticipantId.value = null
+  }
+}
+
+async function removeParticipant(teamId: number) {
+  if (!attachForm.game_id) {
+    return
+  }
+
+  const participant = participants.value.find(item => item.team_id === teamId)
+  const confirmed = window.confirm(`确认移除队伍「${participant?.team_name || `#${teamId}`}」的比赛报名吗？`)
+  if (!confirmed) {
+    return
+  }
+
+  removingParticipantId.value = teamId
+  try {
+    await $api('delete', '/api/games/{id}/participants/{teamId}', {
+      params: {
+        id: attachForm.game_id,
+        teamId,
+      },
+    })
+    participants.value = participants.value.filter(item => item.team_id !== teamId)
+    delete participantStatusDrafts[teamId]
+    toast.add({ title: '参赛队伍已移除', color: 'success' })
+  }
+  catch (e: any) {
+    toast.add({ title: '移除参赛队伍失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    removingParticipantId.value = null
+  }
+}
+
+function getParticipantStatusColor(status: 'pending' | 'accepted' | 'rejected') {
+  if (status === 'accepted') {
+    return 'success' as const
+  }
+  if (status === 'pending') {
+    return 'warning' as const
+  }
+  return 'error' as const
+}
+
+function getParticipantStatusLabel(status: 'pending' | 'accepted' | 'rejected') {
+  if (status === 'accepted') {
+    return '已通过'
+  }
+  if (status === 'pending') {
+    return '待审核'
+  }
+  return '已拒绝'
 }
 
 async function createGame() {
@@ -939,14 +1045,41 @@ onMounted(async () => {
                   <div class="font-medium">
                     {{ participant.team_name }}
                   </div>
-                  <UBadge :color="participant.status === 'accepted' ? 'success' : participant.status === 'pending' ? 'warning' : 'error'" variant="soft">
-                    {{ participant.status }}
+                  <UBadge :color="getParticipantStatusColor(participant.status)" variant="soft">
+                    {{ getParticipantStatusLabel(participant.status) }}
                   </UBadge>
                 </div>
                 <div class="mt-2 grid gap-2 text-muted md:grid-cols-3">
                   <div>报名时间：{{ new Date(participant.joined_at).toLocaleString() }}</div>
                   <div>当前得分：{{ participant.score }}</div>
                   <div>解题数量：{{ participant.solve_count }}</div>
+                </div>
+                <div class="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-end">
+                  <UFormField label="参赛状态" :name="`participant-status-${participant.team_id}`">
+                    <USelect
+                      v-model="participantStatusDrafts[participant.team_id]"
+                      :items="participantStatusOptions"
+                      class="w-full"
+                    />
+                  </UFormField>
+                  <UButton
+                    size="sm"
+                    icon="i-lucide-check-check"
+                    :loading="updatingParticipantId === participant.team_id"
+                    @click="updateParticipantStatus(participant.team_id)"
+                  >
+                    保存状态
+                  </UButton>
+                  <UButton
+                    color="error"
+                    variant="soft"
+                    size="sm"
+                    icon="i-lucide-user-round-x"
+                    :loading="removingParticipantId === participant.team_id"
+                    @click="removeParticipant(participant.team_id)"
+                  >
+                    移除报名
+                  </UButton>
                 </div>
               </div>
             </div>

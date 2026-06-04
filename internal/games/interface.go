@@ -27,6 +27,8 @@ type ServiceInterface interface {
 	// Scoreboard
 	GetScoreboard(gameID uint) (*ScoreboardResponse, error)
 	GetParticipants(gameID uint) ([]GameParticipantEntry, error)
+	UpdateParticipationStatus(gameID uint, teamID uint, status string) (*GameParticipantEntry, error)
+	RemoveParticipation(gameID uint, teamID uint) error
 }
 
 type CreateGameRequest struct {
@@ -69,15 +71,15 @@ type ChallengeInGame struct {
 
 // GameChallengeDetail is returned to players: challenge info + their solve status.
 type GameChallengeDetail struct {
-	ID          uint   `json:"id"`
-	Title       string `json:"title"`
-	Category    string `json:"category"`
-	Type        string `json:"type"`
-	Difficulty  string `json:"difficulty"`
-	Score       int    `json:"score"`   // effective score (override or base)
-	Solved      bool   `json:"solved"`  // whether this team solved it
-	SolveCount  int    `json:"solve_count"`
-	BloodTeam   string `json:"blood_team,omitempty"` // first blood team name
+	ID         uint   `json:"id"`
+	Title      string `json:"title"`
+	Category   string `json:"category"`
+	Type       string `json:"type"`
+	Difficulty string `json:"difficulty"`
+	Score      int    `json:"score"`  // effective score (override or base)
+	Solved     bool   `json:"solved"` // whether this team solved it
+	SolveCount int    `json:"solve_count"`
+	BloodTeam  string `json:"blood_team,omitempty"` // first blood team name
 }
 
 type SubmitResult struct {
@@ -89,26 +91,26 @@ type SubmitResult struct {
 
 // ScoreboardEntry is one team's row in the scoreboard.
 type ScoreboardEntry struct {
-	Rank      int    `json:"rank"`
-	TeamID    uint   `json:"team_id"`
-	TeamName  string `json:"team_name"`
-	Score     int    `json:"score"`
-	SolveCount int   `json:"solve_count"`
-	LastSolve time.Time `json:"last_solve"`
+	Rank       int       `json:"rank"`
+	TeamID     uint      `json:"team_id"`
+	TeamName   string    `json:"team_name"`
+	Score      int       `json:"score"`
+	SolveCount int       `json:"solve_count"`
+	LastSolve  time.Time `json:"last_solve"`
 }
 
 type ScoreboardChallengeStat struct {
-	ID         uint   `json:"id"`
-	Title      string `json:"title"`
-	Category   string `json:"category"`
-	Score      int    `json:"score"`
-	SolvedCount int   `json:"solved_count"`
-	BloodTeam  string `json:"blood_team,omitempty"`
+	ID          uint   `json:"id"`
+	Title       string `json:"title"`
+	Category    string `json:"category"`
+	Score       int    `json:"score"`
+	SolvedCount int    `json:"solved_count"`
+	BloodTeam   string `json:"blood_team,omitempty"`
 }
 
 type ScoreboardResponse struct {
-	GameID     uint                    `json:"game_id"`
-	Entries    []ScoreboardEntry       `json:"entries"`
+	GameID     uint                      `json:"game_id"`
+	Entries    []ScoreboardEntry         `json:"entries"`
 	Challenges []ScoreboardChallengeStat `json:"challenges"`
 }
 

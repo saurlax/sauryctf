@@ -208,6 +208,45 @@ func (h *Handler) GetParticipants(c *gin.Context, id int) {
 	c.JSON(http.StatusOK, participants)
 }
 
+func (h *Handler) UpdateParticipantStatus(c *gin.Context, id int, teamId int) {
+	var req struct {
+		Status string `json:"status" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+
+	participant, err := h.svc.UpdateParticipationStatus(uint(id), uint(teamId), req.Status)
+	if err != nil {
+		switch err.Error() {
+		case "game not found", "participation not found":
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		case "invalid participation status":
+			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, participant)
+}
+
+func (h *Handler) RemoveParticipant(c *gin.Context, id int, teamId int) {
+	if err := h.svc.RemoveParticipation(uint(id), uint(teamId)); err != nil {
+		switch err.Error() {
+		case "game not found", "participation not found":
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "removed"})
+}
+
 func (h *Handler) GetGameParticipation(c *gin.Context, id int) {
 	userID := c.MustGet("user_id").(uint)
 
