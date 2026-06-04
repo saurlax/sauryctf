@@ -224,7 +224,7 @@ func (s *Service) loadManagedInstanceChallenge(gameID uint, challengeID uint) (*
 	return &challenge, spec, nil
 }
 
-func buildInstanceResponse(gameID uint, challengeID uint, teamID uint, lease *models.GameInstanceLease, spec *parsedInstanceSpec) *ChallengeInstanceResponse {
+func (s *Service) buildInstanceResponse(gameID uint, challengeID uint, teamID uint, lease *models.GameInstanceLease, spec *parsedInstanceSpec) *ChallengeInstanceResponse {
 	response := &ChallengeInstanceResponse{
 		GameID:      gameID,
 		ChallengeID: challengeID,
@@ -1920,12 +1920,12 @@ func (s *Service) GetChallengeInstance(gameID uint, challengeID uint, userID uin
 	var lease models.GameInstanceLease
 	if err := s.db.Where("game_id = ? AND challenge_id = ? AND team_id = ?", gameID, challengeID, participation.TeamID).First(&lease).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return buildInstanceResponse(gameID, challengeID, participation.TeamID, nil, spec), nil
+			return s.buildInstanceResponse(gameID, challengeID, participation.TeamID, nil, spec), nil
 		}
 		return nil, err
 	}
 
-	return buildInstanceResponse(gameID, challengeID, participation.TeamID, &lease, spec), nil
+	return s.buildInstanceResponse(gameID, challengeID, participation.TeamID, &lease, spec), nil
 }
 
 func (s *Service) EnsureChallengeInstance(gameID uint, challengeID uint, userID uint) (*ChallengeInstanceResponse, error) {
@@ -1985,7 +1985,7 @@ func (s *Service) EnsureChallengeInstance(gameID uint, challengeID uint, userID 
 		}
 	}
 
-	return buildInstanceResponse(gameID, challengeID, participation.TeamID, &lease, spec), nil
+	return s.buildInstanceResponse(gameID, challengeID, participation.TeamID, &lease, spec), nil
 }
 
 func (s *Service) DestroyChallengeInstance(gameID uint, challengeID uint, userID uint) (*ChallengeInstanceResponse, error) {
@@ -1998,7 +1998,7 @@ func (s *Service) DestroyChallengeInstance(gameID uint, challengeID uint, userID
 		return nil, err
 	}
 
-	result := buildInstanceResponse(gameID, challengeID, participation.TeamID, nil, spec)
+	result := s.buildInstanceResponse(gameID, challengeID, participation.TeamID, nil, spec)
 
 	var lease models.GameInstanceLease
 	if err := s.db.Where("game_id = ? AND challenge_id = ? AND team_id = ?", gameID, challengeID, participation.TeamID).First(&lease).Error; err != nil {
