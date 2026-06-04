@@ -1199,6 +1199,43 @@ func TestService_GetAdminGameChallenges_IncludesHiddenMountedChallenges(t *testi
 		GameID: game.ID, ChallengeID: hiddenChallenge.ID,
 	}).Error)
 
+	team1 := models.Team{Name: "First Team", InviteCode: "blood01", CaptainID: user.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team1).Error)
+	require.NoError(t, database.Create(&models.Solve{
+		GameID:      game.ID,
+		ChallengeID: hiddenChallenge.ID,
+		TeamID:      team1.ID,
+		UserID:      user.ID,
+		BloodType:   "first",
+		Score:       hiddenChallenge.BaseScore,
+	}).Error)
+
+	user2 := models.User{Username: "second-viewer", Email: "second-viewer@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user2).Error)
+	team2 := models.Team{Name: "Second Team", InviteCode: "blood02", CaptainID: user2.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team2).Error)
+	require.NoError(t, database.Create(&models.Solve{
+		GameID:      game.ID,
+		ChallengeID: hiddenChallenge.ID,
+		TeamID:      team2.ID,
+		UserID:      user2.ID,
+		BloodType:   "second",
+		Score:       hiddenChallenge.BaseScore,
+	}).Error)
+
+	user3 := models.User{Username: "third-viewer", Email: "third-viewer@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user3).Error)
+	team3 := models.Team{Name: "Third Team", InviteCode: "blood03", CaptainID: user3.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team3).Error)
+	require.NoError(t, database.Create(&models.Solve{
+		GameID:      game.ID,
+		ChallengeID: hiddenChallenge.ID,
+		TeamID:      team3.ID,
+		UserID:      user3.ID,
+		BloodType:   "third",
+		Score:       hiddenChallenge.BaseScore,
+	}).Error)
+
 	publicItems, err := svc.GetGameChallenges(game.ID)
 	require.NoError(t, err)
 	assert.Len(t, publicItems, 0)
@@ -1210,6 +1247,10 @@ func TestService_GetAdminGameChallenges_IncludesHiddenMountedChallenges(t *testi
 	assert.Equal(t, "internal statement", adminItems[0].Description)
 	assert.Equal(t, "[\"private hint\"]", adminItems[0].Hints)
 	assert.Equal(t, "[\"https://example.com/private.zip\"]", adminItems[0].Attachments)
+	assert.Equal(t, 3, adminItems[0].SolveCount)
+	assert.Equal(t, "First Team", adminItems[0].BloodTeam)
+	assert.Equal(t, "Second Team", adminItems[0].SecondBloodTeam)
+	assert.Equal(t, "Third Team", adminItems[0].ThirdBloodTeam)
 }
 
 func TestService_SubmitWriteup_RequiresAcceptedParticipation(t *testing.T) {

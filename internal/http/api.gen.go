@@ -583,18 +583,20 @@ type GameStatus string
 
 // GameChallengeDetail defines model for GameChallengeDetail.
 type GameChallengeDetail struct {
-	Attachments *string                     `json:"attachments,omitempty"`
-	BloodTeam   *string                     `json:"blood_team,omitempty"`
-	Category    GameChallengeDetailCategory `json:"category"`
-	Description *string                     `json:"description,omitempty"`
-	Difficulty  *string                     `json:"difficulty,omitempty"`
-	Hints       *string                     `json:"hints,omitempty"`
-	Id          int                         `json:"id"`
-	Score       int                         `json:"score"`
-	SolveCount  *int                        `json:"solve_count,omitempty"`
-	Solved      *bool                       `json:"solved,omitempty"`
-	Title       string                      `json:"title"`
-	Type        GameChallengeDetailType     `json:"type"`
+	Attachments     *string                     `json:"attachments,omitempty"`
+	BloodTeam       *string                     `json:"blood_team,omitempty"`
+	Category        GameChallengeDetailCategory `json:"category"`
+	Description     *string                     `json:"description,omitempty"`
+	Difficulty      *string                     `json:"difficulty,omitempty"`
+	Hints           *string                     `json:"hints,omitempty"`
+	Id              int                         `json:"id"`
+	Score           int                         `json:"score"`
+	SecondBloodTeam *string                     `json:"second_blood_team,omitempty"`
+	SolveCount      *int                        `json:"solve_count,omitempty"`
+	Solved          *bool                       `json:"solved,omitempty"`
+	ThirdBloodTeam  *string                     `json:"third_blood_team,omitempty"`
+	Title           string                      `json:"title"`
+	Type            GameChallengeDetailType     `json:"type"`
 }
 
 // GameChallengeDetailCategory defines model for GameChallengeDetail.Category.

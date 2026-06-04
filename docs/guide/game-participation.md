@@ -26,7 +26,7 @@
 - `GET /api/games/{id}/challenges`
   - 未登录访客也可以读取公开比赛的题目基础信息
   - 如果当前用户所属队伍已报名，会返回队伍视角的题目状态
-  - 包括 `solved` 和 `blood_team`
+  - 包括 `solved` 以及一血 / 二血 / 三血队伍
   - 未通过报名、未开始前的已通过队伍、以及普通查看者，默认只能看到题目基础信息
   - 完整 `description` / `hints` / `attachments` 会在“已通过报名 + 比赛开始后”开放
 - `GET /api/games/{id}/scoreboard`

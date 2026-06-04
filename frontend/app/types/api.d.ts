@@ -341,6 +341,8 @@ export interface components {
       solved?: boolean;
       solve_count?: number;
       blood_team?: string;
+      second_blood_team?: string;
+      third_blood_team?: string;
     };
     JoinGameRequest: {
       team_id: number;

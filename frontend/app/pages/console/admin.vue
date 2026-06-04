@@ -147,6 +147,8 @@ const selectedGameChallenges = ref<Array<{
   score: number
   solve_count?: number
   blood_team?: string
+  second_blood_team?: string
+  third_blood_team?: string
 }>>([])
 const participants = ref<Array<{
   team_id: number
@@ -231,6 +233,18 @@ const selectedGameDivisionOptions = computed(() => (selectedGame.value?.division
   label: division,
   value: division,
 })))
+
+function getBloodRows(challenge: {
+  blood_team?: string
+  second_blood_team?: string
+  third_blood_team?: string
+}) {
+  return [
+    { label: '一血', team: challenge.blood_team },
+    { label: '二血', team: challenge.second_blood_team },
+    { label: '三血', team: challenge.third_blood_team },
+  ]
+}
 
 function parseDivisionList(raw: string) {
   return Array.from(new Set(
@@ -1417,9 +1431,18 @@ onMounted(async () => {
                   <div class="font-medium">
                     #{{ challenge.id }} {{ challenge.title }}
                   </div>
-                  <div class="text-sm text-muted">
-                    {{ challenge.category }} · {{ challenge.score }} 分 · {{ challenge.solve_count || 0 }} 解
-                    <span v-if="challenge.blood_team"> · 一血 {{ challenge.blood_team }}</span>
+                  <div class="space-y-1 text-sm text-muted">
+                    <div>
+                      {{ challenge.category }} · {{ challenge.score }} 分 · {{ challenge.solve_count || 0 }} 解
+                    </div>
+                    <div
+                      v-for="blood in getBloodRows(challenge)"
+                      :key="`${challenge.id}-${blood.label}`"
+                      class="flex items-center gap-2"
+                    >
+                      <span>{{ blood.label }}</span>
+                      <span>{{ blood.team || '暂无' }}</span>
+                    </div>
                   </div>
                 </div>
 

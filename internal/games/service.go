@@ -1076,29 +1076,38 @@ func (s *Service) GetAdminGameChallenges(gameID uint) ([]GameChallengeDetail, er
 
 func (s *Service) getGameChallenges(gameID uint, includeHidden bool) ([]GameChallengeDetail, error) {
 	type row struct {
-		ChallengeID   uint
-		ScoreOverride int
-		Title         string
-		Description   string
-		Category      string
-		Type          string
-		Difficulty    string
-		Hints         string
-		Attachments   string
-		BaseScore     int
-		IsVisible     bool
+		ChallengeID      uint
+		ScoreOverride    int
+		Title            string
+		Description      string
+		Category         string
+		Type             string
+		Difficulty       string
+		Hints            string
+		Attachments      string
+		BaseScore        int
+		IsVisible        bool
+		BloodTeam        string
+		SecondBloodTeam  string
+		ThirdBloodTeam   string
 	}
 
 	query := s.db.Table("game_challenges").
 		Select("game_challenges.challenge_id, game_challenges.score_override, "+
 			"challenges.title, challenges.description, challenges.category, challenges.type, challenges.difficulty, "+
 			"challenges.hints, challenges.attachments, "+
-			"challenges.base_score, challenges.is_visible").
+			"challenges.base_score, challenges.is_visible, "+
+			"COALESCE(MAX(CASE WHEN solves.blood_type = 'first' THEN teams.name END), '') as blood_team, "+
+			"COALESCE(MAX(CASE WHEN solves.blood_type = 'second' THEN teams.name END), '') as second_blood_team, "+
+			"COALESCE(MAX(CASE WHEN solves.blood_type = 'third' THEN teams.name END), '') as third_blood_team").
 		Joins("JOIN challenges ON challenges.id = game_challenges.challenge_id").
+		Joins("LEFT JOIN solves ON solves.challenge_id = game_challenges.challenge_id AND solves.game_id = game_challenges.game_id").
+		Joins("LEFT JOIN teams ON teams.id = solves.team_id").
 		Where("game_challenges.game_id = ?", gameID)
 	if !includeHidden {
 		query = query.Where("challenges.is_visible = ?", true)
 	}
+	query = query.Group("game_challenges.challenge_id, game_challenges.score_override, challenges.title, challenges.description, challenges.category, challenges.type, challenges.difficulty, challenges.hints, challenges.attachments, challenges.base_score, challenges.is_visible")
 
 	var rows []row
 	if err := query.Scan(&rows).Error; err != nil {
@@ -1129,16 +1138,19 @@ func (s *Service) getGameChallenges(gameID uint, includeHidden bool) ([]GameChal
 			score = r.ScoreOverride
 		}
 		result = append(result, GameChallengeDetail{
-			ID:          r.ChallengeID,
-			Title:       r.Title,
-			Description: r.Description,
-			Category:    r.Category,
-			Type:        r.Type,
-			Difficulty:  r.Difficulty,
-			Hints:       r.Hints,
-			Attachments: r.Attachments,
-			Score:       score,
-			SolveCount:  countMap[r.ChallengeID],
+			ID:              r.ChallengeID,
+			Title:           r.Title,
+			Description:     r.Description,
+			Category:        r.Category,
+			Type:            r.Type,
+			Difficulty:      r.Difficulty,
+			Hints:           r.Hints,
+			Attachments:     r.Attachments,
+			Score:           score,
+			SolveCount:      countMap[r.ChallengeID],
+			BloodTeam:       r.BloodTeam,
+			SecondBloodTeam: r.SecondBloodTeam,
+			ThirdBloodTeam:  r.ThirdBloodTeam,
 		})
 	}
 	return result, nil
@@ -1160,30 +1172,9 @@ func (s *Service) GetGameChallengesForTeam(gameID uint, teamID uint) ([]GameChal
 		solvedMap[solve.ChallengeID] = solve
 	}
 
-	type bloodRow struct {
-		ChallengeID uint
-		TeamName    string
-	}
-	var bloodRows []bloodRow
-	if err := s.db.Table("solves").
-		Select("solves.challenge_id, teams.name as team_name").
-		Joins("JOIN teams ON teams.id = solves.team_id").
-		Where("solves.game_id = ? AND solves.blood_type = ?", gameID, "first").
-		Scan(&bloodRows).Error; err != nil {
-		return nil, err
-	}
-
-	bloodMap := map[uint]string{}
-	for _, row := range bloodRows {
-		bloodMap[row.ChallengeID] = row.TeamName
-	}
-
 	for i := range challenges {
 		if _, ok := solvedMap[challenges[i].ID]; ok {
 			challenges[i].Solved = true
-		}
-		if teamName, ok := bloodMap[challenges[i].ID]; ok {
-			challenges[i].BloodTeam = teamName
 		}
 	}
 
