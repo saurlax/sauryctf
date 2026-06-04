@@ -516,6 +516,19 @@ function getInstancePrimaryActionLabel(challengeId: number) {
   return '启动实例'
 }
 
+function getInstancePolicyHint(challengeId: number) {
+  const state = instanceStates[challengeId]
+  if (state?.status === 'running') {
+    if (state.can_renew) {
+      return '当前实例已经进入续期窗口；现在续期会在现有未过期租约后追加新的时长。'
+    }
+
+    return state.message || '当前实例还未进入续期窗口；只有接近到期时才开放续期。'
+  }
+
+  return '首次启动会创建一段初始租约；之后的续期会按当前实例策略额外追加新的时长。'
+}
+
 async function syncChallengeInstances() {
   for (const challenge of challenges.value) {
     if (authState.user && supportsManagedInstance(challenge)) {
@@ -1930,7 +1943,7 @@ onMounted(async () => {
                           color="info"
                           variant="soft"
                           title="当前还没到可续期时间"
-                          description="为了贴近 GZCTF 的容器续期语义，当前实例只有在到期前 10 分钟内才开放续期。"
+                          :description="instanceStates[ch.id]?.message || '为了贴近 GZCTF 的容器续期语义，当前实例只有在进入续期窗口后才开放续期。'"
                         />
 
                         <div class="mb-3 rounded-md border border-default px-3 py-3">
@@ -1939,6 +1952,15 @@ onMounted(async () => {
                             <span>{{ instanceLoading[ch.id] ? '同步中' : formatSecondsLeft(getInstanceSecondsLeft(ch.id)) }}</span>
                           </div>
                           <UProgress :model-value="getInstanceLeasePercent(ch.id)" status />
+                        </div>
+
+                        <div class="mb-3 rounded-md border border-default px-3 py-3 text-xs text-muted">
+                          <div class="mb-1 font-medium text-highlighted">
+                            当前续期策略
+                          </div>
+                          <div>
+                            {{ getInstancePolicyHint(ch.id) }}
+                          </div>
                         </div>
 
                         <UAlert
