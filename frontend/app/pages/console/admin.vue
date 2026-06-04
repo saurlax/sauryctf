@@ -328,6 +328,107 @@ const selectedAdminOverview = computed(() => {
   }
 })
 
+const activeMonitorTab = ref<'overview' | 'submissions' | 'clues' | 'ops'>('overview')
+
+const monitorTabItems = [
+  { label: '总览', value: 'overview', icon: 'i-lucide-layout-dashboard' },
+  { label: '提交流', value: 'submissions', icon: 'i-lucide-activity' },
+  { label: '线索', value: 'clues', icon: 'i-lucide-shield-alert' },
+  { label: '运维', value: 'ops', icon: 'i-lucide-megaphone' },
+]
+
+const selectedMonitorStats = computed(() => {
+  const overview = selectedAdminOverview.value
+  if (!overview) {
+    return []
+  }
+
+  const acceptedCount = submissions.value.filter(item => item.result === 'accepted').length
+  const wrongCount = submissions.value.filter(item => item.result === 'wrong_flag').length
+  const repeatedCount = submissions.value.filter(item => item.result === 'already_solved').length
+
+  return [
+    { label: '最近提交', value: String(submissions.value.length), icon: 'i-lucide-logs' },
+    { label: '正确提交', value: String(acceptedCount), icon: 'i-lucide-circle-check-big' },
+    { label: '错误 Flag', value: String(wrongCount), icon: 'i-lucide-circle-x' },
+    { label: '重复提交', value: String(repeatedCount), icon: 'i-lucide-copy-check' },
+    { label: '可疑线索', value: String(cheatClues.value.length), icon: 'i-lucide-shield-alert' },
+    { label: '比赛公告', value: String(announcements.value.length), icon: 'i-lucide-megaphone' },
+  ]
+})
+
+const monitorFocusItems = computed(() => {
+  const overview = selectedAdminOverview.value
+  if (!overview) {
+    return []
+  }
+
+  const items = []
+
+  if (overview.pendingParticipantCount > 0) {
+    items.push({
+      key: 'participants',
+      title: '还有报名待审核',
+      description: `${overview.pendingParticipantCount} 支队伍还在等待通过，建议先处理参赛资格，避免影响开赛体验。`,
+      badge: '报名',
+      color: 'warning' as const,
+      to: '#attach-challenge',
+    })
+  }
+
+  if (writeups.value.some(item => item.status === 'submitted')) {
+    items.push({
+      key: 'writeups',
+      title: '有 Writeup 等待审核',
+      description: `${writeups.value.filter(item => item.status === 'submitted').length} 份 Writeup 仍未处理，适合在赛后第一时间收尾。`,
+      badge: 'Writeup',
+      color: 'info' as const,
+      to: '#attach-challenge',
+    })
+  }
+
+  if (cheatClues.value.length > 0) {
+    const firstClue = cheatClues.value[0]
+    if (firstClue) {
+      items.push({
+        key: 'clues',
+        title: '出现跨队重复错误 Flag',
+        description: `${firstClue.challenge_title} 当前已有 ${firstClue.team_count} 支队伍重复提交同一错误 Flag，可优先排查线索传播。`,
+        badge: '线索',
+        color: 'error' as const,
+        to: '#attach-challenge',
+      })
+    }
+  }
+
+  if (submissions.value.some(item => item.result === 'accepted')) {
+    const latestAccepted = submissions.value.find(item => item.result === 'accepted')
+    if (latestAccepted) {
+      items.push({
+        key: 'accepted',
+        title: '已有队伍完成解题',
+        description: `${latestAccepted.team_name} 刚刚在 ${latestAccepted.challenge_title} 上拿到一次正确提交，适合继续观察榜单和题目状态。`,
+        badge: '通过',
+        color: 'success' as const,
+        to: `/games/${overview.game.id}`,
+      })
+    }
+  }
+
+  if (announcements.value.length === 0) {
+    items.push({
+      key: 'announcement',
+      title: '比赛还没有发布公告',
+      description: '如果这场比赛已经对外开放，建议至少发一条开赛或维护公告，方便参赛队伍同步状态。',
+      badge: '公告',
+      color: 'neutral' as const,
+      to: '#attach-challenge',
+    })
+  }
+
+  return items.slice(0, 4)
+})
+
 const selectedGamePreflightChecks = computed(() => {
   const overview = selectedAdminOverview.value
   if (!overview) {
@@ -1995,6 +2096,318 @@ onMounted(async () => {
           />
         </UPageCard>
       </div>
+
+      <UPageCard title="赛事监控" icon="i-lucide-activity">
+        <div v-if="selectedAdminOverview" class="space-y-5">
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div class="text-lg font-medium">
+                {{ selectedAdminOverview.game.name }}
+              </div>
+              <div class="mt-1 text-sm text-muted">
+                围绕当前选中的比赛，快速查看提交流、可疑线索和赛时运维状态。
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <UButton
+                size="sm"
+                variant="outline"
+                icon="i-lucide-refresh-cw"
+                :loading="loadingSubmissions || loadingCheatClues || loadingAnnouncements || loadingParticipants"
+                @click="selectGameContext(selectedAdminOverview.game.id)"
+              >
+                刷新监控
+              </UButton>
+              <UButton
+                size="sm"
+                variant="outline"
+                icon="i-lucide-arrow-up-right"
+                :to="`/games/${selectedAdminOverview.game.id}`"
+              >
+                打开公开页
+              </UButton>
+            </div>
+          </div>
+
+          <UPageGrid :cols="{ default: 1, sm: 2, xl: 3 }">
+            <UPageCard
+              v-for="stat in selectedMonitorStats"
+              :key="stat.label"
+              :title="stat.value"
+              :description="stat.label"
+              :icon="stat.icon"
+            />
+          </UPageGrid>
+
+          <div v-if="monitorFocusItems.length" class="grid gap-3 xl:grid-cols-2">
+            <div
+              v-for="item in monitorFocusItems"
+              :key="item.key"
+              class="rounded-lg border border-default px-3 py-3"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="font-medium">
+                    {{ item.title }}
+                  </div>
+                  <div class="mt-2 text-sm text-muted">
+                    {{ item.description }}
+                  </div>
+                </div>
+                <UBadge :color="item.color" variant="soft">
+                  {{ item.badge }}
+                </UBadge>
+              </div>
+
+              <div class="mt-3 flex justify-end">
+                <UButton
+                  size="sm"
+                  variant="outline"
+                  @click="item.to.startsWith('#') ? jumpToAdminAnchor(item.to) : navigateTo(item.to)"
+                >
+                  立即处理
+                </UButton>
+              </div>
+            </div>
+          </div>
+
+          <UTabs v-model="activeMonitorTab" :items="monitorTabItems" />
+
+          <div v-if="activeMonitorTab === 'overview'" class="grid gap-4 xl:grid-cols-3">
+            <div class="rounded-lg border border-default px-3 py-3">
+              <div class="mb-3 flex items-center justify-between gap-2">
+                <div class="font-medium">
+                  最新公告
+                </div>
+                <UBadge color="info" variant="soft">
+                  {{ announcements.length }}
+                </UBadge>
+              </div>
+              <div v-if="announcements.length" class="space-y-2">
+                <div
+                  v-for="announcement in announcements.slice(0, 3)"
+                  :key="announcement.id"
+                  class="rounded-md bg-elevated/60 px-3 py-2"
+                >
+                  <div class="text-xs text-muted">
+                    {{ new Date(announcement.created_at).toLocaleString() }}
+                  </div>
+                  <div class="mt-1 text-sm line-clamp-3">
+                    {{ announcement.content }}
+                  </div>
+                </div>
+              </div>
+              <div v-else class="text-sm text-muted">
+                当前还没有公告。
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-default px-3 py-3">
+              <div class="mb-3 flex items-center justify-between gap-2">
+                <div class="font-medium">
+                  待审核报名
+                </div>
+                <UBadge color="warning" variant="soft">
+                  {{ participants.filter(item => item.status === 'pending').length }}
+                </UBadge>
+              </div>
+              <div v-if="participants.some(item => item.status === 'pending')" class="space-y-2">
+                <div
+                  v-for="participant in participants.filter(item => item.status === 'pending').slice(0, 4)"
+                  :key="participant.team_id"
+                  class="rounded-md bg-elevated/60 px-3 py-2"
+                >
+                  <div class="text-sm font-medium">
+                    {{ participant.team_name }}
+                  </div>
+                  <div class="text-xs text-muted">
+                    {{ new Date(participant.joined_at).toLocaleString() }}
+                  </div>
+                </div>
+              </div>
+              <div v-else class="text-sm text-muted">
+                当前没有待审核报名。
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-default px-3 py-3">
+              <div class="mb-3 flex items-center justify-between gap-2">
+                <div class="font-medium">
+                  待审 Writeup
+                </div>
+                <UBadge color="info" variant="soft">
+                  {{ writeups.filter(item => item.status === 'submitted').length }}
+                </UBadge>
+              </div>
+              <div v-if="writeups.some(item => item.status === 'submitted')" class="space-y-2">
+                <div
+                  v-for="writeup in writeups.filter(item => item.status === 'submitted').slice(0, 4)"
+                  :key="writeup.team_id"
+                  class="rounded-md bg-elevated/60 px-3 py-2"
+                >
+                  <div class="text-sm font-medium">
+                    {{ writeup.team_name }}
+                  </div>
+                  <div class="text-xs text-muted">
+                    {{ new Date(writeup.submitted_at).toLocaleString() }}
+                  </div>
+                </div>
+              </div>
+              <div v-else class="text-sm text-muted">
+                当前没有待审 Writeup。
+              </div>
+            </div>
+          </div>
+
+          <div v-else-if="activeMonitorTab === 'submissions'" class="space-y-3">
+            <div class="flex items-center justify-between gap-3 flex-wrap">
+              <div class="text-sm text-muted">
+                保留最近提交的即时视角，适合在开赛后快速观察正确率与重复提交流量。
+              </div>
+              <div class="flex items-center gap-2">
+                <USelect
+                  v-model="submissionFilters.type"
+                  :items="submissionTypeOptions"
+                  size="sm"
+                  class="w-36"
+                />
+                <USelect
+                  v-model="submissionFilters.count"
+                  :items="[
+                    { label: '20 条', value: 20 },
+                    { label: '50 条', value: 50 },
+                    { label: '100 条', value: 100 },
+                    { label: '200 条', value: 200 },
+                  ]"
+                  size="sm"
+                  class="w-28"
+                />
+              </div>
+            </div>
+
+            <div v-if="submissions.length" class="space-y-2">
+              <div
+                v-for="submission in submissions.slice(0, 12)"
+                :key="submission.id"
+                class="rounded-lg border border-default px-3 py-3 text-sm"
+              >
+                <div class="flex items-center justify-between gap-3">
+                  <div class="font-medium">
+                    {{ submission.team_name }} · {{ submission.challenge_title }}
+                  </div>
+                  <UBadge :color="getSubmissionResultColor(submission.result)" variant="soft">
+                    {{ getSubmissionResultLabel(submission.result) }}
+                  </UBadge>
+                </div>
+                <div class="mt-2 grid gap-2 text-muted md:grid-cols-2">
+                  <div>选手：{{ submission.username }} (#{{ submission.user_id }})</div>
+                  <div>分类：{{ submission.category }}{{ submission.is_practice ? ' · 练习模式' : '' }}</div>
+                  <div>提交时间：{{ new Date(submission.submitted_at).toLocaleString() }}</div>
+                  <div>得分：{{ submission.score }}{{ submission.blood_type ? ` · ${submission.blood_type}` : '' }}</div>
+                </div>
+                <div class="mt-2 text-muted">
+                  结果说明：{{ submission.message || '无' }}
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-sm text-muted">
+              这场比赛还没有提交记录。
+            </div>
+          </div>
+
+          <div v-else-if="activeMonitorTab === 'clues'" class="space-y-3">
+            <UAlert
+              color="warning"
+              variant="soft"
+              title="当前线索仅基于跨队重复错误 Flag"
+              description="这是轻量版排查入口，先帮你定位最值得复核的题目与 Flag 传播迹象。"
+            />
+
+            <div v-if="cheatClues.length" class="space-y-2">
+              <div
+                v-for="clue in cheatClues"
+                :key="`${clue.challenge_id}-${clue.submitted_flag}`"
+                class="rounded-lg border border-default px-3 py-3 text-sm"
+              >
+                <div class="flex items-center justify-between gap-3">
+                  <div class="font-medium">
+                    {{ clue.challenge_title }} · {{ clue.team_count }} 支队伍
+                  </div>
+                  <UBadge color="warning" variant="soft">
+                    {{ clue.submission_count }} 次重复错误提交
+                  </UBadge>
+                </div>
+                <div class="mt-2 text-muted break-all">
+                  错误 Flag：{{ clue.submitted_flag }}
+                </div>
+                <div class="mt-2 grid gap-2 text-muted md:grid-cols-2">
+                  <div>首次出现：{{ new Date(clue.first_seen_at).toLocaleString() }}</div>
+                  <div>最近出现：{{ new Date(clue.last_seen_at).toLocaleString() }}</div>
+                </div>
+                <div class="mt-2 text-muted">
+                  涉及队伍：{{ clue.teams.join(' / ') }}
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-sm text-muted">
+              当前还没有发现跨队重复错误 Flag 的线索。
+            </div>
+          </div>
+
+          <div v-else class="grid gap-4 xl:grid-cols-2">
+            <div class="rounded-lg border border-default px-3 py-3">
+              <div class="mb-3 flex items-center justify-between gap-2">
+                <div class="font-medium">
+                  公告运维
+                </div>
+                <UBadge color="neutral" variant="soft">
+                  {{ announcements.length }}
+                </UBadge>
+              </div>
+              <div class="space-y-2 text-sm text-muted">
+                <p>适合发布开赛提醒、规则补充、实例维护通知或 Writeup 截止提醒。</p>
+                <p>如果比赛已经公开但仍无公告，建议至少补一条开赛说明。</p>
+              </div>
+              <div class="mt-3 flex justify-end">
+                <UButton size="sm" variant="outline" @click="jumpToAdminAnchor('#attach-challenge')">
+                  去公告区
+                </UButton>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-default px-3 py-3">
+              <div class="mb-3 flex items-center justify-between gap-2">
+                <div class="font-medium">
+                  比赛出口
+                </div>
+                <UBadge :color="selectedAdminOverview.game.status === 'active' ? 'success' : 'warning'" variant="soft">
+                  {{ selectedAdminOverview.game.status }}
+                </UBadge>
+              </div>
+              <div class="space-y-2 text-sm text-muted">
+                <p>继续配置时优先回到比赛设置、挂题和参赛队伍区。</p>
+                <p>如果已经开赛，可以直接打开公开页观察报名、题目和排行榜状态。</p>
+              </div>
+              <div class="mt-3 flex flex-wrap justify-end gap-2">
+                <UButton size="sm" variant="outline" @click="jumpToAdminAnchor('#game-settings')">
+                  比赛设置
+                </UButton>
+                <UButton size="sm" variant="outline" :to="`/games/${selectedAdminOverview.game.id}`">
+                  打开公开页
+                </UButton>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <UEmpty
+          v-else
+          icon="i-lucide-activity"
+          title="还没有可监控的比赛"
+          description="先选中一场比赛，这里会把最近提交、可疑线索、报名和公告收拢成一块赛事监控面板。"
+        />
+      </UPageCard>
 
       <div class="grid gap-6 xl:grid-cols-2">
         <UPageCard id="create-game" title="创建比赛" icon="i-lucide-trophy">
