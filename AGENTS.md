@@ -16,6 +16,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 | Start both (dev) | `pnpm dev` |
 | Start backend only | `pnpm dev:backend` |
 | Start frontend only | `pnpm dev:frontend` |
+| Local smoke flow | `pnpm smoke:local` |
 | Backend tests | `pnpm test:backend` (single package: `go test ./internal/auth/... -v -p 1`) |
 | Frontend type check | `pnpm typecheck` |
 | Frontend build | `pnpm generate` |
