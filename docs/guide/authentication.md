@@ -19,7 +19,8 @@
 
 ## 普通用户链路
 
-- 直接访问 `/register` 注册成功后，会自动登录并进入 `/console`
+- 直接访问 `/register` 注册成功后，会自动登录并进入 `/console?onboarding=team`
+- 控制台首页会立刻提示先创建或加入队伍，避免新用户刚注册完还不知道下一步该做什么
 - 如果是从比赛详情页跳到 `/register?redirect=/games/{id}`：
   - 注册成功后会先进入 `/console/team?redirect=/games/{id}`
   - 创建队伍或加入队伍成功后，会自动回到原比赛

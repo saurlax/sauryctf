@@ -46,7 +46,12 @@ function resolveRedirect() {
       },
     }
   }
-  return '/console'
+  return {
+    path: '/console',
+    query: {
+      onboarding: 'team',
+    },
+  }
 }
 
 const loginTo = computed(() => {
