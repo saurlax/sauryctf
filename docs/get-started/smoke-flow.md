@@ -22,12 +22,14 @@ pnpm dev
 - `INSTANCE_LEASE_DURATION_MINUTES`
 - `INSTANCE_EXTENSION_DURATION_MINUTES`
 - `INSTANCE_RENEWAL_WINDOW_MINUTES`
+- `INSTANCE_TEAM_ACTIVE_LIMIT`
 
 默认分别是：
 
 - 首次启动租约：`30` 分钟
 - 每次续期追加：`30` 分钟
 - 可续期窗口：到期前 `10` 分钟
+- 每支队伍同时运行实例上限：`3`
 
 这组语义现在更接近 GZCTF 的 `defaultLifetime / extensionDuration / renewalWindow`，适合本地 smoke 流程。
 
@@ -111,7 +113,7 @@ pnpm smoke:local
 
 当前最小动态题冒烟还会顺手确认两件事：
 
-- 实例接口已经返回 `policy.lease_duration_minutes / extension_duration_minutes / renewal_window_minutes`
+- 实例接口已经返回 `policy.lease_duration_minutes / extension_duration_minutes / renewal_window_minutes / team_active_limit`
 - 实例刚启动时不会立刻开放续期；只有进入续期窗口后才允许继续追加租约
 
 ## 选手最小链路

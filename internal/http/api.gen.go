@@ -591,6 +591,7 @@ type ChallengeInstancePolicy struct {
 	ExtensionDurationMinutes int `json:"extension_duration_minutes"`
 	LeaseDurationMinutes     int `json:"lease_duration_minutes"`
 	RenewalWindowMinutes     int `json:"renewal_window_minutes"`
+	TeamActiveLimit          int `json:"team_active_limit"`
 }
 
 // CreateChallengeRequest defines model for CreateChallengeRequest.

@@ -175,6 +175,11 @@
   - `seconds_left`
   - `can_start`
   - `can_renew`
+  - `policy`
+    - `lease_duration_minutes`
+    - `extension_duration_minutes`
+    - `renewal_window_minutes`
+    - `team_active_limit`
 - 这两个接口现在也已经补进 OpenAPI 契约
   - 前端比赛页已改为走统一 `$api` 类型化调用
   - 后续如果替换成真实容器 provider，前后端字段可以继续沿用这一层响应结构
@@ -199,9 +204,11 @@
   - 会显示剩余租约时间、续期时间和 15 秒自动同步状态
   - 已经支持在选手侧手动销毁当前队伍实例，便于重置本地 mock 租约
   - 续期现在会对齐 GZCTF 的最小窗口语义：只有在到期前 10 分钟内才开放
+  - 当前还会显示“每支队伍同时运行实例上限”，让本地联调也先遵守最小资源约束
 - 这样做是为了向 GZCTF 的 `ContainerProvider` 模型靠拢
   - 后续可以按 `runtime.provider` 继续接 `docker`、`k8s` 或代理型 provider
   - 当前 `docker`、`k8s`、`proxy` 等名称都会先落到同一套占位 provider
+  - 当前最小租约也已经补上“每队运行中实例数上限”，避免本地 mock 环境无限制地启动动态题实例
 
 ## 题目内容格式
 

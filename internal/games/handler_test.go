@@ -707,14 +707,14 @@ func TestChallengeInstanceLifecycle_Success(t *testing.T) {
 	r.ServeHTTP(w1, req1)
 	assert.Equal(t, http.StatusOK, w1.Code)
 	assert.Contains(t, w1.Body.String(), `"status":"idle"`)
-	assert.Contains(t, w1.Body.String(), `"policy":{"lease_duration_minutes":30,"extension_duration_minutes":30,"renewal_window_minutes":10}`)
+	assert.Contains(t, w1.Body.String(), `"policy":{"lease_duration_minutes":30,"extension_duration_minutes":30,"renewal_window_minutes":10,"team_active_limit":3}`)
 
 	w2 := httptest.NewRecorder()
 	req2, _ := http.NewRequest("POST", "/api/games/1/challenges/2/instance", nil)
 	r.ServeHTTP(w2, req2)
 	assert.Equal(t, http.StatusOK, w2.Code)
 	assert.Contains(t, w2.Body.String(), `"status":"running"`)
-	assert.Contains(t, w2.Body.String(), `"policy":{"lease_duration_minutes":30,"extension_duration_minutes":30,"renewal_window_minutes":10}`)
+	assert.Contains(t, w2.Body.String(), `"policy":{"lease_duration_minutes":30,"extension_duration_minutes":30,"renewal_window_minutes":10,"team_active_limit":3}`)
 
 	w3 := httptest.NewRecorder()
 	req3, _ := http.NewRequest("DELETE", "/api/games/1/challenges/2/instance", nil)

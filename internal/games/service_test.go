@@ -1772,12 +1772,14 @@ func TestService_ChallengeInstanceLifecycle_ForAcceptedTeam(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "idle", idle.Status)
 	assert.True(t, idle.CanStart)
+	assert.Equal(t, 3, idle.Policy.TeamActiveLimit)
 
 	running, err := svc.EnsureChallengeInstance(game.ID, challenge.ID, user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "running", running.Status)
 	assert.False(t, running.CanStart)
 	assert.False(t, running.CanRenew)
+	assert.Equal(t, 3, running.Policy.TeamActiveLimit)
 	require.NotNil(t, running.ExpiresAt)
 	assert.Equal(t, "docker", running.Provider)
 	assert.Equal(t, "ctf/example:latest", running.Image)
@@ -1875,6 +1877,7 @@ func TestService_InstancePolicy_UsesConfiguredDurations(t *testing.T) {
 		LeaseDuration:     12 * time.Minute,
 		ExtensionDuration: 7 * time.Minute,
 		RenewalWindow:     3 * time.Minute,
+		TeamActiveLimit:   2,
 	})
 
 	user := models.User{Username: "policy-user", Email: "policy@example.com", PasswordHash: "hash"}
@@ -1932,6 +1935,7 @@ func TestService_InstancePolicy_UsesConfiguredDurations(t *testing.T) {
 	state, err := svc.GetChallengeInstance(game.ID, challenge.ID, user.ID)
 	require.NoError(t, err)
 	assert.False(t, state.CanRenew)
+	assert.Equal(t, 2, state.Policy.TeamActiveLimit)
 	assert.Contains(t, state.Message, "需在到期前 3 分钟内续期")
 
 	lease.ExpiresAt = time.Now().Add(2 * time.Minute)
@@ -1940,7 +1944,83 @@ func TestService_InstancePolicy_UsesConfiguredDurations(t *testing.T) {
 	renewed, err := svc.EnsureChallengeInstance(game.ID, challenge.ID, user.ID)
 	require.NoError(t, err)
 	require.NotNil(t, renewed.ExpiresAt)
+	assert.Equal(t, 2, renewed.Policy.TeamActiveLimit)
 	assert.WithinDuration(t, lease.ExpiresAt.Add(7*time.Minute), *renewed.ExpiresAt, 5*time.Second)
+}
+
+func TestService_ChallengeInstanceLifecycle_EnforcesTeamActiveLimit(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	database := svcDB(t, svc)
+
+	user := models.User{Username: "limit-user", Email: "limit@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+
+	team := models.Team{Name: "Limit Team", InviteCode: "limit-team", CaptainID: user.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team.ID,
+		UserID: user.ID,
+		Role:   models.MemberRoleCaptain,
+	}).Error)
+
+	game := models.Game{
+		Name:         "Limit Game",
+		StartTime:    time.Now().Add(-time.Hour),
+		EndTime:      time.Now().Add(time.Hour),
+		Status:       "active",
+		IsPublic:     true,
+		PracticeMode: true,
+		CreatedBy:    user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+	require.NoError(t, database.Create(&models.Participation{
+		GameID: game.ID, TeamID: team.ID, UserID: user.ID, Status: models.ParticipationAccepted,
+	}).Error)
+
+	for i := 0; i < 3; i++ {
+		challenge := models.Challenge{
+			Title:         fmt.Sprintf("Limit Challenge %d", i),
+			Category:      models.CategoryWeb,
+			Type:          models.TypeDynamic,
+			Flag:          fmt.Sprintf("flag{limit-%d}", i),
+			BaseScore:     100,
+			MinScore:      100,
+			DecayRate:     0,
+			IsVisible:     true,
+			CreatedBy:     user.ID,
+			ContainerSpec: `{"runtime":{"provider":"docker","image":"ctf/example:latest"},"connection":{"url":"http://127.0.0.1:8081"}}`,
+		}
+		require.NoError(t, database.Create(&challenge).Error)
+		require.NoError(t, database.Create(&models.GameChallenge{
+			GameID: game.ID, ChallengeID: challenge.ID,
+		}).Error)
+
+		_, err := svc.EnsureChallengeInstance(game.ID, challenge.ID, user.ID)
+		require.NoError(t, err)
+	}
+
+	extraChallenge := models.Challenge{
+		Title:         "Limit Challenge Overflow",
+		Category:      models.CategoryWeb,
+		Type:          models.TypeDynamic,
+		Flag:          "flag{limit-overflow}",
+		BaseScore:     100,
+		MinScore:      100,
+		DecayRate:     0,
+		IsVisible:     true,
+		CreatedBy:     user.ID,
+		ContainerSpec: `{"runtime":{"provider":"docker","image":"ctf/example:latest"},"connection":{"url":"http://127.0.0.1:8081"}}`,
+	}
+	require.NoError(t, database.Create(&extraChallenge).Error)
+	require.NoError(t, database.Create(&models.GameChallenge{
+		GameID: game.ID, ChallengeID: extraChallenge.ID,
+	}).Error)
+
+	_, err := svc.EnsureChallengeInstance(game.ID, extraChallenge.ID, user.ID)
+	require.Error(t, err)
+	assert.Equal(t, "team already has 3 active instances, please destroy one before starting another", err.Error())
 }
 
 func TestService_ChallengeInstanceLifecycle_RendersTemplateFieldsPerTeam(t *testing.T) {

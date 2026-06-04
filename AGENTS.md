@@ -187,12 +187,14 @@ internal/<module>/
 - the public game page now presents managed instances more like an operator-facing panel: lease countdown, progress bar, mock-vs-real entry hint, and a lightweight auto-refresh for running leases
 - the public game page now also summarizes the current lease policy in-place, so players can distinguish "initial lease" from "renewal adds more time" without guessing from backend behavior
 - the managed instance API now also returns an explicit `policy` object with initial lease / extension / renewal-window minutes, so frontend panels can render the real current strategy instead of inferring it from messages
+  - the same policy now also includes a per-team active-instance limit, so local/mock flows already expose a minimal resource cap closer to GZCTF-style container-count constraints
   - managed instances now also support a minimal player-side destroy flow so the current team can reset an active local/mock lease without touching the admin side
   - managed instance renewal is now gated by a minimal GZCTF-style renewal window: the current lease only becomes renewable within 10 minutes before expiry
 - the current local container policy is now env-configurable via:
   - `INSTANCE_LEASE_DURATION_MINUTES` for the initial lease
   - `INSTANCE_EXTENSION_DURATION_MINUTES` for each successful renewal
   - `INSTANCE_RENEWAL_WINDOW_MINUTES` for how close to expiry a team may renew
+  - `INSTANCE_TEAM_ACTIVE_LIMIT` for how many dynamic instances one team may keep running at the same time inside a single game
 - local dynamic instance renewal now behaves closer to GZCTF's `defaultLifetime / extensionDuration / renewalWindow` split, instead of reusing the initial lease duration for every renewal
 - Registration withdrawal now follows the current GZCTF-style rule:
   - `pending` / `rejected` participations can be withdrawn

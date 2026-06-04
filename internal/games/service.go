@@ -70,6 +70,9 @@ func NewServiceWithOptions(db *gorm.DB, providers map[string]ChallengeInstancePr
 	if policy.RenewalWindow <= 0 {
 		policy.RenewalWindow = defaultInstanceRenewalWindow
 	}
+	if policy.TeamActiveLimit <= 0 {
+		policy.TeamActiveLimit = 3
+	}
 	maxLifetime := policy.LeaseDuration
 	if policy.ExtensionDuration > maxLifetime {
 		maxLifetime = policy.ExtensionDuration
@@ -242,6 +245,7 @@ func (s *Service) buildInstanceResponse(gameID uint, challengeID uint, teamID ui
 			LeaseDurationMinutes:     int(s.instancePolicy.LeaseDuration / time.Minute),
 			ExtensionDurationMinutes: int(s.instancePolicy.ExtensionDuration / time.Minute),
 			RenewalWindowMinutes:     int(s.instancePolicy.RenewalWindow / time.Minute),
+			TeamActiveLimit:          s.instancePolicy.TeamActiveLimit,
 		},
 		CanStart: true,
 		CanRenew: false,
@@ -1965,6 +1969,16 @@ func (s *Service) EnsureChallengeInstance(gameID uint, challengeID uint, userID 
 			return nil, fmt.Errorf("instance renewal is only available within %d minutes before expiry", int(s.instancePolicy.RenewalWindow/time.Minute))
 		}
 		existingLease = &lease
+	} else {
+		var activeLeaseCount int64
+		if err := s.db.Model(&models.GameInstanceLease{}).
+			Where("game_id = ? AND team_id = ? AND expires_at > ?", gameID, participation.TeamID, now).
+			Count(&activeLeaseCount).Error; err != nil {
+			return nil, err
+		}
+		if activeLeaseCount >= int64(s.instancePolicy.TeamActiveLimit) {
+			return nil, fmt.Errorf("team already has %d active instances, please destroy one before starting another", s.instancePolicy.TeamActiveLimit)
+		}
 	}
 	provider := resolveChallengeInstanceProvider(s.instanceProviders, spec.Provider)
 	leaseState, err := provider.EnsureLease(ChallengeInstanceProviderRequest{

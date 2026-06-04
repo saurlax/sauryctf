@@ -426,6 +426,7 @@ export interface components {
       lease_duration_minutes: number;
       extension_duration_minutes: number;
       renewal_window_minutes: number;
+      team_active_limit: number;
     };
     JoinGameRequest: {
       team_id: number;

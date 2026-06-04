@@ -522,17 +522,18 @@ function getInstancePolicyHint(challengeId: number) {
   const leaseDuration = policy?.lease_duration_minutes
   const extensionDuration = policy?.extension_duration_minutes
   const renewalWindow = policy?.renewal_window_minutes
+  const teamActiveLimit = policy?.team_active_limit
 
-  if (leaseDuration && extensionDuration && renewalWindow) {
+  if (leaseDuration && extensionDuration && renewalWindow && teamActiveLimit) {
     if (state?.status === 'running') {
       if (state.can_renew) {
-        return `当前实例已经进入续期窗口；现在续期会在现有未过期租约后追加 ${extensionDuration} 分钟。`
+        return `当前实例已经进入续期窗口；现在续期会在现有未过期租约后追加 ${extensionDuration} 分钟。当前每支队伍最多同时保留 ${teamActiveLimit} 个运行中实例。`
       }
 
-      return `当前实例采用 ${leaseDuration} 分钟初始租约，只有在到期前 ${renewalWindow} 分钟内才开放续期；每次成功续期会额外追加 ${extensionDuration} 分钟。`
+      return `当前实例采用 ${leaseDuration} 分钟初始租约，只有在到期前 ${renewalWindow} 分钟内才开放续期；每次成功续期会额外追加 ${extensionDuration} 分钟。当前每支队伍最多同时保留 ${teamActiveLimit} 个运行中实例。`
     }
 
-    return `首次启动会创建 ${leaseDuration} 分钟初始租约；之后每次成功续期会额外追加 ${extensionDuration} 分钟，并且只有在到期前 ${renewalWindow} 分钟内开放续期。`
+    return `首次启动会创建 ${leaseDuration} 分钟初始租约；之后每次成功续期会额外追加 ${extensionDuration} 分钟，并且只有在到期前 ${renewalWindow} 分钟内开放续期。当前每支队伍最多同时保留 ${teamActiveLimit} 个运行中实例。`
   }
 
   if (state?.status === 'running') {
@@ -2012,6 +2013,12 @@ onMounted(async () => {
                             <div>最近续期</div>
                             <div class="mt-1 text-sm text-highlighted">
                               {{ formatDateTime(instanceStates[ch.id]?.last_renewed_at || instanceStates[ch.id]?.started_at) }}
+                            </div>
+                          </div>
+                          <div class="rounded-md border border-default px-3 py-2">
+                            <div>队伍实例上限</div>
+                            <div class="mt-1 text-sm text-highlighted">
+                              {{ instanceStates[ch.id]?.policy?.team_active_limit || '-' }}
                             </div>
                           </div>
                         </div>

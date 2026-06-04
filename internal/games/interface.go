@@ -55,12 +55,14 @@ type InstancePolicy struct {
 	LeaseDuration     time.Duration
 	ExtensionDuration time.Duration
 	RenewalWindow     time.Duration
+	TeamActiveLimit   int
 }
 
 type ChallengeInstancePolicyResponse struct {
 	LeaseDurationMinutes     int `json:"lease_duration_minutes"`
 	ExtensionDurationMinutes int `json:"extension_duration_minutes"`
 	RenewalWindowMinutes     int `json:"renewal_window_minutes"`
+	TeamActiveLimit          int `json:"team_active_limit"`
 }
 
 // ServiceInterface defines the game management contract.

@@ -209,6 +209,7 @@ Assert-True ($instanceIdle.can_start -eq $true) "Dynamic challenge instance shou
 Assert-Equal $instanceIdle.policy.lease_duration_minutes 30 "Dynamic challenge idle policy should expose the initial lease duration."
 Assert-Equal $instanceIdle.policy.extension_duration_minutes 30 "Dynamic challenge idle policy should expose the renewal extension duration."
 Assert-Equal $instanceIdle.policy.renewal_window_minutes 10 "Dynamic challenge idle policy should expose the renewal window."
+Assert-Equal $instanceIdle.policy.team_active_limit 3 "Dynamic challenge idle policy should expose the per-team active instance limit."
 Assert-Equal $instanceIdle.provider "docker" "Dynamic challenge instance should inherit runtime provider."
 
 Write-Step "Starting dynamic instance lease"
@@ -217,6 +218,7 @@ Assert-Equal $instanceRunning.status "running" "Dynamic challenge instance was n
 Assert-Equal $instanceRunning.policy.lease_duration_minutes 30 "Dynamic challenge running policy should expose the initial lease duration."
 Assert-Equal $instanceRunning.policy.extension_duration_minutes 30 "Dynamic challenge running policy should expose the renewal extension duration."
 Assert-Equal $instanceRunning.policy.renewal_window_minutes 10 "Dynamic challenge running policy should expose the renewal window."
+Assert-Equal $instanceRunning.policy.team_active_limit 3 "Dynamic challenge running policy should expose the per-team active instance limit."
 Assert-False ($instanceRunning.can_renew -eq $true) "Dynamic challenge instance should not be renewable immediately after start."
 Assert-True ($instanceRunning.message.Contains("需在到期前 10 分钟内续期")) "Dynamic challenge instance should explain the current renewal window."
 Assert-True (-not [string]::IsNullOrWhiteSpace($instanceRunning.launch_url)) "Dynamic challenge instance did not return a launch URL."

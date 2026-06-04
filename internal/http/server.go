@@ -28,6 +28,7 @@ func NewServer(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		LeaseDuration:     cfg.InstanceLeaseDuration,
 		ExtensionDuration: cfg.InstanceExtensionDuration,
 		RenewalWindow:     cfg.InstanceRenewalWindow,
+		TeamActiveLimit:   cfg.InstanceTeamActiveLimit,
 	})
 	handler := NewHandler(
 		auth.NewHandler(authSvc),

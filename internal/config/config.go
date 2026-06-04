@@ -16,6 +16,7 @@ type Config struct {
 	InstanceLeaseDuration     time.Duration
 	InstanceExtensionDuration time.Duration
 	InstanceRenewalWindow     time.Duration
+	InstanceTeamActiveLimit   int
 }
 
 func Load() *Config {
@@ -29,6 +30,7 @@ func Load() *Config {
 		InstanceLeaseDuration:     getEnvMinutes("INSTANCE_LEASE_DURATION_MINUTES", 30),
 		InstanceExtensionDuration: getEnvMinutes("INSTANCE_EXTENSION_DURATION_MINUTES", 30),
 		InstanceRenewalWindow:     getEnvMinutes("INSTANCE_RENEWAL_WINDOW_MINUTES", 10),
+		InstanceTeamActiveLimit:   getEnvInt("INSTANCE_TEAM_ACTIVE_LIMIT", 3),
 	}
 }
 
@@ -51,6 +53,20 @@ func getEnvMinutes(key string, fallback int) time.Duration {
 	}
 
 	return time.Duration(value) * time.Minute
+}
+
+func getEnvInt(key string, fallback int) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return fallback
+	}
+
+	return value
 }
 
 // loadDotEnv reads a .env file and sets environment variables (without overriding existing ones).

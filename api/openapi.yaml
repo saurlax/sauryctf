@@ -549,13 +549,15 @@ components:
 
     ChallengeInstancePolicy:
       type: object
-      required: [lease_duration_minutes, extension_duration_minutes, renewal_window_minutes]
+      required: [lease_duration_minutes, extension_duration_minutes, renewal_window_minutes, team_active_limit]
       properties:
         lease_duration_minutes:
           type: integer
         extension_duration_minutes:
           type: integer
         renewal_window_minutes:
+          type: integer
+        team_active_limit:
           type: integer
 
     JoinGameRequest:
