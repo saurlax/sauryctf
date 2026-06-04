@@ -18,6 +18,15 @@ const (
 	WriteupStatusRejected  WriteupStatus = "rejected"
 )
 
+type GameSubmissionResult string
+
+const (
+	GameSubmissionAccepted     GameSubmissionResult = "accepted"
+	GameSubmissionWrongFlag    GameSubmissionResult = "wrong_flag"
+	GameSubmissionAlreadySolved GameSubmissionResult = "already_solved"
+	GameSubmissionRejected     GameSubmissionResult = "rejected"
+)
+
 // Participation records a team's registration in a game.
 // Compared to GZCTF, this is a simplified version without division support.
 // One team can only have one participation per game.
@@ -52,4 +61,25 @@ type GameWriteup struct {
 	Team       Team  `gorm:"foreignKey:TeamID" json:"team,omitempty"`
 	Submitter  User  `gorm:"foreignKey:SubmittedBy" json:"submitter,omitempty"`
 	Reviewer   *User `gorm:"foreignKey:ReviewerID" json:"reviewer,omitempty"`
+}
+
+type GameSubmission struct {
+	ID          uint                 `gorm:"primaryKey" json:"id"`
+	GameID      uint                 `gorm:"not null;index:idx_game_submission_time" json:"game_id"`
+	ChallengeID uint                 `gorm:"not null;index" json:"challenge_id"`
+	UserID      uint                 `gorm:"not null;index" json:"user_id"`
+	TeamID      uint                 `gorm:"not null;index" json:"team_id"`
+	Result      GameSubmissionResult `gorm:"size:32;not null;index" json:"result"`
+	Message     string               `gorm:"type:text" json:"message"`
+	IsCorrect   bool                 `gorm:"not null;default:false" json:"is_correct"`
+	IsPractice  bool                 `gorm:"not null;default:false" json:"is_practice"`
+	Score       int                  `gorm:"not null;default:0" json:"score"`
+	BloodType   string               `gorm:"size:16" json:"blood_type"`
+	SubmittedAt time.Time            `gorm:"not null;index:idx_game_submission_time" json:"submitted_at"`
+	CreatedAt   time.Time            `json:"created_at"`
+
+	Game      Game      `gorm:"foreignKey:GameID" json:"-"`
+	Challenge Challenge `gorm:"foreignKey:ChallengeID" json:"challenge,omitempty"`
+	Team      Team      `gorm:"foreignKey:TeamID" json:"team,omitempty"`
+	User      User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
 }

@@ -186,6 +186,21 @@ func (h *Handler) ExportSubmissionsPackage(c *gin.Context, id int) {
 	})
 }
 
+func (h *Handler) ListSubmissionRecords(c *gin.Context, id int) {
+	submissions, err := h.svc.ListSubmissionRecords(uint(id), 100)
+	if err != nil {
+		switch err.Error() {
+		case "game not found":
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, submissions)
+}
+
 func (h *Handler) ImportGamePackage(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {

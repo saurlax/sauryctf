@@ -411,6 +411,9 @@ func (s *Service) DeleteGame(id uint) error {
 		if err := tx.Where("game_id = ?", id).Delete(&models.GameWriteup{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Where("game_id = ?", id).Delete(&models.GameSubmission{}).Error; err != nil {
+			return err
+		}
 		if err := tx.Where("game_id = ?", id).Delete(&models.Solve{}).Error; err != nil {
 			return err
 		}
@@ -711,7 +714,7 @@ func (s *Service) ExportSubmissionsPackage(id uint) ([]byte, string, error) {
 		return nil, "", err
 	}
 
-	submissions, err := s.ListSubmissionRecords(id)
+	submissions, err := s.ListSubmissionRecords(id, 0)
 	if err != nil {
 		return nil, "", err
 	}
@@ -1439,6 +1442,7 @@ func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID 
 
 	// Check flag
 	if ch.Flag != flag {
+		_ = s.recordSubmission(gameID, challengeID, userID, teamID, models.GameSubmissionWrongFlag, "wrong flag", false, isPractice, 0, "")
 		return &SubmitResult{Correct: false, Message: "wrong flag"}, nil
 	}
 
@@ -1447,6 +1451,7 @@ func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID 
 	err := s.db.Where("challenge_id = ? AND team_id = ? AND game_id = ? AND is_practice = ?", challengeID, teamID, gameID, isPractice).
 		First(&existing).Error
 	if err == nil {
+		_ = s.recordSubmission(gameID, challengeID, userID, teamID, models.GameSubmissionAlreadySolved, "already solved", true, isPractice, existing.Score, existing.BloodType)
 		return &SubmitResult{Correct: true, Score: existing.Score, IsPractice: isPractice, Message: "already solved"}, nil
 	}
 
@@ -1479,8 +1484,25 @@ func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID 
 	if isPractice {
 		message = "practice solved"
 	}
+	_ = s.recordSubmission(gameID, challengeID, userID, teamID, models.GameSubmissionAccepted, message, true, isPractice, score, bloodType)
 
 	return &SubmitResult{Correct: true, Score: score, BloodType: bloodType, IsPractice: isPractice, Message: message}, nil
+}
+
+func (s *Service) recordSubmission(gameID uint, challengeID uint, userID uint, teamID uint, result models.GameSubmissionResult, message string, isCorrect bool, isPractice bool, score int, bloodType string) error {
+	return s.db.Create(&models.GameSubmission{
+		GameID:      gameID,
+		ChallengeID: challengeID,
+		UserID:      userID,
+		TeamID:      teamID,
+		Result:      result,
+		Message:     message,
+		IsCorrect:   isCorrect,
+		IsPractice:  isPractice,
+		Score:       score,
+		BloodType:   bloodType,
+		SubmittedAt: time.Now(),
+	}).Error
 }
 
 // GetScoreboard aggregates solve data into a ranked scoreboard.
@@ -1723,7 +1745,7 @@ func (s *Service) GetParticipants(gameID uint) ([]GameParticipantEntry, error) {
 	return result, nil
 }
 
-func (s *Service) ListSubmissionRecords(gameID uint) ([]GameSubmissionRecord, error) {
+func (s *Service) ListSubmissionRecords(gameID uint, limit int) ([]GameSubmissionRecord, error) {
 	var game models.Game
 	if err := s.db.First(&game, gameID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1742,35 +1764,44 @@ func (s *Service) ListSubmissionRecords(gameID uint) ([]GameSubmissionRecord, er
 		Username       string
 		TeamID         uint
 		TeamName       string
+		Result         string
+		Message        string
+		IsCorrect      bool
 		IsPractice     bool
 		Score          int
 		BloodType      string
-		SolvedAt       time.Time
+		SubmittedAt    time.Time
 	}
 
 	var rows []submissionRow
-	if err := s.db.Table("solves").
+	query := s.db.Table("game_submissions").
 		Select(`
-			solves.id,
-			solves.game_id,
-			solves.challenge_id,
+			game_submissions.id,
+			game_submissions.game_id,
+			game_submissions.challenge_id,
 			challenges.title as challenge_title,
 			challenges.category,
-			solves.user_id,
+			game_submissions.user_id,
 			users.username,
-			solves.team_id,
+			game_submissions.team_id,
 			teams.name as team_name,
-			solves.is_practice,
-			solves.score,
-			solves.blood_type,
-			solves.solved_at
+			game_submissions.result,
+			game_submissions.message,
+			game_submissions.is_correct,
+			game_submissions.is_practice,
+			game_submissions.score,
+			game_submissions.blood_type,
+			game_submissions.submitted_at
 		`).
-		Joins("JOIN challenges ON challenges.id = solves.challenge_id").
-		Joins("JOIN users ON users.id = solves.user_id").
-		Joins("JOIN teams ON teams.id = solves.team_id").
-		Where("solves.game_id = ?", gameID).
-		Order("solves.solved_at ASC, solves.id ASC").
-		Scan(&rows).Error; err != nil {
+		Joins("JOIN challenges ON challenges.id = game_submissions.challenge_id").
+		Joins("JOIN users ON users.id = game_submissions.user_id").
+		Joins("JOIN teams ON teams.id = game_submissions.team_id").
+		Where("game_submissions.game_id = ?", gameID).
+		Order("game_submissions.submitted_at DESC, game_submissions.id DESC")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	if err := query.Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 
@@ -1786,10 +1817,13 @@ func (s *Service) ListSubmissionRecords(gameID uint) ([]GameSubmissionRecord, er
 			Username:       row.Username,
 			TeamID:         row.TeamID,
 			TeamName:       row.TeamName,
+			Result:         row.Result,
+			Message:        row.Message,
+			IsCorrect:      row.IsCorrect,
 			IsPractice:     row.IsPractice,
 			Score:          row.Score,
 			BloodType:      row.BloodType,
-			SolvedAt:       row.SolvedAt,
+			SubmittedAt:    row.SubmittedAt,
 		})
 	}
 
@@ -2190,7 +2224,7 @@ func buildSubmissionsCSV(submissions []GameSubmissionRecord) ([]byte, error) {
 	var buffer bytes.Buffer
 	writer := csv.NewWriter(&buffer)
 
-	if err := writer.Write([]string{"id", "game_id", "challenge_id", "challenge_title", "category", "user_id", "username", "team_id", "team_name", "is_practice", "score", "blood_type", "solved_at"}); err != nil {
+	if err := writer.Write([]string{"id", "game_id", "challenge_id", "challenge_title", "category", "user_id", "username", "team_id", "team_name", "result", "message", "is_correct", "is_practice", "score", "blood_type", "submitted_at"}); err != nil {
 		return nil, err
 	}
 
@@ -2205,10 +2239,13 @@ func buildSubmissionsCSV(submissions []GameSubmissionRecord) ([]byte, error) {
 			submission.Username,
 			fmt.Sprintf("%d", submission.TeamID),
 			submission.TeamName,
+			submission.Result,
+			submission.Message,
+			fmt.Sprintf("%t", submission.IsCorrect),
 			fmt.Sprintf("%t", submission.IsPractice),
 			fmt.Sprintf("%d", submission.Score),
 			submission.BloodType,
-			submission.SolvedAt.UTC().Format(time.RFC3339),
+			submission.SubmittedAt.UTC().Format(time.RFC3339),
 		}); err != nil {
 			return nil, err
 		}

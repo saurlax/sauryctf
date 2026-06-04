@@ -70,6 +70,11 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 		fmt.Sscan(c.Param("id"), &id)
 		h.ExportSubmissionsPackage(c, id)
 	})
+	api.GET("/admin/games/:id/submissions", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.ListSubmissionRecords(c, id)
+	})
 	api.GET("/games/:id/challenges", func(c *gin.Context) {
 		var id int
 		fmt.Sscan(c.Param("id"), &id)
@@ -651,6 +656,31 @@ func TestExportSubmissionsPackage_Success(t *testing.T) {
 
 	assert.Contains(t, fileNames, "submissions.json")
 	assert.Contains(t, fileNames, "submissions.csv")
+}
+
+func TestListSubmissionRecords_Success(t *testing.T) {
+	svc := games.NewMockService()
+	_, _ = svc.CreateGame(games.CreateGameRequest{
+		Name:      "Submission Monitor Game",
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(time.Hour),
+	}, 1)
+	_, _ = svc.SubmitFlag(1, 3, 1, 7, "wrong_flag")
+	_, _ = svc.SubmitFlag(1, 3, 1, 7, "correct_flag")
+
+	r := setupTestRouter(svc)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/admin/games/1/submissions", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response []map[string]any
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Len(t, response, 2)
+	assert.Equal(t, "accepted", response[0]["result"])
+	assert.Equal(t, "wrong_flag", response[1]["result"])
 }
 
 func TestImportGamePackage_Success(t *testing.T) {

@@ -106,6 +106,7 @@ const smokeProvisioning = ref(false)
 const loadingResources = ref(false)
 const loadingGameChallenges = ref(false)
 const loadingParticipants = ref(false)
+const loadingSubmissions = ref(false)
 const updatingParticipantId = ref<number | null>(null)
 const removingParticipantId = ref<number | null>(null)
 const removingChallengeId = ref<number | null>(null)
@@ -181,6 +182,24 @@ const writeups = ref<Array<{
   review_remark?: string
   submitted_at: string
   reviewed_at?: string | null
+}>>([])
+const submissions = ref<Array<{
+  id: number
+  game_id: number
+  challenge_id: number
+  challenge_title: string
+  category: 'web' | 'pwn' | 'crypto' | 'reverse' | 'misc' | 'forensics' | 'awd'
+  user_id: number
+  username: string
+  team_id: number
+  team_name: string
+  result: 'accepted' | 'wrong_flag' | 'already_solved' | 'rejected'
+  message: string
+  is_correct: boolean
+  is_practice: boolean
+  score: number
+  blood_type?: string
+  submitted_at: string
 }>>([])
 type AdminGameSummary = (typeof games.value)[number]
 
@@ -521,10 +540,30 @@ async function loadWriteups() {
   }
 }
 
+async function loadSubmissions() {
+  if (!attachForm.game_id) {
+    submissions.value = []
+    return
+  }
+
+  loadingSubmissions.value = true
+  try {
+    submissions.value = await $fetch(`/api/admin/games/${attachForm.game_id}/submissions`)
+  }
+  catch (e: any) {
+    submissions.value = []
+    toast.add({ title: '提交记录加载失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    loadingSubmissions.value = false
+  }
+}
+
 function resetSelectedGameContext() {
   selectedGameChallenges.value = []
   participants.value = []
   writeups.value = []
+  submissions.value = []
 
   for (const key of Object.keys(participantStatusDrafts)) {
     delete participantStatusDrafts[Number(key)]
@@ -671,6 +710,32 @@ function getRegistrationModeLabel(mode?: 'review' | 'auto_accept') {
 
 function getPracticeModeLabel(enabled?: boolean) {
   return enabled ? '赛后练习开启' : '仅正赛'
+}
+
+function getSubmissionResultColor(result: 'accepted' | 'wrong_flag' | 'already_solved' | 'rejected') {
+  if (result === 'accepted') {
+    return 'success' as const
+  }
+  if (result === 'already_solved') {
+    return 'info' as const
+  }
+  if (result === 'rejected') {
+    return 'warning' as const
+  }
+  return 'error' as const
+}
+
+function getSubmissionResultLabel(result: 'accepted' | 'wrong_flag' | 'already_solved' | 'rejected') {
+  if (result === 'accepted') {
+    return '正确'
+  }
+  if (result === 'already_solved') {
+    return '重复提交'
+  }
+  if (result === 'rejected') {
+    return '已拒绝'
+  }
+  return '错误 Flag'
 }
 
 function jumpToAdminAnchor(target: string) {
@@ -1552,6 +1617,7 @@ watch(() => attachForm.game_id, async () => {
   await loadSelectedGameChallenges()
   await loadParticipants()
   await loadWriteups()
+  await loadSubmissions()
 })
 
 onMounted(async () => {
@@ -2470,6 +2536,56 @@ onMounted(async () => {
 
             <div v-else-if="selectedGame" class="text-sm text-muted">
               这场比赛还没有队伍提交 Writeup。
+            </div>
+          </UPageCard>
+
+          <UPageCard title="最近提交" icon="i-lucide-logs">
+            <div v-if="selectedGame" class="mb-3 flex items-center justify-between gap-3">
+              <div class="text-sm text-muted">
+                {{ selectedGame.name }} · {{ loadingSubmissions ? '正在加载提交记录...' : `最近 ${submissions.length} 条` }}
+              </div>
+              <UButton
+                size="sm"
+                variant="ghost"
+                icon="i-lucide-refresh-cw"
+                :loading="loadingSubmissions"
+                @click="loadSubmissions"
+              >
+                刷新
+              </UButton>
+            </div>
+            <div v-else class="text-sm text-muted">
+              先选择比赛，再查看当前比赛的最近提交。
+            </div>
+
+            <div v-if="submissions.length" class="space-y-2">
+              <div
+                v-for="submission in submissions"
+                :key="submission.id"
+                class="rounded-lg border border-default px-3 py-3 text-sm"
+              >
+                <div class="flex items-center justify-between gap-3">
+                  <div class="font-medium">
+                    {{ submission.team_name }} · {{ submission.challenge_title }}
+                  </div>
+                  <UBadge :color="getSubmissionResultColor(submission.result)" variant="soft">
+                    {{ getSubmissionResultLabel(submission.result) }}
+                  </UBadge>
+                </div>
+                <div class="mt-2 grid gap-2 text-muted md:grid-cols-2">
+                  <div>选手：{{ submission.username }} (#{{ submission.user_id }})</div>
+                  <div>分类：{{ submission.category }}{{ submission.is_practice ? ' · 练习模式' : '' }}</div>
+                  <div>提交时间：{{ new Date(submission.submitted_at).toLocaleString() }}</div>
+                  <div>得分：{{ submission.score }}{{ submission.blood_type ? ` · ${submission.blood_type}` : '' }}</div>
+                </div>
+                <div class="mt-2 text-muted">
+                  结果说明：{{ submission.message || '无' }}
+                </div>
+              </div>
+            </div>
+
+            <div v-else-if="selectedGame && !loadingSubmissions" class="text-sm text-muted">
+              这场比赛还没有提交记录。
             </div>
           </UPageCard>
 

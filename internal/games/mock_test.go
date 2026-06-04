@@ -20,6 +20,7 @@ type MockService struct {
 	Participations   map[string]models.ParticipationStatus // "gameID-teamID"
 	UserTeams        map[uint]*GameParticipationTeam
 	Writeups         map[string]*GameWriteupResponse
+	Submissions      map[uint][]GameSubmissionRecord
 	nextID           uint
 }
 
@@ -31,6 +32,7 @@ func NewMockService() *MockService {
 		Participations:   make(map[string]models.ParticipationStatus),
 		UserTeams:        make(map[uint]*GameParticipationTeam),
 		Writeups:         make(map[string]*GameWriteupResponse),
+		Submissions:      make(map[uint][]GameSubmissionRecord),
 		nextID:           1,
 	}
 }
@@ -208,6 +210,7 @@ func (m *MockService) DeleteGame(id uint) error {
 
 	delete(m.Games, id)
 	delete(m.ChallengesByGame, id)
+	delete(m.Submissions, id)
 	prefix := fmt.Sprintf("%d-", id)
 	for key := range m.Participations {
 		if strings.HasPrefix(key, prefix) {
@@ -399,7 +402,7 @@ func (m *MockService) ExportSubmissionsPackage(id uint) ([]byte, string, error) 
 		return nil, "", fmt.Errorf("game not found")
 	}
 
-	submissions := []GameSubmissionRecord{}
+	submissions := append([]GameSubmissionRecord(nil), m.Submissions[id]...)
 	submissionsJSON, err := json.MarshalIndent(submissions, "", "  ")
 	if err != nil {
 		return nil, "", err
@@ -431,6 +434,21 @@ func (m *MockService) ExportSubmissionsPackage(id uint) ([]byte, string, error) 
 	}
 
 	return archive.Bytes(), fmt.Sprintf("game-%d-%s-submissions-export.zip", game.ID, sanitizeExportName(game.Name)), nil
+}
+
+func (m *MockService) ListSubmissionRecords(gameID uint, limit int) ([]GameSubmissionRecord, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.Games[gameID]; !ok {
+		return nil, fmt.Errorf("game not found")
+	}
+
+	items := append([]GameSubmissionRecord(nil), m.Submissions[gameID]...)
+	if limit > 0 && len(items) > limit {
+		items = items[:limit]
+	}
+	return items, nil
 }
 
 func (m *MockService) ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error) {
@@ -626,9 +644,38 @@ func (m *MockService) GetGameChallengesForTeam(gameID uint, teamID uint) ([]Game
 }
 
 func (m *MockService) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID uint, flag string) (*SubmitResult, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	game, ok := m.Games[gameID]
+	if !ok {
+		return nil, fmt.Errorf("game not found")
+	}
+
+	record := GameSubmissionRecord{
+		ID:             uint(len(m.Submissions[gameID]) + 1),
+		GameID:         gameID,
+		ChallengeID:    challengeID,
+		ChallengeTitle: "Mock Challenge",
+		Category:       "misc",
+		UserID:         userID,
+		Username:       fmt.Sprintf("user-%d", userID),
+		TeamID:         teamID,
+		TeamName:       fmt.Sprintf("team-%d", teamID),
+		SubmittedAt:    time.Now(),
+	}
 	if flag == "correct_flag" {
+		record.Result = string(models.GameSubmissionAccepted)
+		record.Message = "correct"
+		record.IsCorrect = true
+		record.Score = 100
+		m.Submissions[gameID] = append([]GameSubmissionRecord{record}, m.Submissions[gameID]...)
+		_ = game
 		return &SubmitResult{Correct: true, Score: 100, Message: "correct"}, nil
 	}
+	record.Result = string(models.GameSubmissionWrongFlag)
+	record.Message = "wrong flag"
+	m.Submissions[gameID] = append([]GameSubmissionRecord{record}, m.Submissions[gameID]...)
 	return &SubmitResult{Correct: false, Message: "wrong flag"}, nil
 }
 

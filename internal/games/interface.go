@@ -23,6 +23,7 @@ type ServiceInterface interface {
 	ExportScoreboardPackage(id uint, division string) ([]byte, string, error)
 	ExportWriteupsPackage(id uint) ([]byte, string, error)
 	ExportSubmissionsPackage(id uint) ([]byte, string, error)
+	ListSubmissionRecords(gameID uint, limit int) ([]GameSubmissionRecord, error)
 	ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error)
 	AddChallenge(gameID uint, challengeID uint, scoreOverride int) error
 	RemoveChallenge(gameID uint, challengeID uint) error
@@ -234,10 +235,13 @@ type GameSubmissionRecord struct {
 	Username       string    `json:"username"`
 	TeamID         uint      `json:"team_id"`
 	TeamName       string    `json:"team_name"`
+	Result         string    `json:"result"`
+	Message        string    `json:"message"`
+	IsCorrect      bool      `json:"is_correct"`
 	IsPractice     bool      `json:"is_practice"`
 	Score          int       `json:"score"`
 	BloodType      string    `json:"blood_type"`
-	SolvedAt       time.Time `json:"solved_at"`
+	SubmittedAt    time.Time `json:"submitted_at"`
 }
 
 type ExportGamePackage struct {

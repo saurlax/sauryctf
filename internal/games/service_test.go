@@ -678,9 +678,39 @@ func TestService_ExportSubmissionsPackage_IncludesJSONAndCSV(t *testing.T) {
 
 	assert.Contains(t, files["submissions.json"], `"challenge_title": "Fixture Challenge"`)
 	assert.Contains(t, files["submissions.json"], `"team_name": "Team One"`)
-	assert.Contains(t, files["submissions.csv"], "id,game_id,challenge_id,challenge_title,category,user_id,username,team_id,team_name,is_practice,score,blood_type,solved_at")
+	assert.Contains(t, files["submissions.json"], `"result": "accepted"`)
+	assert.Contains(t, files["submissions.csv"], "id,game_id,challenge_id,challenge_title,category,user_id,username,team_id,team_name,result,message,is_correct,is_practice,score,blood_type,submitted_at")
 	assert.Contains(t, files["submissions.csv"], "Fixture Challenge")
 	assert.Contains(t, files["submissions.csv"], "Team One")
+	assert.Contains(t, files["submissions.csv"], "accepted,correct,true")
+}
+
+func TestService_ListSubmissionRecords_IncludesWrongAndAcceptedAttempts(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, team1ID, _ := createGameChallengeFixture(t, database)
+
+	first, err := svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{wrong}")
+	require.NoError(t, err)
+	assert.False(t, first.Correct)
+
+	second, err := svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
+	require.NoError(t, err)
+	assert.True(t, second.Correct)
+
+	records, err := svc.ListSubmissionRecords(gameID, 10)
+	require.NoError(t, err)
+	require.Len(t, records, 2)
+	assert.Equal(t, "accepted", records[0].Result)
+	assert.Equal(t, "correct", records[0].Message)
+	assert.True(t, records[0].IsCorrect)
+	assert.Equal(t, "wrong_flag", records[1].Result)
+	assert.Equal(t, "wrong flag", records[1].Message)
+	assert.False(t, records[1].IsCorrect)
 }
 
 func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {
