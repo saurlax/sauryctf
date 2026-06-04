@@ -68,6 +68,7 @@ function getStatusLabel(status: string) {
 
 function getParticipationMeta(game: Game) {
   const participation = participationMap.value[game.id]
+  const registrationMode = game.registration_mode || 'review'
 
   if (!authState.user) {
     return {
@@ -132,7 +133,9 @@ function getParticipationMeta(game: Game) {
   return {
     label: '可报名',
     color: 'info' as const,
-    description: `当前队伍 ${participation.team?.name || ''} 尚未报名，可进入详情页完成操作。`,
+    description: registrationMode === 'auto_accept'
+      ? `当前队伍 ${participation.team?.name || ''} 尚未报名，进入详情页后可直接完成参赛确认。`
+      : `当前队伍 ${participation.team?.name || ''} 尚未报名，可进入详情页完成操作。`,
     actionLabel: '前往报名',
     actionTo: `/games/${game.id}`,
   }
@@ -189,6 +192,9 @@ onMounted(async () => {
         </template>
         <p class="text-sm text-muted line-clamp-2">
           {{ game.description || '暂无描述' }}
+        </p>
+        <p class="mt-2 text-xs text-muted">
+          报名方式：{{ game.registration_mode === 'auto_accept' ? '自动通过' : '人工审核' }}
         </p>
         <div class="mt-4 rounded-lg border border-default bg-elevated/50 px-3 py-3">
           <div class="mb-2 flex items-center justify-between gap-2">

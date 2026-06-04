@@ -120,6 +120,9 @@ internal/<module>/
   - player join requests create `pending` participations
   - admins can change participant status to `accepted` or `rejected` from the admin contest page
   - only `accepted` teams can submit flags during an active game
+- Games can now choose a registration strategy:
+  - `review` keeps the lightweight approval flow above
+  - `auto_accept` turns join requests directly into accepted participations for faster local events
 - Challenge content delivery is now expected to use:
   - `description` for the main statement
   - `hints` as a JSON string array

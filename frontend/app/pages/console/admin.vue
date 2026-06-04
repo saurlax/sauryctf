@@ -15,6 +15,7 @@ const gameForm = reactive({
   notice: '',
   start_time: '',
   end_time: '',
+  registration_mode: 'review' as 'review' | 'auto_accept',
   is_public: true,
 })
 
@@ -42,6 +43,7 @@ const attachForm = reactive({
 const gameSettingsForm = reactive({
   game_id: undefined as number | undefined,
   status: 'draft' as 'draft' | 'active' | 'ended',
+  registration_mode: 'review' as 'review' | 'auto_accept',
   is_public: true,
 })
 
@@ -88,6 +90,7 @@ const games = ref<Array<{
   description?: string
   notice?: string
   status: 'draft' | 'active' | 'ended'
+  registration_mode?: 'review' | 'auto_accept'
   start_time: string
   end_time: string
   is_public?: boolean
@@ -152,6 +155,11 @@ const gameStatusOptions = [
   { label: 'Draft', value: 'draft' },
   { label: 'Active', value: 'active' },
   { label: 'Ended', value: 'ended' },
+]
+
+const registrationModeOptions = [
+  { label: '人工审核', value: 'review' },
+  { label: '自动通过', value: 'auto_accept' },
 ]
 
 const participantStatusOptions = [
@@ -340,6 +348,10 @@ function getParticipantStatusLabel(status: 'pending' | 'accepted' | 'rejected') 
   return '已拒绝'
 }
 
+function getRegistrationModeLabel(mode?: 'review' | 'auto_accept') {
+  return mode === 'auto_accept' ? '自动通过' : '人工审核'
+}
+
 async function createGame() {
   gameSubmitting.value = true
   try {
@@ -350,6 +362,7 @@ async function createGame() {
         notice: gameForm.notice,
         start_time: new Date(gameForm.start_time).toISOString(),
         end_time: new Date(gameForm.end_time).toISOString(),
+        registration_mode: gameForm.registration_mode,
         is_public: gameForm.is_public,
       },
     })
@@ -359,6 +372,7 @@ async function createGame() {
     gameForm.notice = ''
     gameForm.start_time = ''
     gameForm.end_time = ''
+    gameForm.registration_mode = 'review'
     gameForm.is_public = true
     await loadAdminResources()
   }
@@ -497,6 +511,7 @@ async function updateGameSettings() {
       },
       body: {
         status: gameSettingsForm.status,
+        registration_mode: gameSettingsForm.registration_mode,
         is_public: gameSettingsForm.is_public,
       },
     })
@@ -672,6 +687,7 @@ watch(() => gameEditForm.game_id, () => {
 watch(() => gameSettingsForm.game_id, () => {
   if (!gameSettingsForm.game_id) {
     gameSettingsForm.status = 'draft'
+    gameSettingsForm.registration_mode = 'review'
     gameSettingsForm.is_public = true
     return
   }
@@ -682,6 +698,7 @@ watch(() => gameSettingsForm.game_id, () => {
   }
 
   gameSettingsForm.status = game.status
+  gameSettingsForm.registration_mode = game.registration_mode || 'review'
   gameSettingsForm.is_public = game.is_public ?? true
 })
 
@@ -764,6 +781,10 @@ onMounted(async () => {
               </UFormField>
             </div>
 
+            <UFormField label="报名模式" name="registration_mode">
+              <USelect v-model="gameForm.registration_mode" :items="registrationModeOptions" class="w-full" />
+            </UFormField>
+
             <UFormField label="公开比赛" name="is_public">
               <USwitch v-model="gameForm.is_public" />
             </UFormField>
@@ -838,12 +859,20 @@ onMounted(async () => {
               />
             </UFormField>
 
+            <UFormField label="报名模式" name="registration_mode">
+              <USelect
+                v-model="gameSettingsForm.registration_mode"
+                :items="registrationModeOptions"
+                class="w-full"
+              />
+            </UFormField>
+
             <UFormField label="公开比赛" name="is_public">
               <USwitch v-model="gameSettingsForm.is_public" />
             </UFormField>
 
             <div v-if="selectedSettingsGame" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              当前比赛：{{ selectedSettingsGame.name }} · {{ new Date(selectedSettingsGame.start_time).toLocaleString() }}
+              当前比赛：{{ selectedSettingsGame.name }} · {{ new Date(selectedSettingsGame.start_time).toLocaleString() }} · {{ getRegistrationModeLabel(selectedSettingsGame.registration_mode) }}
             </div>
 
             <UButton type="submit" :loading="settingsSubmitting">
@@ -1154,7 +1183,7 @@ onMounted(async () => {
                       #{{ game.id }} {{ game.name }}
                     </div>
                     <div class="text-muted">
-                      {{ game.status }} · {{ new Date(game.start_time).toLocaleString() }}
+                      {{ game.status }} · {{ getRegistrationModeLabel(game.registration_mode) }} · {{ new Date(game.start_time).toLocaleString() }}
                     </div>
                     <div v-if="game.notice" class="text-muted line-clamp-2">
                       公告：{{ game.notice }}

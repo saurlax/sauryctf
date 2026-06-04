@@ -289,6 +289,9 @@ components:
         status:
           type: string
           enum: [draft, active, ended]
+        registration_mode:
+          type: string
+          enum: [review, auto_accept]
         is_public:
           type: boolean
         created_by:
@@ -313,6 +316,9 @@ components:
         end_time:
           type: string
           format: date-time
+        registration_mode:
+          type: string
+          enum: [review, auto_accept]
         is_public:
           type: boolean
 
@@ -334,6 +340,9 @@ components:
         status:
           type: string
           enum: [draft, active, ended]
+        registration_mode:
+          type: string
+          enum: [review, auto_accept]
         is_public:
           type: boolean
 

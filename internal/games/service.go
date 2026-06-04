@@ -10,6 +10,11 @@ import (
 	"github.com/saurlax/sauryctf/internal/scoring"
 )
 
+const (
+	RegistrationModeReview     = "review"
+	RegistrationModeAutoAccept = "auto_accept"
+)
+
 type Service struct {
 	db *gorm.DB
 }
@@ -18,22 +23,39 @@ func NewService(db *gorm.DB) *Service {
 	return &Service{db: db}
 }
 
+func normalizeRegistrationMode(mode string) (string, error) {
+	switch mode {
+	case "", RegistrationModeReview:
+		return RegistrationModeReview, nil
+	case RegistrationModeAutoAccept:
+		return RegistrationModeAutoAccept, nil
+	default:
+		return "", errors.New("invalid registration mode")
+	}
+}
+
 func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameResponse, error) {
+	registrationMode, err := normalizeRegistrationMode(req.RegistrationMode)
+	if err != nil {
+		return nil, err
+	}
+
 	game := &models.Game{
-		Name:        req.Name,
-		Description: req.Description,
-		Notice:      req.Notice,
-		StartTime:   req.StartTime,
-		EndTime:     req.EndTime,
-		Status:      "draft",
-		CreatedBy:   createdBy,
+		Name:             req.Name,
+		Description:      req.Description,
+		Notice:           req.Notice,
+		StartTime:        req.StartTime,
+		EndTime:          req.EndTime,
+		Status:           "draft",
+		RegistrationMode: registrationMode,
+		CreatedBy:        createdBy,
 	}
 	if req.IsPublic != nil {
 		game.IsPublic = *req.IsPublic
 	}
 
 	if err := s.db.Select(
-		"Name", "Description", "Notice", "StartTime", "EndTime", "Status", "IsPublic", "CreatedBy",
+		"Name", "Description", "Notice", "StartTime", "EndTime", "Status", "RegistrationMode", "IsPublic", "CreatedBy",
 	).Create(game).Error; err != nil {
 		return nil, err
 	}
@@ -97,6 +119,13 @@ func (s *Service) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, err
 	if req.Status != nil {
 		updates["status"] = *req.Status
 	}
+	if req.RegistrationMode != nil {
+		registrationMode, err := normalizeRegistrationMode(*req.RegistrationMode)
+		if err != nil {
+			return nil, err
+		}
+		updates["registration_mode"] = registrationMode
+	}
 	if req.IsPublic != nil {
 		updates["is_public"] = *req.IsPublic
 	}
@@ -139,7 +168,8 @@ func (s *Service) RemoveChallenge(gameID uint, challengeID uint) error {
 }
 
 // JoinGame registers a team to a game.
-// New registrations are created as pending so admins can review them.
+// Depending on the game configuration, registrations are either created as
+// pending for review or directly accepted for small local events.
 func (s *Service) JoinGame(gameID uint, teamID uint, userID uint) error {
 	var game models.Game
 	if err := s.db.First(&game, gameID).Error; err != nil {
@@ -156,11 +186,16 @@ func (s *Service) JoinGame(gameID uint, teamID uint, userID uint) error {
 		return err
 	}
 
+	status := models.ParticipationPending
+	if game.RegistrationMode == RegistrationModeAutoAccept {
+		status = models.ParticipationAccepted
+	}
+
 	part := &models.Participation{
 		GameID: gameID,
 		TeamID: teamID,
 		UserID: userID,
-		Status: models.ParticipationPending,
+		Status: status,
 	}
 	return s.db.Create(part).Error
 }
@@ -676,15 +711,16 @@ func (s *Service) RemoveParticipation(gameID uint, teamID uint) error {
 
 func toResponse(g *models.Game) *GameResponse {
 	return &GameResponse{
-		ID:          g.ID,
-		Name:        g.Name,
-		Description: g.Description,
-		Notice:      g.Notice,
-		StartTime:   g.StartTime,
-		EndTime:     g.EndTime,
-		Status:      g.Status,
-		IsPublic:    g.IsPublic,
-		CreatedBy:   g.CreatedBy,
-		CreatedAt:   g.CreatedAt,
+		ID:               g.ID,
+		Name:             g.Name,
+		Description:      g.Description,
+		Notice:           g.Notice,
+		StartTime:        g.StartTime,
+		EndTime:          g.EndTime,
+		Status:           g.Status,
+		RegistrationMode: g.RegistrationMode,
+		IsPublic:         g.IsPublic,
+		CreatedBy:        g.CreatedBy,
+		CreatedAt:        g.CreatedAt,
 	}
 }

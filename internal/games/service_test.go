@@ -92,6 +92,7 @@ func TestService_CreateGame(t *testing.T) {
 	assert.Equal(t, "Test CTF", game.Name)
 	assert.Equal(t, "notice", game.Notice)
 	assert.Equal(t, "draft", game.Status)
+	assert.Equal(t, games.RegistrationModeReview, game.RegistrationMode)
 	assert.True(t, game.IsPublic)
 }
 
@@ -149,15 +150,18 @@ func TestService_UpdateGame(t *testing.T) {
 	newName := "Updated"
 	newStatus := "active"
 	newNotice := "Updated notice"
+	newRegistrationMode := games.RegistrationModeAutoAccept
 	updated, err := svc.UpdateGame(game.ID, games.UpdateGameRequest{
-		Name:   &newName,
-		Notice: &newNotice,
-		Status: &newStatus,
+		Name:             &newName,
+		Notice:           &newNotice,
+		Status:           &newStatus,
+		RegistrationMode: &newRegistrationMode,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, "Updated", updated.Name)
 	assert.Equal(t, "Updated notice", updated.Notice)
 	assert.Equal(t, "active", updated.Status)
+	assert.Equal(t, games.RegistrationModeAutoAccept, updated.RegistrationMode)
 }
 
 func TestService_AddChallenge(t *testing.T) {
@@ -254,6 +258,36 @@ func TestService_JoinGame_CreatesPendingParticipation(t *testing.T) {
 	participation, err := svc.GetParticipation(game.ID, team.ID)
 	require.NoError(t, err)
 	assert.Equal(t, models.ParticipationPending, participation.Status)
+}
+
+func TestService_JoinGame_AutoAcceptsWhenConfigured(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+
+	user := models.User{Username: "auto-captain", Email: "auto-captain@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+	team := models.Team{Name: "Red Team", InviteCode: "red01", CaptainID: user.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team).Error)
+	game := models.Game{
+		Name:             "Auto Accept Game",
+		StartTime:        time.Now().Add(time.Hour),
+		EndTime:          time.Now().Add(2 * time.Hour),
+		Status:           "draft",
+		RegistrationMode: games.RegistrationModeAutoAccept,
+		IsPublic:         true,
+		CreatedBy:        user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+
+	require.NoError(t, svc.JoinGame(game.ID, team.ID, user.ID))
+
+	participation, err := svc.GetParticipation(game.ID, team.ID)
+	require.NoError(t, err)
+	assert.Equal(t, models.ParticipationAccepted, participation.Status)
 }
 
 func TestService_UpdateParticipationStatus(t *testing.T) {

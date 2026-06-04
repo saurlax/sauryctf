@@ -182,6 +182,24 @@ func (e GameStatus) Valid() bool {
 	}
 }
 
+// Defines values for GameRegistrationMode.
+const (
+	GameRegistrationModeAutoAccept GameRegistrationMode = "auto_accept"
+	GameRegistrationModeReview     GameRegistrationMode = "review"
+)
+
+// Valid indicates whether the value is a known member of the GameRegistrationMode enum.
+func (e GameRegistrationMode) Valid() bool {
+	switch e {
+	case GameRegistrationModeAutoAccept:
+		return true
+	case GameRegistrationModeReview:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GameChallengeDetailCategory.
 const (
 	Awd       GameChallengeDetailCategory = "awd"
@@ -269,6 +287,24 @@ func (e UpdateGameRequestStatus) Valid() bool {
 	case UpdateGameRequestStatusDraft:
 		return true
 	case UpdateGameRequestStatusEnded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateGameRequestRegistrationMode.
+const (
+	UpdateGameRequestRegistrationModeAutoAccept UpdateGameRequestRegistrationMode = "auto_accept"
+	UpdateGameRequestRegistrationModeReview     UpdateGameRequestRegistrationMode = "review"
+)
+
+// Valid indicates whether the value is a known member of the UpdateGameRequestRegistrationMode enum.
+func (e UpdateGameRequestRegistrationMode) Valid() bool {
+	switch e {
+	case UpdateGameRequestRegistrationModeAutoAccept:
+		return true
+	case UpdateGameRequestRegistrationModeReview:
 		return true
 	default:
 		return false
@@ -388,12 +424,13 @@ type CreateChallengeRequestType string
 
 // CreateGameRequest defines model for CreateGameRequest.
 type CreateGameRequest struct {
-	Description *string   `json:"description,omitempty"`
-	EndTime     time.Time `json:"end_time"`
-	IsPublic    *bool     `json:"is_public,omitempty"`
-	Name        string    `json:"name"`
-	Notice      *string   `json:"notice,omitempty"`
-	StartTime   time.Time `json:"start_time"`
+	Description      *string               `json:"description,omitempty"`
+	EndTime          time.Time             `json:"end_time"`
+	IsPublic         *bool                 `json:"is_public,omitempty"`
+	Name             string                `json:"name"`
+	Notice           *string               `json:"notice,omitempty"`
+	RegistrationMode *GameRegistrationMode `json:"registration_mode,omitempty"`
+	StartTime        time.Time             `json:"start_time"`
 }
 
 // CreateTeamRequest defines model for CreateTeamRequest.
@@ -408,20 +445,24 @@ type ErrorResponse struct {
 
 // Game defines model for Game.
 type Game struct {
-	CreatedAt   *time.Time `json:"created_at,omitempty"`
-	CreatedBy   *int       `json:"created_by,omitempty"`
-	Description *string    `json:"description,omitempty"`
-	EndTime     time.Time  `json:"end_time"`
-	Id          int        `json:"id"`
-	IsPublic    *bool      `json:"is_public,omitempty"`
-	Name        string     `json:"name"`
-	Notice      *string    `json:"notice,omitempty"`
-	StartTime   time.Time  `json:"start_time"`
-	Status      GameStatus `json:"status"`
+	CreatedAt        *time.Time            `json:"created_at,omitempty"`
+	CreatedBy        *int                  `json:"created_by,omitempty"`
+	Description      *string               `json:"description,omitempty"`
+	EndTime          time.Time             `json:"end_time"`
+	Id               int                   `json:"id"`
+	IsPublic         *bool                 `json:"is_public,omitempty"`
+	Name             string                `json:"name"`
+	Notice           *string               `json:"notice,omitempty"`
+	RegistrationMode *GameRegistrationMode `json:"registration_mode,omitempty"`
+	StartTime        time.Time             `json:"start_time"`
+	Status           GameStatus            `json:"status"`
 }
 
 // GameStatus defines model for Game.Status.
 type GameStatus string
+
+// GameRegistrationMode defines model for Game.RegistrationMode.
+type GameRegistrationMode string
 
 // GameChallengeDetail defines model for GameChallengeDetail.
 type GameChallengeDetail struct {
@@ -573,17 +614,21 @@ type UpdateChallengeRequest struct {
 
 // UpdateGameRequest defines model for UpdateGameRequest.
 type UpdateGameRequest struct {
-	Description *string                  `json:"description,omitempty"`
-	EndTime     *time.Time               `json:"end_time,omitempty"`
-	IsPublic    *bool                    `json:"is_public,omitempty"`
-	Name        *string                  `json:"name,omitempty"`
-	Notice      *string                  `json:"notice,omitempty"`
-	StartTime   *time.Time               `json:"start_time,omitempty"`
-	Status      *UpdateGameRequestStatus `json:"status,omitempty"`
+	Description      *string                            `json:"description,omitempty"`
+	EndTime          *time.Time                         `json:"end_time,omitempty"`
+	IsPublic         *bool                              `json:"is_public,omitempty"`
+	Name             *string                            `json:"name,omitempty"`
+	Notice           *string                            `json:"notice,omitempty"`
+	RegistrationMode *UpdateGameRequestRegistrationMode `json:"registration_mode,omitempty"`
+	StartTime        *time.Time                         `json:"start_time,omitempty"`
+	Status           *UpdateGameRequestStatus           `json:"status,omitempty"`
 }
 
 // UpdateGameRequestStatus defines model for UpdateGameRequest.Status.
 type UpdateGameRequestStatus string
+
+// UpdateGameRequestRegistrationMode defines model for UpdateGameRequest.RegistrationMode.
+type UpdateGameRequestRegistrationMode string
 
 // UserInfo defines model for UserInfo.
 type UserInfo struct {

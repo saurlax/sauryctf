@@ -251,6 +251,8 @@ export interface components {
       end_time: string;
       /** @enum {string} */
       status: "draft" | "active" | "ended";
+      /** @enum {string} */
+      registration_mode?: "review" | "auto_accept";
       is_public?: boolean;
       created_by?: number;
       /** Format: date-time */
@@ -264,6 +266,8 @@ export interface components {
       start_time: string;
       /** Format: date-time */
       end_time: string;
+      /** @enum {string} */
+      registration_mode?: "review" | "auto_accept";
       is_public?: boolean;
     };
     UpdateGameRequest: {
@@ -276,6 +280,8 @@ export interface components {
       end_time?: string;
       /** @enum {string} */
       status?: "draft" | "active" | "ended";
+      /** @enum {string} */
+      registration_mode?: "review" | "auto_accept";
       is_public?: boolean;
     };
     AddChallengeToGameRequest: {

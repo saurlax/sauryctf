@@ -108,10 +108,11 @@ func TestCreateGame_Success(t *testing.T) {
 	r := setupTestRouter(svc)
 
 	body := map[string]interface{}{
-		"name":        "Spring CTF",
-		"description": "A fun CTF",
-		"start_time":  time.Now().Add(24 * time.Hour).Format(time.RFC3339),
-		"end_time":    time.Now().Add(48 * time.Hour).Format(time.RFC3339),
+		"name":              "Spring CTF",
+		"description":       "A fun CTF",
+		"start_time":        time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+		"end_time":          time.Now().Add(48 * time.Hour).Format(time.RFC3339),
+		"registration_mode": "auto_accept",
 	}
 	b, _ := json.Marshal(body)
 
@@ -126,6 +127,7 @@ func TestCreateGame_Success(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &game)
 	assert.Equal(t, "Spring CTF", game["name"])
 	assert.Equal(t, "draft", game["status"])
+	assert.Equal(t, "auto_accept", game["registration_mode"])
 }
 
 func TestCreateGame_MissingName(t *testing.T) {
@@ -208,7 +210,8 @@ func TestUpdateGame_Success(t *testing.T) {
 	}, 1)
 
 	newName := "New Name"
-	body := games.UpdateGameRequest{Name: &newName}
+	newMode := games.RegistrationModeAutoAccept
+	body := games.UpdateGameRequest{Name: &newName, RegistrationMode: &newMode}
 	b, _ := json.Marshal(body)
 
 	w := httptest.NewRecorder()
@@ -221,6 +224,7 @@ func TestUpdateGame_Success(t *testing.T) {
 	var game map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &game)
 	assert.Equal(t, "New Name", game["name"])
+	assert.Equal(t, "auto_accept", game["registration_mode"])
 }
 
 func TestAddChallenge_Success(t *testing.T) {

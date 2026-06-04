@@ -136,7 +136,13 @@ async function joinGame() {
       params: { id: Number(gameId) },
       body: { team_id: teamId },
     })
-    toast.add({ title: '报名申请已提交', description: '等待管理员审核通过后即可正式参赛。', color: 'success' })
+    toast.add({
+      title: game.value?.registration_mode === 'auto_accept' ? '报名成功' : '报名申请已提交',
+      description: game.value?.registration_mode === 'auto_accept'
+        ? '当前比赛已自动通过报名，队伍现在可以按比赛状态直接参赛。'
+        : '等待管理员审核通过后即可正式参赛。',
+      color: 'success',
+    })
     await Promise.all([fetchParticipation(), fetchAll()])
   }
   catch (e: any) {
@@ -254,6 +260,8 @@ const canSubmitFlag = computed(() =>
 )
 
 const participationHint = computed(() => {
+  const registrationMode = game.value?.registration_mode || 'review'
+
   if (!authState.user) {
     return {
       title: '请先登录',
@@ -314,7 +322,9 @@ const participationHint = computed(() => {
 
   return {
     title: '当前可报名',
-    description: '当前队伍尚未报名，进入本场比赛前请确认队伍成员已准备完成。',
+    description: registrationMode === 'auto_accept'
+      ? '当前队伍尚未报名，这场比赛会自动通过报名，确认后即可直接进入参赛状态。'
+      : '当前队伍尚未报名，进入本场比赛前请确认队伍成员已准备完成。',
     color: 'info' as const,
   }
 })
@@ -592,8 +602,9 @@ onMounted(async () => {
               </p>
               <ul class="space-y-2 text-muted">
                 <li>1. 先在控制台创建或加入队伍，再报名比赛。</li>
-                <li>2. 题目页会根据你当前队伍显示已解状态和一血队伍。</li>
-                <li>3. 比赛开始后不可退出比赛，比赛结束后将无法继续得分。</li>
+                <li>2. 当前比赛报名方式：{{ game.registration_mode === 'auto_accept' ? '自动通过' : '人工审核' }}。</li>
+                <li>3. 题目页会根据你当前队伍显示已解状态和一血队伍。</li>
+                <li>4. 比赛开始后不可退出比赛，比赛结束后将无法继续得分。</li>
               </ul>
             </div>
           </div>
@@ -644,6 +655,10 @@ onMounted(async () => {
                 >
                   {{ participation?.participated ? '已报名' : '未报名' }}
                 </UBadge>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-muted">报名方式</span>
+                <span>{{ game.registration_mode === 'auto_accept' ? '自动通过' : '人工审核' }}</span>
               </div>
               <div class="flex items-center justify-between gap-3">
                 <span class="text-muted">可提交 Flag</span>

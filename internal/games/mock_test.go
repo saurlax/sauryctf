@@ -36,16 +36,20 @@ func (m *MockService) CreateGame(req CreateGameRequest, createdBy uint) (*GameRe
 		isPublic = *req.IsPublic
 	}
 	game := &GameResponse{
-		ID:          m.nextID,
-		Name:        req.Name,
-		Description: req.Description,
-		Notice:      req.Notice,
-		StartTime:   req.StartTime,
-		EndTime:     req.EndTime,
-		Status:      "draft",
-		IsPublic:    isPublic,
-		CreatedBy:   createdBy,
-		CreatedAt:   time.Now(),
+		ID:               m.nextID,
+		Name:             req.Name,
+		Description:      req.Description,
+		Notice:           req.Notice,
+		StartTime:        req.StartTime,
+		EndTime:          req.EndTime,
+		Status:           "draft",
+		RegistrationMode: RegistrationModeReview,
+		IsPublic:         isPublic,
+		CreatedBy:        createdBy,
+		CreatedAt:        time.Now(),
+	}
+	if req.RegistrationMode != "" {
+		game.RegistrationMode = req.RegistrationMode
 	}
 	m.Games[game.ID] = game
 	m.nextID++
@@ -97,6 +101,9 @@ func (m *MockService) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse,
 	if req.Status != nil {
 		game.Status = *req.Status
 	}
+	if req.RegistrationMode != nil {
+		game.RegistrationMode = *req.RegistrationMode
+	}
 	if req.IsPublic != nil {
 		game.IsPublic = *req.IsPublic
 	}
@@ -138,7 +145,11 @@ func (m *MockService) JoinGame(gameID uint, teamID uint, userID uint) error {
 	if _, exists := m.Participations[key]; exists {
 		return fmt.Errorf("team already joined this game")
 	}
-	m.Participations[key] = models.ParticipationPending
+	status := models.ParticipationPending
+	if game, ok := m.Games[gameID]; ok && game.RegistrationMode == RegistrationModeAutoAccept {
+		status = models.ParticipationAccepted
+	}
+	m.Participations[key] = status
 	return nil
 }
 

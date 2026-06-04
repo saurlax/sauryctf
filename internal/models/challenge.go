@@ -63,17 +63,18 @@ type Solve struct {
 }
 
 type Game struct {
-	ID          uint      `gorm:"primaryKey" json:"id"`
-	Name        string    `gorm:"size:255;not null" json:"name"`
-	Description string    `gorm:"type:text" json:"description"`
-	Notice      string    `gorm:"type:text" json:"notice"`
-	StartTime   time.Time `gorm:"not null" json:"start_time"`
-	EndTime     time.Time `gorm:"not null" json:"end_time"`
-	Status      string    `gorm:"size:32;not null;default:draft" json:"status"` // draft, active, ended
-	IsPublic    bool      `gorm:"not null;default:false" json:"is_public"`
-	CreatedBy   uint      `gorm:"index" json:"created_by"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID               uint      `gorm:"primaryKey" json:"id"`
+	Name             string    `gorm:"size:255;not null" json:"name"`
+	Description      string    `gorm:"type:text" json:"description"`
+	Notice           string    `gorm:"type:text" json:"notice"`
+	StartTime        time.Time `gorm:"not null" json:"start_time"`
+	EndTime          time.Time `gorm:"not null" json:"end_time"`
+	Status           string    `gorm:"size:32;not null;default:draft" json:"status"`              // draft, active, ended
+	RegistrationMode string    `gorm:"size:32;not null;default:review" json:"registration_mode"` // review, auto_accept
+	IsPublic         bool      `gorm:"not null;default:false" json:"is_public"`
+	CreatedBy        uint      `gorm:"index" json:"created_by"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 type GameChallenge struct {
