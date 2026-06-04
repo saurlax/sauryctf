@@ -889,6 +889,83 @@ const scoreboardViewDescription = computed(() => {
   return '当前显示全部公开队伍的实时排名和分题统计。'
 })
 
+const writeupStatusColor = computed(() => {
+  if (writeup.value?.status === 'approved') {
+    return 'success' as const
+  }
+  if (writeup.value?.status === 'rejected') {
+    return 'error' as const
+  }
+  if (writeup.value?.status === 'submitted') {
+    return 'warning' as const
+  }
+  return 'neutral' as const
+})
+
+const writeupStatusLabel = computed(() => {
+  if (writeup.value?.status === 'approved') {
+    return '已通过'
+  }
+  if (writeup.value?.status === 'rejected') {
+    return '已驳回'
+  }
+  if (writeup.value?.status === 'submitted') {
+    return '待审核'
+  }
+  return '未提交'
+})
+
+const writeupSummaryCards = computed(() => [
+  {
+    label: 'Writeup 状态',
+    value: writeupStatusLabel.value,
+    hint: writeup.value?.status ? `当前后端状态：${writeup.value.status}` : '当前队伍还没有提交 Writeup',
+    icon: 'i-lucide-file-text',
+    color: writeupStatusColor.value,
+  },
+  {
+    label: '提交资格',
+    value: writeup.value?.can_submit ? '当前可提交' : '当前不可提交',
+    hint: writeup.value?.can_submit ? '支持覆盖提交，重新提交后会回到 submitted' : writeupGuide.value.description,
+    icon: 'i-lucide-file-up',
+    color: writeup.value?.can_submit ? 'success' as const : 'warning' as const,
+  },
+  {
+    label: '截止时间',
+    value: game.value?.writeup_deadline ? new Date(game.value.writeup_deadline).toLocaleString() : '未单独设置',
+    hint: game.value?.writeup_required ? '当前比赛要求按这个时间前完成 Writeup 处理' : '当前比赛不强制要求 Writeup',
+    icon: 'i-lucide-calendar-clock',
+    color: game.value?.writeup_deadline ? 'info' as const : 'neutral' as const,
+  },
+  {
+    label: '最近提交',
+    value: writeup.value?.submitted_at ? new Date(writeup.value.submitted_at).toLocaleString() : '暂无',
+    hint: writeup.value?.reviewed_at
+      ? `最近审核时间 ${new Date(writeup.value.reviewed_at).toLocaleString()}`
+      : '当前还没有审核记录',
+    icon: 'i-lucide-history',
+    color: 'neutral' as const,
+  },
+])
+
+const writeupRuleItems = computed(() => [
+  !authState.user
+    ? '先登录后才能查看你自己的队伍 Writeup 状态。'
+    : !participation.value?.has_team
+      ? '先创建或加入队伍，再返回这里处理 Writeup。'
+      : '当前比赛以内队形式管理 Writeup，内容会绑定到你当前队伍。',
+  game.value?.writeup_required
+    ? '当前比赛要求提交 Writeup。'
+    : '当前比赛不强制要求 Writeup，但你仍可以在这里沉淀复盘内容。',
+  game.value?.writeup_deadline
+    ? `如果需要提交，截止时间为 ${new Date(game.value.writeup_deadline).toLocaleString()}。`
+    : '当前没有单独设置 Writeup 截止时间。',
+  writeup.value?.status === 'rejected'
+    ? '当前 Writeup 已被驳回，修改后重新提交会回到 submitted 状态。'
+    : '重复提交会覆盖当前内容，并重新进入 submitted 状态等待审核。',
+  'Writeup 审核结果由管理员在管理端更新，审核备注会直接展示在本页。',
+])
+
 function formatDuration(ms: number) {
   if (ms <= 0) {
     return '0 分钟'
@@ -1485,54 +1562,101 @@ onMounted(async () => {
       </div>
 
       <div v-else-if="activeTab === 'writeup'">
-        <UPageCard title="赛后 Writeup" icon="i-lucide-file-text">
-          <div class="space-y-4">
-            <UAlert
-              :color="writeupGuide.color"
-              variant="soft"
-              :title="writeupGuide.title"
-              :description="writeupGuide.description"
-            />
+        <div class="space-y-6">
+          <UPageGrid :cols="{ default: 1, sm: 2, xl: 4 }">
+            <UPageCard
+              v-for="card in writeupSummaryCards"
+              :key="card.label"
+              :title="card.value"
+              :description="card.label"
+              :icon="card.icon"
+            >
+              <template #footer>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-xs text-muted">{{ card.hint }}</span>
+                  <UBadge :color="card.color" variant="subtle" size="sm">
+                    {{ card.label }}
+                  </UBadge>
+                </div>
+              </template>
+            </UPageCard>
+          </UPageGrid>
 
-            <div v-if="writeup?.status" class="grid gap-3 md:grid-cols-3 text-sm">
-              <div class="rounded-lg border border-default px-3 py-3">
-                <div class="text-muted">当前状态</div>
-                <div class="mt-1 font-medium">{{ writeup.status }}</div>
+          <div class="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+            <UPageCard title="Writeup 内容" icon="i-lucide-file-text">
+              <div class="space-y-4">
+                <UAlert
+                  :color="writeupGuide.color"
+                  variant="soft"
+                  :title="writeupGuide.title"
+                  :description="writeupGuide.description"
+                />
+
+                <UForm :state="writeupForm" class="space-y-4" @submit="submitWriteup">
+                  <UFormField
+                    label="Writeup 内容"
+                    name="content"
+                    :description="writeup?.can_submit
+                      ? '支持重复提交，重新提交后会回到 submitted 状态。'
+                      : writeupGuide.description"
+                  >
+                    <UTextarea v-model="writeupForm.content" class="w-full" :rows="14" placeholder="记录解题思路、复盘总结、关键截图或附件说明。" />
+                  </UFormField>
+
+                  <div class="flex justify-end">
+                    <UButton
+                      type="submit"
+                      icon="i-lucide-file-up"
+                      :loading="writeupSubmitting"
+                      :disabled="!writeup?.can_submit"
+                    >
+                      提交 Writeup
+                    </UButton>
+                  </div>
+                </UForm>
               </div>
-              <div class="rounded-lg border border-default px-3 py-3">
-                <div class="text-muted">提交时间</div>
-                <div class="mt-1 font-medium">{{ writeup.submitted_at ? new Date(writeup.submitted_at).toLocaleString() : '未提交' }}</div>
-              </div>
-              <div class="rounded-lg border border-default px-3 py-3">
-                <div class="text-muted">审核备注</div>
-                <div class="mt-1 font-medium">{{ writeup.review_remark || '暂无' }}</div>
-              </div>
+            </UPageCard>
+
+            <div class="space-y-6">
+              <UPageCard title="当前审核信息" icon="i-lucide-file-check">
+                <div class="space-y-3 text-sm">
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="text-muted">当前状态</span>
+                    <UBadge :color="writeupStatusColor" variant="soft">
+                      {{ writeupStatusLabel }}
+                    </UBadge>
+                  </div>
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="text-muted">提交时间</span>
+                    <span class="text-right">{{ writeup?.submitted_at ? new Date(writeup.submitted_at).toLocaleString() : '未提交' }}</span>
+                  </div>
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="text-muted">审核时间</span>
+                    <span class="text-right">{{ writeup?.reviewed_at ? new Date(writeup.reviewed_at).toLocaleString() : '未审核' }}</span>
+                  </div>
+                  <div class="rounded-lg border border-default px-3 py-3">
+                    <div class="text-muted">审核备注</div>
+                    <div class="mt-2 leading-6">
+                      {{ writeup?.review_remark || '暂无审核备注' }}
+                    </div>
+                  </div>
+                </div>
+              </UPageCard>
+
+              <UPageCard title="提交流程说明" icon="i-lucide-list-checks">
+                <div class="space-y-3 text-sm text-muted">
+                  <p
+                    v-for="(item, index) in writeupRuleItems"
+                    :key="`${index}-${item}`"
+                    class="leading-6"
+                  >
+                    {{ index + 1 }}. {{ item }}
+                  </p>
+                </div>
+              </UPageCard>
             </div>
-
-            <UForm :state="writeupForm" class="space-y-4" @submit="submitWriteup">
-              <UFormField
-                label="Writeup 内容"
-                name="content"
-                :description="writeup?.can_submit
-                  ? '支持重复提交，重新提交后会回到 submitted 状态。'
-                  : writeupGuide.description"
-              >
-                <UTextarea v-model="writeupForm.content" class="w-full" :rows="12" placeholder="记录解题思路、复盘总结、关键截图或附件说明。" />
-              </UFormField>
-
-              <div class="flex justify-end">
-                <UButton
-                  type="submit"
-                  icon="i-lucide-file-up"
-                  :loading="writeupSubmitting"
-                  :disabled="!writeup?.can_submit"
-                >
-                  提交 Writeup
-                </UButton>
-              </div>
-            </UForm>
           </div>
-        </UPageCard>
+        </div>
       </div>
     </template>
 
