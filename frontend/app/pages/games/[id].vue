@@ -390,6 +390,22 @@ const submitHint = computed(() => publicParticipationHints.value.submitHint)
 
 const challengeVisibilityHint = computed(() => publicParticipationHints.value.visibilityHint)
 
+const challengeSubmitMeta = computed(() => {
+  if (canSubmitFlag.value) {
+    return {
+      title: '当前可以提交 Flag',
+      description: '你的队伍已经具备参赛资格，可以直接在下方输入 Flag 并提交。',
+      color: 'success' as const,
+    }
+  }
+
+  return {
+    title: '当前暂时不能提交 Flag',
+    description: submitHint.value,
+    color: 'warning' as const,
+  }
+})
+
 const nextStepMeta = computed(() => {
   if (!authState.user) {
     return {
@@ -583,6 +599,74 @@ function handleNextStepAction(meta: typeof nextStepMeta.value) {
     activeTab.value = meta.actionTab
   }
 }
+
+const writeupGuide = computed(() => {
+  if (!authState.user) {
+    return {
+      title: '登录后可查看 Writeup 状态',
+      description: '登录后才能看到你自己的队伍、Writeup 状态和可提交性。',
+      color: 'info' as const,
+    }
+  }
+
+  if (!participation.value?.has_team) {
+    return {
+      title: '需要先加入队伍',
+      description: '当前比赛以内队形式参赛。先准备队伍，再回来查看或提交 Writeup。',
+      color: 'warning' as const,
+    }
+  }
+
+  if (!game.value?.writeup_required) {
+    return {
+      title: '当前比赛不强制要求 Writeup',
+      description: '你仍然可以在这里沉淀复盘内容，但它不会作为本场比赛的强制参赛条件。',
+      color: 'neutral' as const,
+    }
+  }
+
+  if (!participation.value?.participated) {
+    return {
+      title: '需要先完成比赛报名',
+      description: '只有已经报名的队伍，才会继续进入这场比赛的 Writeup 流程。',
+      color: 'warning' as const,
+    }
+  }
+
+  if (participation.value.status !== 'accepted') {
+    return {
+      title: participation.value.status === 'pending' ? '等待报名审核通过' : '当前报名未通过',
+      description: participation.value.status === 'pending'
+        ? '报名审核通过后，Writeup 区才会正式开放可提交状态。'
+        : '当前报名没有通过，先调整队伍或重新报名，再回来处理 Writeup。',
+      color: participation.value.status === 'pending' ? 'warning' as const : 'error' as const,
+    }
+  }
+
+  if (game.value?.writeup_deadline && Date.now() > new Date(game.value.writeup_deadline).getTime()) {
+    return {
+      title: 'Writeup 截止时间已过',
+      description: `当前比赛的 Writeup 截止时间是 ${new Date(game.value.writeup_deadline).toLocaleString()}，现在已经不能继续更新内容。`,
+      color: 'error' as const,
+    }
+  }
+
+  if (writeup.value?.can_submit) {
+    return {
+      title: '当前可以提交 Writeup',
+      description: writeup.value.status === 'rejected'
+        ? '管理员曾驳回过这份 Writeup。你可以修改后重新提交，状态会回到 submitted。'
+        : '你可以提交或覆盖当前队伍的 Writeup，重新提交后状态会回到 submitted。',
+      color: 'success' as const,
+    }
+  }
+
+  return {
+    title: '当前暂时不能提交 Writeup',
+    description: '当前还不满足提交流程。通常需要报名已通过，并且比赛本身要求 Writeup。',
+    color: 'warning' as const,
+  }
+})
 
 const participationSummaryLabel = computed(() => {
   if (!authState.user) {
@@ -1123,9 +1207,13 @@ onMounted(async () => {
                 </div>
 
                 <div v-if="!ch.solved" class="space-y-2">
-                  <p v-if="!canSubmitFlag" class="text-xs text-muted leading-5">
-                    {{ submitHint }}
-                  </p>
+                  <UAlert
+                    v-if="!canSubmitFlag"
+                    :color="challengeSubmitMeta.color"
+                    variant="subtle"
+                    :title="challengeSubmitMeta.title"
+                    :description="challengeSubmitMeta.description"
+                  />
                   <div class="flex gap-2">
                     <UInput
                       v-model="flagInputs[ch.id]"
@@ -1246,12 +1334,10 @@ onMounted(async () => {
         <UPageCard title="赛后 Writeup" icon="i-lucide-file-text">
           <div class="space-y-4">
             <UAlert
-              :color="game.writeup_required ? 'info' : 'neutral'"
+              :color="writeupGuide.color"
               variant="soft"
-              :title="game.writeup_required ? '当前比赛要求 Writeup' : '当前比赛不强制要求 Writeup'"
-              :description="game.writeup_required
-                ? (game.writeup_deadline ? `截止时间：${new Date(game.writeup_deadline).toLocaleString()}` : '当前未设置单独截止时间。')
-                : '你仍然可以在这里沉淀复盘内容，但不会作为强制参赛要求。'"
+              :title="writeupGuide.title"
+              :description="writeupGuide.description"
             />
 
             <div v-if="writeup?.status" class="grid gap-3 md:grid-cols-3 text-sm">
@@ -1273,7 +1359,9 @@ onMounted(async () => {
               <UFormField
                 label="Writeup 内容"
                 name="content"
-                :description="writeup?.can_submit ? '支持重复提交，重新提交后会回到 submitted 状态。' : '当前还不满足提交条件，通常需要已通过报名且比赛配置要求 Writeup。'"
+                :description="writeup?.can_submit
+                  ? '支持重复提交，重新提交后会回到 submitted 状态。'
+                  : writeupGuide.description"
               >
                 <UTextarea v-model="writeupForm.content" class="w-full" :rows="12" placeholder="记录解题思路、复盘总结、关键截图或附件说明。" />
               </UFormField>
