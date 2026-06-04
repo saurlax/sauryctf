@@ -1245,6 +1245,7 @@ func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID 
 		GameID:      gameID,
 		Score:       score,
 		BloodType:   bloodType,
+		SolvedAt:    time.Now(),
 	}
 	if err := s.db.Create(solve).Error; err != nil {
 		return nil, err

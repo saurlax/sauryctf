@@ -758,6 +758,27 @@ func TestService_GetScoreboard_IncludesChallengeStats(t *testing.T) {
 	assert.Nil(t, scoreboard.FreezeTime)
 }
 
+func TestService_GetScoreboard_IncludesLastSolveTime(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, team1ID, _ := createGameChallengeFixture(t, database)
+
+	beforeSubmit := time.Now()
+	_, err = svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
+	require.NoError(t, err)
+
+	scoreboard, err := svc.GetScoreboard(gameID, "")
+	require.NoError(t, err)
+	require.Len(t, scoreboard.Entries, 2)
+	assert.Equal(t, team1ID, scoreboard.Entries[0].TeamID)
+	assert.False(t, scoreboard.Entries[0].LastSolve.IsZero())
+	assert.True(t, scoreboard.Entries[0].LastSolve.After(beforeSubmit) || scoreboard.Entries[0].LastSolve.Equal(beforeSubmit))
+}
+
 func TestService_GetScoreboard_FreezesPublicRanking(t *testing.T) {
 	database, err := db.ConnectTest()
 	require.NoError(t, err)
