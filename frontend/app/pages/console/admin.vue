@@ -72,6 +72,7 @@ const challengeEditing = ref(false)
 const loadingResources = ref(false)
 const loadingGameChallenges = ref(false)
 const removingChallengeId = ref<number | null>(null)
+const deletingChallengeId = ref<number | null>(null)
 const games = ref<Array<{
   id: number
   name: string
@@ -287,6 +288,39 @@ async function updateChallengeDetails() {
   }
   finally {
     challengeEditing.value = false
+  }
+}
+
+async function deleteChallenge(challengeId: number) {
+  const challenge = challenges.value.find(item => item.id === challengeId)
+  const confirmed = window.confirm(`确认删除题目「${challenge?.title || `#${challengeId}`}」吗？`)
+  if (!confirmed) {
+    return
+  }
+
+  deletingChallengeId.value = challengeId
+  try {
+    await $api('delete', '/api/challenges/{id}', {
+      params: {
+        id: challengeId,
+      },
+    })
+
+    if (challengeEditForm.challenge_id === challengeId) {
+      challengeEditForm.challenge_id = undefined
+    }
+    if (attachForm.challenge_id === challengeId) {
+      attachForm.challenge_id = undefined
+    }
+
+    toast.add({ title: '题目已删除', color: 'success' })
+    await loadAdminResources()
+  }
+  catch (e: any) {
+    toast.add({ title: '删除题目失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    deletingChallengeId.value = null
   }
 }
 
@@ -846,13 +880,30 @@ onMounted(async () => {
                 题目列表
               </div>
               <div v-if="challenges.length" class="space-y-2 text-sm">
-                <div v-for="challenge in challenges" :key="challenge.id" class="rounded-lg border border-default px-3 py-2">
-                  <div class="font-medium">
-                    #{{ challenge.id }} {{ challenge.title }}
+                <div
+                  v-for="challenge in challenges"
+                  :key="challenge.id"
+                  class="flex items-start justify-between gap-3 rounded-lg border border-default px-3 py-2"
+                >
+                  <div class="min-w-0">
+                    <div class="font-medium">
+                      #{{ challenge.id }} {{ challenge.title }}
+                    </div>
+                    <div class="text-muted">
+                      {{ challenge.category }} · {{ challenge.is_visible ? 'visible' : 'hidden' }}
+                    </div>
                   </div>
-                  <div class="text-muted">
-                    {{ challenge.category }} · {{ challenge.is_visible ? 'visible' : 'hidden' }}
-                  </div>
+
+                  <UButton
+                    color="error"
+                    variant="soft"
+                    size="sm"
+                    icon="i-lucide-trash-2"
+                    :loading="deletingChallengeId === challenge.id"
+                    @click="deleteChallenge(challenge.id)"
+                  >
+                    删除
+                  </UButton>
                 </div>
               </div>
               <div v-else class="text-sm text-muted">
