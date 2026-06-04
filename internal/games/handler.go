@@ -460,6 +460,44 @@ func (h *Handler) GetAdminGameChallenges(c *gin.Context, id int) {
 	c.JSON(http.StatusOK, challenges)
 }
 
+func (h *Handler) GetChallengeInstance(c *gin.Context, id int, challengeId int) {
+	userID := c.MustGet("user_id").(uint)
+
+	instance, err := h.svc.GetChallengeInstance(uint(id), uint(challengeId), userID)
+	if err != nil {
+		switch err.Error() {
+		case "game not found", "challenge not found", "challenge not in this game":
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		case "user has no team", "team has not joined this game", "team is not approved for this game yet", "game is not active", "game has not started yet", "game has already ended", "challenge does not support managed instances", "challenge does not define a managed runtime":
+			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, instance)
+}
+
+func (h *Handler) EnsureChallengeInstance(c *gin.Context, id int, challengeId int) {
+	userID := c.MustGet("user_id").(uint)
+
+	instance, err := h.svc.EnsureChallengeInstance(uint(id), uint(challengeId), userID)
+	if err != nil {
+		switch err.Error() {
+		case "game not found", "challenge not found", "challenge not in this game":
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		case "user has no team", "team has not joined this game", "team is not approved for this game yet", "game is not active", "game has not started yet", "game has already ended", "challenge does not support managed instances", "challenge does not define a managed runtime":
+			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, instance)
+}
+
 func redactChallengeContent(challenges []GameChallengeDetail) []GameChallengeDetail {
 	result := make([]GameChallengeDetail, len(challenges))
 	copy(result, challenges)

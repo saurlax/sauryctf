@@ -162,6 +162,11 @@ internal/<module>/
   - everyone can still see basic challenge metadata such as title, category, score, and solve count
   - full `description`, `hints`, and `attachments` are only exposed after a team is `accepted` and the contest has started
   - admin roles can still inspect full content through a dedicated management query
+- Dynamic challenge instances now have a minimal lease lifecycle:
+  - when a `dynamic` challenge declares `container_spec.runtime.provider` or `container_spec.runtime.image`, the player page can query and renew an instance lease
+  - current endpoints are `GET/POST /api/games/:id/challenges/:challengeId/instance`
+  - only `accepted` teams after contest start can use them; post-contest renewals remain available only when `practice_mode` is enabled
+  - this is intentionally a database-backed lease skeleton for now, not a real container orchestrator yet
 - Registration withdrawal now follows the current GZCTF-style rule:
   - `pending` / `rejected` participations can be withdrawn
   - `accepted` participations are locked and can no longer be withdrawn

@@ -23,6 +23,7 @@ type MockService struct {
 	Submissions      map[uint][]GameSubmissionRecord
 	CheatClues       map[uint][]GameSubmissionCheatClue
 	Announcements    map[uint][]GameAnnouncementResponse
+	InstanceLeases   map[string]*ChallengeInstanceResponse
 	nextID           uint
 }
 
@@ -37,6 +38,7 @@ func NewMockService() *MockService {
 		Submissions:      make(map[uint][]GameSubmissionRecord),
 		CheatClues:       make(map[uint][]GameSubmissionCheatClue),
 		Announcements:    make(map[uint][]GameAnnouncementResponse),
+		InstanceLeases:   make(map[string]*ChallengeInstanceResponse),
 		nextID:           1,
 	}
 }
@@ -789,6 +791,54 @@ func (m *MockService) GetAdminGameChallenges(gameID uint) ([]GameChallengeDetail
 
 func (m *MockService) GetGameChallengesForTeam(gameID uint, teamID uint) ([]GameChallengeDetail, error) {
 	return m.GetGameChallenges(gameID)
+}
+
+func (m *MockService) GetChallengeInstance(gameID uint, challengeID uint, userID uint) (*ChallengeInstanceResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	key := fmt.Sprintf("%d-%d-%d", gameID, challengeID, userID)
+	if lease, ok := m.InstanceLeases[key]; ok {
+		copy := *lease
+		return &copy, nil
+	}
+
+	return &ChallengeInstanceResponse{
+		GameID:      gameID,
+		ChallengeID: challengeID,
+		TeamID:      1,
+		Status:      "idle",
+		CanStart:    true,
+		Message:     "当前还没有运行中的实例。",
+	}, nil
+}
+
+func (m *MockService) EnsureChallengeInstance(gameID uint, challengeID uint, userID uint) (*ChallengeInstanceResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	now := time.Now()
+	expires := now.Add(30 * time.Minute)
+	key := fmt.Sprintf("%d-%d-%d", gameID, challengeID, userID)
+	result := &ChallengeInstanceResponse{
+		GameID:        gameID,
+		ChallengeID:   challengeID,
+		TeamID:        1,
+		Status:        "running",
+		Provider:      "docker",
+		Image:         "ctf/example:latest",
+		LaunchURL:     "http://127.0.0.1:8081",
+		StartedAt:     &now,
+		LastRenewedAt: &now,
+		ExpiresAt:     &expires,
+		SecondsLeft:   int(time.Until(expires).Seconds()),
+		CanStart:      false,
+		CanRenew:      true,
+		Message:       "实例运行中。",
+	}
+	m.InstanceLeases[key] = result
+	copy := *result
+	return &copy, nil
 }
 
 func (m *MockService) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID uint, flag string) (*SubmitResult, error) {

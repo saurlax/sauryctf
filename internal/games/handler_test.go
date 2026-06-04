@@ -124,6 +124,18 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 		fmt.Sscan(c.Param("challengeId"), &challengeId)
 		h.SubmitGameFlag(c, id, challengeId)
 	})
+	api.GET("/games/:id/challenges/:challengeId/instance", func(c *gin.Context) {
+		var id, challengeId int
+		fmt.Sscan(c.Param("id"), &id)
+		fmt.Sscan(c.Param("challengeId"), &challengeId)
+		h.GetChallengeInstance(c, id, challengeId)
+	})
+	api.POST("/games/:id/challenges/:challengeId/instance", func(c *gin.Context) {
+		var id, challengeId int
+		fmt.Sscan(c.Param("id"), &id)
+		fmt.Sscan(c.Param("challengeId"), &challengeId)
+		h.EnsureChallengeInstance(c, id, challengeId)
+	})
 	api.POST("/games/:id/join", func(c *gin.Context) {
 		var id int
 		fmt.Sscan(c.Param("id"), &id)
@@ -678,6 +690,23 @@ func TestExportSubmissionsPackage_Success(t *testing.T) {
 
 	assert.Contains(t, fileNames, "submissions.json")
 	assert.Contains(t, fileNames, "submissions.csv")
+}
+
+func TestChallengeInstanceLifecycle_Success(t *testing.T) {
+	svc := games.NewMockService()
+	r := setupTestRouter(svc)
+
+	w1 := httptest.NewRecorder()
+	req1, _ := http.NewRequest("GET", "/api/games/1/challenges/2/instance", nil)
+	r.ServeHTTP(w1, req1)
+	assert.Equal(t, http.StatusOK, w1.Code)
+	assert.Contains(t, w1.Body.String(), `"status":"idle"`)
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest("POST", "/api/games/1/challenges/2/instance", nil)
+	r.ServeHTTP(w2, req2)
+	assert.Equal(t, http.StatusOK, w2.Code)
+	assert.Contains(t, w2.Body.String(), `"status":"running"`)
 }
 
 func TestListSubmissionRecords_Success(t *testing.T) {

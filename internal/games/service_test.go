@@ -20,11 +20,14 @@ import (
 	"github.com/saurlax/sauryctf/internal/models"
 )
 
+var lastTestDB *gorm.DB
+
 func setupService(t *testing.T) (*games.Service, func()) {
 	database, err := db.ConnectTest()
 	require.NoError(t, err)
 	err = db.Migrate(database)
 	require.NoError(t, err)
+	lastTestDB = database
 
 	cleanup := func() {
 		db.CleanTables(database)
@@ -1686,6 +1689,77 @@ func TestService_GetAdminGameChallenges_IncludesHiddenMountedChallenges(t *testi
 	assert.Equal(t, "First Team", adminItems[0].BloodTeam)
 	assert.Equal(t, "Second Team", adminItems[0].SecondBloodTeam)
 	assert.Equal(t, "Third Team", adminItems[0].ThirdBloodTeam)
+}
+
+func TestService_ChallengeInstanceLifecycle_ForAcceptedTeam(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	database := svcDB(t, svc)
+
+	user := models.User{Username: "instance-user", Email: "instance@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+
+	team := models.Team{Name: "Instance Team", InviteCode: "instance-team", CaptainID: user.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team.ID,
+		UserID: user.ID,
+		Role:   models.MemberRoleCaptain,
+	}).Error)
+
+	challenge := models.Challenge{
+		Title:         "Dynamic Lease",
+		Category:      models.CategoryWeb,
+		Type:          models.TypeDynamic,
+		Flag:          "flag{instance}",
+		BaseScore:     100,
+		MinScore:      100,
+		DecayRate:     0,
+		IsVisible:     true,
+		CreatedBy:     user.ID,
+		ContainerSpec: `{"runtime":{"provider":"docker","image":"ctf/example:latest"},"connection":{"url":"http://127.0.0.1:8081","note":"team instance"}}`,
+	}
+	require.NoError(t, database.Create(&challenge).Error)
+
+	game := models.Game{
+		Name:         "Dynamic Game",
+		StartTime:    time.Now().Add(-time.Hour),
+		EndTime:      time.Now().Add(time.Hour),
+		Status:       "active",
+		IsPublic:     true,
+		PracticeMode: true,
+		CreatedBy:    user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+	require.NoError(t, database.Create(&models.GameChallenge{
+		GameID: game.ID, ChallengeID: challenge.ID,
+	}).Error)
+	require.NoError(t, database.Create(&models.Participation{
+		GameID: game.ID, TeamID: team.ID, UserID: user.ID, Status: models.ParticipationAccepted,
+	}).Error)
+
+	idle, err := svc.GetChallengeInstance(game.ID, challenge.ID, user.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "idle", idle.Status)
+	assert.True(t, idle.CanStart)
+
+	running, err := svc.EnsureChallengeInstance(game.ID, challenge.ID, user.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "running", running.Status)
+	assert.False(t, running.CanStart)
+	assert.True(t, running.CanRenew)
+	require.NotNil(t, running.ExpiresAt)
+	assert.Equal(t, "docker", running.Provider)
+	assert.Equal(t, "ctf/example:latest", running.Image)
+	assert.Equal(t, "http://127.0.0.1:8081", running.LaunchURL)
+}
+
+func svcDB(t *testing.T, svc *games.Service) *gorm.DB {
+	t.Helper()
+	require.NotNil(t, svc)
+	require.NotNil(t, lastTestDB)
+	return lastTestDB
 }
 
 func TestService_SubmitWriteup_RequiresAcceptedParticipation(t *testing.T) {

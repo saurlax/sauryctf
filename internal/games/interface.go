@@ -41,6 +41,8 @@ type ServiceInterface interface {
 	GetGameChallenges(gameID uint) ([]GameChallengeDetail, error)
 	GetAdminGameChallenges(gameID uint) ([]GameChallengeDetail, error)
 	GetGameChallengesForTeam(gameID uint, teamID uint) ([]GameChallengeDetail, error)
+	GetChallengeInstance(gameID uint, challengeID uint, userID uint) (*ChallengeInstanceResponse, error)
+	EnsureChallengeInstance(gameID uint, challengeID uint, userID uint) (*ChallengeInstanceResponse, error)
 	// Flag submission (game-scoped, replaces the standalone submit)
 	SubmitFlag(gameID uint, challengeID uint, userID uint, teamID uint, flag string) (*SubmitResult, error)
 	// Scoreboard
@@ -136,6 +138,27 @@ type GameChallengeDetail struct {
 	BloodTeam       string `json:"blood_team,omitempty"`        // first blood team name
 	SecondBloodTeam string `json:"second_blood_team,omitempty"` // second blood team name
 	ThirdBloodTeam  string `json:"third_blood_team,omitempty"`  // third blood team name
+}
+
+type ChallengeInstanceResponse struct {
+	GameID         uint       `json:"game_id"`
+	ChallengeID    uint       `json:"challenge_id"`
+	TeamID         uint       `json:"team_id"`
+	Status         string     `json:"status"`
+	Provider       string     `json:"provider,omitempty"`
+	Image          string     `json:"image,omitempty"`
+	LaunchURL      string     `json:"launch_url,omitempty"`
+	Host           string     `json:"host,omitempty"`
+	Port           string     `json:"port,omitempty"`
+	Command        string     `json:"command,omitempty"`
+	Note           string     `json:"note,omitempty"`
+	StartedAt      *time.Time `json:"started_at,omitempty"`
+	LastRenewedAt  *time.Time `json:"last_renewed_at,omitempty"`
+	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
+	SecondsLeft    int        `json:"seconds_left"`
+	CanStart       bool       `json:"can_start"`
+	CanRenew       bool       `json:"can_renew"`
+	Message        string     `json:"message"`
 }
 
 type SubmitResult struct {

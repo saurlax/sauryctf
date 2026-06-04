@@ -26,6 +26,7 @@ const (
 	RegistrationModeReview     = "review"
 	RegistrationModeAutoAccept = "auto_accept"
 	exportAttachmentDir        = "attachments"
+	instanceLeaseDuration      = 30 * time.Minute
 )
 
 type Service struct {
@@ -35,6 +36,16 @@ type Service struct {
 type exportedAttachmentPayload struct {
 	zipPath string
 	data    []byte
+}
+
+type parsedInstanceSpec struct {
+	Provider string
+	Image    string
+	LaunchURL string
+	Host     string
+	Port     string
+	Command  string
+	Note     string
 }
 
 func NewService(db *gorm.DB) *Service {
@@ -68,6 +79,164 @@ func normalizeMaxTeamMembers(limit int) (int, error) {
 
 func normalizeInvitationCode(code string) string {
 	return strings.TrimSpace(code)
+}
+
+func normalizeStringValue(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	case float64:
+		if typed == float64(int64(typed)) {
+			return fmt.Sprintf("%d", int64(typed))
+		}
+		return strings.TrimSpace(fmt.Sprintf("%v", typed))
+	default:
+		if typed == nil {
+			return ""
+		}
+		return strings.TrimSpace(fmt.Sprintf("%v", typed))
+	}
+}
+
+func parseManagedInstanceSpec(raw string) *parsedInstanceSpec {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		return &parsedInstanceSpec{
+			Note: strings.TrimSpace(raw),
+		}
+	}
+
+	connection, _ := parsed["connection"].(map[string]any)
+	runtime, _ := parsed["runtime"].(map[string]any)
+
+	return &parsedInstanceSpec{
+		Provider: normalizeStringValue(runtime["provider"]),
+		Image:    normalizeStringValue(runtime["image"]),
+		LaunchURL: normalizeStringValue(connection["url"]),
+		Host:     normalizeStringValue(connection["host"]),
+		Port:     normalizeStringValue(connection["port"]),
+		Command:  normalizeStringValue(connection["command"]),
+		Note:     normalizeStringValue(connection["note"]),
+	}
+}
+
+func (s *Service) getAcceptedParticipationForUser(gameID uint, userID uint) (*models.Game, *models.Challenge, *models.Participation, *parsedInstanceSpec, error) {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		return nil, nil, nil, nil, errors.New("game not found")
+	}
+	if effectiveGameStatus(&game) == "draft" {
+		return nil, nil, nil, nil, errors.New("game is not active")
+	}
+	if time.Now().Before(game.StartTime) {
+		return nil, nil, nil, nil, errors.New("game has not started yet")
+	}
+	if time.Now().After(game.EndTime) && !game.PracticeMode {
+		return nil, nil, nil, nil, errors.New("game has already ended")
+	}
+
+	var member models.TeamMember
+	if err := s.db.Where("user_id = ?", userID).First(&member).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil, nil, nil, errors.New("user has no team")
+		}
+		return nil, nil, nil, nil, err
+	}
+
+	var participation models.Participation
+	if err := s.db.Where("game_id = ? AND team_id = ?", gameID, member.TeamID).First(&participation).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil, nil, nil, errors.New("team has not joined this game")
+		}
+		return nil, nil, nil, nil, err
+	}
+	if participation.Status != models.ParticipationAccepted {
+		return nil, nil, nil, nil, errors.New("team is not approved for this game yet")
+	}
+
+	return &game, nil, &participation, nil, nil
+}
+
+func (s *Service) loadManagedInstanceChallenge(gameID uint, challengeID uint) (*models.Challenge, *parsedInstanceSpec, error) {
+	var gc models.GameChallenge
+	if err := s.db.Where("game_id = ? AND challenge_id = ?", gameID, challengeID).First(&gc).Error; err != nil {
+		return nil, nil, errors.New("challenge not in this game")
+	}
+
+	var challenge models.Challenge
+	if err := s.db.First(&challenge, challengeID).Error; err != nil {
+		return nil, nil, errors.New("challenge not found")
+	}
+
+	spec := parseManagedInstanceSpec(challenge.ContainerSpec)
+	if challenge.Type != models.TypeDynamic {
+		return nil, nil, errors.New("challenge does not support managed instances")
+	}
+	if spec == nil || (spec.Provider == "" && spec.Image == "") {
+		return nil, nil, errors.New("challenge does not define a managed runtime")
+	}
+
+	return &challenge, spec, nil
+}
+
+func buildInstanceResponse(gameID uint, challengeID uint, teamID uint, lease *models.GameInstanceLease, spec *parsedInstanceSpec) *ChallengeInstanceResponse {
+	response := &ChallengeInstanceResponse{
+		GameID:      gameID,
+		ChallengeID: challengeID,
+		TeamID:      teamID,
+		Status:      "idle",
+		CanStart:    true,
+		CanRenew:    false,
+		Message:     "当前还没有运行中的实例。",
+	}
+	if spec != nil {
+		response.Provider = spec.Provider
+		response.Image = spec.Image
+		response.LaunchURL = spec.LaunchURL
+		response.Host = spec.Host
+		response.Port = spec.Port
+		response.Command = spec.Command
+		response.Note = spec.Note
+	}
+
+	if lease == nil {
+		return response
+	}
+
+	now := time.Now()
+	status := lease.Status
+	canRenew := false
+	canStart := true
+	secondsLeft := 0
+	message := "当前实例租约已过期，可以重新启动。"
+	if lease.ExpiresAt.After(now) {
+		status = "running"
+		canRenew = true
+		canStart = false
+		secondsLeft = int(time.Until(lease.ExpiresAt).Seconds())
+		message = fmt.Sprintf("实例运行中，预计还剩 %d 秒。", secondsLeft)
+	}
+
+	response.Status = status
+	response.Provider = lease.Provider
+	response.Image = lease.Image
+	response.LaunchURL = lease.LaunchURL
+	response.Host = lease.Host
+	response.Port = lease.Port
+	response.Command = lease.Command
+	response.Note = lease.Note
+	response.StartedAt = &lease.StartedAt
+	response.LastRenewedAt = &lease.LastRenewedAt
+	response.ExpiresAt = &lease.ExpiresAt
+	response.SecondsLeft = secondsLeft
+	response.CanStart = canStart
+	response.CanRenew = canRenew
+	response.Message = message
+	return response
 }
 
 func sanitizePublicGameResponse(game *GameResponse) *GameResponse {
@@ -1691,6 +1860,91 @@ func (s *Service) GetGameChallengesForTeam(gameID uint, teamID uint) ([]GameChal
 	}
 
 	return challenges, nil
+}
+
+func (s *Service) GetChallengeInstance(gameID uint, challengeID uint, userID uint) (*ChallengeInstanceResponse, error) {
+	_, _, participation, _, err := s.getAcceptedParticipationForUser(gameID, userID)
+	if err != nil {
+		return nil, err
+	}
+	_, spec, err := s.loadManagedInstanceChallenge(gameID, challengeID)
+	if err != nil {
+		return nil, err
+	}
+
+	var lease models.GameInstanceLease
+	if err := s.db.Where("game_id = ? AND challenge_id = ? AND team_id = ?", gameID, challengeID, participation.TeamID).First(&lease).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return buildInstanceResponse(gameID, challengeID, participation.TeamID, nil, spec), nil
+		}
+		return nil, err
+	}
+
+	return buildInstanceResponse(gameID, challengeID, participation.TeamID, &lease, spec), nil
+}
+
+func (s *Service) EnsureChallengeInstance(gameID uint, challengeID uint, userID uint) (*ChallengeInstanceResponse, error) {
+	_, _, participation, _, err := s.getAcceptedParticipationForUser(gameID, userID)
+	if err != nil {
+		return nil, err
+	}
+	_, spec, err := s.loadManagedInstanceChallenge(gameID, challengeID)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	expiresAt := now.Add(instanceLeaseDuration)
+
+	var lease models.GameInstanceLease
+	findErr := s.db.Where("game_id = ? AND challenge_id = ? AND team_id = ?", gameID, challengeID, participation.TeamID).First(&lease).Error
+	if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
+		return nil, findErr
+	}
+
+	if errors.Is(findErr, gorm.ErrRecordNotFound) {
+		lease = models.GameInstanceLease{
+			GameID:        gameID,
+			ChallengeID:   challengeID,
+			TeamID:        participation.TeamID,
+			UserID:        userID,
+			Status:        "running",
+			Provider:      spec.Provider,
+			Image:         spec.Image,
+			LaunchURL:     spec.LaunchURL,
+			Host:          spec.Host,
+			Port:          spec.Port,
+			Command:       spec.Command,
+			Note:          spec.Note,
+			StartedAt:     now,
+			LastRenewedAt: now,
+			ExpiresAt:     expiresAt,
+		}
+		if err := s.db.Create(&lease).Error; err != nil {
+			return nil, err
+		}
+	} else {
+		lease.Status = "running"
+		lease.UserID = userID
+		lease.Provider = spec.Provider
+		lease.Image = spec.Image
+		lease.LaunchURL = spec.LaunchURL
+		lease.Host = spec.Host
+		lease.Port = spec.Port
+		lease.Command = spec.Command
+		lease.Note = spec.Note
+		lease.LastRenewedAt = now
+		lease.ExpiresAt = expiresAt
+		lease.StoppedAt = nil
+		if lease.StartedAt.IsZero() {
+			lease.StartedAt = now
+		}
+		if err := s.db.Save(&lease).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	return buildInstanceResponse(gameID, challengeID, participation.TeamID, &lease, spec), nil
 }
 
 // SubmitFlag handles flag submission scoped to a game.

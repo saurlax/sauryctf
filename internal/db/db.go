@@ -54,6 +54,7 @@ func Migrate(db *gorm.DB) error {
 		&models.GameAnnouncement{},
 		&models.GameWriteup{},
 		&models.GameSubmission{},
+		&models.GameInstanceLease{},
 	)
 }
 
@@ -64,6 +65,7 @@ func CleanTables(db *gorm.DB) {
 	db.Exec("DELETE FROM game_announcements")
 	db.Exec("DELETE FROM game_writeups")
 	db.Exec("DELETE FROM game_submissions")
+	db.Exec("DELETE FROM game_instance_leases")
 	db.Exec("DELETE FROM solves")
 	db.Exec("DELETE FROM game_challenges")
 	db.Exec("DELETE FROM games")

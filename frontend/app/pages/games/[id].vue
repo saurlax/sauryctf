@@ -7,6 +7,26 @@ type ScoreboardEntry = components['schemas']['ScoreboardEntry']
 type GameParticipation = components['schemas']['GameParticipation']
 type ScoreboardChallengeStat = components['schemas']['ScoreboardChallengeStat']
 type GameWriteupView = components['schemas']['GameWriteup']
+type ChallengeInstanceState = {
+  game_id: number
+  challenge_id: number
+  team_id: number
+  status: string
+  provider?: string
+  image?: string
+  launch_url?: string
+  host?: string
+  port?: string
+  command?: string
+  note?: string
+  started_at?: string
+  last_renewed_at?: string
+  expires_at?: string
+  seconds_left: number
+  can_start: boolean
+  can_renew: boolean
+  message: string
+}
 
 const route = useRoute()
 const toast = useToast()
@@ -24,6 +44,7 @@ const selectedDivision = ref('')
 const availableDivisions = ref<string[]>([])
 const participation = ref<GameParticipation | null>(null)
 const writeup = ref<GameWriteupView | null>(null)
+const instanceStates = reactive<Record<number, ChallengeInstanceState | null>>({})
 const announcements = ref<Array<{
   id: number
   game_id: number
@@ -38,6 +59,8 @@ const leaving = ref(false)
 const activeTab = ref('challenges')
 const submitting = ref<number | null>(null) // challenge id being submitted
 const writeupSubmitting = ref(false)
+const instanceLoading = reactive<Record<number, boolean>>({})
+const instanceStarting = reactive<Record<number, boolean>>({})
 const flagInputs = reactive<Record<number, string>>({})
 const writeupForm = reactive({
   content: '',
@@ -148,6 +171,40 @@ async function fetchScoreboard() {
   }
   catch (e: any) {
     toast.add({ title: '获取排行榜失败', description: e.data?.message || e.message, color: 'error' })
+  }
+}
+
+async function fetchChallengeInstance(challengeId: number) {
+  if (!authState.user) {
+    instanceStates[challengeId] = null
+    return
+  }
+
+  instanceLoading[challengeId] = true
+  try {
+    instanceStates[challengeId] = await $fetch<ChallengeInstanceState>(`/api/games/${gameId}/challenges/${challengeId}/instance`)
+  }
+  catch (e: any) {
+    instanceStates[challengeId] = null
+  }
+  finally {
+    instanceLoading[challengeId] = false
+  }
+}
+
+async function ensureChallengeInstance(challengeId: number) {
+  instanceStarting[challengeId] = true
+  try {
+    instanceStates[challengeId] = await $fetch<ChallengeInstanceState>(`/api/games/${gameId}/challenges/${challengeId}/instance`, {
+      method: 'POST',
+    })
+    toast.add({ title: '实例已准备', description: instanceStates[challengeId]?.message || '当前队伍实例已启动或续期。', color: 'success' })
+  }
+  catch (e: any) {
+    toast.add({ title: '实例操作失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    instanceStarting[challengeId] = false
   }
 }
 
@@ -301,6 +358,65 @@ function parseStringList(raw?: string) {
   }
 
   return raw.split('\n').map(item => item.trim()).filter(Boolean)
+}
+
+function getChallengeInstanceSpec(raw?: string) {
+  return parseChallengeInstanceSpec(raw)
+}
+
+function supportsManagedInstance(challenge: GameChallengeDetail) {
+  const spec = getChallengeInstanceSpec(challenge.container_spec)
+  return challenge.type === 'dynamic' && !!spec && (!!spec.runtimeProvider || !!spec.runtimeImage)
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) {
+    return '-'
+  }
+
+  return new Date(value).toLocaleString()
+}
+
+function getInstanceSecondsLeft(challengeId: number) {
+  const state = instanceStates[challengeId]
+  if (!state?.expires_at) {
+    return Math.max(0, state?.seconds_left || 0)
+  }
+
+  return Math.max(0, Math.floor((new Date(state.expires_at).getTime() - now.value) / 1000))
+}
+
+function getInstanceStatusColor(challengeId: number) {
+  const state = instanceStates[challengeId]
+  if (state?.status === 'running' && getInstanceSecondsLeft(challengeId) > 0) {
+    return 'success' as const
+  }
+
+  return 'neutral' as const
+}
+
+function getInstanceStatusLabel(challengeId: number) {
+  const state = instanceStates[challengeId]
+  if (!state) {
+    return '未获取'
+  }
+
+  if (state.status === 'running' && getInstanceSecondsLeft(challengeId) > 0) {
+    return '运行中'
+  }
+
+  return '待启动'
+}
+
+async function syncChallengeInstances() {
+  for (const challenge of challenges.value) {
+    if (authState.user && supportsManagedInstance(challenge)) {
+      await fetchChallengeInstance(challenge.id)
+      continue
+    }
+
+    instanceStates[challenge.id] = null
+  }
 }
 
 const gameStatusMeta = computed(() => {
@@ -1120,6 +1236,7 @@ onMounted(async () => {
     now.value = Date.now()
   }, 60_000)
   await fetchAll()
+  await syncChallengeInstances()
 
   onBeforeUnmount(() => {
     window.clearInterval(timer)
@@ -1571,7 +1688,7 @@ onMounted(async () => {
                   </div>
 
                   <div
-                    v-if="parseChallengeInstanceSpec(ch.container_spec)"
+                    v-if="getChallengeInstanceSpec(ch.container_spec)"
                     class="rounded-lg border border-default bg-muted/40 px-3 py-3"
                   >
                     <div class="mb-2 flex items-center gap-2 text-sm font-medium">
@@ -1579,12 +1696,12 @@ onMounted(async () => {
                       <span>实例接入信息</span>
                     </div>
                     <div class="space-y-2 text-muted">
-                      <p v-if="parseChallengeInstanceSpec(ch.container_spec)?.note" class="leading-6 whitespace-pre-wrap">
-                        {{ parseChallengeInstanceSpec(ch.container_spec)?.note }}
+                      <p v-if="getChallengeInstanceSpec(ch.container_spec)?.note" class="leading-6 whitespace-pre-wrap">
+                        {{ getChallengeInstanceSpec(ch.container_spec)?.note }}
                       </p>
-                      <div v-if="parseChallengeInstanceSpec(ch.container_spec)?.url" class="flex flex-col gap-2">
+                      <div v-if="getChallengeInstanceSpec(ch.container_spec)?.url" class="flex flex-col gap-2">
                         <UButton
-                          :to="parseChallengeInstanceSpec(ch.container_spec)?.url"
+                          :to="getChallengeInstanceSpec(ch.container_spec)?.url"
                           target="_blank"
                           variant="outline"
                           size="sm"
@@ -1594,15 +1711,15 @@ onMounted(async () => {
                           打开实例入口
                         </UButton>
                       </div>
-                      <div v-if="parseChallengeInstanceSpec(ch.container_spec)?.host || parseChallengeInstanceSpec(ch.container_spec)?.port" class="text-sm">
-                        {{ parseChallengeInstanceSpec(ch.container_spec)?.host || 'host' }}<template v-if="parseChallengeInstanceSpec(ch.container_spec)?.port">:{{ parseChallengeInstanceSpec(ch.container_spec)?.port }}</template>
+                      <div v-if="getChallengeInstanceSpec(ch.container_spec)?.host || getChallengeInstanceSpec(ch.container_spec)?.port" class="text-sm">
+                        {{ getChallengeInstanceSpec(ch.container_spec)?.host || 'host' }}<template v-if="getChallengeInstanceSpec(ch.container_spec)?.port">:{{ getChallengeInstanceSpec(ch.container_spec)?.port }}</template>
                       </div>
-                      <div v-if="parseChallengeInstanceSpec(ch.container_spec)?.command" class="rounded-md border border-default bg-default px-3 py-2 font-mono text-xs whitespace-pre-wrap">
-                        {{ parseChallengeInstanceSpec(ch.container_spec)?.command }}
+                      <div v-if="getChallengeInstanceSpec(ch.container_spec)?.command" class="rounded-md border border-default bg-default px-3 py-2 font-mono text-xs whitespace-pre-wrap">
+                        {{ getChallengeInstanceSpec(ch.container_spec)?.command }}
                       </div>
-                      <div v-if="parseChallengeInstanceSpec(ch.container_spec)?.links?.length" class="flex flex-col gap-2">
+                      <div v-if="getChallengeInstanceSpec(ch.container_spec)?.links?.length" class="flex flex-col gap-2">
                         <UButton
-                          v-for="(link, linkIndex) in parseChallengeInstanceSpec(ch.container_spec)?.links || []"
+                          v-for="(link, linkIndex) in getChallengeInstanceSpec(ch.container_spec)?.links || []"
                           :key="`${ch.id}-instance-link-${linkIndex}`"
                           :to="link.url"
                           target="_blank"
@@ -1614,15 +1731,98 @@ onMounted(async () => {
                           {{ link.label || `实例链接 ${linkIndex + 1}` }}
                         </UButton>
                       </div>
-                      <div v-if="parseChallengeInstanceSpec(ch.container_spec)?.runtimeProvider || parseChallengeInstanceSpec(ch.container_spec)?.runtimeImage || parseChallengeInstanceSpec(ch.container_spec)?.runtimeExpose.length" class="rounded-md border border-default bg-default px-3 py-2 text-xs text-muted">
-                        <div v-if="parseChallengeInstanceSpec(ch.container_spec)?.runtimeProvider">
-                          运行环境：{{ parseChallengeInstanceSpec(ch.container_spec)?.runtimeProvider }}
+                      <div v-if="getChallengeInstanceSpec(ch.container_spec)?.runtimeProvider || getChallengeInstanceSpec(ch.container_spec)?.runtimeImage || getChallengeInstanceSpec(ch.container_spec)?.runtimeExpose.length" class="rounded-md border border-default bg-default px-3 py-2 text-xs text-muted">
+                        <div v-if="getChallengeInstanceSpec(ch.container_spec)?.runtimeProvider">
+                          运行环境：{{ getChallengeInstanceSpec(ch.container_spec)?.runtimeProvider }}
                         </div>
-                        <div v-if="parseChallengeInstanceSpec(ch.container_spec)?.runtimeImage">
-                          镜像：{{ parseChallengeInstanceSpec(ch.container_spec)?.runtimeImage }}
+                        <div v-if="getChallengeInstanceSpec(ch.container_spec)?.runtimeImage">
+                          镜像：{{ getChallengeInstanceSpec(ch.container_spec)?.runtimeImage }}
                         </div>
-                        <div v-if="parseChallengeInstanceSpec(ch.container_spec)?.runtimeExpose.length">
-                          暴露端口：{{ parseChallengeInstanceSpec(ch.container_spec)?.runtimeExpose.join(' / ') }}
+                        <div v-if="getChallengeInstanceSpec(ch.container_spec)?.runtimeExpose.length">
+                          暴露端口：{{ getChallengeInstanceSpec(ch.container_spec)?.runtimeExpose.join(' / ') }}
+                        </div>
+                      </div>
+                      <div
+                        v-if="supportsManagedInstance(ch)"
+                        class="rounded-md border border-default bg-default px-3 py-3"
+                      >
+                        <div class="mb-3 flex items-center justify-between gap-3">
+                          <div class="flex items-center gap-2">
+                            <span class="text-sm font-medium text-highlighted">实例状态</span>
+                            <UBadge :color="getInstanceStatusColor(ch.id)" variant="soft" size="sm">
+                              {{ getInstanceStatusLabel(ch.id) }}
+                            </UBadge>
+                          </div>
+                          <span class="text-xs text-muted">
+                            {{ instanceLoading[ch.id] ? '同步中' : `剩余 ${getInstanceSecondsLeft(ch.id)} 秒` }}
+                          </span>
+                        </div>
+
+                        <UAlert
+                          class="mb-3"
+                          :color="getInstanceStatusColor(ch.id)"
+                          variant="soft"
+                          title="当前队伍实例"
+                          :description="instanceStates[ch.id]?.message || '当前题目支持最小实例租约，启动后会返回当前队伍的运行状态。'"
+                        />
+
+                        <div class="grid gap-3 text-xs text-muted md:grid-cols-2">
+                          <div class="rounded-md border border-default px-3 py-2">
+                            <div>Provider</div>
+                            <div class="mt-1 text-sm text-highlighted">
+                              {{ instanceStates[ch.id]?.provider || getChallengeInstanceSpec(ch.container_spec)?.runtimeProvider || '-' }}
+                            </div>
+                          </div>
+                          <div class="rounded-md border border-default px-3 py-2">
+                            <div>Image</div>
+                            <div class="mt-1 break-all text-sm text-highlighted">
+                              {{ instanceStates[ch.id]?.image || getChallengeInstanceSpec(ch.container_spec)?.runtimeImage || '-' }}
+                            </div>
+                          </div>
+                          <div class="rounded-md border border-default px-3 py-2">
+                            <div>到期时间</div>
+                            <div class="mt-1 text-sm text-highlighted">
+                              {{ formatDateTime(instanceStates[ch.id]?.expires_at) }}
+                            </div>
+                          </div>
+                          <div class="rounded-md border border-default px-3 py-2">
+                            <div>最近续期</div>
+                            <div class="mt-1 text-sm text-highlighted">
+                              {{ formatDateTime(instanceStates[ch.id]?.last_renewed_at || instanceStates[ch.id]?.started_at) }}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="mt-3 flex flex-wrap gap-2">
+                          <UButton
+                            size="sm"
+                            icon="i-lucide-play"
+                            :loading="instanceStarting[ch.id]"
+                            :disabled="instanceStarting[ch.id] || instanceLoading[ch.id] || !authState.user"
+                            @click="ensureChallengeInstance(ch.id)"
+                          >
+                            {{ instanceStates[ch.id]?.can_renew ? '续期实例' : '启动实例' }}
+                          </UButton>
+                          <UButton
+                            v-if="instanceStates[ch.id]?.launch_url"
+                            size="sm"
+                            variant="outline"
+                            icon="i-lucide-external-link"
+                            :to="instanceStates[ch.id]?.launch_url"
+                            target="_blank"
+                          >
+                            打开当前实例
+                          </UButton>
+                          <UButton
+                            size="sm"
+                            variant="ghost"
+                            icon="i-lucide-refresh-cw"
+                            :loading="instanceLoading[ch.id]"
+                            :disabled="instanceStarting[ch.id]"
+                            @click="fetchChallengeInstance(ch.id)"
+                          >
+                            刷新状态
+                          </UButton>
                         </div>
                       </div>
                     </div>
