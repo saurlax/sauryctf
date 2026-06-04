@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "concurrently -k -n BE,FE -c blue,green \"pnpm dev:backend\" \"pnpm dev:frontend\"",
     "dev:backend": "go run ./cmd/server",
-    "dev:frontend": "pnpm --filter sauryctf-frontend dev",
+    "dev:frontend": "pnpm --filter sauryctf-frontend dev:local",
     "test": "pnpm test:backend && pnpm test:frontend",
     "test:backend": "go test ./...",
     "test:frontend": "pnpm --filter sauryctf-frontend typecheck",

@@ -28,6 +28,12 @@ SauryCTF 是一个对标 GZCTF 的 Go + Gin + GORM + Nuxt SSG CTF 平台。
 
 登录成功后，前端会在客户端启动时自动恢复当前 Cookie 会话。即使刷新公开页面，导航栏也会继续显示正确的登录状态。
 
+如果你是第一次在本地把整套项目跑起来，建议先直接验证这组默认入口：
+
+- 前端登录页：`http://127.0.0.1:3000/login`
+- 默认管理员：`admin / sauryctf`
+- 只有在 `users` 表为空时，后端才会创建这组账号
+
 ## 本地开发
 
 后端：
@@ -39,8 +45,7 @@ go run ./cmd/server
 前端：
 
 ```bash
-cd frontend
-pnpm dev
+pnpm dev:frontend
 ```
 
 整体联调：
@@ -48,6 +53,15 @@ pnpm dev
 ```bash
 pnpm dev
 ```
+
+如果只想在前端目录里单独启动，也可以直接运行：
+
+```bash
+cd frontend
+pnpm dev:local
+```
+
+当前仓库里 `dev:frontend` 已经固定为本地可访问的 `127.0.0.1:3000`，便于直接联调登录态和 Cookie 会话。
 
 ## 当前前端原则
 
