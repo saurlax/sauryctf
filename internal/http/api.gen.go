@@ -734,11 +734,27 @@ type SubmitResultBloodType string
 
 // Team defines model for Team.
 type Team struct {
-	CreatedAt  *time.Time    `json:"created_at,omitempty"`
-	Id         int           `json:"id"`
-	InviteCode string        `json:"invite_code"`
-	Members    *[]TeamMember `json:"members,omitempty"`
-	Name       string        `json:"name"`
+	CreatedAt  *time.Time       `json:"created_at,omitempty"`
+	Id         int              `json:"id"`
+	InviteCode string           `json:"invite_code"`
+	Lock       *TeamLockSummary `json:"lock,omitempty"`
+	Members    *[]TeamMember    `json:"members,omitempty"`
+	Name       string           `json:"name"`
+}
+
+// TeamLockGame defines model for TeamLockGame.
+type TeamLockGame struct {
+	EndTime   time.Time `json:"end_time"`
+	GameId    int       `json:"game_id"`
+	Name      string    `json:"name"`
+	StartTime time.Time `json:"start_time"`
+}
+
+// TeamLockSummary defines model for TeamLockSummary.
+type TeamLockSummary struct {
+	Games  []TeamLockGame `json:"games"`
+	Locked bool           `json:"locked"`
+	Reason *string        `json:"reason,omitempty"`
 }
 
 // TeamMember defines model for TeamMember.

@@ -19,17 +19,36 @@ func NewService(db *gorm.DB) *Service {
 	return &Service{db: db}
 }
 
-func (s *Service) ensureTeamUnlocked(teamID uint) error {
-	var count int64
+func (s *Service) getTeamLockSummary(teamID uint) (*TeamLockSummary, error) {
+	var rows []TeamLockGame
 	if err := s.db.Model(&models.Participation{}).
+		Select("games.id as game_id, games.name, games.start_time, games.end_time").
 		Joins("JOIN games ON games.id = participations.game_id").
 		Where("participations.team_id = ? AND participations.status = ?", teamID, models.ParticipationAccepted).
 		Where("games.end_time > ?", time.Now()).
-		Count(&count).Error; err != nil {
+		Order("games.start_time ASC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	if len(rows) == 0 {
+		return &TeamLockSummary{Locked: false, Games: []TeamLockGame{}}, nil
+	}
+
+	return &TeamLockSummary{
+		Locked: true,
+		Reason: "team is locked for an accepted game",
+		Games:  rows,
+	}, nil
+}
+
+func (s *Service) ensureTeamUnlocked(teamID uint) error {
+	summary, err := s.getTeamLockSummary(teamID)
+	if err != nil {
 		return err
 	}
-	if count > 0 {
-		return errors.New("team is locked for an accepted game")
+	if summary.Locked {
+		return errors.New(summary.Reason)
 	}
 	return nil
 }
@@ -114,7 +133,7 @@ func (s *Service) LeaveTeam(teamID, userID uint) error {
 	return s.db.Where("team_id = ? AND user_id = ?", teamID, userID).Delete(&models.TeamMember{}).Error
 }
 
-func (s *Service) GetUserTeam(userID uint) (*models.Team, error) {
+func (s *Service) GetUserTeam(userID uint) (*TeamView, error) {
 	var member models.TeamMember
 	if err := s.db.Where("user_id = ?", userID).First(&member).Error; err != nil {
 		return nil, errors.New("user not in any team")
@@ -125,7 +144,15 @@ func (s *Service) GetUserTeam(userID uint) (*models.Team, error) {
 		return nil, err
 	}
 
-	return &team, nil
+	lock, err := s.getTeamLockSummary(team.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &TeamView{
+		Team: team,
+		Lock: lock,
+	}, nil
 }
 
 func (s *Service) RemoveMember(teamID, memberID, requesterID uint) error {

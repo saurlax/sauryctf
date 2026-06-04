@@ -14,6 +14,7 @@ type MockService struct {
 	Members map[uint]map[uint]bool // teamID -> userID -> exists
 	Err     error                  // if set, all methods return this
 	NextID  uint
+	Locks   map[uint]*TeamLockSummary
 }
 
 func NewMockService() *MockService {
@@ -21,6 +22,7 @@ func NewMockService() *MockService {
 		Teams:   make(map[uint]*models.Team),
 		Members: make(map[uint]map[uint]bool),
 		NextID:  1,
+		Locks:   make(map[uint]*TeamLockSummary),
 	}
 }
 
@@ -81,13 +83,20 @@ func (m *MockService) LeaveTeam(teamID, userID uint) error {
 	return nil
 }
 
-func (m *MockService) GetUserTeam(userID uint) (*models.Team, error) {
+func (m *MockService) GetUserTeam(userID uint) (*TeamView, error) {
 	if m.Err != nil {
 		return nil, m.Err
 	}
 	for teamID, members := range m.Members {
 		if members[userID] {
-			return m.Teams[teamID], nil
+			lock := m.Locks[teamID]
+			if lock == nil {
+				lock = &TeamLockSummary{Locked: false, Games: []TeamLockGame{}}
+			}
+			return &TeamView{
+				Team: *m.Teams[teamID],
+				Lock: lock,
+			}, nil
 		}
 	}
 	return nil, assert.AnError

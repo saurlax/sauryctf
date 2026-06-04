@@ -236,6 +236,33 @@ func TestGetUserTeam(t *testing.T) {
 		found, err := svc.GetUserTeam(user.ID)
 		assert.NoError(t, err)
 		assert.Equal(t, team.ID, found.ID)
+		require.NotNil(t, found.Lock)
+		assert.False(t, found.Lock.Locked)
+		assert.Empty(t, found.Lock.Games)
+	})
+
+	t.Run("accepted ongoing contest exposes lock summary", func(t *testing.T) {
+		game := &models.Game{
+			Name:      "Locked Team Summary Contest",
+			StartTime: time.Now().Add(-time.Hour),
+			EndTime:   time.Now().Add(time.Hour),
+			Status:    "active",
+			IsPublic:  true,
+			CreatedBy: user.ID,
+		}
+		require.NoError(t, database.Create(game).Error)
+		require.NoError(t, database.Create(&models.Participation{
+			GameID: game.ID, TeamID: team.ID, UserID: user.ID, Status: models.ParticipationAccepted,
+		}).Error)
+
+		found, err := svc.GetUserTeam(user.ID)
+		assert.NoError(t, err)
+		require.NotNil(t, found.Lock)
+		assert.True(t, found.Lock.Locked)
+		assert.Equal(t, "team is locked for an accepted game", found.Lock.Reason)
+		require.Len(t, found.Lock.Games, 1)
+		assert.Equal(t, game.ID, found.Lock.Games[0].GameID)
+		assert.Equal(t, game.Name, found.Lock.Games[0].Name)
 	})
 }
 

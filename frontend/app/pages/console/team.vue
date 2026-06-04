@@ -11,6 +11,16 @@ interface TeamInfo {
   name: string
   invite_code: string
   status?: string
+  lock?: {
+    locked: boolean
+    reason?: string
+    games: Array<{
+      game_id: number
+      name: string
+      start_time: string
+      end_time: string
+    }>
+  }
   members?: Array<{
     id: number
     user_id: number
@@ -35,6 +45,8 @@ const currentUserId = computed(() => authState.user?.id)
 const isCaptain = computed(() => team.value?.members?.some(member => member.user_id === currentUserId.value && member.role === 'captain') || false)
 const teamMembers = computed(() => team.value?.members || [])
 const removableMembers = computed(() => teamMembers.value.filter(member => member.user_id !== currentUserId.value))
+const lockedGames = computed(() => team.value?.lock?.games || [])
+const teamLocked = computed(() => !!team.value?.lock?.locked)
 
 async function fetchTeam() {
   loading.value = true
@@ -172,6 +184,15 @@ onMounted(async () => {
         </template>
 
         <div class="space-y-4">
+          <UAlert
+            v-if="teamLocked"
+            color="warning"
+            variant="soft"
+            icon="i-lucide-lock"
+            title="当前队伍已被比赛锁定"
+            :description="isCaptain ? '你们已经通过至少一场仍未结束的比赛报名，当前不能加人、退队或移除成员。' : '你的队伍已经通过至少一场仍未结束的比赛报名，当前不能更改队伍成员。'"
+          />
+
           <div>
             <p class="text-sm text-muted mb-1">
               邀请码
@@ -184,9 +205,13 @@ onMounted(async () => {
                 icon="i-lucide-copy"
                 variant="ghost"
                 size="xs"
+                :disabled="teamLocked"
                 @click="copyInviteCode()"
               />
             </div>
+            <p v-if="teamLocked" class="mt-2 text-xs text-muted">
+              当前比赛锁定期间，不建议继续分发邀请码；待所有锁定中的比赛结束后，队伍会自动恢复可调整状态。
+            </p>
           </div>
 
           <div>
@@ -214,11 +239,32 @@ onMounted(async () => {
                     color="error"
                     variant="ghost"
                     size="xs"
+                    :disabled="teamLocked"
                     icon="i-lucide-user-round-minus"
                     :loading="removingMemberId === member.user_id"
                     @click="removeMember(member.user_id, member.username || member.user?.username)"
                   />
                 </div>
+              </div>
+            </div>
+          </div>
+          <div v-if="lockedGames.length" class="space-y-2">
+            <p class="text-sm text-muted">
+              当前锁定中的比赛
+            </p>
+            <div
+              v-for="game in lockedGames"
+              :key="game.game_id"
+              class="rounded-lg border border-default px-3 py-3"
+            >
+              <div class="font-medium">
+                {{ game.name }}
+              </div>
+              <div class="mt-1 text-xs text-muted">
+                开始：{{ new Date(game.start_time).toLocaleString() }}
+              </div>
+              <div class="mt-1 text-xs text-muted">
+                结束：{{ new Date(game.end_time).toLocaleString() }}
               </div>
             </div>
           </div>
@@ -230,7 +276,7 @@ onMounted(async () => {
             color="error"
             variant="outline"
             icon="i-lucide-log-out"
-            :disabled="isCaptain"
+            :disabled="isCaptain || teamLocked"
             @click="leaveTeam"
           />
         </template>
@@ -241,6 +287,9 @@ onMounted(async () => {
             <div class="space-y-3 text-sm text-muted">
               <p>
                 当前邀请码可直接分享给队友，队友登录后即可在此页面加入队伍。
+              </p>
+              <p v-if="teamLocked">
+                当前队伍已经通过一场仍未结束的比赛报名，队伍结构会被临时锁定，直到这些比赛结束。
               </p>
               <p v-if="isCaptain">
                 你当前是队长，可以移除其他成员。当前版本下，队长不能直接退出队伍。
@@ -259,10 +308,14 @@ onMounted(async () => {
               </div>
               <div class="flex items-center justify-between gap-3">
                 <span class="text-muted">是否可直接退队</span>
-                <span>否</span>
+                <span>{{ teamLocked ? '否，比赛锁定中' : '否' }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-muted">当前锁定比赛</span>
+                <span>{{ lockedGames.length }}</span>
               </div>
               <p class="text-muted">
-                如果需要调整队伍，请先移除成员或保留当前队伍结构，再继续报名比赛。
+                {{ teamLocked ? '锁定期间请保持当前队伍结构，待相关比赛结束后再继续调整。' : '如果需要调整队伍，请先移除成员或保留当前队伍结构，再继续报名比赛。' }}
               </p>
             </div>
           </UPageCard>

@@ -106,6 +106,36 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TeamMember"
+        lock:
+          $ref: "#/components/schemas/TeamLockSummary"
+
+    TeamLockSummary:
+      type: object
+      required: [locked, games]
+      properties:
+        locked:
+          type: boolean
+        reason:
+          type: string
+        games:
+          type: array
+          items:
+            $ref: "#/components/schemas/TeamLockGame"
+
+    TeamLockGame:
+      type: object
+      required: [game_id, name, start_time, end_time]
+      properties:
+        game_id:
+          type: integer
+        name:
+          type: string
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
 
     TeamMember:
       type: object

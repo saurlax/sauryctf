@@ -160,6 +160,20 @@ export interface components {
       /** Format: date-time */
       created_at?: string;
       members?: components["schemas"]["TeamMember"][];
+      lock?: components["schemas"]["TeamLockSummary"];
+    };
+    TeamLockSummary: {
+      locked: boolean;
+      reason?: string;
+      games: components["schemas"]["TeamLockGame"][];
+    };
+    TeamLockGame: {
+      game_id: number;
+      name: string;
+      /** Format: date-time */
+      start_time: string;
+      /** Format: date-time */
+      end_time: string;
     };
     TeamMember: {
       id: number;
