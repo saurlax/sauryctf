@@ -39,6 +39,32 @@ func AuthMiddleware(authSvc auth.ServiceInterface) gin.HandlerFunc {
 	}
 }
 
+func OptionalAuthMiddleware(authSvc auth.ServiceInterface) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token, err := c.Cookie("token")
+		if err != nil || token == "" {
+			header := c.GetHeader("Authorization")
+			if strings.HasPrefix(header, "Bearer ") {
+				token = header[7:]
+			}
+		}
+
+		if token == "" {
+			c.Next()
+			return
+		}
+
+		user, err := authSvc.ValidateToken(token)
+		if err == nil {
+			c.Set("user_id", user.ID)
+			c.Set("user_role", string(user.Role))
+			c.Set("user", user)
+		}
+
+		c.Next()
+	}
+}
+
 func RequireRole(roles ...models.UserRole) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roleVal, exists := c.Get("user_role")

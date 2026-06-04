@@ -1191,8 +1191,6 @@ paths:
       operationId: getGameChallenges
       summary: Get challenges in a game
       tags: [games]
-      security:
-        - BearerAuth: []
       parameters:
         - name: id
           in: path

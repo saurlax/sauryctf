@@ -1309,8 +1309,6 @@ func (siw *ServerInterfaceWrapper) GetGameChallenges(c *gin.Context) {
 		return
 	}
 
-	c.Set(string(BearerAuthScopes), []string{})
-
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {

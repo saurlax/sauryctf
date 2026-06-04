@@ -228,10 +228,7 @@ func (h *Handler) LeaveGame(c *gin.Context, id int) {
 }
 
 func (h *Handler) GetGameChallenges(c *gin.Context, id int) {
-	var challenges []GameChallengeDetail
-	var err error
-
-	game, gameErr := h.svc.GetGame(uint(id))
+	game, gameErr := h.svc.GetPublicGame(uint(id))
 	if gameErr != nil {
 		if gameErr.Error() == "game not found" {
 			c.JSON(http.StatusNotFound, gin.H{"message": gameErr.Error()})
@@ -241,34 +238,40 @@ func (h *Handler) GetGameChallenges(c *gin.Context, id int) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uint)
-	userRole, _ := c.Get("user_role")
-	participation, statusErr := h.svc.GetParticipationStatus(uint(id), userID)
-	if statusErr != nil {
-		if statusErr.Error() == "game not found" {
-			c.JSON(http.StatusNotFound, gin.H{"message": statusErr.Error()})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"message": statusErr.Error()})
-		return
-	}
-
-	if participation.HasTeam && participation.Participated && participation.Team != nil {
-		challenges, err = h.svc.GetGameChallengesForTeam(uint(id), participation.Team.ID)
-	} else {
-		challenges, err = h.svc.GetGameChallenges(uint(id))
-	}
+	challenges, err := h.svc.GetGameChallenges(uint(id))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
 	}
 
 	canViewContent := false
-	if role, ok := userRole.(string); ok && (role == "admin" || role == "super_admin") {
-		canViewContent = true
-	}
-	if participation.Status == "accepted" && !time.Now().Before(game.StartTime) {
-		canViewContent = true
+	userID, hasUserID := c.Get("user_id")
+	if hasUserID {
+		userRole, _ := c.Get("user_role")
+		participation, statusErr := h.svc.GetParticipationStatus(uint(id), userID.(uint))
+		if statusErr != nil {
+			if statusErr.Error() == "game not found" {
+				c.JSON(http.StatusNotFound, gin.H{"message": statusErr.Error()})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"message": statusErr.Error()})
+			return
+		}
+
+		if participation.HasTeam && participation.Participated && participation.Team != nil {
+			challenges, err = h.svc.GetGameChallengesForTeam(uint(id), participation.Team.ID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+				return
+			}
+		}
+
+		if role, ok := userRole.(string); ok && (role == "admin" || role == "super_admin") {
+			canViewContent = true
+		}
+		if participation.Status == "accepted" && !time.Now().Before(game.StartTime) {
+			canViewContent = true
+		}
 	}
 	if !canViewContent {
 		challenges = redactChallengeContent(challenges)

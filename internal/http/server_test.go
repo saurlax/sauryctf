@@ -293,6 +293,91 @@ func TestServer_AdminContestSetupSmokePath(t *testing.T) {
 	assert.Equal(t, "Find the flag", publicChallenges[0].Description)
 }
 
+func TestServer_PublicVisitorCanBrowsePublicGameMetadata(t *testing.T) {
+	server := setupHTTPTestServer(t)
+	defer server.Close()
+
+	tokenCookie := loginBootstrapAdmin(t, server.URL)
+
+	start := time.Now().Add(-2 * time.Hour).UTC().Truncate(time.Second)
+	end := time.Now().Add(4 * time.Hour).UTC().Truncate(time.Second)
+	game := createSmokeGame(t, server.URL, tokenCookie, map[string]any{
+		"name":        "Visitor Public Game",
+		"description": "public visitor flow",
+		"start_time":  start.Format(time.RFC3339),
+		"end_time":    end.Format(time.RFC3339),
+		"is_public":   true,
+	})
+
+	challenge := createSmokeChallenge(t, server.URL, tokenCookie, map[string]any{
+		"title":       "Visitor Challenge",
+		"description": "Visible only after join",
+		"category":    "web",
+		"type":        "static",
+		"flag":        "flag{visitor-flow}",
+		"base_score":  300,
+		"hints":       `["hint one"]`,
+		"attachments": `["/attachments/example.txt"]`,
+		"is_visible":  true,
+	})
+
+	attachBody, err := json.Marshal(map[string]any{
+		"challenge_id": challenge.ID,
+	})
+	require.NoError(t, err)
+
+	attachReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/games/"+idPath(game.ID)+"/challenges", bytes.NewReader(attachBody))
+	require.NoError(t, err)
+	attachReq.Header.Set("Content-Type", "application/json")
+	attachReq.AddCookie(tokenCookie)
+
+	attachResp, err := http.DefaultClient.Do(attachReq)
+	require.NoError(t, err)
+	defer attachResp.Body.Close()
+	require.Equal(t, http.StatusOK, attachResp.StatusCode)
+
+	updateBody, err := json.Marshal(map[string]any{
+		"status": "active",
+	})
+	require.NoError(t, err)
+
+	updateReq, err := http.NewRequest(http.MethodPut, server.URL+"/api/games/"+idPath(game.ID), bytes.NewReader(updateBody))
+	require.NoError(t, err)
+	updateReq.Header.Set("Content-Type", "application/json")
+	updateReq.AddCookie(tokenCookie)
+
+	updateResp, err := http.DefaultClient.Do(updateReq)
+	require.NoError(t, err)
+	defer updateResp.Body.Close()
+	require.Equal(t, http.StatusOK, updateResp.StatusCode)
+
+	publicDetailResp, err := http.Get(server.URL + "/api/games/" + idPath(game.ID))
+	require.NoError(t, err)
+	defer publicDetailResp.Body.Close()
+	require.Equal(t, http.StatusOK, publicDetailResp.StatusCode)
+
+	var publicGame games.GameResponse
+	require.NoError(t, json.NewDecoder(publicDetailResp.Body).Decode(&publicGame))
+	assert.Equal(t, "Visitor Public Game", publicGame.Name)
+	assert.Equal(t, "active", publicGame.Status)
+	assert.True(t, publicGame.IsPublic)
+
+	publicChallengesResp, err := http.Get(server.URL + "/api/games/" + idPath(game.ID) + "/challenges")
+	require.NoError(t, err)
+	defer publicChallengesResp.Body.Close()
+	require.Equal(t, http.StatusOK, publicChallengesResp.StatusCode)
+
+	var publicChallenges []games.GameChallengeDetail
+	require.NoError(t, json.NewDecoder(publicChallengesResp.Body).Decode(&publicChallenges))
+	require.Len(t, publicChallenges, 1)
+	assert.Equal(t, "Visitor Challenge", publicChallenges[0].Title)
+	assert.Equal(t, "web", publicChallenges[0].Category)
+	assert.Equal(t, 300, publicChallenges[0].Score)
+	assert.Empty(t, publicChallenges[0].Description)
+	assert.Empty(t, publicChallenges[0].Hints)
+	assert.Empty(t, publicChallenges[0].Attachments)
+}
+
 func TestServer_NormalUserCannotCreateGame(t *testing.T) {
 	server := setupHTTPTestServer(t)
 	defer server.Close()

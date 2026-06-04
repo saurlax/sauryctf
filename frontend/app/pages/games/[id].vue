@@ -362,9 +362,9 @@ const participationHint = computed(() => {
 
   if (!authState.user) {
     return {
-      title: '请先登录',
-      description: '登录后即可查看你的队伍状态，并决定是否报名当前比赛。',
-      color: 'neutral' as const,
+      title: '当前为公开浏览模式',
+      description: '未登录时仍可浏览公开比赛的基础信息、题目标题和排行榜。登录后才会显示你的队伍状态，并继续报名比赛。',
+      color: 'info' as const,
     }
   }
 
@@ -488,7 +488,7 @@ const submitHint = computed(() => {
 
 const challengeVisibilityHint = computed(() => {
   if (!authState.user) {
-    return '登录后可以查看当前队伍的报名状态。只有比赛开始后，且已通过报名的队伍，才会看到完整题面、提示和附件。'
+    return '当前公开页已向访客开放题目标题、分类、分值和解题统计。登录、组队并通过报名后，才会继续开放完整题面、提示和附件。'
   }
   if (!participation.value?.has_team) {
     return '当前比赛以内队形式参赛。先加入队伍并完成报名后，才会逐步开放完整题面内容。'
@@ -705,22 +705,22 @@ onMounted(async () => {
         </UPageCard>
       </UPageGrid>
 
-      <UPageCard v-if="authState.user" class="mb-6">
+      <UPageCard class="mb-6">
         <div class="flex items-center justify-between gap-4 flex-wrap">
           <div>
             <p class="text-sm text-muted mb-1">
-              我的报名状态
+              {{ authState.user ? '我的报名状态' : '公开浏览提示' }}
             </p>
-            <div v-if="participationLoading" class="flex items-center gap-2 text-sm text-muted">
+            <div v-if="authState.user && participationLoading" class="flex items-center gap-2 text-sm text-muted">
               <UIcon name="i-lucide-loader-2" class="size-4 animate-spin" />
               <span>加载中...</span>
             </div>
             <div v-else class="flex items-center gap-2 flex-wrap">
               <UBadge
-                :color="participation?.participated ? 'success' : participation?.has_team ? 'warning' : 'neutral'"
+                :color="authState.user ? (participation?.participated ? 'success' : participation?.has_team ? 'warning' : 'neutral') : 'info'"
                 variant="soft"
               >
-                {{ participation?.participated ? '已报名' : participation?.has_team ? '未报名' : '未加入队伍' }}
+                {{ authState.user ? (participation?.participated ? '已报名' : participation?.has_team ? '未报名' : '未加入队伍') : '访客可浏览' }}
               </UBadge>
               <span v-if="participation?.team" class="text-sm text-muted">
                 当前队伍：{{ participation.team.name }}
@@ -732,6 +732,13 @@ onMounted(async () => {
           </div>
 
           <div class="flex gap-2">
+            <UButton
+              v-if="!authState.user"
+              to="/login"
+              icon="i-lucide-log-in"
+            >
+              登录后报名
+            </UButton>
             <UButton
               v-if="participation?.has_team && !participation?.participated"
               icon="i-lucide-badge-plus"
@@ -754,11 +761,11 @@ onMounted(async () => {
             </UButton>
             <UButton
               v-else
-              to="/console/team"
+              :to="authState.user ? '/console/team' : '/register'"
               variant="outline"
-              icon="i-lucide-users"
+              :icon="authState.user ? 'i-lucide-users' : 'i-lucide-user-plus'"
             >
-              去加入队伍
+              {{ authState.user ? '去加入队伍' : '创建账号' }}
             </UButton>
           </div>
         </div>

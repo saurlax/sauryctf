@@ -33,11 +33,14 @@ func NewServer(db *gorm.DB, jwtSecret string) *gin.Engine {
 	// 通过 Middlewares 注入认证中间件（对设置了 BearerAuth scope 的路由生效）。
 	RegisterHandlersWithOptions(engine, handler, GinServerOptions{
 		Middlewares: []MiddlewareFunc{
-			// 只对设置了 BearerAuth scope 的路由执行认证
+			// 公开路由尝试识别登录态，受保护路由仍然要求严格认证。
 			func(c *gin.Context) {
 				if _, exists := c.Get(string(BearerAuthScopes)); exists {
 					rbac.AuthMiddleware(authSvc)(c)
+					return
 				}
+
+				rbac.OptionalAuthMiddleware(authSvc)(c)
 			},
 		},
 	})
