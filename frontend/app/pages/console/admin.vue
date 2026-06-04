@@ -234,6 +234,82 @@ const selectedGameDivisionOptions = computed(() => (selectedGame.value?.division
   value: division,
 })))
 
+const selectedAdminOverview = computed(() => {
+  if (!selectedGame.value) {
+    return null
+  }
+
+  const acceptedParticipants = participants.value.filter(item => item.status === 'accepted')
+  const pendingParticipants = participants.value.filter(item => item.status === 'pending')
+  const rejectedParticipants = participants.value.filter(item => item.status === 'rejected')
+
+  return {
+    game: selectedGame.value,
+    mountedChallengeCount: selectedGameChallenges.value.length,
+    participantCount: participants.value.length,
+    acceptedParticipantCount: acceptedParticipants.length,
+    pendingParticipantCount: pendingParticipants.length,
+    rejectedParticipantCount: rejectedParticipants.length,
+    writeupCount: writeups.value.length,
+  }
+})
+
+const selectedGamePreflightChecks = computed(() => {
+  const overview = selectedAdminOverview.value
+  if (!overview) {
+    return []
+  }
+
+  return [
+    {
+      key: 'time',
+      label: '比赛时间已配置',
+      done: Boolean(overview.game.start_time && overview.game.end_time),
+      description: `${new Date(overview.game.start_time).toLocaleString()} - ${new Date(overview.game.end_time).toLocaleString()}`,
+    },
+    {
+      key: 'status',
+      label: '当前状态可识别',
+      done: ['draft', 'active', 'ended'].includes(overview.game.status),
+      description: overview.game.status === 'draft'
+        ? '当前仍处于 draft，适合继续补题和核对配置。'
+        : overview.game.status === 'active'
+          ? '当前已经开赛，公开页应同步开放报名与题目可见性。'
+          : '当前已结束，适合复核榜单、Writeup 和赛后练习状态。',
+    },
+    {
+      key: 'challenge',
+      label: '比赛已经挂题',
+      done: overview.mountedChallengeCount > 0,
+      description: overview.mountedChallengeCount > 0
+        ? `当前已挂载 ${overview.mountedChallengeCount} 道题目。`
+        : '至少先挂载 1 道题目，否则公开比赛页不会有可做题目。',
+    },
+    {
+      key: 'visibility',
+      label: '公开性已明确',
+      done: true,
+      description: overview.game.is_public
+        ? '当前是公开比赛，普通用户可在公开比赛列表里看到它。'
+        : '当前是私有比赛，只能通过管理路径继续核对。',
+    },
+    {
+      key: 'registration',
+      label: '报名规则已明确',
+      done: true,
+      description: `${getRegistrationModeLabel(overview.game.registration_mode)} · ${overview.game.max_team_members ? `队伍人数上限 ${overview.game.max_team_members} 人` : '队伍人数不限'}`,
+    },
+    {
+      key: 'participant',
+      label: '参赛队伍状态可检查',
+      done: overview.participantCount > 0,
+      description: overview.participantCount > 0
+        ? `当前 ${overview.participantCount} 支队伍，其中 ${overview.acceptedParticipantCount} 支已通过、${overview.pendingParticipantCount} 支待审核、${overview.rejectedParticipantCount} 支已拒绝。`
+        : '当前还没有报名队伍，适合先用普通用户走一遍本地冒烟流程。',
+    },
+  ]
+})
+
 const adminSetupSteps = computed(() => {
   const hasGames = games.value.length > 0
   const hasChallenges = challenges.value.length > 0
@@ -561,6 +637,12 @@ function getRegistrationModeLabel(mode?: 'review' | 'auto_accept') {
 
 function getPracticeModeLabel(enabled?: boolean) {
   return enabled ? '赛后练习开启' : '仅正赛'
+}
+
+function selectGameContext(gameId?: number) {
+  attachForm.game_id = gameId
+  gameSettingsForm.game_id = gameId
+  gameEditForm.game_id = gameId
 }
 
 async function createGame() {
@@ -966,9 +1048,7 @@ async function removeChallengeFromGame(challengeId: number) {
 }
 
 function quickEditGame(gameId: number) {
-  gameEditForm.game_id = gameId
-  gameSettingsForm.game_id = gameId
-  attachForm.game_id = gameId
+  selectGameContext(gameId)
   toast.add({ title: '已填充比赛管理表单', color: 'info' })
 }
 
@@ -1170,6 +1250,107 @@ onMounted(async () => {
           </div>
         </div>
       </UPageCard>
+
+      <div class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <UPageCard title="当前比赛概览" icon="i-lucide-clipboard-list">
+          <div v-if="selectedAdminOverview" class="space-y-4">
+            <div class="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <div class="text-lg font-medium">
+                  {{ selectedAdminOverview.game.name }}
+                </div>
+                <div class="mt-1 text-sm text-muted">
+                  {{ new Date(selectedAdminOverview.game.start_time).toLocaleString() }} - {{ new Date(selectedAdminOverview.game.end_time).toLocaleString() }}
+                </div>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <UBadge :color="selectedAdminOverview.game.status === 'active' ? 'success' : selectedAdminOverview.game.status === 'draft' ? 'warning' : 'neutral'" variant="soft">
+                  {{ selectedAdminOverview.game.status }}
+                </UBadge>
+                <UBadge :color="selectedAdminOverview.game.is_public ? 'info' : 'neutral'" variant="soft">
+                  {{ selectedAdminOverview.game.is_public ? '公开比赛' : '私有比赛' }}
+                </UBadge>
+                <UBadge :color="selectedAdminOverview.game.practice_mode ? 'success' : 'neutral'" variant="soft">
+                  {{ getPracticeModeLabel(selectedAdminOverview.game.practice_mode) }}
+                </UBadge>
+              </div>
+            </div>
+
+            <UPageGrid :cols="{ default: 1, sm: 2, xl: 3 }">
+              <UPageCard title="挂题数量" :description="`${selectedAdminOverview.mountedChallengeCount} 道`" icon="i-lucide-link" />
+              <UPageCard title="参赛队伍" :description="`${selectedAdminOverview.participantCount} 支`" icon="i-lucide-users" />
+              <UPageCard title="已通过报名" :description="`${selectedAdminOverview.acceptedParticipantCount} 支`" icon="i-lucide-circle-check-big" />
+              <UPageCard title="待审核报名" :description="`${selectedAdminOverview.pendingParticipantCount} 支`" icon="i-lucide-hourglass" />
+              <UPageCard title="已拒绝报名" :description="`${selectedAdminOverview.rejectedParticipantCount} 支`" icon="i-lucide-circle-x" />
+              <UPageCard title="Writeup 记录" :description="`${selectedAdminOverview.writeupCount} 份`" icon="i-lucide-file-text" />
+            </UPageGrid>
+
+            <div class="flex flex-wrap gap-2">
+              <UButton size="sm" variant="outline" icon="i-lucide-sliders-horizontal" to="#game-settings">
+                去比赛设置
+              </UButton>
+              <UButton size="sm" variant="outline" icon="i-lucide-link" to="#attach-challenge">
+                去挂题
+              </UButton>
+              <UButton size="sm" variant="outline" icon="i-lucide-arrow-up-right" :to="`/games/${selectedAdminOverview.game.id}`">
+                打开公开页
+              </UButton>
+            </div>
+          </div>
+
+          <UEmpty
+            v-else
+            icon="i-lucide-clipboard-list"
+            title="还没有选中比赛"
+            description="先在下方任意比赛选择框里选中一场比赛，或直接从资源列表点“编辑”，这里就会变成该比赛的一屏概览。"
+          />
+        </UPageCard>
+
+        <UPageCard title="赛前检查" icon="i-lucide-shield-alert">
+          <div v-if="selectedGamePreflightChecks.length" class="space-y-3">
+            <UAlert
+              color="info"
+              variant="soft"
+              title="先看这里，再决定是否立即开赛"
+              description="这组检查不替代详细配置，只帮助你快速判断当前选中的比赛是否已经具备最小可用的公开比赛形态。"
+            />
+
+            <div
+              v-for="check in selectedGamePreflightChecks"
+              :key="check.key"
+              class="rounded-lg border border-default px-3 py-3"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2">
+                    <UIcon
+                      :name="check.done ? 'i-lucide-circle-check-big' : 'i-lucide-circle-alert'"
+                      :class="check.done ? 'text-success' : 'text-warning'"
+                      class="size-4 shrink-0"
+                    />
+                    <div class="font-medium">
+                      {{ check.label }}
+                    </div>
+                  </div>
+                  <div class="mt-2 text-sm text-muted">
+                    {{ check.description }}
+                  </div>
+                </div>
+                <UBadge :color="check.done ? 'success' : 'warning'" variant="soft">
+                  {{ check.done ? '通过' : '待补' }}
+                </UBadge>
+              </div>
+            </div>
+          </div>
+
+          <UEmpty
+            v-else
+            icon="i-lucide-shield-alert"
+            title="还没有可检查的比赛"
+            description="先选择一场比赛，这里会根据挂题、报名状态和公开配置给出当前最值得补的检查项。"
+          />
+        </UPageCard>
+      </div>
 
       <div class="grid gap-6 xl:grid-cols-2">
         <UPageCard id="create-game" title="创建比赛" icon="i-lucide-trophy">
