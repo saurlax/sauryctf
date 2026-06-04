@@ -2,6 +2,7 @@ package teams
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -94,6 +95,26 @@ func TestJoinTeam(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "already in a team")
 	})
+
+	t.Run("accepted contest team cannot add new members", func(t *testing.T) {
+		lateUser := createTestUser(t, database, "late-joiner")
+		game := &models.Game{
+			Name:      "Locked Contest",
+			StartTime: time.Now().Add(-time.Hour),
+			EndTime:   time.Now().Add(time.Hour),
+			Status:    "active",
+			IsPublic:  true,
+			CreatedBy: captain.ID,
+		}
+		require.NoError(t, database.Create(game).Error)
+		require.NoError(t, database.Create(&models.Participation{
+			GameID: game.ID, TeamID: team.ID, UserID: captain.ID, Status: models.ParticipationAccepted,
+		}).Error)
+
+		err := svc.JoinTeam(team.InviteCode, lateUser.ID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "locked for an accepted game")
+	})
 }
 
 func TestLeaveTeam(t *testing.T) {
@@ -121,6 +142,31 @@ func TestLeaveTeam(t *testing.T) {
 		err := svc.LeaveTeam(team.ID, captain.ID)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "captain")
+	})
+
+	t.Run("accepted contest member cannot leave", func(t *testing.T) {
+		lockedMember := createTestUser(t, database, "locked-member")
+		lockedTeam, err := svc.CreateTeam("LockedTeam", lockedMember.ID)
+		require.NoError(t, err)
+		otherMember := createTestUser(t, database, "locked-other")
+		require.NoError(t, svc.JoinTeam(lockedTeam.InviteCode, otherMember.ID))
+
+		game := &models.Game{
+			Name:      "Locked Leave Contest",
+			StartTime: time.Now().Add(-time.Hour),
+			EndTime:   time.Now().Add(time.Hour),
+			Status:    "active",
+			IsPublic:  true,
+			CreatedBy: lockedMember.ID,
+		}
+		require.NoError(t, database.Create(game).Error)
+		require.NoError(t, database.Create(&models.Participation{
+			GameID: game.ID, TeamID: lockedTeam.ID, UserID: lockedMember.ID, Status: models.ParticipationAccepted,
+		}).Error)
+
+		err = svc.LeaveTeam(lockedTeam.ID, otherMember.ID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "locked for an accepted game")
 	})
 }
 
@@ -165,5 +211,30 @@ func TestRemoveMember(t *testing.T) {
 
 		err := svc.RemoveMember(team.ID, other.ID, member.ID)
 		assert.Error(t, err)
+	})
+
+	t.Run("captain cannot remove member after accepted contest lock", func(t *testing.T) {
+		lockedCaptain := createTestUser(t, database, "locked-captain")
+		lockedMember := createTestUser(t, database, "locked-member-remove")
+		lockedTeam, err := svc.CreateTeam("LockedRemoveTeam", lockedCaptain.ID)
+		require.NoError(t, err)
+		require.NoError(t, svc.JoinTeam(lockedTeam.InviteCode, lockedMember.ID))
+
+		game := &models.Game{
+			Name:      "Locked Remove Contest",
+			StartTime: time.Now().Add(-time.Hour),
+			EndTime:   time.Now().Add(time.Hour),
+			Status:    "active",
+			IsPublic:  true,
+			CreatedBy: lockedCaptain.ID,
+		}
+		require.NoError(t, database.Create(game).Error)
+		require.NoError(t, database.Create(&models.Participation{
+			GameID: game.ID, TeamID: lockedTeam.ID, UserID: lockedCaptain.ID, Status: models.ParticipationAccepted,
+		}).Error)
+
+		err = svc.RemoveMember(lockedTeam.ID, lockedMember.ID, lockedCaptain.ID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "locked for an accepted game")
 	})
 }

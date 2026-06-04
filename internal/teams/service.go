@@ -18,6 +18,19 @@ func NewService(db *gorm.DB) *Service {
 	return &Service{db: db}
 }
 
+func (s *Service) ensureTeamUnlocked(teamID uint) error {
+	var count int64
+	if err := s.db.Model(&models.Participation{}).
+		Where("team_id = ? AND status = ?", teamID, models.ParticipationAccepted).
+		Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return errors.New("team is locked for an accepted game")
+	}
+	return nil
+}
+
 func (s *Service) CreateTeam(name string, captainID uint) (*models.Team, error) {
 	// Check user not already in a team
 	var count int64
@@ -62,6 +75,9 @@ func (s *Service) JoinTeam(inviteCode string, userID uint) error {
 	if err := s.db.Where("invite_code = ?", inviteCode).First(&team).Error; err != nil {
 		return errors.New("invalid invite code")
 	}
+	if err := s.ensureTeamUnlocked(team.ID); err != nil {
+		return err
+	}
 
 	// Check user not already in a team
 	var count int64
@@ -83,6 +99,9 @@ func (s *Service) LeaveTeam(teamID, userID uint) error {
 	var team models.Team
 	if err := s.db.First(&team, teamID).Error; err != nil {
 		return errors.New("team not found")
+	}
+	if err := s.ensureTeamUnlocked(teamID); err != nil {
+		return err
 	}
 
 	if team.CaptainID == userID {
@@ -110,6 +129,9 @@ func (s *Service) RemoveMember(teamID, memberID, requesterID uint) error {
 	var team models.Team
 	if err := s.db.First(&team, teamID).Error; err != nil {
 		return errors.New("team not found")
+	}
+	if err := s.ensureTeamUnlocked(teamID); err != nil {
+		return err
 	}
 
 	if team.CaptainID != requesterID {

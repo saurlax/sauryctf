@@ -137,6 +137,10 @@ internal/<module>/
 - Registration withdrawal now follows the current GZCTF-style rule:
   - `pending` / `rejected` participations can be withdrawn
   - `accepted` participations are locked and can no longer be withdrawn
+  - once a team is `accepted` in any game, team membership is also locked:
+    - no new members can join that team
+    - existing members cannot leave
+    - captains cannot remove members
 - Game configuration now validates key contest times:
   - `end_time` must be later than `start_time`
   - `scoreboard_freeze_at` must stay within the contest window when configured
