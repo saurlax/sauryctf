@@ -27,6 +27,7 @@ interface GameSummary {
   end_time: string
   status: 'draft' | 'active' | 'ended'
   is_public?: boolean
+  registration_mode?: 'review' | 'auto_accept'
 }
 
 type GameParticipation = components['schemas']['GameParticipation']
@@ -109,6 +110,120 @@ async function fetchConsoleData() {
 
 const pendingWriteupGames = computed(() =>
   games.value.filter(game => participationMap.value[game.id]?.missing_writeup),
+)
+
+function getParticipationMeta(game: GameSummary) {
+  const participation = participationMap.value[game.id]
+
+  if (!team.value) {
+    return {
+      label: '未加入队伍',
+      color: 'warning' as const,
+      description: '先创建或加入队伍，之后才能报名比赛。',
+      actionLabel: '去队伍页',
+      actionTo: '/console/team',
+      priority: 5,
+    }
+  }
+
+  if (!participation?.participated) {
+    if (game.status === 'ended') {
+      return {
+        label: '比赛已结束',
+        color: 'neutral' as const,
+        description: '当前无法再报名，但仍可查看题目与排行榜。',
+        actionLabel: '查看详情',
+        actionTo: `/games/${game.id}`,
+        priority: 1,
+      }
+    }
+
+    return {
+      label: '尚未报名',
+      color: 'info' as const,
+      description: game.registration_mode === 'auto_accept'
+        ? '进入详情页后可直接完成报名并获得参赛资格。'
+        : '进入详情页后可提交报名，等待管理员审核。',
+      actionLabel: '前往报名',
+      actionTo: `/games/${game.id}`,
+      priority: 4,
+    }
+  }
+
+  if (participation.missing_writeup) {
+    return {
+      label: '待补 Writeup',
+      color: 'warning' as const,
+      description: '当前队伍已通过比赛报名，但还需要在截止前补交 Writeup。',
+      actionLabel: '前往补交',
+      actionTo: `/games/${game.id}`,
+      priority: 10,
+    }
+  }
+
+  if (participation.status === 'pending') {
+    return {
+      label: '待审核',
+      color: 'warning' as const,
+      description: '报名已提交，等待管理员审核通过。',
+      actionLabel: '查看详情',
+      actionTo: `/games/${game.id}`,
+      priority: 8,
+    }
+  }
+
+  if (participation.status === 'rejected') {
+    return {
+      label: '已拒绝',
+      color: 'error' as const,
+      description: '这场比赛的报名未通过，可以进入详情页重新确认。',
+      actionLabel: '查看详情',
+      actionTo: `/games/${game.id}`,
+      priority: 7,
+    }
+  }
+
+  if (participation.writeup_required && participation.writeup_submitted && participation.writeup_status === 'submitted') {
+    return {
+      label: 'Writeup 待审核',
+      color: 'info' as const,
+      description: 'Writeup 已提交，等待管理员审核。',
+      actionLabel: '查看详情',
+      actionTo: `/games/${game.id}`,
+      priority: 6,
+    }
+  }
+
+  return {
+    label: '已报名',
+    color: 'success' as const,
+    description: game.status === 'active'
+      ? '当前队伍已拥有参赛资格，可以直接进入比赛。'
+      : '当前队伍已报名这场比赛，可继续关注比赛状态。',
+    actionLabel: game.status === 'active' ? '进入比赛' : '查看详情',
+    actionTo: `/games/${game.id}`,
+    priority: game.status === 'active' ? 9 : 3,
+  }
+}
+
+const myGameEntries = computed(() =>
+  games.value
+    .filter(game => {
+      const participation = participationMap.value[game.id]
+      return Boolean(team.value) && Boolean(participation?.participated || game.status !== 'ended')
+    })
+    .map(game => ({
+      game,
+      participation: participationMap.value[game.id],
+      meta: getParticipationMeta(game),
+    }))
+    .sort((a, b) => {
+      if (b.meta.priority !== a.meta.priority) {
+        return b.meta.priority - a.meta.priority
+      }
+      return new Date(a.game.start_time).getTime() - new Date(b.game.start_time).getTime()
+    })
+    .slice(0, 6),
 )
 
 function getStatusMeta(status: GameSummary['status']) {
@@ -214,6 +329,60 @@ onMounted(async () => {
             <div v-else class="text-sm text-muted">
               当前还没有可浏览的公开比赛。
             </div>
+          </UPageCard>
+
+          <UPageCard title="我的比赛" icon="i-lucide-flag">
+            <div v-if="myGameEntries.length" class="space-y-3">
+              <div
+                v-for="entry in myGameEntries"
+                :key="entry.game.id"
+                class="rounded-lg border border-default px-3 py-3"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="font-medium">
+                      {{ entry.game.name }}
+                    </div>
+                    <div class="mt-1 text-sm text-muted">
+                      {{ entry.meta.description }}
+                    </div>
+                  </div>
+                  <UBadge :color="entry.meta.color" variant="soft">
+                    {{ entry.meta.label }}
+                  </UBadge>
+                </div>
+
+                <div class="mt-3 flex items-center justify-between gap-3 flex-wrap text-xs text-muted">
+                  <div class="flex items-center gap-3 flex-wrap">
+                    <span>{{ getStatusMeta(entry.game.status).label }}</span>
+                    <span>{{ new Date(entry.game.start_time).toLocaleString() }}</span>
+                    <span v-if="entry.participation?.division">分组：{{ entry.participation.division }}</span>
+                    <span v-if="entry.participation?.team?.name">队伍：{{ entry.participation.team.name }}</span>
+                  </div>
+                  <UButton
+                    size="sm"
+                    variant="outline"
+                    :to="entry.meta.actionTo"
+                    :label="entry.meta.actionLabel"
+                  />
+                </div>
+              </div>
+            </div>
+            <UEmpty
+              v-else
+              icon="i-lucide-flag"
+              title="还没有关联比赛"
+              :description="team ? '你已经有队伍了，现在可以去浏览公开比赛并完成报名。' : '先准备队伍，再进入公开比赛详情页完成报名。'"
+              :actions="[
+                {
+                  label: team ? '浏览比赛' : '去队伍页',
+                  icon: team ? 'i-lucide-trophy' : 'i-lucide-users',
+                  to: team ? '/games' : '/console/team',
+                  color: 'neutral',
+                  variant: 'outline',
+                },
+              ]"
+            />
           </UPageCard>
 
           <UPageCard v-if="pendingWriteupGames.length" title="待补交 Writeup" icon="i-lucide-file-warning">
