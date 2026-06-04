@@ -22,6 +22,7 @@ type ServiceInterface interface {
 	GetParticipationStatus(gameID uint, userID uint) (*GameParticipationResponse, error)
 	// Challenges in game
 	GetGameChallenges(gameID uint) ([]GameChallengeDetail, error)
+	GetAdminGameChallenges(gameID uint) ([]GameChallengeDetail, error)
 	GetGameChallengesForTeam(gameID uint, teamID uint) ([]GameChallengeDetail, error)
 	// Flag submission (game-scoped, replaces the standalone submit)
 	SubmitFlag(gameID uint, challengeID uint, userID uint, teamID uint, flag string) (*SubmitResult, error)

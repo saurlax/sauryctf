@@ -136,7 +136,7 @@ internal/<module>/
 - Game challenge content now follows a safer visibility rule:
   - everyone can still see basic challenge metadata such as title, category, score, and solve count
   - full `description`, `hints`, and `attachments` are only exposed after a team is `accepted` and the contest has started
-  - admin roles can still inspect full content through the normal management flow
+  - admin roles can still inspect full content through a dedicated management query
 - Registration withdrawal now follows the current GZCTF-style rule:
   - `pending` / `rejected` participations can be withdrawn
   - `accepted` participations are locked and can no longer be withdrawn

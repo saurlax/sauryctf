@@ -224,11 +224,7 @@ async function loadSelectedGameChallenges() {
 
   loadingGameChallenges.value = true
   try {
-    selectedGameChallenges.value = await $api('get', '/api/games/{id}/challenges', {
-      params: {
-        id: attachForm.game_id,
-      },
-    })
+    selectedGameChallenges.value = await $fetch(`/api/admin/games/${attachForm.game_id}/challenges`)
   }
   catch (e: any) {
     selectedGameChallenges.value = []

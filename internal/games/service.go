@@ -379,6 +379,14 @@ func (s *Service) GetParticipationStatus(gameID uint, userID uint) (*GamePartici
 
 // GetGameChallenges returns challenges for a game with solve counts and team solve status.
 func (s *Service) GetGameChallenges(gameID uint) ([]GameChallengeDetail, error) {
+	return s.getGameChallenges(gameID, false)
+}
+
+func (s *Service) GetAdminGameChallenges(gameID uint) ([]GameChallengeDetail, error) {
+	return s.getGameChallenges(gameID, true)
+}
+
+func (s *Service) getGameChallenges(gameID uint, includeHidden bool) ([]GameChallengeDetail, error) {
 	type row struct {
 		ChallengeID   uint
 		ScoreOverride int
@@ -393,15 +401,19 @@ func (s *Service) GetGameChallenges(gameID uint) ([]GameChallengeDetail, error) 
 		IsVisible     bool
 	}
 
-	var rows []row
-	if err := s.db.Table("game_challenges").
+	query := s.db.Table("game_challenges").
 		Select("game_challenges.challenge_id, game_challenges.score_override, "+
 			"challenges.title, challenges.description, challenges.category, challenges.type, challenges.difficulty, "+
 			"challenges.hints, challenges.attachments, "+
 			"challenges.base_score, challenges.is_visible").
 		Joins("JOIN challenges ON challenges.id = game_challenges.challenge_id").
-		Where("game_challenges.game_id = ? AND challenges.is_visible = ?", gameID, true).
-		Scan(&rows).Error; err != nil {
+		Where("game_challenges.game_id = ?", gameID)
+	if !includeHidden {
+		query = query.Where("challenges.is_visible = ?", true)
+	}
+
+	var rows []row
+	if err := query.Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 

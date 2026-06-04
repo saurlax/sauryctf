@@ -771,3 +771,57 @@ func TestService_GetGameChallenges_ReturnsChallengeContent(t *testing.T) {
 	assert.Equal(t, "[\"hint\"]", items[0].Hints)
 	assert.Equal(t, "[\"https://example.com/file.zip\"]", items[0].Attachments)
 }
+
+func TestService_GetAdminGameChallenges_IncludesHiddenMountedChallenges(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+
+	user := models.User{Username: "admin-viewer", Email: "admin-viewer@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+
+	hiddenChallenge := models.Challenge{
+		Title:       "Hidden Challenge",
+		Description: "internal statement",
+		Category:    models.CategoryWeb,
+		Type:        models.TypeStatic,
+		Difficulty:  "easy",
+		Hints:       "[\"private hint\"]",
+		Attachments: "[\"https://example.com/private.zip\"]",
+		Flag:        "flag{hidden}",
+		BaseScore:   200,
+		MinScore:    20,
+		DecayRate:   0.1,
+		IsVisible:   false,
+		CreatedBy:   user.ID,
+	}
+	require.NoError(t, database.Create(&hiddenChallenge).Error)
+
+	game := models.Game{
+		Name:      "Admin Challenge View Game",
+		StartTime: time.Now().Add(-time.Hour),
+		EndTime:   time.Now().Add(time.Hour),
+		Status:    "active",
+		IsPublic:  true,
+		CreatedBy: user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+	require.NoError(t, database.Create(&models.GameChallenge{
+		GameID: game.ID, ChallengeID: hiddenChallenge.ID,
+	}).Error)
+
+	publicItems, err := svc.GetGameChallenges(game.ID)
+	require.NoError(t, err)
+	assert.Len(t, publicItems, 0)
+
+	adminItems, err := svc.GetAdminGameChallenges(game.ID)
+	require.NoError(t, err)
+	require.Len(t, adminItems, 1)
+	assert.Equal(t, "Hidden Challenge", adminItems[0].Title)
+	assert.Equal(t, "internal statement", adminItems[0].Description)
+	assert.Equal(t, "[\"private hint\"]", adminItems[0].Hints)
+	assert.Equal(t, "[\"https://example.com/private.zip\"]", adminItems[0].Attachments)
+}

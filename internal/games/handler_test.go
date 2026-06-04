@@ -46,6 +46,11 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 		fmt.Sscan(c.Param("id"), &id)
 		h.GetGameChallenges(c, id)
 	})
+	api.GET("/admin/games/:id/challenges", func(c *gin.Context) {
+		var id int
+		fmt.Sscan(c.Param("id"), &id)
+		h.GetAdminGameChallenges(c, id)
+	})
 	api.POST("/games/:id/challenges", func(c *gin.Context) {
 		var id int
 		fmt.Sscan(c.Param("id"), &id)
@@ -542,6 +547,46 @@ func TestGetGameChallenges_ExposesContentForAcceptedTeamAfterStart(t *testing.T)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/games/1/challenges", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response []map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &response)
+	assert.Len(t, response, 1)
+	assert.Equal(t, "full statement", response[0]["description"])
+	assert.Equal(t, "[\"hint\"]", response[0]["hints"])
+	assert.Equal(t, "[\"https://example.com/web.zip\"]", response[0]["attachments"])
+}
+
+func TestGetAdminGameChallenges_ExposesFullContentForManagement(t *testing.T) {
+	svc := games.NewMockService()
+	svc.ChallengesByGame = map[uint][]games.GameChallengeDetail{
+		1: {
+			{
+				ID:          11,
+				Title:       "Hidden Admin Challenge",
+				Description: "full statement",
+				Category:    "web",
+				Hints:       "[\"hint\"]",
+				Attachments: "[\"https://example.com/web.zip\"]",
+				Score:       100,
+			},
+		},
+	}
+
+	r := setupTestRouter(svc)
+
+	public := true
+	svc.CreateGame(games.CreateGameRequest{
+		Name:      "Manage Game",
+		StartTime: time.Now().Add(time.Hour),
+		EndTime:   time.Now().Add(2 * time.Hour),
+		IsPublic:  &public,
+	}, 1)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/admin/games/1/challenges", nil)
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)

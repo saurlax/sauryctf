@@ -259,6 +259,10 @@ func (m *MockService) GetGameChallenges(gameID uint) ([]GameChallengeDetail, err
 	return append([]GameChallengeDetail(nil), m.ChallengesByGame[gameID]...), nil
 }
 
+func (m *MockService) GetAdminGameChallenges(gameID uint) ([]GameChallengeDetail, error) {
+	return m.GetGameChallenges(gameID)
+}
+
 func (m *MockService) GetGameChallengesForTeam(gameID uint, teamID uint) ([]GameChallengeDetail, error) {
 	return m.GetGameChallenges(gameID)
 }

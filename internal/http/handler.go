@@ -165,6 +165,13 @@ func (h *Handler) GetGameParticipants(c *gin.Context, id int) {
 	}
 	h.games.GetParticipants(c, id)
 }
+func (h *Handler) GetAdminGameChallenges(c *gin.Context, id int) {
+	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
+	if c.IsAborted() {
+		return
+	}
+	h.games.GetAdminGameChallenges(c, id)
+}
 func (h *Handler) UpdateGameParticipant(c *gin.Context, id int, teamId int) {
 	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
 	if c.IsAborted() {

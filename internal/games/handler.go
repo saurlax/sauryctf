@@ -206,6 +206,20 @@ func (h *Handler) GetGameChallenges(c *gin.Context, id int) {
 	c.JSON(http.StatusOK, challenges)
 }
 
+func (h *Handler) GetAdminGameChallenges(c *gin.Context, id int) {
+	challenges, err := h.svc.GetAdminGameChallenges(uint(id))
+	if err != nil {
+		if err.Error() == "game not found" {
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, challenges)
+}
+
 func redactChallengeContent(challenges []GameChallengeDetail) []GameChallengeDetail {
 	result := make([]GameChallengeDetail, len(challenges))
 	copy(result, challenges)
