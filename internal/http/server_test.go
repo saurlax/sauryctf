@@ -160,6 +160,57 @@ func TestServer_BootstrapAdminLoginFlow(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, meAfterLogoutResp.StatusCode)
 }
 
+func TestServer_AuthSetupStatusReflectsBootstrapAdminAvailability(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	engine := NewServer(database, &config.Config{JWTSecret: "test-secret"})
+	server := httptest.NewServer(engine)
+	defer server.Close()
+
+	setupResp, err := http.Get(server.URL + "/api/auth/setup-status")
+	require.NoError(t, err)
+	defer setupResp.Body.Close()
+	require.Equal(t, http.StatusOK, setupResp.StatusCode)
+
+	var before struct {
+		BootstrapAdminAvailable bool   `json:"bootstrap_admin_available"`
+		DefaultAdminUsername    string `json:"default_admin_username"`
+		DefaultAdminPassword    string `json:"default_admin_password"`
+	}
+	require.NoError(t, json.NewDecoder(setupResp.Body).Decode(&before))
+	assert.True(t, before.BootstrapAdminAvailable)
+	assert.Equal(t, "admin", before.DefaultAdminUsername)
+	assert.Equal(t, "sauryctf", before.DefaultAdminPassword)
+
+	registerBody := bytes.NewBufferString(`{"username":"first-user","email":"first@example.com","password":"password123"}`)
+	registerReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/auth/register", registerBody)
+	require.NoError(t, err)
+	registerReq.Header.Set("Content-Type", "application/json")
+
+	registerResp, err := http.DefaultClient.Do(registerReq)
+	require.NoError(t, err)
+	defer registerResp.Body.Close()
+	require.Equal(t, http.StatusCreated, registerResp.StatusCode)
+
+	setupRespAfter, err := http.Get(server.URL + "/api/auth/setup-status")
+	require.NoError(t, err)
+	defer setupRespAfter.Body.Close()
+	require.Equal(t, http.StatusOK, setupRespAfter.StatusCode)
+
+	var after struct {
+		BootstrapAdminAvailable bool    `json:"bootstrap_admin_available"`
+		DefaultAdminUsername    *string `json:"default_admin_username"`
+		DefaultAdminPassword    *string `json:"default_admin_password"`
+	}
+	require.NoError(t, json.NewDecoder(setupRespAfter.Body).Decode(&after))
+	assert.False(t, after.BootstrapAdminAvailable)
+	assert.Nil(t, after.DefaultAdminUsername)
+	assert.Nil(t, after.DefaultAdminPassword)
+}
+
 func TestServer_BootstrapAdminCanCreateGame(t *testing.T) {
 	server := setupHTTPTestServer(t)
 	defer server.Close()

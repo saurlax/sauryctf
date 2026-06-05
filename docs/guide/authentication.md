@@ -16,6 +16,11 @@
 
 - 后端不会再补建 `admin`
 - 首页和 `/login` 也不会继续把默认口令当成常规入口提示
+- `/api/auth/setup-status` 会立即切到 `bootstrap_admin_available = false`
+
+最容易误判的点只有一个：
+
+- `admin / sauryctf` 不是“系统保底账号”，而是“仅空库首次启动可用的引导账号”
 
 ## 普通用户链路
 
