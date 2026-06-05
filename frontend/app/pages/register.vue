@@ -11,6 +11,14 @@ const router = useRouter()
 const route = useRoute()
 const toast = useToast()
 
+const redirectTarget = computed(() => {
+  const redirect = route.query.redirect
+  if (typeof redirect === 'string' && redirect.startsWith('/')) {
+    return redirect
+  }
+  return '/console/team?onboarding=created'
+})
+
 const onboardingCards = [
   {
     title: '1. 创建账号',
@@ -28,6 +36,46 @@ const onboardingCards = [
     icon: 'i-lucide-flag',
   },
 ]
+
+const afterRegisterSteps = computed(() => {
+  if (redirectTarget.value.startsWith('/games/')) {
+    return [
+      {
+        title: '1. 先进入队伍页',
+        description: '注册成功后会先带你去队伍页，而不是直接回比赛，这样你可以先把队伍准备完整。',
+        icon: 'i-lucide-users',
+      },
+      {
+        title: '2. 创建或加入队伍',
+        description: '和 GZCTF 的常见参赛流程一样，账号只是第一步，真正参赛前还需要确定当前使用的队伍。',
+        icon: 'i-lucide-user-round-plus',
+      },
+      {
+        title: '3. 再回到原比赛报名',
+        description: '准备好队伍后，系统会把你带回刚才的比赛详情页，继续报名、提 Flag 或启动实例。',
+        icon: 'i-lucide-flag',
+      },
+    ]
+  }
+
+  return [
+    {
+      title: '1. 自动进入队伍页',
+      description: '注册成功后会直接建立登录态，并进入队伍页，不需要再回头手动登录一次。',
+      icon: 'i-lucide-layout-dashboard',
+    },
+    {
+      title: '2. 先把队伍准备好',
+      description: 'CTF 的报名、排行榜和动态实例都基于队伍进行，所以建议优先创建自己的队伍或加入现有队伍。',
+      icon: 'i-lucide-users',
+    },
+    {
+      title: '3. 再去比赛页继续参赛',
+      description: '队伍准备完成后，再去公开比赛列表选择目标比赛并完成报名、提交 Flag 或补交 Writeup。',
+      icon: 'i-lucide-trophy',
+    },
+  ]
+})
 
 const registerSchema = z.object({
   username: z.string().min(2, '用户名至少 2 个字符'),
@@ -116,6 +164,35 @@ const loginTo = computed(() => {
       </UPageCard>
 
       <div class="space-y-6">
+        <UPageCard title="注册后下一步" icon="i-lucide-list-checks">
+          <div class="space-y-3">
+            <UAlert
+              color="info"
+              variant="soft"
+              title="当前注册成功后的默认去向"
+              :description="redirectTarget"
+            />
+
+            <div
+              v-for="item in afterRegisterSteps"
+              :key="item.title"
+              class="rounded-lg border border-default px-3 py-3"
+            >
+              <div class="flex items-start gap-3">
+                <UIcon :name="item.icon" class="mt-0.5 size-4 shrink-0 text-primary" />
+                <div class="min-w-0">
+                  <div class="font-medium">
+                    {{ item.title }}
+                  </div>
+                  <div class="mt-2 text-sm text-muted">
+                    {{ item.description }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </UPageCard>
+
         <UAlert
           color="info"
           variant="soft"
