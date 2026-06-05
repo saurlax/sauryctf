@@ -759,6 +759,8 @@ func (s *Service) ListInstanceLeases(gameID uint) ([]GameInstanceLeaseEntry, err
 		Provider       string
 		Image          string
 		LaunchURL      string
+		Host           string
+		Port           string
 		StartedAt      time.Time
 		LastRenewedAt  time.Time
 		ExpiresAt      time.Time
@@ -778,6 +780,8 @@ func (s *Service) ListInstanceLeases(gameID uint) ([]GameInstanceLeaseEntry, err
 			game_instance_leases.provider,
 			game_instance_leases.image,
 			game_instance_leases.launch_url,
+			game_instance_leases.host,
+			game_instance_leases.port,
 			game_instance_leases.started_at,
 			game_instance_leases.last_renewed_at,
 			game_instance_leases.expires_at,
@@ -811,6 +815,8 @@ func (s *Service) ListInstanceLeases(gameID uint) ([]GameInstanceLeaseEntry, err
 			Provider:       row.Provider,
 			Image:          row.Image,
 			LaunchURL:      row.LaunchURL,
+			Host:           row.Host,
+			Port:           row.Port,
 			StartedAt:      row.StartedAt,
 			LastRenewedAt:  row.LastRenewedAt,
 			ExpiresAt:      row.ExpiresAt,

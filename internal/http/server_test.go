@@ -752,7 +752,7 @@ func TestServer_AdminCanListGameInstances(t *testing.T) {
 		"flag":           "flag{admin-instance}",
 		"base_score":     200,
 		"is_visible":     true,
-		"container_spec": `{"runtime":{"provider":"docker","image":"ctf/example:latest"},"connection":{"url":"http://127.0.0.1:18081","note":"admin instance"}}`,
+		"container_spec": `{"runtime":{"provider":"docker","image":"ctf/example:latest"},"connection":{"url":"http://127.0.0.1:18081","host":"127.0.0.1","port":"18081","note":"admin instance"}}`,
 	})
 
 	attachBody, err := json.Marshal(map[string]any{
@@ -843,6 +843,8 @@ func TestServer_AdminCanListGameInstances(t *testing.T) {
 	assert.Equal(t, challenge.ID, payload[0].ChallengeID)
 	assert.Equal(t, "Admin Instance Team", payload[0].TeamName)
 	assert.Equal(t, "Admin Instance Challenge", payload[0].ChallengeTitle)
+	assert.Equal(t, "127.0.0.1", payload[0].Host)
+	assert.Equal(t, "18081", payload[0].Port)
 	assert.False(t, payload[0].IsExpired)
 	assert.Greater(t, payload[0].SecondsLeft, 0)
 

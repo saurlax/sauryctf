@@ -232,6 +232,8 @@ type GameInstanceLeaseEntry struct {
 	Provider       string     `json:"provider"`
 	Image          string     `json:"image"`
 	LaunchURL      string     `json:"launch_url"`
+	Host           string     `json:"host"`
+	Port           string     `json:"port"`
 	StartedAt      time.Time  `json:"started_at"`
 	LastRenewedAt  time.Time  `json:"last_renewed_at"`
 	ExpiresAt      time.Time  `json:"expires_at"`

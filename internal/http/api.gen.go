@@ -527,11 +527,13 @@ type AdminGameInstanceLease struct {
 	ChallengeTitle string     `json:"challenge_title"`
 	ExpiresAt      time.Time  `json:"expires_at"`
 	GameId         int        `json:"game_id"`
+	Host           *string    `json:"host,omitempty"`
 	Id             int        `json:"id"`
 	Image          *string    `json:"image,omitempty"`
 	IsExpired      bool       `json:"is_expired"`
 	LastRenewedAt  time.Time  `json:"last_renewed_at"`
 	LaunchUrl      *string    `json:"launch_url,omitempty"`
+	Port           *string    `json:"port,omitempty"`
 	Provider       *string    `json:"provider,omitempty"`
 	SecondsLeft    int        `json:"seconds_left"`
 	StartedAt      time.Time  `json:"started_at"`

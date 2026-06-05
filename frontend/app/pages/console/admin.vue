@@ -200,6 +200,8 @@ const instanceLeases = ref<Array<{
   provider?: string
   image?: string
   launch_url?: string
+  host?: string
+  port?: string
   started_at: string
   last_renewed_at: string
   expires_at: string
@@ -1247,6 +1249,61 @@ function getInstanceLeaseStatusLabel(lease: { is_expired: boolean, status: strin
     return '运行中'
   }
   return lease.status || '未知'
+}
+
+function getInstanceLeaseProviderColor(lease: { provider?: string, launch_url?: string, host?: string, port?: string }) {
+  if (lease.provider === 'docker' && lease.host === '127.0.0.1' && lease.port) {
+    return 'success' as const
+  }
+  if (lease.provider === 'docker') {
+    return 'info' as const
+  }
+  if (lease.provider) {
+    return 'neutral' as const
+  }
+  return 'neutral' as const
+}
+
+function getInstanceLeaseProviderLabel(lease: { provider?: string, launch_url?: string, host?: string, port?: string }) {
+  if (lease.provider === 'docker' && lease.host === '127.0.0.1' && lease.port) {
+    return '本地 Docker'
+  }
+  if (lease.provider === 'docker') {
+    return 'Docker'
+  }
+  if (lease.provider === 'k8s' || lease.provider === 'kubernetes') {
+    return 'Kubernetes'
+  }
+  if (lease.provider === 'proxy' || lease.provider === 'platformproxy') {
+    return '平台代理'
+  }
+  return lease.provider || '未标注'
+}
+
+function getInstanceLeaseEntryHint(lease: { launch_url?: string, host?: string, port?: string }) {
+  if (lease.host && lease.port) {
+    return `${lease.host}:${lease.port}`
+  }
+  if (lease.launch_url) {
+    return lease.launch_url
+  }
+  return '当前没有可展示的实例入口'
+}
+
+async function copyInstanceLeaseEntry(lease: { launch_url?: string, host?: string, port?: string }) {
+  const value = getInstanceLeaseEntryHint(lease)
+  if (!value || value === '当前没有可展示的实例入口') {
+    toast.add({ title: '没有可复制的实例入口', color: 'warning' })
+    return
+  }
+
+  try {
+    await navigator.clipboard.writeText(value)
+    toast.add({ title: '实例入口已复制', description: value, color: 'success' })
+  }
+  catch (e: any) {
+    toast.add({ title: '复制实例入口失败', description: e?.message || '当前浏览器不支持复制', color: 'error' })
+  }
 }
 
 function getSubmissionResultColor(result: 'accepted' | 'wrong_flag' | 'already_solved' | 'rejected') {
@@ -2709,11 +2766,22 @@ onMounted(async () => {
                       <div class="mt-1 text-xs text-muted">
                         Team #{{ lease.team_id }} · Challenge #{{ lease.challenge_id }}{{ lease.provider ? ` · ${lease.provider}` : '' }}{{ lease.image ? ` · ${lease.image}` : '' }}
                       </div>
+                      <div class="mt-2 flex flex-wrap items-center gap-2">
+                        <UBadge :color="getInstanceLeaseProviderColor(lease)" variant="soft">
+                          {{ getInstanceLeaseProviderLabel(lease) }}
+                        </UBadge>
+                        <UBadge v-if="lease.host && lease.port" color="neutral" variant="subtle">
+                          {{ lease.host }}:{{ lease.port }}
+                        </UBadge>
+                      </div>
                       <div class="mt-2 grid gap-2 text-xs text-muted md:grid-cols-2 xl:grid-cols-4">
                         <div>启动：{{ new Date(lease.started_at).toLocaleString() }}</div>
                         <div>续期：{{ new Date(lease.last_renewed_at).toLocaleString() }}</div>
                         <div>到期：{{ new Date(lease.expires_at).toLocaleString() }}</div>
                         <div>{{ lease.is_expired ? '当前已过期' : `剩余 ${lease.seconds_left} 秒` }}</div>
+                      </div>
+                      <div v-if="lease.host || lease.port" class="mt-2 text-xs text-muted">
+                        当前入口主机：{{ lease.host || '未返回 host' }}<template v-if="lease.port">:{{ lease.port }}</template>
                       </div>
                       <div v-if="lease.launch_url" class="mt-2 text-xs text-muted break-all">
                         入口：{{ lease.launch_url }}
@@ -2723,6 +2791,24 @@ onMounted(async () => {
                       <UBadge :color="getInstanceLeaseStatusColor(lease)" variant="soft">
                         {{ getInstanceLeaseStatusLabel(lease) }}
                       </UBadge>
+                      <UButton
+                        v-if="lease.launch_url"
+                        size="xs"
+                        variant="ghost"
+                        icon="i-lucide-arrow-up-right"
+                        :to="lease.launch_url"
+                        target="_blank"
+                      >
+                        打开
+                      </UButton>
+                      <UButton
+                        size="xs"
+                        variant="ghost"
+                        icon="i-lucide-copy"
+                        @click="copyInstanceLeaseEntry(lease)"
+                      >
+                        复制入口
+                      </UButton>
                       <UButton
                         size="xs"
                         color="error"

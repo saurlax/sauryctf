@@ -447,6 +447,8 @@ export interface components {
       provider?: string;
       image?: string;
       launch_url?: string;
+      host?: string;
+      port?: string;
       /** Format: date-time */
       started_at: string;
       /** Format: date-time */

@@ -584,6 +584,10 @@ components:
           type: string
         launch_url:
           type: string
+        host:
+          type: string
+        port:
+          type: string
         started_at:
           type: string
           format: date-time
