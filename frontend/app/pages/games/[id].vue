@@ -1333,7 +1333,7 @@ const divisionOptions = computed(() => [
   })),
 ])
 
-const contestFactRows = computed(() => [
+const contestRestrictionRows = computed(() => [
   {
     label: '报名方式',
     value: game.value?.registration_mode === 'auto_accept' ? '自动通过' : '人工审核',
@@ -1347,14 +1347,6 @@ const contestFactRows = computed(() => [
     value: game.value?.max_team_members ? `${game.value.max_team_members} 人` : '不限',
   },
   {
-    label: '比赛分组',
-    value: availableDivisions.value.length ? availableDivisions.value.join(' / ') : '未启用',
-  },
-  {
-    label: '我的分组',
-    value: participation.value?.division || '未分配',
-  },
-  {
     label: '赛后练习',
     value: game.value?.practice_mode ? '开启' : '关闭',
   },
@@ -1366,16 +1358,31 @@ const contestFactRows = computed(() => [
     label: 'Writeup 截止',
     value: game.value?.writeup_deadline ? new Date(game.value.writeup_deadline).toLocaleString() : '未设置',
   },
-  {
-    label: '当前可提交 Flag',
-    value: canSubmitFlag.value ? '是' : '否',
-  },
   ...(hasManagedInstanceChallenges.value
     ? [{
         label: '动态实例限制',
         value: instanceLimitSummary.value,
       }]
     : []),
+])
+
+const contestTeamContextRows = computed(() => [
+  {
+    label: '当前队伍',
+    value: participation.value?.team?.name || '未加入队伍',
+  },
+  {
+    label: '比赛分组',
+    value: availableDivisions.value.length ? availableDivisions.value.join(' / ') : '未启用',
+  },
+  {
+    label: '我的分组',
+    value: participation.value?.division || '未分配',
+  },
+  {
+    label: '当前可提交 Flag',
+    value: canSubmitFlag.value ? '是' : '否',
+  },
 ])
 
 const instanceLimitSummary = computed(() => {
@@ -1464,35 +1471,21 @@ const registrationStepCards = computed(() => [
   },
 ])
 
-const contestGuideItems = computed(() => [
-  '先在控制台创建或加入队伍，再完成比赛报名。',
+const contestRuleSummaryItems = computed(() => [
+  '先准备队伍，再完成比赛报名。',
   game.value?.registration_mode === 'auto_accept'
-    ? '当前比赛报名后会自动通过。'
-    : '当前比赛报名后需要等待管理员审核。',
+    ? '报名提交后会直接通过。'
+    : '报名提交后需要等待管理员审核。',
   game.value?.invitation_required
-    ? '当前比赛要求输入正确的邀请码后才能完成报名。'
-    : '当前比赛不要求额外的邀请码。',
-  game.value?.max_team_members
-    ? `当前队伍人数上限为 ${game.value.max_team_members} 人，超出将无法报名。`
-    : '当前比赛不限制队伍人数。',
+    ? '报名时需要输入正确的邀请码。'
+    : '报名时不需要额外的邀请码。',
   game.value?.scoreboard_freeze_at
     ? `公开榜单将于 ${new Date(game.value.scoreboard_freeze_at).toLocaleString()} 封榜。`
     : '当前比赛不启用封榜。',
   game.value?.practice_mode
-    ? '比赛结束后会继续保留练习模式，便于复盘和补题。'
-    : '当前比赛为纯正赛模式，结束后不会继续开放练习。',
-  game.value?.writeup_required
-    ? (game.value?.writeup_deadline
-        ? `当前比赛要求提交 Writeup，截止时间为 ${new Date(game.value.writeup_deadline).toLocaleString()}。`
-        : '当前比赛要求提交 Writeup，具体截止时间请留意公告。')
-    : '当前比赛不强制要求提交 Writeup。',
-  hasManagedInstanceChallenges.value
-    ? (instanceLimitSummary.value.startsWith('每队最多')
-        ? `当前比赛包含动态题，${instanceLimitSummary.value}同时运行的动态实例。`
-        : '当前比赛包含动态题。每支队伍可启动的实例数量会按当前实例策略限制。')
-    : '当前比赛当前没有启用动态实例题。',
-  divisionRuleDescription.value,
-  '待审核或已拒绝的报名可以撤回；已通过报名后队伍将锁定，不能再撤回。',
+    ? '比赛结束后仍可按练习模式继续补题。'
+    : '比赛结束后不会继续开放练习提交。',
+  '待审核或已拒绝的报名可以撤回；已通过报名后队伍会锁定。',
 ])
 
 const scoreboardSummaryCards = computed(() => [
@@ -1856,7 +1849,7 @@ onMounted(async () => {
 
       <div v-if="activeTab === 'overview'" class="space-y-6">
         <div class="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.95fr)]">
-          <UPageCard title="比赛简介" icon="i-lucide-scroll-text">
+          <UPageCard title="比赛说明" icon="i-lucide-scroll-text">
             <div class="space-y-4 text-sm leading-7">
               <p class="text-default whitespace-pre-wrap">
                 {{ game.description || '当前比赛暂未填写详细规则。你可以先完成队伍准备与比赛报名。' }}
@@ -1866,9 +1859,23 @@ onMounted(async () => {
                 v-if="game.notice"
                 color="info"
                 variant="soft"
-                title="比赛公告"
+                title="规则补充"
                 :description="game.notice"
               />
+
+              <div class="rounded-lg border border-default bg-muted/40 p-4">
+                <p class="mb-3 font-medium">
+                  规则摘要
+                </p>
+                <ul class="space-y-2 text-muted">
+                  <li
+                    v-for="(item, index) in contestRuleSummaryItems"
+                    :key="`${index}-${item}`"
+                  >
+                    {{ index + 1 }}. {{ item }}
+                  </li>
+                </ul>
+              </div>
 
               <div
                 v-if="announcements.length"
@@ -1892,20 +1899,6 @@ onMounted(async () => {
                     </div>
                   </div>
                 </div>
-              </div>
-
-              <div class="rounded-lg border border-default bg-muted/40 p-4">
-                <p class="mb-3 font-medium">
-                  参赛须知
-                </p>
-                <ul class="space-y-2 text-muted">
-                  <li
-                    v-for="(item, index) in contestGuideItems"
-                    :key="`${index}-${item}`"
-                  >
-                    {{ index + 1 }}. {{ item }}
-                  </li>
-                </ul>
               </div>
             </div>
           </UPageCard>
@@ -2020,14 +2013,23 @@ onMounted(async () => {
               </UPageGrid>
             </UPageCard>
 
-            <UPageCard title="比赛信息" icon="i-lucide-badge-check">
+            <UPageCard title="参赛限制" icon="i-lucide-badge-check">
               <div class="space-y-3 text-sm">
-                <div class="flex items-center justify-between gap-3">
-                  <span class="text-muted">当前队伍</span>
-                  <span>{{ participation?.team?.name || '未加入队伍' }}</span>
-                </div>
                 <div
-                  v-for="row in contestFactRows"
+                  v-for="row in contestRestrictionRows"
+                  :key="row.label"
+                  class="flex items-center justify-between gap-3"
+                >
+                  <span class="text-muted">{{ row.label }}</span>
+                  <span class="text-right">{{ row.value }}</span>
+                </div>
+              </div>
+            </UPageCard>
+
+            <UPageCard title="队伍与分组" icon="i-lucide-users-round">
+              <div class="space-y-3 text-sm">
+                <div
+                  v-for="row in contestTeamContextRows"
                   :key="row.label"
                   class="flex items-center justify-between gap-3"
                 >
