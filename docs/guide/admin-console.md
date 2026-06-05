@@ -49,6 +49,12 @@
   - `connection.url` / `host` / `command` 默认会使用 `{{team_hash}}`、`{{team_id}}` 这类占位符
   - 当前默认会落到前端本地的 `/mock-instance/...` 页面，方便直接验证“入口可打开”
   - 适合直接验证 team-scoped 实例租约、模板入口解析，以及选手页里的动态题入口展示
+- 管理端顶部现在还额外提供“一键创建本地 Docker 冒烟赛”：
+  - 会自动创建一场公开比赛
+  - 会自动创建一道 `Local Docker Web Lease` 动态题
+  - 题目默认带 `runtime.provider = docker`、`runtime.image = nginx:alpine`、`runtime.expose = [80]`
+  - 更适合直接验证真实本地 Docker provider 下的实例启动、入口回填和销毁回收
+  - 这条链路仍然要求本机 Docker daemon 可用
 - 管理端现在还会提供“当前比赛概览”和“赛前检查”：
   - 只要选中一场比赛，就会直接汇总当前状态、公开性、挂题数、报名队伍数和 Writeup 数
   - 赛前检查会优先提醒是否已经挂题、是否已有报名队伍、当前状态是否适合继续核对或直接开赛

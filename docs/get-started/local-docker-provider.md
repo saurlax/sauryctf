@@ -52,6 +52,13 @@ docker info
 
 根据 Docker CLI 官方文档，`docker version` 会同时输出 `Client` 和 `Server` 信息；如果 daemon 没起来，`Server` 信息就拿不到，脚本也会直接停在前置检查阶段。
 
+如果你更想从管理端直接走一遍最小链路，现在 `/console/admin` 里也提供了“一键创建本地 Docker 冒烟赛”：
+
+- 会自动创建一场公开比赛
+- 会自动创建一道 `Local Docker Web Lease` 动态题
+- 会自动完成挂题
+- 随后可以直接用普通用户去公开比赛页验证真实本地 Docker Web 实例链路
+
 ## 推荐最小题目模板
 
 管理端 `/console/admin` 的“本地 Docker Web”按钮现在会预填一份更接近真实本地运行的模板，核心结构是：

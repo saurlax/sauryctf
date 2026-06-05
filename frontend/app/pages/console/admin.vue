@@ -113,6 +113,7 @@ const gameEditing = ref(false)
 const challengeEditing = ref(false)
 const smokeProvisioning = ref(false)
 const dynamicSmokeProvisioning = ref(false)
+const localDockerSmokeProvisioning = ref(false)
 const loadingResources = ref(false)
 const loadingGameChallenges = ref(false)
 const loadingParticipants = ref(false)
@@ -1735,6 +1736,100 @@ async function createDynamicSmokeProvision() {
   }
 }
 
+async function createLocalDockerSmokeProvision() {
+  const now = new Date()
+  const start = new Date(now.getTime() + 30 * 60 * 1000)
+  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000)
+  const freeze = new Date(end.getTime() - 30 * 60 * 1000)
+
+  localDockerSmokeProvisioning.value = true
+  try {
+    const game = await $api('post', '/api/games', {
+      body: {
+        name: `Local Docker Smoke ${start.getFullYear()}`,
+        description: '本地真实 Docker Web 冒烟用比赛模板。建议先用它验证实例启动、入口回填、销毁回收和常规提交流程。',
+        notice: '这是本地真实 Docker provider 联调用的最小模板比赛。请先确认 Docker daemon 可用，再用普通用户走一遍报名、启动实例和提交流程。',
+        divisions: [],
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
+        scoreboard_freeze_at: freeze.toISOString(),
+        registration_mode: 'auto_accept',
+        max_team_members: 4,
+        practice_mode: true,
+        writeup_required: false,
+        writeup_deadline: null,
+        is_public: true,
+      },
+    })
+
+    const challenge = await $api('post', '/api/challenges', {
+      body: {
+        title: 'Local Docker Web Lease',
+        description: '这是一个本地真实 Docker Web 冒烟题模板。创建后可以直接在公开比赛页验证实例启动、host / port / launch_url 回填，以及销毁后的 idle 回收。',
+        hints: JSON.stringify([
+          '先确认后端已经启用 INSTANCE_DOCKER_PROVIDER_ENABLED=true，且本机 docker version 能看到 Server 段。',
+          '启动实例后，应优先看到平台回填的真实 host / port / launch_url，而不是手写固定入口。',
+        ]),
+        attachments: '[]',
+        container_spec: JSON.stringify({
+          runtime: {
+            provider: 'docker',
+            image: 'nginx:alpine',
+            expose: [80],
+          },
+          connection: {
+            note: '实例启动后，平台会为当前题目回填真实本地 Docker Web 入口。',
+          },
+          links: [
+            {
+              label: '实例入口',
+              url: '由平台在实例启动后回填真实 launch_url',
+            },
+          ],
+          metadata: {
+            purpose: 'local-docker-web-smoke',
+            expected_service: 'nginx default page',
+            expected_port: 80,
+          },
+        }),
+        category: 'web',
+        type: 'dynamic',
+        difficulty: 'medium',
+        flag: 'flag{local-docker-smoke}',
+        base_score: 300,
+        min_score: 100,
+        decay_rate: 0.1,
+        is_visible: true,
+      },
+    })
+
+    await $api('post', '/api/games/{id}/challenges', {
+      params: {
+        id: game.id,
+      },
+      body: {
+        challenge_id: challenge.id,
+      },
+    })
+
+    await loadAdminResources()
+    selectGameContext(game.id)
+    attachForm.challenge_id = challenge.id
+    toast.add({
+      title: '本地 Docker 冒烟赛已创建',
+      description: `已创建 ${game.name}，并自动挂上 Local Docker Web Lease。现在可以直接去公开页验证真实本地 Docker Web 实例链路。`,
+      color: 'success',
+    })
+    jumpToAdminAnchor('#attach-challenge')
+  }
+  catch (e: any) {
+    toast.add({ title: '创建本地 Docker 冒烟赛失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    localDockerSmokeProvisioning.value = false
+  }
+}
+
 function selectGameContext(gameId?: number) {
   attachForm.game_id = gameId
   gameSettingsForm.game_id = gameId
@@ -2422,6 +2517,14 @@ onMounted(async () => {
               @click="createDynamicSmokeProvision"
             >
               一键创建动态实例冒烟赛
+            </UButton>
+            <UButton
+              variant="outline"
+              icon="i-lucide-container"
+              :loading="localDockerSmokeProvisioning"
+              @click="createLocalDockerSmokeProvision"
+            >
+              一键创建本地 Docker 冒烟赛
             </UButton>
             <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeGameTemplate">
               只填比赛模板
