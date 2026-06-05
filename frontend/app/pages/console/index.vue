@@ -150,6 +150,31 @@ const onboardingMode = computed(() => {
 })
 
 const showTeamOnboarding = computed(() => onboardingMode.value === 'team' && !team.value)
+const showAdminBootstrapGuide = computed(() => isAdmin.value && games.value.length === 0)
+
+const adminBootstrapSteps = computed(() => [
+  {
+    key: 'create-game',
+    title: '1. 先创建一场公开比赛',
+    description: '先用最小配置建一场公开比赛，后面所有公开页验证、报名和提 Flag 都会围绕这场比赛展开。',
+    actionLabel: '去管理端建赛',
+    actionTo: '/console/admin',
+  },
+  {
+    key: 'attach-challenge',
+    title: '2. 再创建题目并挂到比赛',
+    description: '推荐先建一道最小热身题，把题面、Flag 和挂题链路跑通，再继续补更多题型。',
+    actionLabel: '继续配置',
+    actionTo: '/console/admin',
+  },
+  {
+    key: 'verify-public',
+    title: '3. 最后回公开页验证选手链路',
+    description: '把比赛切到 active 后，回到公开页确认比赛可见，再注册普通账号走一遍建队、报名和提 Flag。',
+    actionLabel: '打开公开比赛页',
+    actionTo: '/games',
+  },
+])
 
 const stats = computed(() => [
   { label: '我的队伍', value: team.value?.name || '未加入', icon: 'i-lucide-users' },
@@ -570,6 +595,47 @@ onMounted(async () => {
           />
         </template>
       </UAlert>
+
+      <UPageCard
+        v-if="showAdminBootstrapGuide"
+        class="mb-6"
+        title="空库首次启动：先打通管理员建赛闭环"
+        description="当前还没有任何比赛。最省事的路径是先建一场公开比赛、挂一题、切到 active，再回公开页验证选手链路。"
+        icon="i-lucide-shield-check"
+      >
+        <div class="space-y-3">
+          <UAlert
+            color="info"
+            variant="soft"
+            icon="i-lucide-circle-help"
+            title="当前推荐顺序"
+            description="先在管理端完成最小建赛配置，再去公开比赛页确认展示、报名和提交流程。这样最接近 GZCTF 的首次联调节奏。"
+          />
+
+          <div
+            v-for="step in adminBootstrapSteps"
+            :key="step.key"
+            class="rounded-lg border border-default px-3 py-3"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="font-medium">
+                  {{ step.title }}
+                </div>
+                <div class="mt-2 text-sm text-muted">
+                  {{ step.description }}
+                </div>
+              </div>
+              <UButton
+                size="sm"
+                variant="outline"
+                :to="step.actionTo"
+                :label="step.actionLabel"
+              />
+            </div>
+          </div>
+        </div>
+      </UPageCard>
 
       <UPageGrid :cols="{ default: 1, sm: 2, lg: 4 }">
         <UPageCard
