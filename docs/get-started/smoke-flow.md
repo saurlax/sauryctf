@@ -35,6 +35,15 @@ pnpm dev
 
 这组语义现在更接近 GZCTF 的 `defaultLifetime / extensionDuration / renewalWindow`，适合本地 smoke 流程。
 
+动态题 provider 目前分两档：
+
+- 默认不额外配置时，`runtime.provider = docker` 仍然走本地 skeleton lease，仅验证租约与入口展示
+- 当你显式开启 `INSTANCE_DOCKER_PROVIDER_ENABLED=true` 后，后端会改用本机 `docker` CLI 真正执行 `docker run / inspect / rm -f`
+- 如果使用真实 Docker provider，建议同时设置：
+  - `INSTANCE_DOCKER_HOST=127.0.0.1`
+  - 动态题 `runtime.expose` 为容器内端口列表，例如 `[80]`
+  - `runtime.image` 使用本机可拉取的公开镜像，例如 `nginx:alpine`
+
 如果当前数据库是空的，后端启动后会自动创建：
 
 - 用户名：`admin`
@@ -111,7 +120,16 @@ pnpm smoke:local
 - `runtime.image = ctf/example:latest`
 - `connection.url = /mock-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}`
 
-当前这一步不会真的起容器，但比赛页会先显示模板入口，启动实例后再显示已经为当前队伍解析好的租约地址，并能直接跳到本地 mock instance 页面。
+默认这一步不会真的起容器，但比赛页会先显示模板入口，启动实例后再显示已经为当前队伍解析好的租约地址，并能直接跳到本地 mock instance 页面。
+
+如果你已经开启 `INSTANCE_DOCKER_PROVIDER_ENABLED=true`，也可以把同一结构改成最小真实容器模板，例如：
+
+- `runtime.provider = docker`
+- `runtime.image = nginx:alpine`
+- `runtime.expose = [80]`
+- `connection.note = docker local instance`
+
+此时后端会用本机 Docker 随机分配宿主机端口，并把解析后的 `host / port / launch_url` 回填到实例响应里。
 
 当前最小动态题冒烟还会顺手确认两件事：
 

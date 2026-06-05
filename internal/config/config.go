@@ -18,6 +18,8 @@ type Config struct {
 	InstanceRenewalWindow     time.Duration
 	InstanceTeamActiveLimit   int
 	InstanceCleanupInterval   time.Duration
+	InstanceDockerEnabled     bool
+	InstanceDockerHost        string
 }
 
 func Load() *Config {
@@ -33,6 +35,8 @@ func Load() *Config {
 		InstanceRenewalWindow:     getEnvMinutes("INSTANCE_RENEWAL_WINDOW_MINUTES", 10),
 		InstanceTeamActiveLimit:   getEnvInt("INSTANCE_TEAM_ACTIVE_LIMIT", 3),
 		InstanceCleanupInterval:   getEnvSeconds("INSTANCE_CLEANUP_INTERVAL_SECONDS", 60),
+		InstanceDockerEnabled:     getEnvBool("INSTANCE_DOCKER_PROVIDER_ENABLED", false),
+		InstanceDockerHost:        getEnv("INSTANCE_DOCKER_HOST", "127.0.0.1"),
 	}
 }
 
@@ -69,6 +73,22 @@ func getEnvInt(key string, fallback int) int {
 	}
 
 	return value
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	raw := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	if raw == "" {
+		return fallback
+	}
+
+	switch raw {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
+	}
 }
 
 func getEnvSeconds(key string, fallback int) time.Duration {

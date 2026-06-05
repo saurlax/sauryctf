@@ -199,6 +199,13 @@ internal/<module>/
   - it scans expired challenge-instance leases on a timer
   - it asks the provider to destroy the expired instance before deleting the local lease row
   - the interval is configurable with `INSTANCE_CLEANUP_INTERVAL_SECONDS`
+- a minimal local Docker CLI provider is now available for managed instances:
+  - default behavior is still the current skeleton lease flow, even if `runtime.provider = docker`
+  - only when `INSTANCE_DOCKER_PROVIDER_ENABLED=true` is set will the backend replace the `"docker"` provider with a real local CLI-backed provider
+  - the current implementation uses deterministic container names plus `docker run -d`, `docker inspect`, and `docker rm -f`
+  - `INSTANCE_DOCKER_HOST` controls the host returned to players in `launch_url` / `host`
+  - `runtime.expose` is now parsed from `container_spec.runtime.expose` and is used to publish container ports when the real Docker provider is enabled
+  - current scope is intentionally local-machine oriented: one container per team/challenge lease, no compose, no volumes, no network policy, and no registry auth management yet
 - local dynamic instance renewal now behaves closer to GZCTF's `defaultLifetime / extensionDuration / renewalWindow` split, instead of reusing the initial lease duration for every renewal
 - Registration withdrawal now follows the current GZCTF-style rule:
   - `pending` / `rejected` participations can be withdrawn

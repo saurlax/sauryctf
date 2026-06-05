@@ -25,7 +25,7 @@ func NewServer(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 	// 初始化各模块服务和 handler
 	authSvc := auth.NewService(db, cfg.JWTSecret)
-	gameSvc := games.NewServiceWithOptions(db, nil, games.InstancePolicy{
+	gameSvc := games.NewServiceWithOptions(db, instanceProvidersFromConfig(cfg), games.InstancePolicy{
 		LeaseDuration:     cfg.InstanceLeaseDuration,
 		ExtensionDuration: cfg.InstanceExtensionDuration,
 		RenewalWindow:     cfg.InstanceRenewalWindow,
@@ -101,13 +101,23 @@ func NewServer(db *gorm.DB, cfg *config.Config) *gin.Engine {
 }
 
 func CleanupExpiredChallengeInstances(db *gorm.DB, cfg *config.Config, now time.Time) (int, error) {
-	gameSvc := games.NewServiceWithOptions(db, nil, games.InstancePolicy{
+	gameSvc := games.NewServiceWithOptions(db, instanceProvidersFromConfig(cfg), games.InstancePolicy{
 		LeaseDuration:     cfg.InstanceLeaseDuration,
 		ExtensionDuration: cfg.InstanceExtensionDuration,
 		RenewalWindow:     cfg.InstanceRenewalWindow,
 		TeamActiveLimit:   cfg.InstanceTeamActiveLimit,
 	})
 	return gameSvc.CleanupExpiredChallengeInstances(now)
+}
+
+func instanceProvidersFromConfig(cfg *config.Config) map[string]games.ChallengeInstanceProvider {
+	if cfg == nil || !cfg.InstanceDockerEnabled {
+		return nil
+	}
+
+	return map[string]games.ChallengeInstanceProvider{
+		"docker": games.NewDockerCLIProvider(cfg.InstanceDockerHost),
+	}
 }
 
 func mustIntParam(c *gin.Context, key string) int {

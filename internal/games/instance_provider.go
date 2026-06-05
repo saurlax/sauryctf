@@ -1,18 +1,62 @@
 package games
 
 import (
+	"context"
 	"crypto/sha1"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/saurlax/sauryctf/internal/models"
 )
 
 type leaseSkeletonProvider struct{}
 
+type dockerCommandRunner interface {
+	Run(ctx context.Context, args ...string) ([]byte, error)
+}
+
+type execDockerCommandRunner struct {
+	binary string
+}
+
+func (r *execDockerCommandRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, r.binary, args...)
+	return cmd.CombinedOutput()
+}
+
+type dockerCLIProvider struct {
+	host    string
+	timeout time.Duration
+	runner  dockerCommandRunner
+}
+
+type dockerPortBinding struct {
+	HostIP   string `json:"HostIp"`
+	HostPort string `json:"HostPort"`
+}
+
 func NewLeaseSkeletonProvider() ChallengeInstanceProvider {
 	return &leaseSkeletonProvider{}
+}
+
+func NewDockerCLIProvider(host string) ChallengeInstanceProvider {
+	return newDockerCLIProvider(host, &execDockerCommandRunner{binary: "docker"})
+}
+
+func newDockerCLIProvider(host string, runner dockerCommandRunner) ChallengeInstanceProvider {
+	if strings.TrimSpace(host) == "" {
+		host = "127.0.0.1"
+	}
+
+	return &dockerCLIProvider{
+		host:    strings.TrimSpace(host),
+		timeout: 30 * time.Second,
+		runner:  runner,
+	}
 }
 
 func (p *leaseSkeletonProvider) EnsureLease(req ChallengeInstanceProviderRequest) (*ChallengeInstanceLeaseState, error) {
@@ -79,6 +123,124 @@ func (p *leaseSkeletonProvider) DestroyLease(req ChallengeInstanceProviderReques
 	return nil
 }
 
+func (p *dockerCLIProvider) EnsureLease(req ChallengeInstanceProviderRequest) (*ChallengeInstanceLeaseState, error) {
+	image := templateChallengeInstanceValue(req.Runtime.Image, req)
+	if image == "" {
+		return nil, fmt.Errorf("docker provider requires runtime.image")
+	}
+
+	provider := templateChallengeInstanceValue(req.Runtime.Provider, req)
+	if provider == "" {
+		provider = "docker"
+	}
+
+	expose := normalizeDockerExposedPorts(req.Runtime.Expose, req.Runtime.Port)
+	containerName := dockerInstanceContainerName(req)
+
+	startedAt := req.Now
+	if req.Existing != nil && !req.Existing.StartedAt.IsZero() {
+		startedAt = req.Existing.StartedAt
+	}
+	expiresAt := req.Now.Add(req.LeaseDuration)
+	if req.Existing != nil && req.Existing.ExpiresAt.After(req.Now) {
+		expiresAt = req.Existing.ExpiresAt.Add(req.ExtensionDuration)
+	}
+
+	shouldCreate := req.Existing == nil
+	if !shouldCreate {
+		exists, err := p.containerExists(containerName)
+		if err != nil {
+			return nil, err
+		}
+		shouldCreate = !exists
+	}
+
+	if shouldCreate {
+		args := []string{
+			"run", "-d",
+			"--name", containerName,
+			"--label", "sauryctf.managed=true",
+			"--label", fmt.Sprintf("sauryctf.game_id=%d", req.GameID),
+			"--label", fmt.Sprintf("sauryctf.challenge_id=%d", req.ChallengeID),
+			"--label", fmt.Sprintf("sauryctf.team_id=%d", req.TeamID),
+		}
+		for _, port := range expose {
+			args = append(args, "-p", port)
+		}
+		args = append(args, image)
+
+		if _, err := p.run(args...); err != nil {
+			return nil, err
+		}
+	}
+
+	host := templateChallengeInstanceValue(req.Runtime.Host, req)
+	if host == "" {
+		host = p.host
+	}
+
+	launchURL := templateChallengeInstanceValue(req.Runtime.LaunchURL, req)
+	port := templateChallengeInstanceValue(req.Runtime.Port, req)
+
+	if len(expose) > 0 {
+		ports, err := p.inspectPorts(containerName)
+		if err != nil {
+			return nil, err
+		}
+
+		primaryKey := dockerPortKey(expose[0])
+		if bindings, ok := ports[primaryKey]; ok {
+			for _, binding := range bindings {
+				if strings.TrimSpace(binding.HostPort) == "" {
+					continue
+				}
+				port = strings.TrimSpace(binding.HostPort)
+				break
+			}
+		}
+
+		if port != "" && (launchURL == "" || strings.HasPrefix(launchURL, "/")) {
+			launchURL = fmt.Sprintf("http://%s:%s", host, port)
+		}
+	}
+
+	command := templateChallengeInstanceValue(req.Runtime.Command, req)
+	if command == "" && req.Existing != nil {
+		command = req.Existing.Command
+	}
+
+	note := templateChallengeInstanceValue(req.Runtime.Note, req)
+	containerNote := fmt.Sprintf("docker container: %s", containerName)
+	if note == "" {
+		note = containerNote
+	} else if !strings.Contains(note, containerName) {
+		note = fmt.Sprintf("%s\n%s", note, containerNote)
+	}
+
+	return &ChallengeInstanceLeaseState{
+		Status:        "running",
+		Provider:      provider,
+		Image:         image,
+		LaunchURL:     launchURL,
+		Host:          host,
+		Port:          port,
+		Command:       command,
+		Note:          note,
+		StartedAt:     startedAt,
+		LastRenewedAt: req.Now,
+		ExpiresAt:     expiresAt,
+	}, nil
+}
+
+func (p *dockerCLIProvider) DestroyLease(req ChallengeInstanceProviderRequest) error {
+	containerName := dockerInstanceContainerName(req)
+	_, err := p.run("rm", "-f", containerName)
+	if err != nil && strings.Contains(err.Error(), "No such container") {
+		return nil
+	}
+	return err
+}
+
 func templateChallengeInstanceValue(input string, req ChallengeInstanceProviderRequest) string {
 	source := strings.TrimSpace(input)
 	if source == "" {
@@ -96,9 +258,57 @@ func templateChallengeInstanceValue(input string, req ChallengeInstanceProviderR
 	return replacer.Replace(source)
 }
 
+func normalizeDockerExposedPorts(expose []string, fallbackPort string) []string {
+	result := make([]string, 0, len(expose)+1)
+	for _, item := range expose {
+		port := strings.TrimSpace(item)
+		if port == "" {
+			continue
+		}
+		result = append(result, port)
+	}
+
+	fallbackPort = strings.TrimSpace(fallbackPort)
+	if fallbackPort != "" && !strings.Contains(fallbackPort, "{{") {
+		hasFallback := false
+		for _, item := range result {
+			if dockerPortKey(item) == dockerPortKey(fallbackPort) {
+				hasFallback = true
+				break
+			}
+		}
+		if !hasFallback {
+			result = append(result, fallbackPort)
+		}
+	}
+
+	return result
+}
+
+func dockerPortKey(value string) string {
+	port := strings.TrimSpace(value)
+	if port == "" {
+		return ""
+	}
+	if strings.Contains(port, "/") {
+		return port
+	}
+	return port + "/tcp"
+}
+
 func challengeInstanceTeamHash(req ChallengeInstanceProviderRequest) string {
 	sum := sha1.Sum([]byte(fmt.Sprintf("%d:%d:%d", req.GameID, req.ChallengeID, req.TeamID)))
 	return hex.EncodeToString(sum[:6])
+}
+
+func dockerInstanceContainerName(req ChallengeInstanceProviderRequest) string {
+	return fmt.Sprintf(
+		"sauryctf-g%d-c%d-t%d-%s",
+		req.GameID,
+		req.ChallengeID,
+		req.TeamID,
+		challengeInstanceTeamHash(req),
+	)
 }
 
 func defaultChallengeInstanceProviders() map[string]ChallengeInstanceProvider {
@@ -152,4 +362,43 @@ func applyLeaseState(lease *models.GameInstanceLease, state *ChallengeInstanceLe
 	lease.LastRenewedAt = state.LastRenewedAt
 	lease.ExpiresAt = state.ExpiresAt
 	lease.StoppedAt = nil
+}
+
+func (p *dockerCLIProvider) run(args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
+	defer cancel()
+
+	output, err := p.runner.Run(ctx, args...)
+	if err != nil {
+		message := strings.TrimSpace(string(output))
+		if message == "" {
+			message = err.Error()
+		}
+		return nil, fmt.Errorf("docker %s failed: %s", strings.Join(args, " "), message)
+	}
+	return output, nil
+}
+
+func (p *dockerCLIProvider) containerExists(containerName string) (bool, error) {
+	_, err := p.run("inspect", containerName)
+	if err != nil {
+		if strings.Contains(err.Error(), "No such object") || strings.Contains(err.Error(), "No such container") {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+func (p *dockerCLIProvider) inspectPorts(containerName string) (map[string][]dockerPortBinding, error) {
+	output, err := p.run("inspect", "--format", "{{json .NetworkSettings.Ports}}", containerName)
+	if err != nil {
+		return nil, err
+	}
+
+	var ports map[string][]dockerPortBinding
+	if err := json.Unmarshal(output, &ports); err != nil {
+		return nil, fmt.Errorf("docker inspect port parsing failed: %w", err)
+	}
+	return ports, nil
 }

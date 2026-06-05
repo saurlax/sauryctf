@@ -45,6 +45,7 @@ type exportedAttachmentPayload struct {
 type parsedInstanceSpec struct {
 	Provider  string
 	Image     string
+	Expose    []string
 	LaunchURL string
 	Host      string
 	Port      string
@@ -134,6 +135,23 @@ func normalizeStringValue(value any) string {
 	}
 }
 
+func normalizeStringList(value any) []string {
+	items, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		normalized := normalizeStringValue(item)
+		if normalized == "" {
+			continue
+		}
+		result = append(result, normalized)
+	}
+	return result
+}
+
 func parseManagedInstanceSpec(raw string) *parsedInstanceSpec {
 	if strings.TrimSpace(raw) == "" {
 		return nil
@@ -152,6 +170,7 @@ func parseManagedInstanceSpec(raw string) *parsedInstanceSpec {
 	return &parsedInstanceSpec{
 		Provider:  normalizeStringValue(runtime["provider"]),
 		Image:     normalizeStringValue(runtime["image"]),
+		Expose:    normalizeStringList(runtime["expose"]),
 		LaunchURL: normalizeStringValue(connection["url"]),
 		Host:      normalizeStringValue(connection["host"]),
 		Port:      normalizeStringValue(connection["port"]),
@@ -168,6 +187,7 @@ func toChallengeInstanceRuntimeSpec(spec *parsedInstanceSpec) ChallengeInstanceR
 	return ChallengeInstanceRuntimeSpec{
 		Provider:  spec.Provider,
 		Image:     spec.Image,
+		Expose:    append([]string(nil), spec.Expose...),
 		LaunchURL: spec.LaunchURL,
 		Host:      spec.Host,
 		Port:      spec.Port,

@@ -14,6 +14,7 @@ const (
 type ChallengeInstanceRuntimeSpec struct {
 	Provider  string
 	Image     string
+	Expose    []string
 	LaunchURL string
 	Host      string
 	Port      string
@@ -221,22 +222,22 @@ type ChallengeInstanceResponse struct {
 }
 
 type GameInstanceLeaseEntry struct {
-	ID            uint       `json:"id"`
-	GameID        uint       `json:"game_id"`
-	TeamID        uint       `json:"team_id"`
-	TeamName      string     `json:"team_name"`
-	ChallengeID   uint       `json:"challenge_id"`
-	ChallengeTitle string    `json:"challenge_title"`
-	Status        string     `json:"status"`
-	Provider      string     `json:"provider"`
-	Image         string     `json:"image"`
-	LaunchURL     string     `json:"launch_url"`
-	StartedAt     time.Time  `json:"started_at"`
-	LastRenewedAt time.Time  `json:"last_renewed_at"`
-	ExpiresAt     time.Time  `json:"expires_at"`
-	StoppedAt     *time.Time `json:"stopped_at,omitempty"`
-	SecondsLeft   int        `json:"seconds_left"`
-	IsExpired     bool       `json:"is_expired"`
+	ID             uint       `json:"id"`
+	GameID         uint       `json:"game_id"`
+	TeamID         uint       `json:"team_id"`
+	TeamName       string     `json:"team_name"`
+	ChallengeID    uint       `json:"challenge_id"`
+	ChallengeTitle string     `json:"challenge_title"`
+	Status         string     `json:"status"`
+	Provider       string     `json:"provider"`
+	Image          string     `json:"image"`
+	LaunchURL      string     `json:"launch_url"`
+	StartedAt      time.Time  `json:"started_at"`
+	LastRenewedAt  time.Time  `json:"last_renewed_at"`
+	ExpiresAt      time.Time  `json:"expires_at"`
+	StoppedAt      *time.Time `json:"stopped_at,omitempty"`
+	SecondsLeft    int        `json:"seconds_left"`
+	IsExpired      bool       `json:"is_expired"`
 }
 
 type SubmitResult struct {
