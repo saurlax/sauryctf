@@ -12,6 +12,14 @@ const route = useRoute()
 const toast = useToast()
 const { data: setupStatus } = await useAPI('auth-setup-status', 'get', '/api/auth/setup-status')
 
+const redirectTarget = computed(() => {
+  const redirect = route.query.redirect
+  if (typeof redirect === 'string' && redirect.startsWith('/')) {
+    return redirect
+  }
+  return '/console'
+})
+
 const quickLinks = computed(() => {
   const links = [
     {
@@ -40,6 +48,66 @@ const quickLinks = computed(() => {
   return links
 })
 
+const afterLoginSteps = computed(() => {
+  if (redirectTarget.value.startsWith('/games/')) {
+    return [
+      {
+        title: '1. 先回到原比赛',
+        description: '登录成功后会直接跳回刚才的比赛详情页，继续查看报名状态、题目和排行榜。',
+        icon: 'i-lucide-undo-2',
+      },
+      {
+        title: '2. 如果还没有队伍，先去准备队伍',
+        description: '比赛报名、提 Flag 和排行榜都按队伍进行，缺队伍时再去队伍页处理会更顺。',
+        icon: 'i-lucide-users',
+      },
+      {
+        title: '3. 再继续报名或启动实例',
+        description: '准备好队伍后，就可以回到比赛里完成报名、提交 Flag，或继续验证动态题实例链路。',
+        icon: 'i-lucide-flag',
+      },
+    ]
+  }
+
+  if (setupStatus.value?.bootstrap_admin_available) {
+    return [
+      {
+        title: '1. 进入控制台',
+        description: '空库场景下，登录成功后默认会进入控制台，方便你立刻开始管理员初始化。',
+        icon: 'i-lucide-layout-dashboard',
+      },
+      {
+        title: '2. 去管理端创建比赛',
+        description: '推荐先创建一场公开比赛，再创建题目、挂题并激活，尽快打通最小联调闭环。',
+        icon: 'i-lucide-settings-2',
+      },
+      {
+        title: '3. 再注册普通选手验证参赛链路',
+        description: '管理员链路确认后，再用普通账号走一遍建队、报名、提 Flag 和看榜。',
+        icon: 'i-lucide-user-round-plus',
+      },
+    ]
+  }
+
+  return [
+    {
+      title: '1. 进入控制台',
+      description: '登录成功后默认会进入控制台，方便先确认当前账号、队伍和比赛待办。',
+      icon: 'i-lucide-layout-dashboard',
+    },
+    {
+      title: '2. 没有队伍就先准备队伍',
+      description: '如果这是一个普通选手账号，接下来最值得先处理的是创建队伍或使用邀请码加入队伍。',
+      icon: 'i-lucide-users',
+    },
+    {
+      title: '3. 再回到比赛页继续操作',
+      description: '准备好队伍后，再去公开比赛页完成报名、提交 Flag，或补交 Writeup。',
+      icon: 'i-lucide-trophy',
+    },
+  ]
+})
+
 const loginSchema = z.object({
   username: z.string().min(1, '请输入用户名'),
   password: z.string().min(1, '请输入密码'),
@@ -59,11 +127,7 @@ async function onLogin(payload: FormSubmitEvent<LoginSchema>) {
 }
 
 function resolveRedirect() {
-  const redirect = route.query.redirect
-  if (typeof redirect === 'string' && redirect.startsWith('/')) {
-    return redirect
-  }
-  return '/console'
+  return redirectTarget.value
 }
 
 const registerTo = computed(() => {
@@ -128,6 +192,35 @@ const state = reactive<Partial<LoginSchema>>({
       </UPageCard>
 
       <div class="space-y-6">
+        <UPageCard title="登录后下一步" icon="i-lucide-list-checks">
+          <div class="space-y-3">
+            <UAlert
+              color="info"
+              variant="soft"
+              title="当前登录成功后的默认去向"
+              :description="redirectTarget"
+            />
+
+            <div
+              v-for="item in afterLoginSteps"
+              :key="item.title"
+              class="rounded-lg border border-default px-3 py-3"
+            >
+              <div class="flex items-start gap-3">
+                <UIcon :name="item.icon" class="mt-0.5 size-4 shrink-0 text-primary" />
+                <div class="min-w-0">
+                  <div class="font-medium">
+                    {{ item.title }}
+                  </div>
+                  <div class="mt-2 text-sm text-muted">
+                    {{ item.description }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </UPageCard>
+
         <UPageCard title="快速入口" icon="i-lucide-navigation">
           <div class="space-y-3">
             <div
