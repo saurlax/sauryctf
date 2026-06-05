@@ -62,7 +62,8 @@
 - 创建题目时现在额外提供三类快速模板：
   - `Web 实例`：适合统一入口的 Web 题
   - `Pwn 服务`：适合 `host / port / nc` 型服务题
-  - `动态容器`：默认使用 `nginx:alpine + expose: [80]`，适合直接验证本地 Docker provider
+  - `本地 Docker Web`：默认使用 `nginx:alpine + expose: [80]`，适合直接验证真实本地 Docker provider
+    - 会额外预填本地联调提示、预期服务说明，以及“实例入口会由平台回填”的说明
 - 题目表单现在还额外提供一个 `每队独立入口` 模板：
   - 适合先创建带 `runtime.provider` / `runtime.image` 的动态题
   - 会把 `connection.url`、`host`、`port`、`command` 预填成带占位符的模板
@@ -75,7 +76,7 @@
     - `{{team_hash}}`
   - 即使还没接真实容器 provider，也能先在选手页走通“每队不同实例入口”的体验
 - 如果你已经开启 `INSTANCE_DOCKER_PROVIDER_ENABLED=true`：
-  - 更推荐先用“动态容器”模板验证真实本地 Docker
+  - 更推荐先用“本地 Docker Web”模板验证真实本地 Docker
   - 如果只想验证入口模板解析与租约状态，再用“每队独立入口”模板
 - 即使题目处于隐藏状态，管理员仍能在挂题视图里看到完整题面、提示和附件字段，便于核对配置
 - 管理端当前使用到的删除比赛、导入/导出比赛、挂题详情、Writeup 审核接口都已补进 OpenAPI，前端统一通过同一套类型化 API 调用

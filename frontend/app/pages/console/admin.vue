@@ -1485,9 +1485,10 @@ function fillPwnNetcatTemplate() {
 
 function fillDynamicContainerTemplate() {
   challengeForm.title = 'Local Docker Web Instance'
-  challengeForm.description = '这是一个更接近真实本地 Docker 运行的动态题模板。启用 INSTANCE_DOCKER_PROVIDER_ENABLED 后，后端会按 runtime.image 与 runtime.expose 真正拉起当前题目的本地容器。'
+  challengeForm.description = '这是一个面向本地真实 Docker 联调的动态题模板。启用 INSTANCE_DOCKER_PROVIDER_ENABLED 后，后端会按 runtime.image 与 runtime.expose 真正拉起当前题目的本地容器。'
   challengeForm.hints = JSON.stringify([
     '当前默认使用 nginx:alpine 和容器内 80 端口，适合本地先验证 docker run / inspect / rm -f 链路。',
+    '启动实例后，比赛页应优先看到回填后的 host / port / launch_url，而不是手写固定地址。',
     '如果想继续对齐 GZCTF 的每队独立环境，再改用“每队独立入口”模板或自行补充 team-scoped 连接信息。',
   ], null, 2)
   challengeForm.attachments = '[]'
@@ -1500,6 +1501,21 @@ function fillDynamicContainerTemplate() {
     connection: {
       note: '启用 INSTANCE_DOCKER_PROVIDER_ENABLED 后，平台会在启动实例时为当前题目拉起一个本地 Docker Web 容器，并把实际 host / port / launch_url 回填到实例响应里。',
     },
+    links: [
+      {
+        label: '实例入口',
+        url: '由平台在实例启动后回填真实 launch_url',
+      },
+      {
+        label: '本地联调说明',
+        url: '/docs/get-started/local-docker-provider',
+      },
+    ],
+    metadata: {
+      purpose: 'local-docker-web-smoke',
+      expected_service: 'nginx default page',
+      expected_port: 80,
+    },
   }, null, 2)
   challengeForm.category = 'web'
   challengeForm.type = 'dynamic'
@@ -1510,7 +1526,7 @@ function fillDynamicContainerTemplate() {
   challengeForm.decay_rate = 0.1
   challengeForm.is_visible = true
 
-  toast.add({ title: '已填充动态容器模板', description: '默认使用 nginx:alpine，适合直接验证本地 Docker provider。', color: 'success' })
+  toast.add({ title: '已填充本地 Docker Web 模板', description: '默认使用 nginx:alpine，适合直接验证真实本地 Docker provider。', color: 'success' })
 }
 
 function fillTeamScopedDynamicTemplate() {
@@ -3446,7 +3462,7 @@ onMounted(async () => {
           <template #footer>
             <div class="flex flex-wrap items-center justify-between gap-3">
               <p class="text-sm text-muted">
-                可以直接套用冒烟题、Web 实例、Pwn 服务、真实本地 Docker 模板或 team-scoped mock 模板，加快录题速度。
+                可以直接套用冒烟题、Web 实例、Pwn 服务、本地 Docker Web 模板或 team-scoped mock 模板，加快录题速度。
               </p>
               <div class="flex flex-wrap gap-2">
                 <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeChallengeTemplate">
@@ -3459,7 +3475,7 @@ onMounted(async () => {
                   Pwn 服务
                 </UButton>
                 <UButton size="sm" variant="outline" icon="i-lucide-box" @click="fillDynamicContainerTemplate">
-                  动态容器
+                  本地 Docker Web
                 </UButton>
                 <UButton size="sm" variant="outline" icon="i-lucide-waypoints" @click="fillTeamScopedDynamicTemplate">
                   每队独立入口
