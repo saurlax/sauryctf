@@ -14,6 +14,88 @@ const loading = ref(true)
 const searchQuery = ref('')
 const statusFilter = ref<'all' | 'active' | 'ended'>('all')
 
+const firstVisibleGame = computed(() => games.value[0] || null)
+const firstVisibleGameRedirect = computed(() => firstVisibleGame.value ? encodeURIComponent(`/games/${firstVisibleGame.value.id}`) : encodeURIComponent('/games'))
+const hasTeam = computed(() => Object.values(participationMap.value).some(participation => !!participation?.has_team))
+const joinedGames = computed(() => games.value.filter(game => participationMap.value[game.id]?.participated))
+const firstJoinedGame = computed(() => joinedGames.value[0] || null)
+const firstJoinableGame = computed(() =>
+  games.value.find(game =>
+    game.status === 'active'
+    && participationMap.value[game.id]?.has_team
+    && !participationMap.value[game.id]?.participated,
+  ) || null,
+)
+
+const listGuideMeta = computed(() => {
+  if (!authState.user) {
+    return {
+      title: '游客可先挑一场公开比赛，再决定是否登录',
+      description: firstVisibleGame.value
+        ? '当前可以先打开比赛详情页浏览基础信息、题目标题和排行榜；如果准备参赛，登录或注册后会自动带你回到原比赛继续操作。'
+        : '当前还没有公开比赛，但后续一旦有比赛开放，登录或注册后都会保留比赛返回路径。',
+      color: 'info' as const,
+      icon: 'i-lucide-log-in',
+      actionLabel: '去登录',
+      actionTo: `/login?redirect=${firstVisibleGameRedirect.value}`,
+      secondaryLabel: '去注册',
+      secondaryTo: `/register?redirect=${firstVisibleGameRedirect.value}`,
+    }
+  }
+
+  if (!hasTeam.value) {
+    return {
+      title: '当前下一步：先准备队伍',
+      description: '比赛报名、提交 Flag 和排行榜都按队伍进行。先创建或加入队伍，再回到这里选择目标比赛会更顺。',
+      color: 'warning' as const,
+      icon: 'i-lucide-users',
+      actionLabel: '去队伍页',
+      actionTo: `/console/team?redirect=${firstVisibleGameRedirect.value}`,
+      secondaryLabel: firstVisibleGame.value ? '先看比赛详情' : '回控制台',
+      secondaryTo: firstVisibleGame.value ? `/games/${firstVisibleGame.value.id}` : '/console',
+    }
+  }
+
+  if (firstJoinedGame.value) {
+    return {
+      title: '当前已经有可继续处理的比赛',
+      description: `你的队伍已经和 ${firstJoinedGame.value.name} 建立了参赛关系。现在最值得先回到比赛详情页，继续查看报名状态、题目、排行榜或 Writeup。`,
+      color: 'success' as const,
+      icon: 'i-lucide-badge-check',
+      actionLabel: '打开当前比赛',
+      actionTo: `/games/${firstJoinedGame.value.id}`,
+      secondaryLabel: '浏览全部比赛',
+      secondaryTo: '/games',
+    }
+  }
+
+  if (firstJoinableGame.value) {
+    return {
+      title: '当前下一步：打开一场进行中的比赛完成报名',
+      description: firstJoinableGame.value.registration_mode === 'auto_accept'
+        ? `${firstJoinableGame.value.name} 当前使用自动通过报名。进入详情页后，确认报名就能直接获得参赛资格。`
+        : `${firstJoinableGame.value.name} 当前使用审核制报名。进入详情页提交报名后，再等待管理员通过即可。`,
+      color: 'info' as const,
+      icon: 'i-lucide-flag',
+      actionLabel: '前往报名',
+      actionTo: `/games/${firstJoinableGame.value.id}`,
+      secondaryLabel: '回队伍页',
+      secondaryTo: '/console/team',
+    }
+  }
+
+  return {
+    title: '当前可先浏览比赛，再决定下一场要参加哪一场',
+    description: '如果暂时没有可直接报名的进行中比赛，可以先看比赛规则、分组和赛后练习配置，等目标比赛开放后再继续参赛。',
+    color: 'neutral' as const,
+    icon: 'i-lucide-compass',
+    actionLabel: firstVisibleGame.value ? '打开一场比赛' : '回控制台',
+    actionTo: firstVisibleGame.value ? `/games/${firstVisibleGame.value.id}` : '/console',
+    secondaryLabel: '查看队伍',
+    secondaryTo: '/console/team',
+  }
+})
+
 async function fetchGames() {
   loading.value = true
   try {
@@ -150,6 +232,33 @@ onMounted(async () => {
     </div>
 
     <template v-else>
+      <UAlert
+        class="mb-6"
+        :color="listGuideMeta.color"
+        variant="soft"
+        :icon="listGuideMeta.icon"
+        :title="listGuideMeta.title"
+        :description="listGuideMeta.description"
+      >
+        <template #actions>
+          <div class="flex flex-wrap gap-2">
+            <UButton
+              size="sm"
+              :to="listGuideMeta.actionTo"
+              :label="listGuideMeta.actionLabel"
+              variant="outline"
+            />
+            <UButton
+              v-if="listGuideMeta.secondaryLabel && listGuideMeta.secondaryTo"
+              size="sm"
+              :to="listGuideMeta.secondaryTo"
+              :label="listGuideMeta.secondaryLabel"
+              variant="ghost"
+            />
+          </div>
+        </template>
+      </UAlert>
+
       <UPageGrid :cols="{ default: 1, sm: 2, xl: 4 }" class="mb-6">
         <UPageCard
           v-for="stat in listStats"
