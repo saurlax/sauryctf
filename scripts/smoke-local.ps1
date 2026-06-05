@@ -2,10 +2,17 @@ param(
   [string]$BaseUrl = "http://127.0.0.1:8080",
   [string]$AdminUsername = "admin",
   [string]$AdminPassword = "sauryctf",
-  [ValidateSet("mock", "docker")][string]$DynamicMode = "mock"
+  [ValidateSet("mock", "docker")][string]$DynamicMode = "mock",
+  [switch]$StartBackend,
+  [int]$BackendPort = 0,
+  [switch]$KeepArtifacts
 )
 
 $ErrorActionPreference = "Stop"
+$script:BackendProcess = $null
+$script:ArtifactsDir = $null
+$script:BackendLogPath = $null
+$script:BackendErrorLogPath = $null
 
 function Write-Step {
   param([string]$Message)
@@ -15,8 +22,7 @@ function Write-Step {
 
 function Fail {
   param([string]$Message)
-  Write-Error $Message
-  exit 1
+  throw $Message
 }
 
 function Invoke-JsonRequest {
@@ -41,7 +47,27 @@ function Invoke-JsonRequest {
     $params.Body = ($Body | ConvertTo-Json -Depth 10)
   }
 
-  return Invoke-RestMethod @params
+  try {
+    return Invoke-RestMethod @params
+  }
+  catch {
+    $responseBody = ""
+    if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+      $responseBody = $_.ErrorDetails.Message
+    }
+    elseif ($_.Exception.Response) {
+      try {
+        $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+        $responseBody = $reader.ReadToEnd()
+      }
+      catch {
+        $responseBody = ""
+      }
+    }
+
+    $bodyPreview = if ($null -ne $Body) { ($Body | ConvertTo-Json -Depth 10 -Compress) } else { "" }
+    Fail "HTTP request failed: $Method $Url`nBody: $bodyPreview`nResponse: $responseBody`nError: $($_.Exception.Message)"
+  }
 }
 
 function Assert-Equal {
@@ -86,6 +112,119 @@ function Invoke-TextRequest {
   return Invoke-WebRequest -Method "GET" -Uri $Url
 }
 
+function Test-PortListening {
+  param([int]$Port)
+
+  $listener = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue | Select-Object -First 1
+  return $null -ne $listener
+}
+
+function Get-FreeTcpPort {
+  $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+  $listener.Start()
+  try {
+    return ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
+  }
+  finally {
+    $listener.Stop()
+  }
+}
+
+function Start-TemporaryBackend {
+  param(
+    [Parameter(Mandatory = $true)][int]$Port,
+    [Parameter(Mandatory = $true)][string]$Mode
+  )
+
+  $repoRoot = Split-Path -Parent $PSScriptRoot
+  $stamp = Get-Date -Format "yyyyMMddHHmmss"
+
+  $script:ArtifactsDir = Join-Path ([System.IO.Path]::GetTempPath()) "sauryctf-smoke-$stamp"
+  New-Item -ItemType Directory -Path $script:ArtifactsDir -Force | Out-Null
+
+  $dbPath = Join-Path $script:ArtifactsDir "sauryctf-smoke.db"
+  $script:BackendLogPath = Join-Path $script:ArtifactsDir "backend.stdout.log"
+  $script:BackendErrorLogPath = Join-Path $script:ArtifactsDir "backend.stderr.log"
+
+  $envSetup = @(
+    "`$env:HOST='127.0.0.1'"
+    "`$env:PORT='$Port'"
+    "`$env:JWT_SECRET='dev-secret-change-in-production'"
+    "`$env:SQLITE_PATH='$dbPath'"
+    "`$env:INSTANCE_DOCKER_PROVIDER_ENABLED='" + ($(if ($Mode -eq "docker") { "true" } else { "false" })) + "'"
+    "`$env:INSTANCE_DOCKER_HOST='127.0.0.1'"
+    "go run ./cmd/server"
+  ) -join "; "
+
+  Write-Step "Starting temporary backend"
+  Write-Host "Artifacts: $script:ArtifactsDir"
+
+  $script:BackendProcess = Start-Process `
+    -FilePath "powershell" `
+    -ArgumentList @("-NoProfile", "-Command", $envSetup) `
+    -WorkingDirectory $repoRoot `
+    -RedirectStandardOutput $script:BackendLogPath `
+    -RedirectStandardError $script:BackendErrorLogPath `
+    -PassThru `
+    -WindowStyle Hidden
+}
+
+function Wait-ForBackendReady {
+  param(
+    [Parameter(Mandatory = $true)][string]$HealthUrl,
+    [int]$TimeoutSeconds = 45
+  )
+
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+
+  while ((Get-Date) -lt $deadline) {
+    if ($script:BackendProcess -and $script:BackendProcess.HasExited) {
+      $stderr = if (Test-Path $script:BackendErrorLogPath) { Get-Content $script:BackendErrorLogPath -Raw } else { "" }
+      $stdout = if (Test-Path $script:BackendLogPath) { Get-Content $script:BackendLogPath -Raw } else { "" }
+      Fail "Temporary backend exited before becoming healthy.`nstdout:`n$stdout`nstderr:`n$stderr"
+    }
+
+    try {
+      $health = Invoke-JsonRequest -Method "GET" -Url $HealthUrl
+      if ($health.status -eq "ok") {
+        return
+      }
+    }
+    catch {
+      Start-Sleep -Milliseconds 750
+      continue
+    }
+
+    Start-Sleep -Milliseconds 750
+  }
+
+  $stderr = if (Test-Path $script:BackendErrorLogPath) { Get-Content $script:BackendErrorLogPath -Raw } else { "" }
+  $stdout = if (Test-Path $script:BackendLogPath) { Get-Content $script:BackendLogPath -Raw } else { "" }
+  Fail "Temporary backend did not become healthy within $TimeoutSeconds seconds.`nstdout:`n$stdout`nstderr:`n$stderr"
+}
+
+function Stop-TemporaryBackend {
+  if ($script:BackendProcess -and -not $script:BackendProcess.HasExited) {
+    Write-Step "Stopping temporary backend"
+    Stop-Process -Id $script:BackendProcess.Id -Force -ErrorAction SilentlyContinue
+    $script:BackendProcess.WaitForExit()
+  }
+
+  if ($script:ArtifactsDir -and (Test-Path $script:ArtifactsDir) -and -not $KeepArtifacts) {
+    Remove-Item -LiteralPath $script:ArtifactsDir -Recurse -Force -ErrorAction SilentlyContinue
+  }
+}
+
+if ($StartBackend) {
+  if ($BackendPort -le 0) {
+    $BackendPort = Get-FreeTcpPort
+  } elseif (Test-PortListening -Port $BackendPort) {
+    Write-Step "Requested backend port is busy, selecting a free port instead"
+    $BackendPort = Get-FreeTcpPort
+  }
+  $BaseUrl = "http://127.0.0.1:$BackendPort"
+}
+
 $suffix = Get-Date -Format "yyyyMMddHHmmss"
 $playerUsername = "smoke-$suffix"
 $playerEmail = "$playerUsername@example.com"
@@ -100,28 +239,36 @@ $now = (Get-Date).ToUniversalTime()
 $startTime = $now.AddMinutes(-5).ToString("o")
 $endTime = $now.AddHours(2).ToString("o")
 
-Write-Step "Checking backend health"
-$health = Invoke-JsonRequest -Method "GET" -Url "$BaseUrl/api/healthz"
-Assert-Equal $health.status "ok" "Backend health check failed."
+try {
+  if ($StartBackend) {
+    Start-TemporaryBackend -Port $BackendPort -Mode $DynamicMode
+    Wait-ForBackendReady -HealthUrl "$BaseUrl/api/healthz"
+  }
 
-if ($DynamicMode -eq "docker") {
-  Write-Step "Checking local Docker prerequisites"
-  $dockerCheck = Invoke-Command -ScriptBlock { docker version --format '{{.Server.Version}}' } 2>$null
-  Assert-True (-not [string]::IsNullOrWhiteSpace(($dockerCheck | Out-String).Trim())) "Docker server is not reachable. Please start Docker Desktop or switch back to -DynamicMode mock."
-}
+  Write-Step "Checking backend health"
+  $health = Invoke-JsonRequest -Method "GET" -Url "$BaseUrl/api/healthz"
+  Assert-Equal $health.status "ok" "Backend health check failed."
 
-Write-Step "Checking bootstrap admin availability"
-$setupStatus = Invoke-JsonRequest -Method "GET" -Url "$BaseUrl/api/auth/setup-status"
-Assert-True ($setupStatus.bootstrap_admin_available -eq $true) "Bootstrap admin is not available. This smoke script is intended for a fresh database with no existing users."
-Assert-Equal $setupStatus.default_admin_username $AdminUsername "Bootstrap admin username mismatch."
+  if ($DynamicMode -eq "docker") {
+    Write-Step "Checking local Docker prerequisites"
+    $dockerCheck = Invoke-Command -ScriptBlock { docker version --format '{{.Server.Version}}' } 2>$null
+    Assert-True (-not [string]::IsNullOrWhiteSpace(($dockerCheck | Out-String).Trim())) "Docker server is not reachable. Please start Docker Desktop or switch back to -DynamicMode mock."
+  }
 
-Write-Step "Logging in bootstrap admin"
-$adminSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
-$adminLogin = Invoke-JsonRequest -Method "POST" -Url "$BaseUrl/api/auth/login" -Body @{
+  Write-Step "Checking bootstrap admin availability"
+  $setupStatus = Invoke-JsonRequest -Method "GET" -Url "$BaseUrl/api/auth/setup-status"
+  if (-not $StartBackend) {
+    Assert-True ($setupStatus.bootstrap_admin_available -eq $true) "Bootstrap admin is not available. This smoke script is intended for a fresh database with no existing users."
+    Assert-Equal $setupStatus.default_admin_username $AdminUsername "Bootstrap admin username mismatch."
+  }
+
+  Write-Step "Logging in bootstrap admin"
+  $adminSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+  $adminLogin = Invoke-JsonRequest -Method "POST" -Url "$BaseUrl/api/auth/login" -Body @{
   username = $AdminUsername
   password = $AdminPassword
-} -Session $adminSession
-Assert-Equal $adminLogin.user.username $AdminUsername "Admin login did not return the expected user."
+  } -Session $adminSession
+  Assert-Equal $adminLogin.user.username $AdminUsername "Admin login did not return the expected user."
 
 Write-Step "Creating public contest"
 $game = Invoke-JsonRequest -Method "POST" -Url "$BaseUrl/api/games" -Body @{
@@ -282,11 +429,17 @@ $entry = $scoreboard.entries | Where-Object { $_.team_name -eq $teamName } | Sel
 Assert-True ($null -ne $entry) "Player team was not found in the public scoreboard."
 Assert-True ($entry.score -ge 1) "Player team scoreboard score was not updated."
 
-Write-Host ""
-Write-Host "Smoke flow passed." -ForegroundColor Green
-Write-Host "Contest: $gameName"
-Write-Host "Challenge: $challengeTitle"
-Write-Host "Dynamic Challenge: $dynamicChallengeTitle"
-Write-Host "Dynamic Mode: $DynamicMode"
-Write-Host "Player: $playerUsername"
-Write-Host "Team: $teamName"
+  Write-Host ""
+  Write-Host "Smoke flow passed." -ForegroundColor Green
+  Write-Host "Contest: $gameName"
+  Write-Host "Challenge: $challengeTitle"
+  Write-Host "Dynamic Challenge: $dynamicChallengeTitle"
+  Write-Host "Dynamic Mode: $DynamicMode"
+  Write-Host "Player: $playerUsername"
+  Write-Host "Team: $teamName"
+}
+finally {
+  if ($StartBackend) {
+    Stop-TemporaryBackend
+  }
+}

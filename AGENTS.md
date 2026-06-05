@@ -38,6 +38,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
   9. submit one known flag
   10. confirm the scoreboard updates
 - `pnpm smoke:local` now also provisions one minimal dynamic challenge and verifies:
+  - by default it now self-starts an isolated backend on `127.0.0.1:18080` with a temporary SQLite file, so local smoke no longer depends on manually clearing the repo's main `sauryctf.db`
   - `GET /api/games/:id/challenges/:challengeId/instance` returns `idle`
   - `POST /api/games/:id/challenges/:challengeId/instance` returns a running lease
   - the instance response now includes explicit lease policy minutes for initial lease / extension / renewal window
@@ -303,6 +304,7 @@ internal/<module>/
 ## Database
 
 - SQLite is the default for local development (`sauryctf.db`) — zero configuration.
+- For local smoke isolation, backend startup also honors `SQLITE_PATH`; when set, SQLite uses that explicit file instead of the repo-root `sauryctf.db`.
 - Set `DATABASE_URL` env var to automatically switch to PostgreSQL.
 - GORM AutoMigrate manages schema — see `internal/db/db.go` `Migrate()`.
 - `.env` files are auto-loaded (see `internal/config/config.go`); see `.env.example`.

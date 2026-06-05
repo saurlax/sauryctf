@@ -20,8 +20,12 @@ func Connect() (*gorm.DB, error) {
 			Logger: logger.Default.LogMode(logger.Info),
 		})
 	}
-	// Default: SQLite file at ./sauryctf.db
-	return gorm.Open(sqlite.Open("sauryctf.db"), &gorm.Config{
+	// Default: SQLite file at ./sauryctf.db, or SQLITE_PATH when explicitly overridden.
+	sqlitePath := os.Getenv("SQLITE_PATH")
+	if sqlitePath == "" {
+		sqlitePath = "sauryctf.db"
+	}
+	return gorm.Open(sqlite.Open(sqlitePath), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
 	})
 }
