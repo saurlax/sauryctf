@@ -17,6 +17,11 @@ const redirectTarget = computed(() => {
   if (typeof redirect === 'string' && redirect.startsWith('/')) {
     return redirect
   }
+
+  if (setupStatus.value?.bootstrap_admin_available) {
+    return '/console/admin'
+  }
+
   return '/console'
 })
 
@@ -72,8 +77,8 @@ const afterLoginSteps = computed(() => {
   if (setupStatus.value?.bootstrap_admin_available) {
     return [
       {
-        title: '1. 进入控制台',
-        description: '空库场景下，登录成功后默认会进入控制台，方便你立刻开始管理员初始化。',
+        title: '1. 进入管理端',
+        description: '空库场景下，登录成功后默认会直接进入管理端，方便你立刻开始管理员初始化。',
         icon: 'i-lucide-layout-dashboard',
       },
       {
@@ -197,7 +202,7 @@ const state = reactive<Partial<LoginSchema>>({
             <UAlert
               color="info"
               variant="soft"
-              title="当前登录成功后的默认去向"
+              title="当前登录成功后的首个落点"
               :description="redirectTarget"
             />
 
