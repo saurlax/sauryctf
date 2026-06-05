@@ -679,6 +679,69 @@ const selectedGamePreflightChecks = computed(() => {
   ]
 })
 
+const localDockerSmokeChecklist = computed(() => {
+  const overview = selectedAdminOverview.value
+  if (!overview) {
+    return []
+  }
+
+  const hasLocalDockerSmokeChallenge = selectedGameChallenges.value.some(challenge =>
+    challenge.title === 'Local Docker Web Lease'
+    && challenge.type === 'dynamic'
+    && challenge.category === 'web',
+  )
+
+  if (!hasLocalDockerSmokeChallenge) {
+    return []
+  }
+
+  const runningLeaseCount = instanceLeases.value.filter(lease =>
+    lease.challenge_title === 'Local Docker Web Lease'
+    && !lease.is_expired,
+  ).length
+
+  return [
+    {
+      key: 'player-join',
+      label: '1. 先用普通用户报名比赛',
+      done: overview.acceptedParticipantCount > 0,
+      description: overview.acceptedParticipantCount > 0
+        ? `当前已有 ${overview.acceptedParticipantCount} 支队伍通过报名，可以继续验证实例启动。`
+        : '先去公开比赛页用普通用户创建或加入队伍，并完成报名，让这场比赛真正进入选手视角。',
+      actionLabel: '打开公开页',
+      actionTo: `/games/${overview.game.id}`,
+    },
+    {
+      key: 'instance-start',
+      label: '2. 在题目卡片里启动本地 Docker 实例',
+      done: runningLeaseCount > 0,
+      description: runningLeaseCount > 0
+        ? `当前已有 ${runningLeaseCount} 条 Local Docker Web Lease 正在运行，说明实例至少已经成功启动一次。`
+        : '报名后到公开比赛页点击启动实例。成功时应拿到真实 host / port / launch_url，而不是手写固定入口。',
+      actionLabel: '打开公开页',
+      actionTo: `/games/${overview.game.id}`,
+    },
+    {
+      key: 'ops-refresh',
+      label: '3. 回到管理端看实例监控',
+      done: runningLeaseCount > 0,
+      description: runningLeaseCount > 0
+        ? '现在可以在下方“赛事监控”里刷新实例租约，确认 provider、host:port 和入口回填都已经出现。'
+        : '实例启动后回到管理端刷新“赛事监控”，确认 provider、host:port 和入口回填是否可见。',
+      actionLabel: '查看赛事监控',
+      actionTo: '#monitoring',
+    },
+    {
+      key: 'destroy-check',
+      label: '4. 最后验证销毁回收',
+      done: false,
+      description: '可以在公开页销毁实例，或在管理端手动销毁租约，然后确认状态回到 idle，避免本地容器残留。',
+      actionLabel: '查看赛事监控',
+      actionTo: '#monitoring',
+    },
+  ]
+})
+
 const adminSetupSteps = computed(() => {
   const hasGames = games.value.length > 0
   const hasChallenges = challenges.value.length > 0
@@ -2689,7 +2752,56 @@ onMounted(async () => {
         </UPageCard>
       </div>
 
-      <UPageCard title="赛事监控" icon="i-lucide-activity">
+      <UPageCard
+        v-if="localDockerSmokeChecklist.length"
+        title="本地 Docker 冒烟清单"
+        icon="i-lucide-container"
+        id="local-docker-checklist"
+      >
+        <div class="space-y-3">
+          <UAlert
+            color="info"
+            variant="soft"
+            title="这场比赛已经命中本地 Docker Web 冒烟模板"
+            description="下面这组步骤只关注最小真实 Docker provider 链路：报名、启动实例、检查入口回填、最后确认销毁回收。"
+          />
+
+          <div
+            v-for="item in localDockerSmokeChecklist"
+            :key="item.key"
+            class="rounded-lg border border-default px-3 py-3"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <UIcon
+                    :name="item.done ? 'i-lucide-circle-check-big' : 'i-lucide-arrow-right-circle'"
+                    :class="item.done ? 'text-success' : 'text-primary'"
+                    class="size-4 shrink-0"
+                  />
+                  <div class="font-medium">
+                    {{ item.label }}
+                  </div>
+                </div>
+                <div class="mt-2 text-sm text-muted">
+                  {{ item.description }}
+                </div>
+              </div>
+              <UBadge :color="item.done ? 'success' : 'warning'" variant="soft">
+                {{ item.done ? '已完成' : '待验证' }}
+              </UBadge>
+            </div>
+
+            <div class="mt-3 flex justify-end">
+              <UButton size="sm" variant="outline" :to="item.actionTo">
+                {{ item.actionLabel }}
+              </UButton>
+            </div>
+          </div>
+        </div>
+      </UPageCard>
+
+      <UPageCard title="赛事监控" icon="i-lucide-activity" id="monitoring">
         <div v-if="selectedAdminOverview" class="space-y-5">
           <div class="flex items-start justify-between gap-4 flex-wrap">
             <div>
