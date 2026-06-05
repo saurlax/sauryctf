@@ -41,11 +41,13 @@ const joinForm = reactive({ invite_code: '' })
 const createLoading = ref(false)
 const joinLoading = ref(false)
 const removingMemberId = ref<number | null>(null)
+const transferringCaptainId = ref<number | null>(null)
 
 const currentUserId = computed(() => authState.user?.id)
 const isCaptain = computed(() => team.value?.members?.some(member => member.user_id === currentUserId.value && member.role === 'captain') || false)
 const teamMembers = computed(() => team.value?.members || [])
 const removableMembers = computed(() => teamMembers.value.filter(member => member.user_id !== currentUserId.value))
+const transferableMembers = computed(() => teamMembers.value.filter(member => member.user_id !== currentUserId.value))
 const lockedGames = computed(() => team.value?.lock?.games || [])
 const teamLocked = computed(() => !!team.value?.lock?.locked)
 const memberCount = computed(() => teamMembers.value.length)
@@ -260,6 +262,36 @@ async function removeMember(memberUserId: number, username?: string) {
   }
 }
 
+async function transferCaptain(memberUserId: number, username?: string) {
+  if (!team.value) {
+    return
+  }
+
+  transferringCaptainId.value = memberUserId
+  try {
+    await $api('post', '/api/teams/{teamId}/transfer', {
+      params: {
+        teamId: team.value.id,
+      },
+      body: {
+        target_user_id: memberUserId,
+      },
+    })
+    await fetchTeam()
+    toast.add({
+      title: '队长已移交',
+      description: username ? `当前队长已移交给 ${username}` : '当前队长已移交给指定成员',
+      color: 'success',
+    })
+  }
+  catch (e: any) {
+    toast.add({ title: '移交失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    transferringCaptainId.value = null
+  }
+}
+
 async function copyInviteCode() {
   if (!team.value) return
   try {
@@ -456,6 +488,15 @@ onMounted(async () => {
                   />
                   <UButton
                     v-if="isCaptain && member.user_id !== currentUserId"
+                    variant="ghost"
+                    size="xs"
+                    :disabled="teamLocked"
+                    icon="i-lucide-crown"
+                    :loading="transferringCaptainId === member.user_id"
+                    @click="transferCaptain(member.user_id, member.username || member.user?.username)"
+                  />
+                  <UButton
+                    v-if="isCaptain && member.user_id !== currentUserId"
                     color="error"
                     variant="ghost"
                     size="xs"
@@ -546,6 +587,10 @@ onMounted(async () => {
                 <span>{{ removableMembers.length }}</span>
               </div>
               <div class="flex items-center justify-between gap-3">
+                <span class="text-muted">可移交队长</span>
+                <span>{{ transferableMembers.length }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
                 <span class="text-muted">是否可直接退队</span>
                 <span>{{ teamLocked ? '否，比赛锁定中' : '否' }}</span>
               </div>
@@ -555,6 +600,9 @@ onMounted(async () => {
               </div>
               <p class="text-muted">
                 {{ teamLocked ? '锁定期间请保持当前队伍结构，待相关比赛结束后再继续调整。' : '如果需要调整队伍，请先移除成员或保留当前队伍结构，再继续报名比赛。' }}
+              </p>
+              <p class="text-muted">
+                如果当前队长需要退出队伍，请先把队长身份移交给其他成员，再由新队长继续管理队伍。
               </p>
             </div>
           </UPageCard>

@@ -22,6 +22,10 @@ type JoinTeamRequest struct {
 	InviteCode string `json:"invite_code" binding:"required"`
 }
 
+type TransferCaptainRequest struct {
+	TargetUserID uint `json:"target_user_id" binding:"required"`
+}
+
 func (h *Handler) CreateTeam(c *gin.Context) {
 	var req CreateTeamRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -95,4 +99,21 @@ func (h *Handler) RemoveTeamMember(c *gin.Context, teamId int, memberId int) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "member removed"})
+}
+
+func (h *Handler) TransferTeamCaptain(c *gin.Context, teamId int) {
+	userID := c.MustGet("user_id").(uint)
+
+	var req TransferCaptainRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+
+	if err := h.svc.TransferCaptain(uint(teamId), req.TargetUserID, userID); err != nil {
+		c.JSON(http.StatusConflict, gin.H{"message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "captain transferred"})
 }

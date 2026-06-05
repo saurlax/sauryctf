@@ -49,6 +49,10 @@ export interface paths {
     /** Remove a team member (captain only) */
     delete: operations["removeTeamMember"];
   };
+  "/api/teams/{teamId}/transfer": {
+    /** Transfer team captain role (captain only) */
+    post: operations["transferTeamCaptain"];
+  };
   "/api/challenges": {
     /** List challenges */
     get: operations["listChallenges"];
@@ -241,6 +245,9 @@ export interface components {
     };
     JoinTeamRequest: {
       invite_code: string;
+    };
+    TransferCaptainRequest: {
+      target_user_id: number;
     };
     Challenge: {
       id: number;
@@ -787,6 +794,33 @@ export interface operations {
         };
       };
       /** @description Cannot remove */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /** Transfer team captain role (captain only) */
+  transferTeamCaptain: {
+    parameters: {
+      path: {
+        teamId: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TransferCaptainRequest"];
+      };
+    };
+    responses: {
+      /** @description Captain transferred */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MessageResponse"];
+        };
+      };
+      /** @description Cannot transfer */
       409: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];

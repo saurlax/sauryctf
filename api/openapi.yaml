@@ -177,6 +177,13 @@ components:
         invite_code:
           type: string
 
+    TransferCaptainRequest:
+      type: object
+      required: [target_user_id]
+      properties:
+        target_user_id:
+          type: integer
+
     # ── Challenges ─────────────────────────────────────────
     Challenge:
       type: object
@@ -1822,6 +1829,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+
+  /api/teams/{teamId}/transfer:
+    post:
+      operationId: transferTeamCaptain
+      summary: Transfer team captain role (captain only)
+      tags: [teams]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferCaptainRequest"
+      responses:
+        "200":
+          description: Captain transferred
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "409":
+          description: Cannot transfer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/admin/games/{id}:
     delete:

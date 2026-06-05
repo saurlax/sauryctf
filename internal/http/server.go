@@ -84,6 +84,12 @@ func NewServer(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		handler.games.GetAdminDashboardSummary(c)
 	})
 
+	teamRoutes := engine.Group("/api/teams")
+	teamRoutes.Use(rbac.AuthMiddleware(authSvc))
+	teamRoutes.POST("/:teamId/transfer", func(c *gin.Context) {
+		handler.TransferTeamCaptain(c, mustIntParam(c, "teamId"))
+	})
+
 	engine.GET("/api/games/:id/announcements", func(c *gin.Context) {
 		id := mustIntParam(c, "id")
 		if _, err := gameSvc.GetPublicGame(uint(id)); err != nil {

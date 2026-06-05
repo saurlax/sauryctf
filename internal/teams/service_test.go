@@ -343,3 +343,82 @@ func TestRemoveMember(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+func TestTransferCaptain(t *testing.T) {
+	database := setupTestDB(t)
+	svc := NewService(database)
+
+	captain := createTestUser(t, database, "transfer-captain")
+	member := createTestUser(t, database, "transfer-member")
+
+	team, err := svc.CreateTeam("TransferTeam", captain.ID)
+	require.NoError(t, err)
+	require.NoError(t, svc.JoinTeam(team.InviteCode, member.ID))
+
+	t.Run("captain can transfer role to member", func(t *testing.T) {
+		err := svc.TransferCaptain(team.ID, member.ID, captain.ID)
+		assert.NoError(t, err)
+
+		var refreshed models.Team
+		require.NoError(t, database.First(&refreshed, team.ID).Error)
+		assert.Equal(t, member.ID, refreshed.CaptainID)
+
+		var oldCaptainMember models.TeamMember
+		require.NoError(t, database.Where("team_id = ? AND user_id = ?", team.ID, captain.ID).First(&oldCaptainMember).Error)
+		assert.Equal(t, models.MemberRoleMember, oldCaptainMember.Role)
+
+		var newCaptainMember models.TeamMember
+		require.NoError(t, database.Where("team_id = ? AND user_id = ?", team.ID, member.ID).First(&newCaptainMember).Error)
+		assert.Equal(t, models.MemberRoleCaptain, newCaptainMember.Role)
+	})
+
+	t.Run("non-captain cannot transfer role", func(t *testing.T) {
+		newCaptain := createTestUser(t, database, "transfer-new-captain")
+		newMember := createTestUser(t, database, "transfer-new-member")
+		otherTeam, err := svc.CreateTeam("TransferTeamDenied", newCaptain.ID)
+		require.NoError(t, err)
+		require.NoError(t, svc.JoinTeam(otherTeam.InviteCode, newMember.ID))
+
+		err = svc.TransferCaptain(otherTeam.ID, newCaptain.ID, newMember.ID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "only captain")
+	})
+
+	t.Run("captain cannot transfer to non-member", func(t *testing.T) {
+		freshCaptain := createTestUser(t, database, "transfer-fresh-captain")
+		freshMember := createTestUser(t, database, "transfer-fresh-member")
+		outsider := createTestUser(t, database, "transfer-outsider")
+		freshTeam, err := svc.CreateTeam("TransferTeamMissing", freshCaptain.ID)
+		require.NoError(t, err)
+		require.NoError(t, svc.JoinTeam(freshTeam.InviteCode, freshMember.ID))
+
+		err = svc.TransferCaptain(freshTeam.ID, outsider.ID, freshCaptain.ID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not a team member")
+	})
+
+	t.Run("accepted contest lock also blocks transfer", func(t *testing.T) {
+		lockedCaptain := createTestUser(t, database, "transfer-locked-captain")
+		lockedMember := createTestUser(t, database, "transfer-locked-member")
+		lockedTeam, err := svc.CreateTeam("TransferLockedTeam", lockedCaptain.ID)
+		require.NoError(t, err)
+		require.NoError(t, svc.JoinTeam(lockedTeam.InviteCode, lockedMember.ID))
+
+		game := &models.Game{
+			Name:      "Transfer Locked Contest",
+			StartTime: time.Now().Add(-time.Hour),
+			EndTime:   time.Now().Add(time.Hour),
+			Status:    "active",
+			IsPublic:  true,
+			CreatedBy: lockedCaptain.ID,
+		}
+		require.NoError(t, database.Create(game).Error)
+		require.NoError(t, database.Create(&models.Participation{
+			GameID: game.ID, TeamID: lockedTeam.ID, UserID: lockedCaptain.ID, Status: models.ParticipationAccepted,
+		}).Error)
+
+		err = svc.TransferCaptain(lockedTeam.ID, lockedMember.ID, lockedCaptain.ID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "locked for an accepted game")
+	})
+}

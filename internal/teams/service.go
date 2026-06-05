@@ -180,6 +180,48 @@ func (s *Service) RemoveMember(teamID, memberID, requesterID uint) error {
 	return s.db.Where("team_id = ? AND user_id = ?", teamID, memberID).Delete(&models.TeamMember{}).Error
 }
 
+func (s *Service) TransferCaptain(teamID, targetUserID, requesterID uint) error {
+	var team models.Team
+	if err := s.db.First(&team, teamID).Error; err != nil {
+		return errors.New("team not found")
+	}
+	if err := s.ensureTeamUnlocked(teamID); err != nil {
+		return err
+	}
+
+	if team.CaptainID != requesterID {
+		return errors.New("only captain can transfer captain role")
+	}
+	if targetUserID == requesterID {
+		return errors.New("captain already owns this team")
+	}
+
+	var targetMember models.TeamMember
+	if err := s.db.Where("team_id = ? AND user_id = ?", teamID, targetUserID).First(&targetMember).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("target user is not a team member")
+		}
+		return err
+	}
+
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.Team{}).Where("id = ?", teamID).Update("captain_id", targetUserID).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&models.TeamMember{}).
+			Where("team_id = ? AND user_id = ?", teamID, requesterID).
+			Update("role", models.MemberRoleMember).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&models.TeamMember{}).
+			Where("team_id = ? AND user_id = ?", teamID, targetUserID).
+			Update("role", models.MemberRoleCaptain).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
 func generateInviteCode() (string, error) {
 	bytes := make([]byte, 6)
 	if _, err := rand.Read(bytes); err != nil {

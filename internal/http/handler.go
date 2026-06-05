@@ -68,6 +68,9 @@ func (h *Handler) CreateTeam(c *gin.Context) { h.teams.CreateTeam(c) }
 func (h *Handler) GetMyTeam(c *gin.Context)  { h.teams.GetMyTeam(c) }
 func (h *Handler) JoinTeam(c *gin.Context)   { h.teams.JoinTeam(c) }
 func (h *Handler) LeaveTeam(c *gin.Context)  { h.teams.LeaveTeam(c) }
+func (h *Handler) TransferTeamCaptain(c *gin.Context, teamId int) {
+	h.teams.TransferTeamCaptain(c, teamId)
+}
 func (h *Handler) RemoveTeamMember(c *gin.Context, teamId int, memberId int) {
 	h.teams.RemoveTeamMember(c, teamId, memberId)
 }

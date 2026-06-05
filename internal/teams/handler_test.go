@@ -36,6 +36,11 @@ func setupTeamsRouter(mock *MockService) *gin.Engine {
 	api.GET("/teams/my", h.GetMyTeam)
 	api.POST("/teams/join", h.JoinTeam)
 	api.POST("/teams/leave", h.LeaveTeam)
+	api.POST("/teams/:teamId/transfer", func(c *gin.Context) {
+		var teamId int
+		fmt.Sscan(c.Param("teamId"), &teamId)
+		h.TransferTeamCaptain(c, teamId)
+	})
 	api.DELETE("/teams/:teamId/members/:memberId", func(c *gin.Context) {
 		var teamId, memberId int
 		fmt.Sscan(c.Param("teamId"), &teamId)
@@ -146,5 +151,35 @@ func TestHandler_LeaveTeam(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
+func TestHandler_TransferCaptain(t *testing.T) {
+	mock := NewMockService()
+	mock.Teams[1] = &models.Team{ID: 1, Name: "Alpha", InviteCode: "INVITE", CaptainID: 1, Status: models.TeamStatusActive}
+	mock.Members[1] = map[uint]bool{1: true, 2: true}
+	r := setupTeamsRouter(mock)
+
+	t.Run("success", func(t *testing.T) {
+		body := `{"target_user_id":2}`
+		req := httptest.NewRequest("POST", "/api/teams/1/transfer", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Test-User-ID", "1")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, uint(2), mock.Teams[1].CaptainID)
+	})
+
+	t.Run("bad request", func(t *testing.T) {
+		body := `{}`
+		req := httptest.NewRequest("POST", "/api/teams/1/transfer", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Test-User-ID", "2")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }
