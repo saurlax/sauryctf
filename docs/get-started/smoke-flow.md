@@ -202,7 +202,7 @@ pnpm smoke:local:docker
 - Flag 提交正常
 - 排行榜记分正常
 
-如果你是从某个比赛详情页里的“注册”入口进入注册页，注册成功后会先跳到 `/console/team?redirect=原比赛地址`，建队或入队成功后会自动回到原比赛继续报名。
+如果你是从某个比赛详情页里的“注册”入口进入注册页，注册成功后会先跳到 `/console/team?onboarding=created&redirect=原比赛地址`，建队或入队成功后才会自动回到原比赛继续报名。
 
 ## 额外快速检查
 

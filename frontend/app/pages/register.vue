@@ -19,6 +19,15 @@ const redirectTarget = computed(() => {
   return '/console/team?onboarding=created'
 })
 
+const initialRegisterLanding = computed(() => {
+  const redirect = route.query.redirect
+  if (typeof redirect === 'string' && redirect.startsWith('/')) {
+    return `/console/team?onboarding=created&redirect=${redirect}`
+  }
+
+  return '/console/team?onboarding=created'
+})
+
 const onboardingCards = [
   {
     title: '1. 创建账号',
@@ -169,8 +178,8 @@ const loginTo = computed(() => {
             <UAlert
               color="info"
               variant="soft"
-              title="当前注册成功后的默认去向"
-              :description="redirectTarget"
+              title="当前注册成功后的首个落点"
+              :description="initialRegisterLanding"
             />
 
             <div
