@@ -230,7 +230,7 @@
   - `{{user_id}}`
   - `{{team_hash}}`
 - 适合先把动态题的连接入口做成“每队不同但稳定”的本地形态
-  - 例如 `connection.url` 可以写成 `/mock-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}`
+  - 例如 `connection.url` 可以写成 `/local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}`
   - 当前仍然只是在租约响应里生成差异化入口，不会真的创建容器或反代
 - 比赛页现在会把这类动态题显示成更明确的“实例面板”：
   - 会区分模板入口、当前队伍实例、本地访问入口

@@ -47,7 +47,7 @@
   - 会自动创建一道 `dynamic` 题目
   - 题目默认带 `runtime.provider = docker`，但当前这条快捷入口仍以本地实例访问页链路为主
   - `connection.url` / `host` / `command` 默认会使用 `{{team_hash}}`、`{{team_id}}` 这类占位符
-  - 当前默认会落到前端本地的 `/mock-instance/...` 页面，方便直接验证入口是否可访问
+  - 当前默认会落到前端本地的 `/local-instance/...` 页面，方便直接验证入口是否可访问
   - 适合直接验证 team-scoped 实例租约、模板入口解析，以及选手页里的动态题入口展示
 - 管理端顶部现在还额外提供“一键创建本地 Docker 验证赛”：
   - 会自动创建一场公开比赛
@@ -81,7 +81,7 @@
 - 题目表单现在还额外提供一个 `每队独立入口` 模板：
   - 适合先创建带 `runtime.provider` / `runtime.image` 的动态题
   - 会把 `connection.url`、`host`、`port`、`command` 预填成带占位符的模板
-  - 当前默认模板会指向本地 `/mock-instance/...` 页面，方便先验证入口链路
+  - 当前默认模板会指向本地 `/local-instance/...` 页面，方便先验证入口链路
   - 当前支持的占位符：
     - `{{game_id}}`
     - `{{challenge_id}}`

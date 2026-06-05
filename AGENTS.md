@@ -192,7 +192,7 @@ internal/<module>/
   - the default skeleton provider also supports simple per-team templating in `container_spec.connection.*` using `{{game_id}}`, `{{challenge_id}}`, `{{team_id}}`, `{{user_id}}`, and `{{team_hash}}`, so local dynamic challenges can expose stable team-specific entry data before real providers land
   - the admin challenge form now ships a dedicated “team-scoped instance” template and shows the supported placeholder tokens inline, so local operators can create per-team dynamic entry data without hand-writing the whole JSON structure
   - the public game page now distinguishes between templated connection info and the resolved per-team lease entry, so players see when an instance URL is still a template and when a real team-scoped address has been issued
-  - local verification templates for dynamic challenges now point to a frontend `/mock-instance/...` page so the resolved launch URL can be opened directly during local verification
+  - local verification templates for dynamic challenges now point to a frontend `/local-instance/...` page so the resolved launch URL can be opened directly during local verification
 - the public game page now presents managed instances with clearer operator-facing signals: lease countdown, progress bar, local-entry hint, and a lightweight auto-refresh for running leases
 - outward-facing product copy now prefers formal platform wording such as "local verification", "local access page", and "base implementation" instead of test-oriented phrasing
 - the public game page now also summarizes the current lease policy in-place, so players can distinguish "initial lease" from "renewal adds more time" without guessing from backend behavior

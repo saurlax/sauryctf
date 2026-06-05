@@ -492,7 +492,8 @@ function getInstanceStatusLabel(challengeId: number) {
 }
 
 function isMockInstance(challenge: GameChallengeDetail) {
-  return getDisplayedInstanceLaunchUrl(challenge).startsWith('/mock-instance/')
+  const url = getDisplayedInstanceLaunchUrl(challenge)
+  return url.startsWith('/local-instance/') || url.startsWith('/mock-instance/')
 }
 
 function getInstanceEntryLabel(challenge: GameChallengeDetail) {

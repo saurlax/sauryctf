@@ -1739,16 +1739,16 @@ function fillTeamScopedDynamicTemplate() {
       expose: [8080],
     },
     connection: {
-      url: '/mock-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
+      url: '/local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
       host: '127.0.0.1',
       port: '{{team_id}}',
-      command: 'open /mock-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
+      command: 'open /local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
       note: '当前队伍 {{team_id}} 会看到独立入口。默认会落到本地实例访问页，后续可替换成真实反代、容器网关或平台代理地址。',
     },
     links: [
       {
         label: '题目入口',
-        url: '/mock-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
+        url: '/local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
       },
     ],
   }, null, 2)
@@ -1879,16 +1879,16 @@ async function createDynamicSmokeProvision() {
             expose: [8080],
           },
           connection: {
-            url: '/mock-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
+            url: '/local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
             host: '127.0.0.1',
             port: '{{team_id}}',
-            command: 'open /mock-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
+            command: 'open /local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
             note: '当前队伍 {{team_id}} 会看到独立入口。默认会落到本地实例访问页，后续可替换成真实网关、平台代理或容器反代地址。',
           },
           links: [
             {
               label: '题目入口',
-              url: '/mock-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
+              url: '/local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
             },
           ],
         }),
