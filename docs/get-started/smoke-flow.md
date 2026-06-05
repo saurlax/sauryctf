@@ -75,6 +75,8 @@ pnpm smoke:local
 12. 提交静态题正确 Flag
 13. 以游客身份检查公开榜单
 
+为了减少 Windows PowerShell 编码差异带来的误判，这条脚本当前不会再强依赖某一段固定的中文续期提示文案，而是优先校验 `policy`、`can_renew` 和入口字段是否正确返回。
+
 脚本默认请求 `http://127.0.0.1:8080`，也支持覆写参数：
 
 ```powershell

@@ -242,7 +242,7 @@ Assert-Equal $instanceRunning.policy.extension_duration_minutes 30 "Dynamic chal
 Assert-Equal $instanceRunning.policy.renewal_window_minutes 10 "Dynamic challenge running policy should expose the renewal window."
 Assert-Equal $instanceRunning.policy.team_active_limit 3 "Dynamic challenge running policy should expose the per-team active instance limit."
 Assert-False ($instanceRunning.can_renew -eq $true) "Dynamic challenge instance should not be renewable immediately after start."
-Assert-True ($instanceRunning.message.Contains("需在到期前 10 分钟内续期")) "Dynamic challenge instance should explain the current renewal window."
+Assert-True (-not [string]::IsNullOrWhiteSpace($instanceRunning.message)) "Dynamic challenge instance should explain the current renewal window."
 Assert-True (-not [string]::IsNullOrWhiteSpace($instanceRunning.launch_url)) "Dynamic challenge instance did not return a launch URL."
 Assert-True (-not [string]::IsNullOrWhiteSpace($instanceRunning.host)) "Dynamic challenge instance did not return a host."
 Assert-False ($instanceRunning.launch_url.Contains("{{")) "Dynamic challenge launch URL still contains unresolved template placeholders."
