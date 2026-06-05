@@ -208,6 +208,61 @@ const statusOptions = [
   { label: '已结束', value: 'ended' },
 ]
 
+const emptyStateMeta = computed(() => {
+  if (authState.user && ['admin', 'super_admin'].includes(authState.user.role || '')) {
+    return {
+      title: '当前还没有公开比赛',
+      description: '这通常说明你还没有创建比赛，或者比赛仍处于 draft / 私有状态。先去管理端创建一场公开比赛并切到 active，再回这里验证公开页展示。',
+      icon: 'i-lucide-shield-check',
+      actions: [
+        {
+          label: '去管理端建赛',
+          icon: 'i-lucide-settings-2',
+          to: '/console/admin',
+          color: 'neutral' as const,
+        },
+        {
+          label: '回控制台',
+          icon: 'i-lucide-layout-dashboard',
+          to: '/console',
+          color: 'neutral' as const,
+          variant: 'outline' as const,
+        },
+      ],
+    }
+  }
+
+  return {
+    title: '当前还没有公开比赛',
+    description: '这通常说明管理员还没有发布比赛，或者目标比赛仍在准备中。你可以稍后再来，或先登录查看自己的队伍与控制台入口。',
+    icon: 'i-lucide-trophy',
+    actions: authState.user
+      ? [
+          {
+            label: '回控制台',
+            icon: 'i-lucide-layout-dashboard',
+            to: '/console',
+            color: 'neutral' as const,
+          },
+        ]
+      : [
+          {
+            label: '去登录',
+            icon: 'i-lucide-log-in',
+            to: '/login?redirect=%2Fgames',
+            color: 'neutral' as const,
+          },
+          {
+            label: '去注册',
+            icon: 'i-lucide-user-round-plus',
+            to: '/register?redirect=%2Fgames',
+            color: 'neutral' as const,
+            variant: 'outline' as const,
+          },
+        ],
+  }
+})
+
 onMounted(async () => {
   await ensureInitialized()
   await fetchGames()
@@ -295,12 +350,14 @@ onMounted(async () => {
         </div>
       </UPageCard>
 
-      <div v-if="games.length === 0" class="text-center py-16">
-        <UIcon name="i-lucide-trophy" class="size-12 text-muted mx-auto mb-4" />
-        <p class="text-muted">
-          暂无比赛
-        </p>
-      </div>
+      <UEmpty
+        v-if="games.length === 0"
+        class="py-16"
+        :icon="emptyStateMeta.icon"
+        :title="emptyStateMeta.title"
+        :description="emptyStateMeta.description"
+        :actions="emptyStateMeta.actions"
+      />
 
       <div v-else-if="filteredGames.length === 0" class="text-center py-16">
         <UIcon name="i-lucide-search-x" class="size-12 text-muted mx-auto mb-4" />
