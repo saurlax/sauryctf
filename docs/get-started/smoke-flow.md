@@ -1,4 +1,4 @@
-# 本地冒烟流程
+# 本地验证流程
 
 这份文档面向空库首次启动后的最小验证流程。
 
@@ -33,7 +33,7 @@ pnpm dev
 - 每支队伍同时运行实例上限：`3`
 - 过期实例后台清理间隔：`60` 秒
 
-这组语义现在采用 `defaultLifetime / extensionDuration / renewalWindow` 这一组更清晰的实例生命周期划分，适合本地 smoke 流程。
+这组语义现在采用 `defaultLifetime / extensionDuration / renewalWindow` 这一组更清晰的实例生命周期划分，适合本地验证流程。
 
 动态题 provider 目前分两档：
 
@@ -158,7 +158,7 @@ pnpm smoke:local:docker
 - `runtime.expose = [80]`
 - `connection.url = /mock-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}`
 
-默认这一步不会真的起容器，但比赛页会先显示模板入口，启动实例后再显示已经为当前队伍解析好的租约地址，并能直接跳到本地 mock instance 页面。
+默认这一步不会真的起容器，但比赛页会先显示模板入口，启动实例后再显示已经为当前队伍解析好的租约地址，并能直接跳到本地实例访问页。
 
 如果你已经开启 `INSTANCE_DOCKER_PROVIDER_ENABLED=true`，也可以把同一结构改成最小真实容器模板，例如：
 
@@ -169,7 +169,7 @@ pnpm smoke:local:docker
 
 此时后端会用本机 Docker 随机分配宿主机端口，并把解析后的 `host / port / launch_url` 回填到实例响应里。
 
-当前最小动态题冒烟还会顺手确认两件事：
+当前最小动态题验证还会顺手确认两件事：
 
 - 实例接口已经返回 `policy.lease_duration_minutes / extension_duration_minutes / renewal_window_minutes / team_active_limit`
 - 实例刚启动时不会立刻开放续期；只有进入续期窗口后才允许继续追加租约
