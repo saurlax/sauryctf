@@ -131,6 +131,23 @@ func createGameChallengeFixture(t *testing.T, database *gorm.DB) (uint, uint, ui
 	return game.ID, challenge.ID, team1.ID, team2.ID
 }
 
+func createChallengeForUser(t *testing.T, database *gorm.DB, createdBy uint, title string) uint {
+	t.Helper()
+
+	challenge := models.Challenge{
+		Title:     title,
+		Category:  models.CategoryWeb,
+		Flag:      fmt.Sprintf("flag{%s}", strings.ToLower(strings.ReplaceAll(title, " ", "-"))),
+		BaseScore: 100,
+		MinScore:  10,
+		DecayRate: 0.1,
+		IsVisible: true,
+		CreatedBy: createdBy,
+	}
+	require.NoError(t, database.Create(&challenge).Error)
+	return challenge.ID
+}
+
 func TestService_CreateGame(t *testing.T) {
 	svc, cleanup := setupService(t)
 	defer cleanup()
@@ -261,6 +278,7 @@ func TestService_GetGame_NotFound(t *testing.T) {
 func TestService_ListGames_Filtered(t *testing.T) {
 	svc, cleanup := setupService(t)
 	defer cleanup()
+	database := svcDB(t, svc)
 
 	public := true
 	private := false
@@ -273,6 +291,10 @@ func TestService_ListGames_Filtered(t *testing.T) {
 	draft, _ := svc.CreateGame(games.CreateGameRequest{
 		Name: "Draft Public", StartTime: time.Now(), EndTime: time.Now().Add(time.Hour), IsPublic: &public,
 	}, 1)
+	publicChallengeID := createChallengeForUser(t, database, 1, "Public Challenge")
+	privateChallengeID := createChallengeForUser(t, database, 1, "Private Challenge")
+	require.NoError(t, svc.AddChallenge(1, publicChallengeID, 0))
+	require.NoError(t, svc.AddChallenge(2, privateChallengeID, 0))
 	active := "active"
 	_, _ = svc.UpdateGame(1, games.UpdateGameRequest{Status: &active})
 	_, _ = svc.UpdateGame(2, games.UpdateGameRequest{Status: &active})
@@ -287,6 +309,7 @@ func TestService_ListGames_Filtered(t *testing.T) {
 func TestService_GetPublicGame_HidesPrivateAndDraftGames(t *testing.T) {
 	svc, cleanup := setupService(t)
 	defer cleanup()
+	database := svcDB(t, svc)
 
 	public := true
 	private := false
@@ -296,6 +319,8 @@ func TestService_GetPublicGame_HidesPrivateAndDraftGames(t *testing.T) {
 	privateGame, _ := svc.CreateGame(games.CreateGameRequest{
 		Name: "Private Active", StartTime: time.Now(), EndTime: time.Now().Add(time.Hour), IsPublic: &private,
 	}, 1)
+	privateChallengeID := createChallengeForUser(t, database, 1, "Private Active Challenge")
+	require.NoError(t, svc.AddChallenge(privateGame.ID, privateChallengeID, 0))
 	active := "active"
 	_, _ = svc.UpdateGame(privateGame.ID, games.UpdateGameRequest{Status: &active})
 
@@ -311,11 +336,14 @@ func TestService_GetPublicGame_HidesPrivateAndDraftGames(t *testing.T) {
 func TestService_GetPublicGame_ReturnsActivePublicGame(t *testing.T) {
 	svc, cleanup := setupService(t)
 	defer cleanup()
+	database := svcDB(t, svc)
 
 	public := true
 	game, _ := svc.CreateGame(games.CreateGameRequest{
 		Name: "Public Active", StartTime: time.Now(), EndTime: time.Now().Add(time.Hour), IsPublic: &public,
 	}, 1)
+	challengeID := createChallengeForUser(t, database, 1, "Public Game Challenge")
+	require.NoError(t, svc.AddChallenge(game.ID, challengeID, 0))
 	active := "active"
 	updated, err := svc.UpdateGame(game.ID, games.UpdateGameRequest{Status: &active})
 	require.NoError(t, err)
@@ -328,6 +356,7 @@ func TestService_GetPublicGame_ReturnsActivePublicGame(t *testing.T) {
 func TestService_GetGame_AutoMarksExpiredActiveGameAsEnded(t *testing.T) {
 	svc, cleanup := setupService(t)
 	defer cleanup()
+	database := svcDB(t, svc)
 
 	public := true
 	game, _ := svc.CreateGame(games.CreateGameRequest{
@@ -336,6 +365,8 @@ func TestService_GetGame_AutoMarksExpiredActiveGameAsEnded(t *testing.T) {
 		EndTime:   time.Now().Add(-time.Hour),
 		IsPublic:  &public,
 	}, 1)
+	challengeID := createChallengeForUser(t, database, 1, "Expired Active Challenge")
+	require.NoError(t, svc.AddChallenge(game.ID, challengeID, 0))
 	active := "active"
 	_, err := svc.UpdateGame(game.ID, games.UpdateGameRequest{Status: &active})
 	require.NoError(t, err)
@@ -348,6 +379,7 @@ func TestService_GetGame_AutoMarksExpiredActiveGameAsEnded(t *testing.T) {
 func TestService_ListGames_UsesEffectiveEndedStatusForExpiredGame(t *testing.T) {
 	svc, cleanup := setupService(t)
 	defer cleanup()
+	database := svcDB(t, svc)
 
 	public := true
 	game, _ := svc.CreateGame(games.CreateGameRequest{
@@ -356,6 +388,8 @@ func TestService_ListGames_UsesEffectiveEndedStatusForExpiredGame(t *testing.T) 
 		EndTime:   time.Now().Add(-time.Hour),
 		IsPublic:  &public,
 	}, 1)
+	challengeID := createChallengeForUser(t, database, 1, "Expired Public Challenge")
+	require.NoError(t, svc.AddChallenge(game.ID, challengeID, 0))
 	active := "active"
 	_, err := svc.UpdateGame(game.ID, games.UpdateGameRequest{Status: &active})
 	require.NoError(t, err)
@@ -369,11 +403,14 @@ func TestService_ListGames_UsesEffectiveEndedStatusForExpiredGame(t *testing.T) 
 func TestService_UpdateGame(t *testing.T) {
 	svc, cleanup := setupService(t)
 	defer cleanup()
+	database := svcDB(t, svc)
 
 	public := true
 	game, _ := svc.CreateGame(games.CreateGameRequest{
 		Name: "Old", StartTime: time.Now(), EndTime: time.Now().Add(time.Hour), IsPublic: &public,
 	}, 1)
+	challengeID := createChallengeForUser(t, database, 1, "Update Flow Challenge")
+	require.NoError(t, svc.AddChallenge(game.ID, challengeID, 0))
 
 	newName := "Updated"
 	newStatus := "active"
@@ -533,6 +570,27 @@ func TestService_UpdateGame_RejectsWriteupDeadlineBeforeEnd(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid writeup deadline")
+}
+
+func TestService_UpdateGame_RejectsActivatingGameWithoutChallenges(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	public := true
+	game, err := svc.CreateGame(games.CreateGameRequest{
+		Name:      "Activation Guard",
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(2 * time.Hour),
+		IsPublic:  &public,
+	}, 1)
+	require.NoError(t, err)
+
+	active := "active"
+	_, err = svc.UpdateGame(game.ID, games.UpdateGameRequest{
+		Status: &active,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "active game must include at least one challenge")
 }
 
 func TestService_DeleteGame_RemovesGameScopedRelationsOnly(t *testing.T) {
@@ -1142,6 +1200,94 @@ func TestService_AddChallenge(t *testing.T) {
 	if err != nil {
 		assert.Contains(t, err.Error(), "challenge not found")
 	}
+}
+
+func TestService_RemoveChallenge_RejectsRemovingLastChallengeFromActiveGame(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, _, _ := createGameChallengeFixture(t, database)
+
+	err = svc.RemoveChallenge(gameID, challengeID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "active game must include at least one challenge")
+
+	var mountCount int64
+	require.NoError(t, database.Model(&models.GameChallenge{}).Where("game_id = ?", gameID).Count(&mountCount).Error)
+	assert.EqualValues(t, 1, mountCount)
+}
+
+func TestService_RemoveChallenge_AllowsRemovingLastChallengeFromDraftGame(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+
+	user := models.User{Username: "draft-owner", Email: "draft-owner@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+
+	challenge := models.Challenge{
+		Title:     "Draft Challenge",
+		Category:  models.CategoryWeb,
+		Flag:      "flag{draft}",
+		BaseScore: 100,
+		MinScore:  10,
+		DecayRate: 0.1,
+		IsVisible: true,
+		CreatedBy: user.ID,
+	}
+	require.NoError(t, database.Create(&challenge).Error)
+
+	game := models.Game{
+		Name:      "Draft Game",
+		StartTime: time.Now().Add(time.Hour),
+		EndTime:   time.Now().Add(2 * time.Hour),
+		Status:    "draft",
+		IsPublic:  true,
+		CreatedBy: user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+	require.NoError(t, database.Create(&models.GameChallenge{
+		GameID: game.ID, ChallengeID: challenge.ID,
+	}).Error)
+
+	err = svc.RemoveChallenge(game.ID, challenge.ID)
+	require.NoError(t, err)
+
+	var mountCount int64
+	require.NoError(t, database.Model(&models.GameChallenge{}).Where("game_id = ?", game.ID).Count(&mountCount).Error)
+	assert.Zero(t, mountCount)
+}
+
+func TestService_RemoveChallenge_ReturnsNotFoundForUnmountedChallenge(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, _, _, _ := createGameChallengeFixture(t, database)
+
+	missingChallenge := models.Challenge{
+		Title:     "Unrelated Challenge",
+		Category:  models.CategoryWeb,
+		Flag:      "flag{missing}",
+		BaseScore: 100,
+		MinScore:  10,
+		DecayRate: 0.1,
+		IsVisible: true,
+		CreatedBy: 1,
+	}
+	require.NoError(t, database.Create(&missingChallenge).Error)
+
+	err = svc.RemoveChallenge(gameID, missingChallenge.ID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "challenge not in game")
 }
 
 func TestService_SubmitFlag_UsesSharedScoringRule(t *testing.T) {

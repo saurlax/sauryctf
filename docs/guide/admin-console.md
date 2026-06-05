@@ -113,6 +113,8 @@
   - `scoreboard_freeze_at` 不能早于开始时间，也不能晚于结束时间
   - `writeup_deadline` 不能早于比赛结束时间
   - 如果开启 `writeup_required`，则必须同时填写 `writeup_deadline`
+  - 比赛切换到 `active` 前必须至少挂载一道题目
+  - 已处于 `active` 的比赛不能把挂题删到 0 道
 - 比赛分组当前支持：
   - 在创建比赛、编辑比赛、比赛设置里直接维护分组列表
   - 使用换行或逗号分隔，例如：`本科组, 公开组`

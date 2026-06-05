@@ -356,6 +356,29 @@ func validateWriteupRequirement(required bool, deadline *time.Time) error {
 	return nil
 }
 
+func (s *Service) countMountedChallenges(gameID uint) (int64, error) {
+	var count int64
+	if err := s.db.Model(&models.GameChallenge{}).Where("game_id = ?", gameID).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (s *Service) validateGameActivation(gameID uint, status string) error {
+	if status != "active" {
+		return nil
+	}
+
+	mountedCount, err := s.countMountedChallenges(gameID)
+	if err != nil {
+		return err
+	}
+	if mountedCount == 0 {
+		return errors.New("active game must include at least one challenge")
+	}
+	return nil
+}
+
 func normalizeDivisions(divisions []string) ([]string, error) {
 	if len(divisions) == 0 {
 		return nil, nil
@@ -896,6 +919,13 @@ func (s *Service) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, err
 		nextWriteupRequired = *req.WriteupRequired
 	}
 	if err := validateWriteupRequirement(nextWriteupRequired, nextWriteupDeadline); err != nil {
+		return nil, err
+	}
+	nextStatus := game.Status
+	if req.Status != nil {
+		nextStatus = *req.Status
+	}
+	if err := s.validateGameActivation(id, nextStatus); err != nil {
 		return nil, err
 	}
 	encodedDivisions, err := encodeDivisions(nextDivisions)
@@ -1765,6 +1795,30 @@ func (s *Service) AddChallenge(gameID uint, challengeID uint, scoreOverride int)
 }
 
 func (s *Service) RemoveChallenge(gameID uint, challengeID uint) error {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("game not found")
+		}
+		return err
+	}
+
+	var relation models.GameChallenge
+	if err := s.db.Where("game_id = ? AND challenge_id = ?", gameID, challengeID).First(&relation).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("challenge not in game")
+		}
+		return err
+	}
+
+	mountedCount, err := s.countMountedChallenges(gameID)
+	if err != nil {
+		return err
+	}
+	if game.Status == "active" && mountedCount <= 1 {
+		return errors.New("active game must include at least one challenge")
+	}
+
 	result := s.db.Where("game_id = ? AND challenge_id = ?", gameID, challengeID).
 		Delete(&models.GameChallenge{})
 	if result.RowsAffected == 0 {
