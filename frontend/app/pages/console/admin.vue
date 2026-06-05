@@ -406,6 +406,52 @@ const selectedAdminOverview = computed(() => {
   }
 })
 
+const createGameRuleSummary = computed(() => [
+  gameForm.registration_mode === 'auto_accept' ? '报名后自动通过' : '报名后进入人工审核',
+  gameForm.invitation_code.trim() ? '需要输入邀请码' : '不启用邀请码门槛',
+  gameForm.max_team_members > 0 ? `队伍人数上限 ${gameForm.max_team_members} 人` : '队伍人数不限',
+  gameForm.divisions_text.trim() ? `已配置分组：${parseDivisionList(gameForm.divisions_text).join(' / ')}` : '不区分比赛分组',
+  gameForm.practice_mode ? '比赛结束后保留练习模式' : '比赛结束后关闭练习提交',
+  gameForm.writeup_required
+    ? (gameForm.writeup_deadline ? `要求提交 Writeup，截止于 ${new Date(gameForm.writeup_deadline).toLocaleString()}` : '要求提交 Writeup，截止时间需另行确认')
+    : '不要求 Writeup',
+  gameForm.scoreboard_freeze_at ? `公开榜单将于 ${new Date(gameForm.scoreboard_freeze_at).toLocaleString()} 封榜` : '公开榜单不封榜',
+])
+
+const editGameRuleSummary = computed(() => {
+  if (!selectedEditableGame.value) {
+    return []
+  }
+
+  return [
+    gameEditForm.invitation_code.trim() ? '编辑后将启用邀请码门槛' : '编辑后不启用邀请码门槛',
+    gameEditForm.divisions_text.trim() ? `编辑后分组：${parseDivisionList(gameEditForm.divisions_text).join(' / ')}` : '编辑后不区分分组',
+    gameEditForm.practice_mode ? '编辑后保留练习模式' : '编辑后关闭练习模式',
+    gameEditForm.writeup_required
+      ? (gameEditForm.writeup_deadline ? `编辑后要求 Writeup，截止于 ${new Date(gameEditForm.writeup_deadline).toLocaleString()}` : '编辑后要求 Writeup')
+      : '编辑后不要求 Writeup',
+  ]
+})
+
+const settingsRuleSummary = computed(() => {
+  if (!selectedSettingsGame.value) {
+    return []
+  }
+
+  return [
+    gameSettingsForm.status === 'draft' ? '当前仍为草稿状态' : gameSettingsForm.status === 'active' ? '当前会按公开页规则对外开放' : '当前已结束，仅保留赛后查看/练习能力',
+    gameSettingsForm.registration_mode === 'auto_accept' ? '报名后自动通过' : '报名后进入人工审核',
+    gameSettingsForm.invitation_code.trim() ? '需要输入邀请码' : '不启用邀请码门槛',
+    gameSettingsForm.max_team_members > 0 ? `队伍人数上限 ${gameSettingsForm.max_team_members} 人` : '队伍人数不限',
+    gameSettingsForm.divisions_text.trim() ? `当前分组：${parseDivisionList(gameSettingsForm.divisions_text).join(' / ')}` : '不区分比赛分组',
+    gameSettingsForm.practice_mode ? '比赛结束后保留练习模式' : '比赛结束后关闭练习提交',
+    gameSettingsForm.writeup_required
+      ? (gameSettingsForm.writeup_deadline ? `要求提交 Writeup，截止于 ${new Date(gameSettingsForm.writeup_deadline).toLocaleString()}` : '要求提交 Writeup')
+      : '不要求 Writeup',
+    gameSettingsForm.scoreboard_freeze_at ? `公开榜单将于 ${new Date(gameSettingsForm.scoreboard_freeze_at).toLocaleString()} 封榜` : '公开榜单不封榜',
+  ]
+})
+
 const activeMonitorTab = ref<'overview' | 'scoreboard' | 'submissions' | 'clues' | 'timeline' | 'ops'>('overview')
 
 const monitorTabItems = [
@@ -3523,8 +3569,8 @@ onMounted(async () => {
               <UTextarea v-model="gameForm.description" class="w-full" :rows="4" placeholder="简要介绍比赛规则或主题" />
             </UFormField>
 
-            <UFormField label="比赛公告" name="notice">
-              <UTextarea v-model="gameForm.notice" class="w-full" :rows="4" placeholder="例如：开赛前 15 分钟开放平台，禁止共享 Flag。" />
+            <UFormField label="规则补充" name="notice" description="这里适合填写长期有效的补充规则，会展示在公开比赛页的“规则补充”区域">
+              <UTextarea v-model="gameForm.notice" class="w-full" :rows="4" placeholder="例如：禁止共享 Flag；比赛开始前 15 分钟开放平台。" />
             </UFormField>
 
             <UFormField label="比赛邀请码" name="invitation_code" description="留空表示任何队伍都能直接报名；填写后需要在公开页输入正确邀请码">
@@ -3545,11 +3591,11 @@ onMounted(async () => {
               </UFormField>
             </div>
 
-            <UFormField label="封榜时间" name="scoreboard_freeze_at" description="留空表示不封榜">
+            <UFormField label="封榜时间" name="scoreboard_freeze_at" description="留空表示不封榜；到达这个时间后公开榜单冻结，但比赛仍可继续提交">
               <UInput v-model="gameForm.scoreboard_freeze_at" type="datetime-local" class="w-full" />
             </UFormField>
 
-            <UFormField label="报名模式" name="registration_mode">
+            <UFormField label="报名模式" name="registration_mode" description="决定队伍报名后是直接获得参赛资格，还是进入待审核">
               <USelect v-model="gameForm.registration_mode" :items="registrationModeOptions" class="w-full" />
             </UFormField>
 
@@ -3558,7 +3604,7 @@ onMounted(async () => {
                 <UInput v-model.number="gameForm.max_team_members" type="number" min="0" class="w-full" />
               </UFormField>
 
-              <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不要求单独截止时间">
+              <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不额外设置截止时间；如果填写，建议晚于比赛结束时间">
                 <UInput v-model="gameForm.writeup_deadline" type="datetime-local" class="w-full" />
               </UFormField>
             </div>
@@ -3575,6 +3621,17 @@ onMounted(async () => {
               <UFormField label="要求 Writeup" name="writeup_required">
                 <USwitch v-model="gameForm.writeup_required" />
               </UFormField>
+            </div>
+
+            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+              <div class="mb-2 font-medium text-highlighted">
+                当前规则摘要
+              </div>
+              <ul class="space-y-2">
+                <li v-for="item in createGameRuleSummary" :key="item">
+                  {{ item }}
+                </li>
+              </ul>
             </div>
 
             <UButton type="submit" :loading="gameSubmitting">
@@ -3602,8 +3659,8 @@ onMounted(async () => {
               <UTextarea v-model="gameEditForm.description" class="w-full" :rows="4" placeholder="简要介绍比赛规则或主题" />
             </UFormField>
 
-            <UFormField label="比赛公告" name="notice">
-              <UTextarea v-model="gameEditForm.notice" class="w-full" :rows="4" placeholder="例如：开赛前 15 分钟开放平台，禁止共享 Flag。" />
+            <UFormField label="规则补充" name="notice" description="这里适合填写长期有效的补充规则，会展示在公开比赛页的“规则补充”区域">
+              <UTextarea v-model="gameEditForm.notice" class="w-full" :rows="4" placeholder="例如：禁止共享 Flag；比赛开始前 15 分钟开放平台。" />
             </UFormField>
 
             <UFormField label="比赛邀请码" name="invitation_code" description="留空表示关闭邀请码门槛">
@@ -3625,7 +3682,7 @@ onMounted(async () => {
             </div>
 
             <div class="grid gap-4 md:grid-cols-2">
-              <UFormField label="Writeup 截止时间" name="writeup_deadline" description="需晚于比赛结束时间">
+              <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不额外设置截止时间；如果填写，建议晚于比赛结束时间">
                 <UInput v-model="gameEditForm.writeup_deadline" type="datetime-local" class="w-full" />
               </UFormField>
 
@@ -3642,6 +3699,17 @@ onMounted(async () => {
 
             <div v-if="selectedEditableGame" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
               正在编辑：{{ selectedEditableGame.name }} · 当前状态 {{ selectedEditableGame.status }} · {{ getPracticeModeLabel(selectedEditableGame.practice_mode) }} · {{ selectedEditableGame.writeup_required ? '需要 Writeup' : '不要求 Writeup' }}
+            </div>
+
+            <div v-if="editGameRuleSummary.length" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+              <div class="mb-2 font-medium text-highlighted">
+                编辑后规则摘要
+              </div>
+              <ul class="space-y-2">
+                <li v-for="item in editGameRuleSummary" :key="item">
+                  {{ item }}
+                </li>
+              </ul>
             </div>
 
             <UButton type="submit" :loading="gameEditing">
@@ -3679,11 +3747,11 @@ onMounted(async () => {
               <UTextarea v-model="gameSettingsForm.divisions_text" class="w-full" :rows="3" placeholder="本科组, 公开组" />
             </UFormField>
 
-            <UFormField label="封榜时间" name="scoreboard_freeze_at" description="留空表示不封榜">
+            <UFormField label="封榜时间" name="scoreboard_freeze_at" description="留空表示不封榜；到达这个时间后公开榜单冻结，但比赛仍可继续提交">
               <UInput v-model="gameSettingsForm.scoreboard_freeze_at" type="datetime-local" class="w-full" />
             </UFormField>
 
-            <UFormField label="报名模式" name="registration_mode">
+            <UFormField label="报名模式" name="registration_mode" description="决定队伍报名后是直接获得参赛资格，还是进入待审核">
               <USelect
                 v-model="gameSettingsForm.registration_mode"
                 :items="registrationModeOptions"
@@ -3695,7 +3763,7 @@ onMounted(async () => {
               <UInput v-model.number="gameSettingsForm.max_team_members" type="number" min="0" class="w-full" />
             </UFormField>
 
-            <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不额外限制提交时间">
+            <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不额外设置截止时间；如果填写，建议晚于比赛结束时间">
               <UInput v-model="gameSettingsForm.writeup_deadline" type="datetime-local" class="w-full" />
             </UFormField>
 
@@ -3715,6 +3783,17 @@ onMounted(async () => {
 
             <div v-if="selectedSettingsGame" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
               当前比赛：{{ selectedSettingsGame.name }} · {{ new Date(selectedSettingsGame.start_time).toLocaleString() }} · {{ getRegistrationModeLabel(selectedSettingsGame.registration_mode) }} · {{ selectedSettingsGame.max_team_members ? `最多 ${selectedSettingsGame.max_team_members} 人` : '人数不限' }} · {{ selectedSettingsGame.invitation_required ? '需要邀请码' : '无需邀请码' }} · {{ getPracticeModeLabel(selectedSettingsGame.practice_mode) }} · {{ selectedSettingsGame.writeup_required ? '需要 Writeup' : '不要求 Writeup' }} · {{ selectedSettingsGame.scoreboard_freeze_at ? `封榜于 ${new Date(selectedSettingsGame.scoreboard_freeze_at).toLocaleString()}` : '不封榜' }}
+            </div>
+
+            <div v-if="settingsRuleSummary.length" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+              <div class="mb-2 font-medium text-highlighted">
+                当前设置摘要
+              </div>
+              <ul class="space-y-2">
+                <li v-for="item in settingsRuleSummary" :key="item">
+                  {{ item }}
+                </li>
+              </ul>
             </div>
 
             <UButton type="submit" :loading="settingsSubmitting">
