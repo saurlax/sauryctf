@@ -26,8 +26,8 @@ const pageLinks = computed(() => [
   <UContainer class="py-12">
     <div class="mx-auto flex max-w-4xl flex-col gap-6">
       <UPageCard
-        title="Mock Challenge Instance"
-        description="这是一个实例入口示例页。当前还不是实际容器服务，但会模拟每支队伍的独立实例入口已经被平台成功解析并下发。"
+        title="实例访问页"
+        description="这是当前实例入口的本地访问页，用于承接按队伍解析后的独立地址，并方便继续核对实例链路。"
         icon="i-lucide-box"
       >
         <template #footer>
@@ -53,8 +53,8 @@ const pageLinks = computed(() => [
 
         <div class="mt-4 grid gap-4 md:grid-cols-2">
           <UPageCard
-            title="Current Lease"
-            description="当前实例入口已经按队伍维度解析完成。后续接入真实 provider 时，这里可以替换成真实题目服务。"
+            title="当前租约"
+            description="当前入口已经完成队伍维度解析。后续接入真实服务后，这里可以替换为实际题目环境。"
             icon="i-lucide-shield-check"
           >
             <div class="space-y-2 text-sm text-muted">
@@ -65,13 +65,13 @@ const pageLinks = computed(() => [
           </UPageCard>
 
           <UPageCard
-            title="Next Step"
-            description="如果你是从动态题实例按钮跳过来的，说明当前最小实例租约、模板展开和前端实例入口已经跑通。"
+            title="后续步骤"
+            description="如果你是从比赛页进入这里，说明当前实例地址已经成功下发，可以继续核对入口、续期和销毁流程。"
             icon="i-lucide-waypoints"
           >
             <div class="space-y-2 text-sm text-muted">
-              <p>下一步可以继续接入真实反代、容器 provider 或平台代理。</p>
-              <p>也可以返回比赛页继续验证续期、状态刷新和普通 Flag 提交流程。</p>
+              <p>下一步可以继续接入真实网关、容器调度或平台代理。</p>
+              <p>也可以返回比赛页继续核对续期、状态同步和提交流程。</p>
             </div>
           </UPageCard>
         </div>

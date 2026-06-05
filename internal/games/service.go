@@ -349,6 +349,13 @@ func validateWriteupDeadline(endTime time.Time, deadline *time.Time) error {
 	return nil
 }
 
+func validateWriteupRequirement(required bool, deadline *time.Time) error {
+	if required && deadline == nil {
+		return errors.New("writeup deadline required")
+	}
+	return nil
+}
+
 func normalizeDivisions(divisions []string) ([]string, error) {
 	if len(divisions) == 0 {
 		return nil, nil
@@ -451,6 +458,9 @@ func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameRespon
 		return nil, err
 	}
 	if err := validateWriteupDeadline(req.EndTime, req.WriteupDeadline); err != nil {
+		return nil, err
+	}
+	if err := validateWriteupRequirement(req.WriteupRequired, req.WriteupDeadline); err != nil {
 		return nil, err
 	}
 	divisions, err := encodeDivisions(req.Divisions)
@@ -879,6 +889,13 @@ func (s *Service) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, err
 		return nil, err
 	}
 	if err := validateWriteupDeadline(nextEndTime, nextWriteupDeadline); err != nil {
+		return nil, err
+	}
+	nextWriteupRequired := game.WriteupRequired
+	if req.WriteupRequired != nil {
+		nextWriteupRequired = *req.WriteupRequired
+	}
+	if err := validateWriteupRequirement(nextWriteupRequired, nextWriteupDeadline); err != nil {
 		return nil, err
 	}
 	encodedDivisions, err := encodeDivisions(nextDivisions)

@@ -119,7 +119,7 @@ const heroLinks = computed(() => {
       </UPageGrid>
     </UPageSection>
 
-    <UPageSection title="推荐本地冒烟顺序" description="先验证管理员链路，再验证选手链路。">
+    <UPageSection title="推荐本地验证顺序" description="先验证管理员链路，再验证选手链路。">
       <UPageGrid>
         <UPageCard
           title="1. 管理员建赛"

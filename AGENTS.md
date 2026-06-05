@@ -42,7 +42,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
   - `GET /api/games/:id/challenges/:challengeId/instance` returns `idle`
   - `POST /api/games/:id/challenges/:challengeId/instance` returns a running lease
   - the instance response now includes explicit lease policy minutes for initial lease / extension / renewal window
-  - a freshly started lease is not immediately renewable; local smoke now checks the current GZCTF-style renewal-window gating
+  - a freshly started lease is not immediately renewable; local verification now checks the current renewal-window gating
   - the returned launch data no longer contains unresolved `{{team_hash}}`-style placeholders
 - `pnpm smoke:local:docker` now provides an opt-in real local Docker verification path:
   - it now also self-starts an isolated backend plus temporary SQLite state, just like `pnpm smoke:local`
@@ -192,13 +192,13 @@ internal/<module>/
   - the default skeleton provider also supports simple per-team templating in `container_spec.connection.*` using `{{game_id}}`, `{{challenge_id}}`, `{{team_id}}`, `{{user_id}}`, and `{{team_hash}}`, so local dynamic challenges can expose stable team-specific entry data before real providers land
   - the admin challenge form now ships a dedicated “team-scoped instance” template and shows the supported placeholder tokens inline, so local operators can create per-team dynamic entry data without hand-writing the whole JSON structure
   - the public game page now distinguishes between templated connection info and the resolved per-team lease entry, so players see when an instance URL is still a template and when a real team-scoped address has been issued
-  - local smoke-oriented dynamic templates now point to a frontend `/mock-instance/...` page so the resolved launch URL can be opened directly during local verification
-- the public game page now presents managed instances more like an operator-facing panel: lease countdown, progress bar, mock-vs-real entry hint, and a lightweight auto-refresh for running leases
+  - local verification templates for dynamic challenges now point to a frontend `/mock-instance/...` page so the resolved launch URL can be opened directly during local verification
+- the public game page now presents managed instances with clearer operator-facing signals: lease countdown, progress bar, local-entry hint, and a lightweight auto-refresh for running leases
 - the public game page now also summarizes the current lease policy in-place, so players can distinguish "initial lease" from "renewal adds more time" without guessing from backend behavior
 - the managed instance API now also returns an explicit `policy` object with initial lease / extension / renewal-window minutes, so frontend panels can render the real current strategy instead of inferring it from messages
-  - the same policy now also includes a per-team active-instance limit, so local/mock flows already expose a minimal resource cap closer to GZCTF-style container-count constraints
-  - managed instances now also support a minimal player-side destroy flow so the current team can reset an active local/mock lease without touching the admin side
-  - managed instance renewal is now gated by a minimal GZCTF-style renewal window: the current lease only becomes renewable within 10 minutes before expiry
+  - the same policy now also includes a per-team active-instance limit, so local verification flows already expose a minimal resource cap for managed instances
+  - managed instances now also support a minimal player-side destroy flow so the current team can reset an active lease without touching the admin side
+  - managed instance renewal is now gated by a minimal renewal window: the current lease only becomes renewable within 10 minutes before expiry
 - the current local container policy is now env-configurable via:
   - `INSTANCE_LEASE_DURATION_MINUTES` for the initial lease
   - `INSTANCE_EXTENSION_DURATION_MINUTES` for each successful renewal
@@ -216,8 +216,8 @@ internal/<module>/
   - `runtime.expose` is now parsed from `container_spec.runtime.expose` and is used to publish container ports when the real Docker provider is enabled
   - the admin challenge form's generic `动态容器` template now defaults to `nginx:alpine` with `expose: [80]`, so local operators have one template that is closer to a truly runnable Docker-backed web challenge
   - current scope is intentionally local-machine oriented: one container per team/challenge lease, no compose, no volumes, no network policy, and no registry auth management yet
-- local dynamic instance renewal now behaves closer to GZCTF's `defaultLifetime / extensionDuration / renewalWindow` split, instead of reusing the initial lease duration for every renewal
-- Registration withdrawal now follows the current GZCTF-style rule:
+- local dynamic instance renewal now uses a clearer `defaultLifetime / extensionDuration / renewalWindow` split instead of reusing the initial lease duration for every renewal
+- Registration withdrawal now follows the current platform rule:
   - `pending` / `rejected` participations can be withdrawn
   - `accepted` participations are locked and can no longer be withdrawn
   - while a team is `accepted` in any not-yet-ended game, team membership is also locked:
@@ -254,12 +254,12 @@ internal/<module>/
     - restores mounted challenge `score_override`
     - restores embedded local attachments from `v2` packages into `./attachments`
   - external attachment URLs still stay as URL arrays and are not downloaded during import
-- Game metadata is now closer to GZCTF's contest configuration model:
+- Game metadata now follows a more complete contest configuration model:
   - `practice_mode` controls whether the contest should continue exposing a post-contest practice posture in the UI
   - `writeup_required` marks contests that expect a post-contest writeup submission
   - `writeup_deadline` can be left empty, but when set it must not be earlier than `end_time`
   - these fields now round-trip through game create/update, public/admin reads, and contest import/export packages
-- Games now support a lightweight `division` model closer to GZCTF:
+- Games now support a lightweight `division` model:
   - admins can configure a contest's division list directly on create/update
   - participations can be assigned to one configured division from the admin contest page
   - the public scoreboard can be filtered by division while still supporting an overall view

@@ -217,6 +217,24 @@ func TestService_CreateGame_RejectsWriteupDeadlineBeforeEnd(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid writeup deadline")
 }
 
+func TestService_CreateGame_RejectsRequiredWriteupWithoutDeadline(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	public := true
+	start := time.Now().Add(time.Hour)
+	end := start.Add(2 * time.Hour)
+	_, err := svc.CreateGame(games.CreateGameRequest{
+		Name:            "Missing Writeup Deadline",
+		StartTime:       start,
+		EndTime:         end,
+		WriteupRequired: true,
+		IsPublic:        &public,
+	}, 1)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "writeup deadline required")
+}
+
 func TestService_GetGame(t *testing.T) {
 	svc, cleanup := setupService(t)
 	defer cleanup()
@@ -430,7 +448,7 @@ func TestService_UpdateGame_RejectsFreezeOutsideTimeline(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid scoreboard freeze time")
 }
 
-func TestService_UpdateGame_ClearsWriteupDeadline(t *testing.T) {
+func TestService_UpdateGame_ClearsWriteupDeadlineWhenWriteupNotRequired(t *testing.T) {
 	svc, cleanup := setupService(t)
 	defer cleanup()
 
@@ -445,11 +463,56 @@ func TestService_UpdateGame_ClearsWriteupDeadline(t *testing.T) {
 		IsPublic:        &public,
 	}, 1)
 
+	writeupRequired := false
 	updated, err := svc.UpdateGame(game.ID, games.UpdateGameRequest{
+		WriteupRequired:      &writeupRequired,
 		ClearWriteupDeadline: true,
 	})
 	require.NoError(t, err)
+	assert.False(t, updated.WriteupRequired)
 	assert.Nil(t, updated.WriteupDeadline)
+}
+
+func TestService_UpdateGame_RejectsRequiredWriteupWithoutDeadline(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	public := true
+	game, _ := svc.CreateGame(games.CreateGameRequest{
+		Name:      "Writeup Requirement Guard",
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(2 * time.Hour),
+		IsPublic:  &public,
+	}, 1)
+
+	writeupRequired := true
+	_, err := svc.UpdateGame(game.ID, games.UpdateGameRequest{
+		WriteupRequired: &writeupRequired,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "writeup deadline required")
+}
+
+func TestService_UpdateGame_RejectsClearingWriteupDeadlineWhenWriteupStillRequired(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	public := true
+	writeupDeadline := time.Now().Add(2 * time.Hour).UTC().Truncate(time.Second)
+	game, _ := svc.CreateGame(games.CreateGameRequest{
+		Name:            "Writeup Deadline Guard",
+		StartTime:       time.Now(),
+		EndTime:         time.Now().Add(time.Hour),
+		WriteupRequired: true,
+		WriteupDeadline: &writeupDeadline,
+		IsPublic:        &public,
+	}, 1)
+
+	_, err := svc.UpdateGame(game.ID, games.UpdateGameRequest{
+		ClearWriteupDeadline: true,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "writeup deadline required")
 }
 
 func TestService_UpdateGame_RejectsWriteupDeadlineBeforeEnd(t *testing.T) {

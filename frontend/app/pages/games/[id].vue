@@ -497,7 +497,7 @@ function isMockInstance(challenge: GameChallengeDetail) {
 
 function getInstanceEntryLabel(challenge: GameChallengeDetail) {
   if (instanceStates[challenge.id]?.launch_url) {
-    return isMockInstance(challenge) ? '本地 Mock 实例' : '当前队伍实例'
+    return isMockInstance(challenge) ? '本地访问入口' : '当前队伍实例'
   }
 
   return hasChallengeInstanceTemplate(challenge.container_spec) ? '模板入口' : '静态入口'
@@ -2261,7 +2261,7 @@ onMounted(async () => {
                           :color="getInstanceStatusColor(ch.id)"
                           variant="soft"
                           title="当前队伍实例"
-                          :description="instanceStates[ch.id]?.message || (hasChallengeInstanceTemplate(ch.container_spec) ? '当前题目支持最小实例租约，并会把模板入口解析成当前队伍可用的独立地址。' : '当前题目支持最小实例租约，启动后会返回当前队伍的运行状态。')"
+                          :description="instanceStates[ch.id]?.message || (hasChallengeInstanceTemplate(ch.container_spec) ? '当前题目支持实例租约，并会把模板入口解析成当前队伍可用的独立地址。' : '当前题目支持实例租约，启动后会返回当前队伍的运行状态。')"
                         />
 
                         <UAlert
@@ -2295,8 +2295,8 @@ onMounted(async () => {
                           class="mb-3"
                           color="warning"
                           variant="soft"
-                          title="当前是本地 Mock 实例"
-                          description="这说明平台已经完成了队伍维度的入口解析，但当前落点仍是前端 mock 页面，还没有接入真实 Docker / K8s provider。"
+                          title="当前使用本地访问页"
+                          description="这说明平台已经完成了队伍维度的入口解析，当前地址落到本地访问页，便于继续核对入口链路。"
                         />
 
                         <div class="grid gap-3 text-xs text-muted md:grid-cols-2">
