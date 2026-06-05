@@ -70,6 +70,10 @@ const hasChallengeContent = computed(() =>
   ),
 )
 
+const hasManagedInstanceChallenges = computed(() =>
+  challenges.value.some(challenge => supportsManagedInstance(challenge)),
+)
+
 async function fetchAll() {
   loading.value = true
   try {
@@ -1366,7 +1370,28 @@ const contestFactRows = computed(() => [
     label: '当前可提交 Flag',
     value: canSubmitFlag.value ? '是' : '否',
   },
+  ...(hasManagedInstanceChallenges.value
+    ? [{
+        label: '动态实例限制',
+        value: instanceLimitSummary.value,
+      }]
+    : []),
 ])
+
+const instanceLimitSummary = computed(() => {
+  if (!hasManagedInstanceChallenges.value) {
+    return '当前比赛未启用'
+  }
+
+  const policyLimit = Object.values(instanceStates)
+    .find(state => state?.policy?.team_active_limit)?.policy?.team_active_limit
+
+  if (policyLimit) {
+    return `每队最多 ${policyLimit} 个`
+  }
+
+  return '按当前实例策略限制'
+})
 
 const divisionRuleDescription = computed(() => {
   if (!availableDivisions.value.length) {
@@ -1461,6 +1486,11 @@ const contestGuideItems = computed(() => [
         ? `当前比赛要求提交 Writeup，截止时间为 ${new Date(game.value.writeup_deadline).toLocaleString()}。`
         : '当前比赛要求提交 Writeup，具体截止时间请留意公告。')
     : '当前比赛不强制要求提交 Writeup。',
+  hasManagedInstanceChallenges.value
+    ? (instanceLimitSummary.value.startsWith('每队最多')
+        ? `当前比赛包含动态题，${instanceLimitSummary.value}同时运行的动态实例。`
+        : '当前比赛包含动态题。每支队伍可启动的实例数量会按当前实例策略限制。')
+    : '当前比赛当前没有启用动态实例题。',
   divisionRuleDescription.value,
   '待审核或已拒绝的报名可以撤回；已通过报名后队伍将锁定，不能再撤回。',
 ])
@@ -2450,12 +2480,12 @@ onMounted(async () => {
               :empty-state="{ icon: 'i-lucide-trophy', label: '暂无数据' }"
             >
               <template #rank-cell="{ row }">
-                <span :class="row.original.rank <= 3 ? 'font-bold text-warning' : ''">
-                  {{ row.original.rank }}
+                <span :class="row?.original?.rank && row.original.rank <= 3 ? 'font-bold text-warning' : ''">
+                  {{ row?.original?.rank ?? '-' }}
                 </span>
               </template>
               <template #last_solve-cell="{ row }">
-                {{ row.original.last_solve ? new Date(row.original.last_solve).toLocaleString() : '-' }}
+                {{ row?.original?.last_solve ? new Date(row.original.last_solve).toLocaleString() : '-' }}
               </template>
             </UTable>
           </UPageCard>
