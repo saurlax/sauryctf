@@ -818,7 +818,7 @@ const nextStepMeta = computed(() => {
   if (!authState.user) {
     return {
       title: '下一步：先登录账号',
-      description: '登录后就能看到你自己的队伍状态，并决定是先组队还是直接进入比赛详情继续操作。',
+      description: '已有账号登录后会直接回到当前比赛；如果还没有账号，也可以先注册，系统会先带你去准备队伍，再回到这里继续报名。',
       color: 'info' as const,
       actionLabel: '去登录',
       actionTo: loginEntry.value,
@@ -1121,7 +1121,7 @@ const detailPrimaryAction = computed(() => {
 const detailSecondaryAction = computed(() => {
   if (!authState.user) {
     return {
-      label: '创建账号',
+      label: '注册并准备队伍',
       to: registerEntry.value,
       icon: 'i-lucide-user-plus',
     }

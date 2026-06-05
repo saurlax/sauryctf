@@ -57,7 +57,7 @@ export function usePublicGameParticipationState() {
       return {
         label: '登录后可查看报名状态',
         color: 'neutral',
-        description: '已有账号可直接登录；如果还没有账号，也可以先注册再回来继续报名。',
+        description: '已有账号可直接登录并回到当前比赛；如果还没有账号，也可以先注册、准备队伍，再回来继续报名。',
         actionLabel: '去登录',
         actionTo: loginTo,
         secondaryLabel: '去注册',
@@ -152,7 +152,7 @@ export function usePublicGameParticipationState() {
     if (!isLoggedIn) {
       return {
         title: '当前为公开浏览模式',
-        description: '未登录时仍可浏览公开比赛的基础信息、题目标题和排行榜。登录后才会显示你的队伍状态，并继续报名比赛。',
+        description: '未登录时仍可浏览公开比赛的基础信息、题目标题和排行榜。登录后会直接回到当前比赛；如果选择注册，则会先进入队伍页准备队伍，再回来继续报名。',
         color: 'info',
         submitHint: '请先登录后再参与比赛。',
         visibilityHint: '当前公开页已向访客开放题目标题、分类、分值和解题统计。登录、组队并通过报名后，才会继续开放完整题面、提示和附件。',
