@@ -32,6 +32,10 @@ func (m *mockAuth) Logout(_ string) error                           { return nil
 func (m *mockAuth) GetUserByID(_ uint) (*models.User, error)        { return nil, nil }
 func (m *mockAuth) ChangePassword(_ uint, _, _ string) error        { return nil }
 func (m *mockAuth) IsUsingBootstrapPassword(_ uint) (bool, error)   { return false, nil }
+func (m *mockAuth) ListUsers() ([]models.User, error)               { return nil, nil }
+func (m *mockAuth) UpdateUserAccount(_ uint, _ uint, _ models.UserRole, _ models.UserStatus) (*models.User, error) {
+	return nil, nil
+}
 func (m *mockAuth) ValidateToken(token string) (*models.User, error) {
 	if u, ok := m.users[token]; ok {
 		return u, nil

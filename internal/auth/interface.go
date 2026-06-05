@@ -13,4 +13,6 @@ type ServiceInterface interface {
 	GetUserByID(id uint) (*models.User, error)
 	ChangePassword(userID uint, currentPassword, newPassword string) error
 	IsUsingBootstrapPassword(userID uint) (bool, error)
+	ListUsers() ([]models.User, error)
+	UpdateUserAccount(targetUserID, requesterID uint, role models.UserRole, status models.UserStatus) (*models.User, error)
 }

@@ -3,6 +3,7 @@ package auth
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -52,6 +53,12 @@ func setupAuthRouter(mock *MockService) *gin.Engine {
 	protected.POST("/auth/logout", h.Logout)
 	protected.GET("/auth/me", h.GetMe)
 	protected.POST("/auth/change-password", h.ChangePassword)
+	protected.GET("/admin/users", h.ListUsers)
+	protected.PUT("/admin/users/:userId", func(c *gin.Context) {
+		var userId int
+		_, _ = fmt.Sscan(c.Param("userId"), &userId)
+		h.UpdateUserAccount(c, userId)
+	})
 
 	return r
 }
@@ -260,5 +267,39 @@ func TestHandler_ChangePassword(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusConflict, w.Code)
+	})
+}
+
+func TestHandler_AdminUsers(t *testing.T) {
+	mock := NewMockService()
+	admin := &models.User{ID: 1, Username: "admin", Email: "admin@test.com", Role: models.RoleAdmin, Status: models.StatusActive}
+	user := &models.User{ID: 2, Username: "alice", Email: "alice@test.com", Role: models.RoleUser, Status: models.StatusActive}
+	mock.Users[admin.Email] = admin
+	mock.Users[user.Email] = user
+	mock.Tokens["admin-token"] = admin
+	r := setupAuthRouter(mock)
+
+	t.Run("list users", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/admin/users", nil)
+		req.AddCookie(&http.Cookie{Name: "token", Value: "admin-token"})
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), `"username":"admin"`)
+		assert.Contains(t, w.Body.String(), `"username":"alice"`)
+	})
+
+	t.Run("update user status and role", func(t *testing.T) {
+		body := `{"role":"judge","status":"banned"}`
+		req := httptest.NewRequest("PUT", "/api/admin/users/2", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(&http.Cookie{Name: "token", Value: "admin-token"})
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, models.RoleJudge, mock.Users[user.Email].Role)
+		assert.Equal(t, models.StatusBanned, mock.Users[user.Email].Status)
 	})
 }

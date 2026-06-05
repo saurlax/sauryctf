@@ -470,27 +470,72 @@ func (e UpdateParticipationStatusRequestStatus) Valid() bool {
 	}
 }
 
+// Defines values for UpdateUserAccountRequestRole.
+const (
+	UpdateUserAccountRequestRoleAdmin       UpdateUserAccountRequestRole = "admin"
+	UpdateUserAccountRequestRoleJudge       UpdateUserAccountRequestRole = "judge"
+	UpdateUserAccountRequestRoleSuperAdmin  UpdateUserAccountRequestRole = "super_admin"
+	UpdateUserAccountRequestRoleTeamCaptain UpdateUserAccountRequestRole = "team_captain"
+	UpdateUserAccountRequestRoleUser        UpdateUserAccountRequestRole = "user"
+)
+
+// Valid indicates whether the value is a known member of the UpdateUserAccountRequestRole enum.
+func (e UpdateUserAccountRequestRole) Valid() bool {
+	switch e {
+	case UpdateUserAccountRequestRoleAdmin:
+		return true
+	case UpdateUserAccountRequestRoleJudge:
+		return true
+	case UpdateUserAccountRequestRoleSuperAdmin:
+		return true
+	case UpdateUserAccountRequestRoleTeamCaptain:
+		return true
+	case UpdateUserAccountRequestRoleUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateUserAccountRequestStatus.
+const (
+	UpdateUserAccountRequestStatusActive UpdateUserAccountRequestStatus = "active"
+	UpdateUserAccountRequestStatusBanned UpdateUserAccountRequestStatus = "banned"
+)
+
+// Valid indicates whether the value is a known member of the UpdateUserAccountRequestStatus enum.
+func (e UpdateUserAccountRequestStatus) Valid() bool {
+	switch e {
+	case UpdateUserAccountRequestStatusActive:
+		return true
+	case UpdateUserAccountRequestStatusBanned:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UserInfoRole.
 const (
-	Admin       UserInfoRole = "admin"
-	Judge       UserInfoRole = "judge"
-	SuperAdmin  UserInfoRole = "super_admin"
-	TeamCaptain UserInfoRole = "team_captain"
-	User        UserInfoRole = "user"
+	UserInfoRoleAdmin       UserInfoRole = "admin"
+	UserInfoRoleJudge       UserInfoRole = "judge"
+	UserInfoRoleSuperAdmin  UserInfoRole = "super_admin"
+	UserInfoRoleTeamCaptain UserInfoRole = "team_captain"
+	UserInfoRoleUser        UserInfoRole = "user"
 )
 
 // Valid indicates whether the value is a known member of the UserInfoRole enum.
 func (e UserInfoRole) Valid() bool {
 	switch e {
-	case Admin:
+	case UserInfoRoleAdmin:
 		return true
-	case Judge:
+	case UserInfoRoleJudge:
 		return true
-	case SuperAdmin:
+	case UserInfoRoleSuperAdmin:
 		return true
-	case TeamCaptain:
+	case UserInfoRoleTeamCaptain:
 		return true
-	case User:
+	case UserInfoRoleUser:
 		return true
 	default:
 		return false
@@ -499,16 +544,16 @@ func (e UserInfoRole) Valid() bool {
 
 // Defines values for UserInfoStatus.
 const (
-	Active UserInfoStatus = "active"
-	Banned UserInfoStatus = "banned"
+	UserInfoStatusActive UserInfoStatus = "active"
+	UserInfoStatusBanned UserInfoStatus = "banned"
 )
 
 // Valid indicates whether the value is a known member of the UserInfoStatus enum.
 func (e UserInfoStatus) Valid() bool {
 	switch e {
-	case Active:
+	case UserInfoStatusActive:
 		return true
-	case Banned:
+	case UserInfoStatusBanned:
 		return true
 	default:
 		return false
@@ -551,9 +596,10 @@ type AuthResponse struct {
 
 // AuthSetupStatusResponse defines model for AuthSetupStatusResponse.
 type AuthSetupStatusResponse struct {
-	BootstrapAdminAvailable bool    `json:"bootstrap_admin_available"`
-	DefaultAdminPassword    *string `json:"default_admin_password,omitempty"`
-	DefaultAdminUsername    *string `json:"default_admin_username,omitempty"`
+	BootstrapAdminAvailable   bool    `json:"bootstrap_admin_available"`
+	DefaultAdminPassword      *string `json:"default_admin_password,omitempty"`
+	DefaultAdminUsername      *string `json:"default_admin_username,omitempty"`
+	PasswordChangeRecommended *bool   `json:"password_change_recommended,omitempty"`
 }
 
 // Challenge defines model for Challenge.
@@ -614,6 +660,12 @@ type ChallengeInstancePolicy struct {
 	LeaseDurationMinutes     int `json:"lease_duration_minutes"`
 	RenewalWindowMinutes     int `json:"renewal_window_minutes"`
 	TeamActiveLimit          int `json:"team_active_limit"`
+}
+
+// ChangePasswordRequest defines model for ChangePasswordRequest.
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
 }
 
 // CreateChallengeRequest defines model for CreateChallengeRequest.
@@ -927,6 +979,11 @@ type TeamMember struct {
 	UserId int    `json:"user_id"`
 }
 
+// TransferCaptainRequest defines model for TransferCaptainRequest.
+type TransferCaptainRequest struct {
+	TargetUserId int `json:"target_user_id"`
+}
+
 // UpdateChallengeRequest defines model for UpdateChallengeRequest.
 type UpdateChallengeRequest struct {
 	Attachments   *string  `json:"attachments,omitempty"`
@@ -980,6 +1037,18 @@ type UpdateParticipationStatusRequest struct {
 // UpdateParticipationStatusRequestStatus defines model for UpdateParticipationStatusRequest.Status.
 type UpdateParticipationStatusRequestStatus string
 
+// UpdateUserAccountRequest defines model for UpdateUserAccountRequest.
+type UpdateUserAccountRequest struct {
+	Role   UpdateUserAccountRequestRole   `json:"role"`
+	Status UpdateUserAccountRequestStatus `json:"status"`
+}
+
+// UpdateUserAccountRequestRole defines model for UpdateUserAccountRequest.Role.
+type UpdateUserAccountRequestRole string
+
+// UpdateUserAccountRequestStatus defines model for UpdateUserAccountRequest.Status.
+type UpdateUserAccountRequestStatus string
+
 // UserInfo defines model for UserInfo.
 type UserInfo struct {
 	CreatedAt *time.Time     `json:"created_at,omitempty"`
@@ -1026,6 +1095,12 @@ type ImportAdminGamePackageMultipartRequestBody ImportAdminGamePackageMultipartB
 // UpdateAdminGameWriteupJSONRequestBody defines body for UpdateAdminGameWriteup for application/json ContentType.
 type UpdateAdminGameWriteupJSONRequestBody = ReviewGameWriteupRequest
 
+// UpdateAdminUserJSONRequestBody defines body for UpdateAdminUser for application/json ContentType.
+type UpdateAdminUserJSONRequestBody = UpdateUserAccountRequest
+
+// ChangePasswordJSONRequestBody defines body for ChangePassword for application/json ContentType.
+type ChangePasswordJSONRequestBody = ChangePasswordRequest
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
@@ -1071,6 +1146,9 @@ type CreateTeamJSONRequestBody = CreateTeamRequest
 // JoinTeamJSONRequestBody defines body for JoinTeam for application/json ContentType.
 type JoinTeamJSONRequestBody = JoinTeamRequest
 
+// TransferTeamCaptainJSONRequestBody defines body for TransferTeamCaptain for application/json ContentType.
+type TransferTeamCaptainJSONRequestBody = TransferCaptainRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Import a game package (admin)
@@ -1097,6 +1175,15 @@ type ServerInterface interface {
 	// Review a game writeup (admin)
 	// (PUT /api/admin/games/{id}/writeups/{teamId})
 	UpdateAdminGameWriteup(c *gin.Context, id int, teamId int)
+	// List users for account management (admin)
+	// (GET /api/admin/users)
+	ListAdminUsers(c *gin.Context)
+	// Update user role or status (admin)
+	// (PUT /api/admin/users/{userId})
+	UpdateAdminUser(c *gin.Context, userId int)
+	// Change current user password
+	// (POST /api/auth/change-password)
+	ChangePassword(c *gin.Context)
 	// Login with username or email
 	// (POST /api/auth/login)
 	Login(c *gin.Context)
@@ -1205,9 +1292,15 @@ type ServerInterface interface {
 	// Get my team
 	// (GET /api/teams/my)
 	GetMyTeam(c *gin.Context)
+	// Reset team invite code (captain only)
+	// (POST /api/teams/{teamId}/invite-code/reset)
+	ResetTeamInviteCode(c *gin.Context, teamId int)
 	// Remove a team member (captain only)
 	// (DELETE /api/teams/{teamId}/members/{memberId})
 	RemoveTeamMember(c *gin.Context, teamId int, memberId int)
+	// Transfer team captain role (captain only)
+	// (POST /api/teams/{teamId}/transfer)
+	TransferTeamCaptain(c *gin.Context, teamId int)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -1439,6 +1532,63 @@ func (siw *ServerInterfaceWrapper) UpdateAdminGameWriteup(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateAdminGameWriteup(c, id, teamId)
+}
+
+// ListAdminUsers operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminUsers(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAdminUsers(c)
+}
+
+// UpdateAdminUser operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminUser(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", c.Param("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateAdminUser(c, userId)
+}
+
+// ChangePassword operation middleware
+func (siw *ServerInterfaceWrapper) ChangePassword(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ChangePassword(c)
 }
 
 // Login operation middleware
@@ -2339,6 +2489,33 @@ func (siw *ServerInterfaceWrapper) GetMyTeam(c *gin.Context) {
 	siw.Handler.GetMyTeam(c)
 }
 
+// ResetTeamInviteCode operation middleware
+func (siw *ServerInterfaceWrapper) ResetTeamInviteCode(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "teamId" -------------
+	var teamId int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "teamId", c.Param("teamId"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter teamId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ResetTeamInviteCode(c, teamId)
+}
+
 // RemoveTeamMember operation middleware
 func (siw *ServerInterfaceWrapper) RemoveTeamMember(c *gin.Context) {
 
@@ -2373,6 +2550,33 @@ func (siw *ServerInterfaceWrapper) RemoveTeamMember(c *gin.Context) {
 	}
 
 	siw.Handler.RemoveTeamMember(c, teamId, memberId)
+}
+
+// TransferTeamCaptain operation middleware
+func (siw *ServerInterfaceWrapper) TransferTeamCaptain(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "teamId" -------------
+	var teamId int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "teamId", c.Param("teamId"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter teamId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.TransferTeamCaptain(c, teamId)
 }
 
 // GinServerOptions provides options for the Gin server.
@@ -2410,6 +2614,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/api/admin/games/:id/instances/:leaseId", wrapper.DeleteAdminGameInstance)
 	router.GET(options.BaseURL+"/api/admin/games/:id/writeups", wrapper.GetAdminGameWriteups)
 	router.PUT(options.BaseURL+"/api/admin/games/:id/writeups/:teamId", wrapper.UpdateAdminGameWriteup)
+	router.GET(options.BaseURL+"/api/admin/users", wrapper.ListAdminUsers)
+	router.PUT(options.BaseURL+"/api/admin/users/:userId", wrapper.UpdateAdminUser)
+	router.POST(options.BaseURL+"/api/auth/change-password", wrapper.ChangePassword)
 	router.POST(options.BaseURL+"/api/auth/login", wrapper.Login)
 	router.POST(options.BaseURL+"/api/auth/logout", wrapper.Logout)
 	router.GET(options.BaseURL+"/api/auth/me", wrapper.GetMe)
@@ -2446,5 +2653,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/api/teams/join", wrapper.JoinTeam)
 	router.POST(options.BaseURL+"/api/teams/leave", wrapper.LeaveTeam)
 	router.GET(options.BaseURL+"/api/teams/my", wrapper.GetMyTeam)
+	router.POST(options.BaseURL+"/api/teams/:teamId/invite-code/reset", wrapper.ResetTeamInviteCode)
 	router.DELETE(options.BaseURL+"/api/teams/:teamId/members/:memberId", wrapper.RemoveTeamMember)
+	router.POST(options.BaseURL+"/api/teams/:teamId/transfer", wrapper.TransferTeamCaptain)
 }

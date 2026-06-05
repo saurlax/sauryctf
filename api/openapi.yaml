@@ -90,6 +90,17 @@ components:
           type: string
           minLength: 6
 
+    UpdateUserAccountRequest:
+      type: object
+      required: [role, status]
+      properties:
+        role:
+          type: string
+          enum: [user, team_captain, judge, admin, super_admin]
+        status:
+          type: string
+          enum: [active, banned]
+
     AuthResponse:
       type: object
       required: [token, user]
@@ -2132,6 +2143,56 @@ paths:
                 $ref: "#/components/schemas/GameWriteup"
         "404":
           description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/admin/users:
+    get:
+      operationId: listAdminUsers
+      summary: List users for account management (admin)
+      tags: [auth]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: User list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserInfo"
+
+  /api/admin/users/{userId}:
+    put:
+      operationId: updateAdminUser
+      summary: Update user role or status (admin)
+      tags: [auth]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserAccountRequest"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserInfo"
+        "409":
+          description: Update rejected
           content:
             application/json:
               schema:

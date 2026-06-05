@@ -48,6 +48,9 @@ const registerTo = computed(() => `/register?redirect=${encodeURIComponent(authR
                 { label: '控制台', icon: 'i-lucide-layout-dashboard', to: '/console' },
                 { label: '我的队伍', icon: 'i-lucide-users', to: '/console/team' },
                 { label: '账号安全', icon: 'i-lucide-key-round', to: '/console/account' },
+                ...(['admin', 'super_admin'].includes(authState.user?.role || '')
+                  ? [{ label: '用户管理', icon: 'i-lucide-users-round', to: '/console/admin/users' }]
+                  : []),
               ],
               [
                 { label: '退出登录', icon: 'i-lucide-log-out', onSelect: logout },

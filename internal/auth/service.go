@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -209,6 +210,79 @@ func (s *Service) IsUsingBootstrapPassword(userID uint) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func (s *Service) ListUsers() ([]models.User, error) {
+	var users []models.User
+	if err := s.db.Order("id ASC").Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
+func (s *Service) UpdateUserAccount(targetUserID, requesterID uint, role models.UserRole, status models.UserStatus) (*models.User, error) {
+	if !isAllowedUserRole(role) {
+		return nil, fmt.Errorf("invalid role: %s", role)
+	}
+	if !isAllowedUserStatus(status) {
+		return nil, fmt.Errorf("invalid status: %s", status)
+	}
+
+	var requester models.User
+	if err := s.db.First(&requester, requesterID).Error; err != nil {
+		return nil, err
+	}
+
+	var target models.User
+	if err := s.db.First(&target, targetUserID).Error; err != nil {
+		return nil, err
+	}
+
+	if requester.ID == target.ID && status == models.StatusBanned {
+		return nil, errors.New("cannot ban current user")
+	}
+
+	if requester.Role != models.RoleSuperAdmin {
+		if target.Role == models.RoleSuperAdmin {
+			return nil, errors.New("only super admin can manage super admin accounts")
+		}
+		if role == models.RoleSuperAdmin {
+			return nil, errors.New("only super admin can assign super admin role")
+		}
+	}
+
+	if err := s.db.Model(&models.User{}).
+		Where("id = ?", targetUserID).
+		Updates(map[string]any{
+			"role":   role,
+			"status": status,
+		}).Error; err != nil {
+		return nil, err
+	}
+
+	if err := s.db.First(&target, targetUserID).Error; err != nil {
+		return nil, err
+	}
+
+	return &target, nil
+}
+
+func isAllowedUserRole(role models.UserRole) bool {
+	switch role {
+	case models.RoleUser, models.RoleTeamCaptain, models.RoleJudge, models.RoleAdmin, models.RoleSuperAdmin:
+		return true
+	default:
+		return false
+	}
+}
+
+func isAllowedUserStatus(status models.UserStatus) bool {
+	switch status {
+	case models.StatusActive, models.StatusBanned:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Service) generateToken(user *models.User) (string, error) {

@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/saurlax/sauryctf/internal/models"
 )
 
 type Handler struct {
@@ -28,6 +30,11 @@ type LoginRequest struct {
 type ChangePasswordRequest struct {
 	CurrentPassword string `json:"current_password" binding:"required,min=6"`
 	NewPassword     string `json:"new_password" binding:"required,min=6"`
+}
+
+type UpdateUserAccountRequest struct {
+	Role   string `json:"role" binding:"required"`
+	Status string `json:"status" binding:"required"`
 }
 
 type AuthResponse struct {
@@ -204,6 +211,39 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "password updated"})
+}
+
+func (h *Handler) ListUsers(c *gin.Context) {
+	users, err := h.svc.ListUsers()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, users)
+}
+
+func (h *Handler) UpdateUserAccount(c *gin.Context, userId int) {
+	var req UpdateUserAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+
+	requesterID := c.MustGet("user_id").(uint)
+
+	user, err := h.svc.UpdateUserAccount(
+		uint(userId),
+		requesterID,
+		models.UserRole(req.Role),
+		models.UserStatus(req.Status),
+	)
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
 }
 
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {

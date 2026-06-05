@@ -156,3 +156,46 @@ func (m *MockService) IsUsingBootstrapPassword(userID uint) (bool, error) {
 	}
 	return m.BootstrapPasswordInUseBy[userID], nil
 }
+
+func (m *MockService) ListUsers() ([]models.User, error) {
+	if m.FailWith != nil {
+		return nil, m.FailWith
+	}
+	users := make([]models.User, 0, len(m.Users))
+	for _, user := range m.Users {
+		users = append(users, *user)
+	}
+	return users, nil
+}
+
+func (m *MockService) UpdateUserAccount(targetUserID, requesterID uint, role models.UserRole, status models.UserStatus) (*models.User, error) {
+	if m.FailWith != nil {
+		return nil, m.FailWith
+	}
+
+	var requester *models.User
+	var target *models.User
+	for _, user := range m.Users {
+		if user.ID == requesterID {
+			requester = user
+		}
+		if user.ID == targetUserID {
+			target = user
+		}
+	}
+	if requester == nil || target == nil {
+		return nil, assert.AnError
+	}
+	if requester.ID == target.ID && status == models.StatusBanned {
+		return nil, assert.AnError
+	}
+	if requester.Role != models.RoleSuperAdmin {
+		if target.Role == models.RoleSuperAdmin || role == models.RoleSuperAdmin {
+			return nil, assert.AnError
+		}
+	}
+
+	target.Role = role
+	target.Status = status
+	return target, nil
+}

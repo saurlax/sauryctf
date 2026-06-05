@@ -53,14 +53,6 @@ export interface paths {
     /** Remove a team member (captain only) */
     delete: operations["removeTeamMember"];
   };
-  "/api/teams/{teamId}/transfer": {
-    /** Transfer team captain role (captain only) */
-    post: operations["transferTeamCaptain"];
-  };
-  "/api/teams/{teamId}/invite-code/reset": {
-    /** Reset team invite code (captain only) */
-    post: operations["resetTeamInviteCode"];
-  };
   "/api/challenges": {
     /** List challenges */
     get: operations["listChallenges"];
@@ -145,6 +137,14 @@ export interface paths {
     /** Remove participant from a game (admin) */
     delete: operations["deleteGameParticipant"];
   };
+  "/api/teams/{teamId}/transfer": {
+    /** Transfer team captain role (captain only) */
+    post: operations["transferTeamCaptain"];
+  };
+  "/api/teams/{teamId}/invite-code/reset": {
+    /** Reset team invite code (captain only) */
+    post: operations["resetTeamInviteCode"];
+  };
   "/api/admin/games/{id}": {
     /** Delete a game and its game-scoped relations (admin) */
     delete: operations["deleteAdminGame"];
@@ -176,6 +176,14 @@ export interface paths {
   "/api/admin/games/{id}/writeups/{teamId}": {
     /** Review a game writeup (admin) */
     put: operations["updateAdminGameWriteup"];
+  };
+  "/api/admin/users": {
+    /** List users for account management (admin) */
+    get: operations["listAdminUsers"];
+  };
+  "/api/admin/users/{userId}": {
+    /** Update user role or status (admin) */
+    put: operations["updateAdminUser"];
   };
 }
 
@@ -211,6 +219,16 @@ export interface components {
       username: string;
       password: string;
     };
+    ChangePasswordRequest: {
+      current_password: string;
+      new_password: string;
+    };
+    UpdateUserAccountRequest: {
+      /** @enum {string} */
+      role: "user" | "team_captain" | "judge" | "admin" | "super_admin";
+      /** @enum {string} */
+      status: "active" | "banned";
+    };
     AuthResponse: {
       token: string;
       user: components["schemas"]["UserInfo"];
@@ -220,10 +238,6 @@ export interface components {
       default_admin_username?: string;
       default_admin_password?: string;
       password_change_recommended?: boolean;
-    };
-    ChangePasswordRequest: {
-      current_password: string;
-      new_password: string;
     };
     Team: {
       id: number;
@@ -836,58 +850,6 @@ export interface operations {
       };
     };
   };
-  /** Transfer team captain role (captain only) */
-  transferTeamCaptain: {
-    parameters: {
-      path: {
-        teamId: number;
-      };
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["TransferCaptainRequest"];
-      };
-    };
-    responses: {
-      /** @description Captain transferred */
-      200: {
-        content: {
-          "application/json": components["schemas"]["MessageResponse"];
-        };
-      };
-      /** @description Cannot transfer */
-      409: {
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-    };
-  };
-  /** Reset team invite code (captain only) */
-  resetTeamInviteCode: {
-    parameters: {
-      path: {
-        teamId: number;
-      };
-    };
-    responses: {
-      /** @description Invite code reset */
-      200: {
-        content: {
-          "application/json": {
-            message: string;
-            invite_code: string;
-          };
-        };
-      };
-      /** @description Cannot reset invite code */
-      409: {
-        content: {
-          "application/json": components["schemas"]["ErrorResponse"];
-        };
-      };
-    };
-  };
   /** List challenges */
   listChallenges: {
     parameters: {
@@ -1456,6 +1418,58 @@ export interface operations {
       };
     };
   };
+  /** Transfer team captain role (captain only) */
+  transferTeamCaptain: {
+    parameters: {
+      path: {
+        teamId: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TransferCaptainRequest"];
+      };
+    };
+    responses: {
+      /** @description Captain transferred */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MessageResponse"];
+        };
+      };
+      /** @description Cannot transfer */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /** Reset team invite code (captain only) */
+  resetTeamInviteCode: {
+    parameters: {
+      path: {
+        teamId: number;
+      };
+    };
+    responses: {
+      /** @description Invite code reset */
+      200: {
+        content: {
+          "application/json": {
+            message: string;
+            invite_code: string;
+          };
+        };
+      };
+      /** @description Cannot reset invite code */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
   /** Delete a game and its game-scoped relations (admin) */
   deleteAdminGame: {
     parameters: {
@@ -1594,6 +1608,44 @@ export interface operations {
       };
       /** @description Not found */
       404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /** List users for account management (admin) */
+  listAdminUsers: {
+    responses: {
+      /** @description User list */
+      200: {
+        content: {
+          "application/json": components["schemas"]["UserInfo"][];
+        };
+      };
+    };
+  };
+  /** Update user role or status (admin) */
+  updateAdminUser: {
+    parameters: {
+      path: {
+        userId: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateUserAccountRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated user */
+      200: {
+        content: {
+          "application/json": components["schemas"]["UserInfo"];
+        };
+      };
+      /** @description Update rejected */
+      409: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };

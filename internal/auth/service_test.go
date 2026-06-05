@@ -271,3 +271,67 @@ func TestIsUsingBootstrapPassword(t *testing.T) {
 		assert.False(t, inUse)
 	})
 }
+
+func TestListUsers(t *testing.T) {
+	database := setupTestDB(t)
+	svc := NewService(database, "test-secret")
+
+	_, err := svc.Register("alice", "alice@example.com", "password123")
+	require.NoError(t, err)
+	_, err = svc.Register("bob", "bob@example.com", "password123")
+	require.NoError(t, err)
+
+	users, err := svc.ListUsers()
+	require.NoError(t, err)
+	require.Len(t, users, 2)
+	assert.Equal(t, "alice", users[0].Username)
+	assert.Equal(t, "bob", users[1].Username)
+}
+
+func TestUpdateUserAccount(t *testing.T) {
+	database := setupTestDB(t)
+	svc := NewService(database, "test-secret")
+
+	superAdmin, err := svc.Register("root", "root@example.com", "password123")
+	require.NoError(t, err)
+	require.NoError(t, database.Model(&models.User{}).Where("id = ?", superAdmin.ID).Update("role", models.RoleSuperAdmin).Error)
+
+	admin, err := svc.Register("admin2", "admin2@example.com", "password123")
+	require.NoError(t, err)
+	require.NoError(t, database.Model(&models.User{}).Where("id = ?", admin.ID).Update("role", models.RoleAdmin).Error)
+
+	user, err := svc.Register("alice", "alice@example.com", "password123")
+	require.NoError(t, err)
+
+	t.Run("admin can update normal user", func(t *testing.T) {
+		updated, err := svc.UpdateUserAccount(user.ID, admin.ID, models.RoleJudge, models.StatusBanned)
+		require.NoError(t, err)
+		assert.Equal(t, models.RoleJudge, updated.Role)
+		assert.Equal(t, models.StatusBanned, updated.Status)
+	})
+
+	t.Run("admin cannot promote to super admin", func(t *testing.T) {
+		_, err := svc.UpdateUserAccount(user.ID, admin.ID, models.RoleSuperAdmin, models.StatusActive)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "super admin")
+	})
+
+	t.Run("admin cannot manage super admin", func(t *testing.T) {
+		_, err := svc.UpdateUserAccount(superAdmin.ID, admin.ID, models.RoleAdmin, models.StatusActive)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "super admin")
+	})
+
+	t.Run("current user cannot ban self", func(t *testing.T) {
+		_, err := svc.UpdateUserAccount(admin.ID, admin.ID, models.RoleAdmin, models.StatusBanned)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot ban current user")
+	})
+
+	t.Run("super admin can assign super admin", func(t *testing.T) {
+		updated, err := svc.UpdateUserAccount(user.ID, superAdmin.ID, models.RoleSuperAdmin, models.StatusActive)
+		require.NoError(t, err)
+		assert.Equal(t, models.RoleSuperAdmin, updated.Role)
+		assert.Equal(t, models.StatusActive, updated.Status)
+	})
+}

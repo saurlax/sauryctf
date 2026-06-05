@@ -676,6 +676,7 @@ onMounted(async () => {
             <div class="space-y-3">
               <div class="flex flex-wrap gap-2">
                 <UButton label="打开管理端" icon="i-lucide-settings-2" to="/console/admin" variant="outline" />
+                <UButton label="用户管理" icon="i-lucide-users-round" to="/console/admin/users" variant="outline" />
                 <UButton label="浏览公开页" icon="i-lucide-arrow-up-right" to="/games" variant="outline" />
               </div>
 
@@ -1176,6 +1177,14 @@ onMounted(async () => {
                 label="打开管理端"
                 icon="i-lucide-settings-2"
                 to="/console/admin"
+                variant="outline"
+                block
+              />
+              <UButton
+                v-if="isAdmin"
+                label="用户管理"
+                icon="i-lucide-users-round"
+                to="/console/admin/users"
                 variant="outline"
                 block
               />
