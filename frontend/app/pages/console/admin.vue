@@ -364,6 +364,28 @@ const preferredSetupGame = computed(() =>
   || null,
 )
 
+const adminSetupContextMeta = computed(() => {
+  const game = preferredSetupGame.value
+  if (!game) {
+    return null
+  }
+
+  const gameChallengeCount = attachForm.game_id === game.id
+    ? selectedGameChallenges.value.length
+    : undefined
+  const shouldGuideToAttach = gameChallengeCount === undefined || gameChallengeCount === 0
+
+  return {
+    game,
+    title: shouldGuideToAttach ? '继续配置这场比赛：下一步先挂题' : '继续配置这场比赛：下一步检查比赛设置',
+    description: shouldGuideToAttach
+      ? `${game.name} 已经创建完成。现在最值得先做的是把至少一道题目挂到这场比赛里，然后再切到 active 去公开页验证。`
+      : `${game.name} 当前已经挂了 ${gameChallengeCount} 道题。接下来更适合检查状态、公开性和报名模式，再决定是否直接开赛。`,
+    actionLabel: shouldGuideToAttach ? '选中并去挂题' : '选中并去比赛设置',
+    actionTo: shouldGuideToAttach ? '#attach-challenge' : '#game-settings',
+  }
+})
+
 const selectedAdminOverview = computed(() => {
   if (!selectedGame.value) {
     return null
@@ -2697,7 +2719,35 @@ onMounted(async () => {
             icon="i-lucide-clipboard-list"
             title="还没有选中比赛"
             description="先在下方任意比赛选择框里选中一场比赛，或直接从资源列表点“编辑”，这里就会变成该比赛的一屏概览。"
-          />
+          >
+            <template v-if="adminSetupContextMeta" #footer>
+              <div class="space-y-3">
+                <UAlert
+                  color="info"
+                  variant="soft"
+                  icon="i-lucide-route"
+                  title="已有可继续配置的比赛"
+                  :description="adminSetupContextMeta.description"
+                />
+                <div class="flex flex-wrap justify-center gap-2">
+                  <UButton
+                    size="sm"
+                    variant="outline"
+                    @click="selectGameContext(adminSetupContextMeta.game.id); jumpToAdminAnchor(adminSetupContextMeta.actionTo)"
+                  >
+                    {{ adminSetupContextMeta.actionLabel }}
+                  </UButton>
+                  <UButton
+                    size="sm"
+                    variant="ghost"
+                    @click="selectGameContext(adminSetupContextMeta.game.id)"
+                  >
+                    只选中 {{ adminSetupContextMeta.game.name }}
+                  </UButton>
+                </div>
+              </div>
+            </template>
+          </UEmpty>
         </UPageCard>
 
         <UPageCard title="赛前检查" icon="i-lucide-shield-alert">
