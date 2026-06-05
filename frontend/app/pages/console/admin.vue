@@ -2010,14 +2010,14 @@ async function createLocalDockerSmokeProvision() {
     selectGameContext(game.id)
     attachForm.challenge_id = challenge.id
     toast.add({
-      title: '本地 Docker 比赛已创建',
-      description: `已创建 ${game.name}，并自动挂上一道本地 Docker Web 题。现在可以直接去公开页继续配置或检查实例链路。`,
+      title: '本地 Docker 环境比赛已创建',
+      description: `已创建 ${game.name}，并自动挂上一道本地 Docker Web 题。现在可以继续前往公开页完成配置并确认实例入口。`,
       color: 'success',
     })
     jumpToAdminAnchor('#attach-challenge')
   }
   catch (e: any) {
-    toast.add({ title: '创建本地 Docker 比赛失败', description: e.data?.message || e.message, color: 'error' })
+    toast.add({ title: '创建本地 Docker 环境比赛失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
     localDockerSmokeProvisioning.value = false
@@ -2715,13 +2715,13 @@ onMounted(async () => {
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div class="space-y-2">
             <p class="text-sm text-muted">
-              可以直接生成一套精简的比赛与题目配置，方便快速建立首个可用流程。
+              可以直接生成一套精简的比赛与题目配置，便于快速建立首个可用赛事流程。
             </p>
             <UAlert
               color="info"
               variant="soft"
               title="推荐用途"
-              description="先用这条入口核对管理员建赛、普通用户报名、Flag 提交和排行榜更新，再继续补更复杂的比赛配置。"
+              description="适合先完成比赛创建、选手报名、Flag 提交和排行榜更新这一组基础流程，再继续扩展更完整的赛事配置。"
             />
           </div>
 
@@ -2743,7 +2743,7 @@ onMounted(async () => {
               :loading="localDockerSmokeProvisioning"
               @click="createLocalDockerSmokeProvision"
             >
-              创建本地 Docker 比赛
+              创建本地 Docker 环境比赛
             </UButton>
             <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeGameTemplate">
               填充比赛模板
@@ -2938,7 +2938,7 @@ onMounted(async () => {
 
       <UPageCard
         v-if="localDockerSmokeChecklist.length"
-        title="本地 Docker 检查清单"
+        title="本地 Docker 环境检查清单"
         icon="i-lucide-container"
         id="local-docker-checklist"
       >
@@ -2947,7 +2947,7 @@ onMounted(async () => {
             color="info"
             variant="soft"
             title="这场比赛正在使用本地 Docker Web 模板"
-            description="下面这组步骤聚焦本地 Docker provider 的关键流程：报名、启动实例、检查入口回填，以及最后确认销毁回收。"
+            description="下面这组步骤聚焦本地 Docker provider 的关键流程：报名、启动实例、确认入口回填，以及最后检查资源回收。"
           />
 
           <div

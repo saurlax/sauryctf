@@ -43,7 +43,7 @@ const quickLinks = computed(() => {
 
   if (setupStatus.value?.bootstrap_admin_available) {
     links.unshift({
-      title: '初始化管理员入口',
+      title: '初始管理员入口',
       description: `当前可直接使用 ${setupStatus.value.default_admin_username} / ${setupStatus.value.default_admin_password} 登录管理端。`,
       icon: 'i-lucide-shield-check',
       to: '/console/admin',
@@ -78,17 +78,17 @@ const afterLoginSteps = computed(() => {
     return [
       {
         title: '1. 进入管理端',
-        description: '空库场景下，登录成功后默认会直接进入管理端，方便你立刻开始管理员初始化。',
+        description: '空库阶段登录成功后会直接进入管理端，方便先完成平台基础配置。',
         icon: 'i-lucide-layout-dashboard',
       },
       {
-        title: '2. 去管理端创建比赛',
-        description: '推荐先创建一场公开比赛，再创建题目、挂题并激活，尽快完成首次管理员初始化。',
+        title: '2. 创建比赛与题目',
+        description: '建议先创建一场公开比赛，再补充题目、挂题并切换到可用状态。',
         icon: 'i-lucide-settings-2',
       },
       {
-        title: '3. 再注册普通选手完成参赛流程',
-        description: '管理员链路确认后，再用普通账号走一遍建队、报名、提 Flag 和看榜。',
+        title: '3. 再补选手侧流程',
+        description: '管理配置完成后，再使用普通账号继续准备队伍、报名参赛和查看排行榜。',
         icon: 'i-lucide-user-round-plus',
       },
     ]
@@ -163,7 +163,7 @@ const state = reactive<Partial<LoginSchema>>({
           class="mb-4"
           color="info"
           variant="soft"
-          title="默认管理员账号"
+          title="初始管理员账号"
           :description="`当前库为空，可直接使用 ${setupStatus.default_admin_username} / ${setupStatus.default_admin_password} 登录。`"
         />
 
@@ -172,7 +172,7 @@ const state = reactive<Partial<LoginSchema>>({
           class="mb-4"
           color="neutral"
           variant="soft"
-          title="默认管理员已关闭"
+          title="初始管理员入口已关闭"
           description="当前数据库里已经有用户，后端不会再补建默认 admin 账号。请使用现有账号登录。"
         />
 

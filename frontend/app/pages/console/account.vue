@@ -107,8 +107,8 @@ onMounted(async () => {
             color="warning"
             variant="soft"
             icon="i-lucide-triangle-alert"
-            title="默认管理员仍在使用初始密码"
-            description="当前账号仍使用首次启动时的默认口令。为了避免后续误用或泄露，建议现在立即改成新的管理员密码。"
+            title="初始管理员账号仍在使用初始密码"
+            description="当前账号仍在使用平台首次启动时的默认口令。为避免长期保留高风险凭据，建议立即更新为新的管理员密码。"
           />
 
           <UForm :schema="securitySchema" :state="state" class="space-y-4" @submit="submitPasswordChange">
@@ -149,13 +149,13 @@ onMounted(async () => {
         <UPageCard title="安全建议" icon="i-lucide-shield-check">
           <div class="space-y-3 text-sm text-muted">
             <p>
-              默认管理员只适合空库首次启动时打通建赛流程，不适合长期作为固定口令保留。
+              初始管理员账号只适合平台首次启动阶段使用，不应长期保留默认口令。
             </p>
             <p>
               修改密码后，原有登录态仍可继续使用；后续重新登录时请改用新密码。
             </p>
             <p>
-              如果你正在做本地联调，建议先改密，再继续创建比赛、题目和普通测试账号。
+              建议先完成管理员改密，再继续创建比赛、题目以及其他业务账号。
             </p>
           </div>
         </UPageCard>

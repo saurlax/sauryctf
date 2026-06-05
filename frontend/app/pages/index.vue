@@ -27,13 +27,13 @@ const features = [
 
 const firstSteps = [
   {
-    title: '管理员首次进入',
-    description: '空库首次启动时会开放默认管理员入口；库里已有任意用户后，就只使用现有账号登录管理后台。',
+    title: '管理入口',
+    description: '当数据库为空时，平台会提供初始管理员入口；已有用户后，请直接使用现有账号登录管理后台。',
     icon: 'i-lucide-shield-check',
     to: '/login',
   },
   {
-    title: '普通选手报名',
+    title: '选手入场',
     description: '注册账号后会先进入队伍页，创建或加入队伍后再回到比赛详情继续报名和提交 Flag。',
     icon: 'i-lucide-flag',
     to: '/register',
@@ -89,7 +89,7 @@ const heroLinks = computed(() => {
         class="mb-6"
         color="info"
         variant="soft"
-        :title="setupStatus?.bootstrap_admin_available ? '当前可使用默认管理员' : '默认管理员仅在空库初始化'"
+        :title="setupStatus?.bootstrap_admin_available ? '当前可使用初始管理员账号' : '初始管理员账号仅在空库阶段提供'"
         :description="setupStatus?.bootstrap_admin_available
           ? `当前库为空，可直接使用 ${setupStatus.default_admin_username} / ${setupStatus.default_admin_password} 登录。`
           : '数据库里已有任意用户，后端不会补建 admin。请使用已有账号登录。'"
@@ -129,7 +129,7 @@ const heroLinks = computed(() => {
         />
         <UPageCard
           title="2. 选手参赛"
-          description="注册普通账号后先创建队伍，再进入比赛页报名并提交正确 Flag。"
+          description="注册普通账号后先创建队伍，再进入比赛页完成报名、答题和提交 Flag。"
           icon="i-lucide-user-round-plus"
           to="/register"
         />
