@@ -59,6 +59,69 @@ const onboardingMode = computed(() => {
 })
 const showCreatedOnboarding = computed(() => onboardingMode.value === 'created' && !team.value)
 const contestRedirect = computed(() => resolveRedirect())
+
+const teamNextStepMeta = computed(() => {
+  if (!team.value) {
+    return null
+  }
+
+  if (teamLocked.value) {
+    return {
+      title: '当前先保持队伍结构稳定',
+      description: lockedGames.value.length
+        ? `你们已经通过 ${lockedGames.value[0]?.name || '当前比赛'} 的报名，队伍结构会暂时锁定。现在更适合直接回比赛页继续解题、补 Writeup 或查看当前状态。`
+        : '当前队伍已经进入锁定状态。现在更适合直接回比赛页继续处理参赛事项，而不是再调整成员。',
+      color: 'warning' as const,
+      icon: 'i-lucide-lock',
+      actionLabel: contestRedirect.value ? '返回原比赛' : '浏览比赛',
+      actionTo: contestRedirect.value || '/games',
+      secondaryLabel: '查看队伍规则',
+      secondaryTo: '/console/team',
+    }
+  }
+
+  if (contestRedirect.value) {
+    return {
+      title: '当前下一步：回到原比赛完成报名',
+      description: isCaptain.value
+        ? '队伍已经准备好了。你可以先回到原比赛直接报名；如果还想等队友加入，也可以先复制邀请链接。'
+        : '你已经加入当前队伍。现在最值得先做的是回到原比赛，继续看报名状态、题目和排行榜。',
+      color: 'info' as const,
+      icon: 'i-lucide-route',
+      actionLabel: '返回原比赛',
+      actionTo: contestRedirect.value,
+      secondaryLabel: isCaptain.value ? '复制邀请链接' : '浏览更多比赛',
+      secondaryTo: isCaptain.value ? '/console/team' : '/games',
+    }
+  }
+
+  if (isCaptain.value && memberCount.value <= 1) {
+    return {
+      title: '当前下一步：邀请队友或直接去报名',
+      description: '你现在是这支队伍的队长。可以先把邀请链接发给队友，也可以先去公开比赛页挑一场比赛完成报名。',
+      color: 'success' as const,
+      icon: 'i-lucide-user-round-plus',
+      actionLabel: '浏览比赛',
+      actionTo: '/games',
+      secondaryLabel: '继续维护队伍',
+      secondaryTo: '/console/team',
+    }
+  }
+
+  return {
+    title: '当前下一步：去比赛页继续参赛',
+    description: isCaptain.value
+      ? '队伍已经具备基本参赛条件。接下来进入公开比赛页完成报名，之后再按比赛状态继续提 Flag 或补交 Writeup。'
+      : '你已经在队伍里了。接下来直接去公开比赛页查看当前队伍的报名状态和参赛入口即可。',
+    color: 'success' as const,
+    icon: 'i-lucide-trophy',
+    actionLabel: '浏览比赛',
+    actionTo: '/games',
+    secondaryLabel: '回控制台',
+    secondaryTo: '/console',
+  }
+})
+
 const summaryCards = computed(() => [
   {
     label: '当前成员',
@@ -270,6 +333,34 @@ onMounted(async () => {
                 size="sm"
                 :to="contestRedirect"
               />
+            </template>
+          </UAlert>
+        </div>
+        <div v-if="teamNextStepMeta" class="xl:col-span-2">
+          <UAlert
+            :color="teamNextStepMeta.color"
+            variant="soft"
+            :icon="teamNextStepMeta.icon"
+            :title="teamNextStepMeta.title"
+            :description="teamNextStepMeta.description"
+          >
+            <template #actions>
+              <div class="flex flex-wrap gap-2">
+                <UButton
+                  size="sm"
+                  :to="teamNextStepMeta.actionTo"
+                  :label="teamNextStepMeta.actionLabel"
+                  :color="teamNextStepMeta.color === 'warning' ? 'warning' : 'primary'"
+                  variant="outline"
+                />
+                <UButton
+                  v-if="teamNextStepMeta.secondaryLabel && teamNextStepMeta.secondaryTo"
+                  size="sm"
+                  :to="teamNextStepMeta.secondaryTo"
+                  :label="teamNextStepMeta.secondaryLabel"
+                  variant="ghost"
+                />
+              </div>
             </template>
           </UAlert>
         </div>
