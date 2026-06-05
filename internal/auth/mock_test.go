@@ -11,17 +11,21 @@ var _ ServiceInterface = (*MockService)(nil)
 
 // MockService is a fake implementation of ServiceInterface for handler tests.
 type MockService struct {
-	Users    map[string]*models.User // keyed by email
-	Tokens   map[string]*models.User // keyed by token
-	NextID   uint
-	FailWith error // if set, all methods return this error
+	Users                    map[string]*models.User // keyed by email
+	Tokens                   map[string]*models.User // keyed by token
+	Passwords                map[uint]string
+	BootstrapPasswordInUseBy map[uint]bool
+	NextID                   uint
+	FailWith                 error // if set, all methods return this error
 }
 
 func NewMockService() *MockService {
 	return &MockService{
-		Users:  make(map[string]*models.User),
-		Tokens: make(map[string]*models.User),
-		NextID: 1,
+		Users:                    make(map[string]*models.User),
+		Tokens:                   make(map[string]*models.User),
+		Passwords:                make(map[uint]string),
+		BootstrapPasswordInUseBy: make(map[uint]bool),
+		NextID:                   1,
 	}
 }
 
@@ -41,6 +45,7 @@ func (m *MockService) Register(username, email, password string) (*models.User, 
 	}
 	m.NextID++
 	m.Users[email] = user
+	m.Passwords[user.ID] = password
 	return user, nil
 }
 
@@ -61,6 +66,8 @@ func (m *MockService) EnsureBootstrapAdmin() (*models.User, bool, error) {
 	}
 	m.NextID++
 	m.Users[user.Email] = user
+	m.Passwords[user.ID] = defaultAdminPassword
+	m.BootstrapPasswordInUseBy[user.ID] = true
 	return user, true, nil
 }
 
@@ -85,6 +92,9 @@ func (m *MockService) Login(username, password string) (string, *models.User, er
 		}
 	}
 	if user == nil {
+		return "", nil, assert.AnError
+	}
+	if expectedPassword, ok := m.Passwords[user.ID]; ok && expectedPassword != password {
 		return "", nil, assert.AnError
 	}
 	token := "mock-token-" + user.Username
@@ -121,4 +131,28 @@ func (m *MockService) GetUserByID(id uint) (*models.User, error) {
 		}
 	}
 	return nil, assert.AnError
+}
+
+func (m *MockService) ChangePassword(userID uint, currentPassword, newPassword string) error {
+	if m.FailWith != nil {
+		return m.FailWith
+	}
+	if expectedPassword, ok := m.Passwords[userID]; ok {
+		if expectedPassword != currentPassword {
+			return assert.AnError
+		}
+		if currentPassword == newPassword {
+			return assert.AnError
+		}
+	}
+	m.Passwords[userID] = newPassword
+	delete(m.BootstrapPasswordInUseBy, userID)
+	return nil
+}
+
+func (m *MockService) IsUsingBootstrapPassword(userID uint) (bool, error) {
+	if m.FailWith != nil {
+		return false, m.FailWith
+	}
+	return m.BootstrapPasswordInUseBy[userID], nil
 }

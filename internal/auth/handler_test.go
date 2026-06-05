@@ -20,7 +20,15 @@ func setupAuthRouter(mock *MockService) *gin.Engine {
 
 	api := r.Group("/api")
 	// Public routes
-	api.GET("/auth/setup-status", h.SetupStatus)
+	api.GET("/auth/setup-status", func(c *gin.Context) {
+		if token, err := c.Cookie("token"); err == nil && token != "" {
+			if user, err := mock.ValidateToken(token); err == nil {
+				c.Set("user_id", user.ID)
+				c.Set("user_role", string(user.Role))
+			}
+		}
+		h.SetupStatus(c)
+	})
 	api.POST("/auth/register", h.Register)
 	api.POST("/auth/login", h.Login)
 
@@ -43,6 +51,7 @@ func setupAuthRouter(mock *MockService) *gin.Engine {
 	})
 	protected.POST("/auth/logout", h.Logout)
 	protected.GET("/auth/me", h.GetMe)
+	protected.POST("/auth/change-password", h.ChangePassword)
 
 	return r
 }
@@ -190,5 +199,66 @@ func TestHandler_SetupStatus(t *testing.T) {
 		assert.Contains(t, w.Body.String(), `"bootstrap_admin_available":false`)
 		assert.NotContains(t, w.Body.String(), `"default_admin_username"`)
 		assert.NotContains(t, w.Body.String(), `"default_admin_password"`)
+	})
+
+	t.Run("password change recommendation exposed for bootstrap admin session", func(t *testing.T) {
+		mock := NewMockService()
+		admin := &models.User{ID: 1, Username: "admin", Email: "admin@test.com", Role: models.RoleAdmin, Status: models.StatusActive}
+		mock.Users[admin.Email] = admin
+		mock.Passwords[admin.ID] = defaultAdminPassword
+		mock.BootstrapPasswordInUseBy[admin.ID] = true
+		mock.Tokens["bootstrap-admin-token"] = admin
+		r := setupAuthRouter(mock)
+
+		req := httptest.NewRequest("GET", "/api/auth/setup-status", nil)
+		req.AddCookie(&http.Cookie{Name: "token", Value: "bootstrap-admin-token"})
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), `"password_change_recommended":true`)
+	})
+}
+
+func TestHandler_ChangePassword(t *testing.T) {
+	mock := NewMockService()
+	user := &models.User{ID: 1, Username: "alice", Email: "alice@test.com", Role: models.RoleUser, Status: models.StatusActive}
+	mock.Users[user.Email] = user
+	mock.Passwords[user.ID] = "123456"
+	mock.Tokens["mock-token-alice"] = user
+	r := setupAuthRouter(mock)
+
+	t.Run("success", func(t *testing.T) {
+		body := `{"current_password":"123456","new_password":"654321"}`
+		req := httptest.NewRequest("POST", "/api/auth/change-password", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(&http.Cookie{Name: "token", Value: "mock-token-alice"})
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "654321", mock.Passwords[user.ID])
+	})
+
+	t.Run("bad request", func(t *testing.T) {
+		body := `{}`
+		req := httptest.NewRequest("POST", "/api/auth/change-password", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(&http.Cookie{Name: "token", Value: "mock-token-alice"})
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("wrong password", func(t *testing.T) {
+		body := `{"current_password":"wrong123","new_password":"another123"}`
+		req := httptest.NewRequest("POST", "/api/auth/change-password", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(&http.Cookie{Name: "token", Value: "mock-token-alice"})
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusConflict, w.Code)
 	})
 }

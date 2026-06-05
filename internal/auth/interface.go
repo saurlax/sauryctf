@@ -11,4 +11,6 @@ type ServiceInterface interface {
 	ValidateToken(token string) (*models.User, error)
 	Logout(token string) error
 	GetUserByID(id uint) (*models.User, error)
+	ChangePassword(userID uint, currentPassword, newPassword string) error
+	IsUsingBootstrapPassword(userID uint) (bool, error)
 }

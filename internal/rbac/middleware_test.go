@@ -30,6 +30,8 @@ func (m *mockAuth) BootstrapAdminAvailable() (bool, error)          { return fal
 func (m *mockAuth) Login(_, _ string) (string, *models.User, error) { return "", nil, nil }
 func (m *mockAuth) Logout(_ string) error                           { return nil }
 func (m *mockAuth) GetUserByID(_ uint) (*models.User, error)        { return nil, nil }
+func (m *mockAuth) ChangePassword(_ uint, _, _ string) error        { return nil }
+func (m *mockAuth) IsUsingBootstrapPassword(_ uint) (bool, error)   { return false, nil }
 func (m *mockAuth) ValidateToken(token string) (*models.User, error) {
 	if u, ok := m.users[token]; ok {
 		return u, nil

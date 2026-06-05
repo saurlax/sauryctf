@@ -79,6 +79,17 @@ components:
         password:
           type: string
 
+    ChangePasswordRequest:
+      type: object
+      required: [current_password, new_password]
+      properties:
+        current_password:
+          type: string
+          minLength: 6
+        new_password:
+          type: string
+          minLength: 6
+
     AuthResponse:
       type: object
       required: [token, user]
@@ -98,6 +109,8 @@ components:
           type: string
         default_admin_password:
           type: string
+        password_change_recommended:
+          type: boolean
 
     # ── Teams ──────────────────────────────────────────────
     Team:
@@ -938,6 +951,33 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+
+  /api/auth/change-password:
+    post:
+      operationId: changePassword
+      summary: Change current user password
+      tags: [auth]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+      responses:
+        "200":
+          description: Password updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "409":
+          description: Cannot change password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/auth/me:
     get:

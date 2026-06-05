@@ -170,6 +170,47 @@ func (s *Service) GetUserByID(id uint) (*models.User, error) {
 	return &user, nil
 }
 
+func (s *Service) ChangePassword(userID uint, currentPassword, newPassword string) error {
+	var user models.User
+	if err := s.db.First(&user, userID).Error; err != nil {
+		return err
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(currentPassword)); err != nil {
+		return errors.New("current password is incorrect")
+	}
+
+	if currentPassword == newPassword {
+		return errors.New("new password must be different from current password")
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	return s.db.Model(&models.User{}).
+		Where("id = ?", userID).
+		Update("password_hash", string(hash)).Error
+}
+
+func (s *Service) IsUsingBootstrapPassword(userID uint) (bool, error) {
+	var user models.User
+	if err := s.db.First(&user, userID).Error; err != nil {
+		return false, err
+	}
+
+	if user.Username != defaultAdminUsername || user.Role != models.RoleAdmin {
+		return false, nil
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(defaultAdminPassword)); err != nil {
+		return false, nil
+	}
+
+	return true, nil
+}
+
 func (s *Service) generateToken(user *models.User) (string, error) {
 	jti, err := newTokenID()
 	if err != nil {

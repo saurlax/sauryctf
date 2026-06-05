@@ -25,6 +25,10 @@ export interface paths {
     /** Invalidate session */
     post: operations["logout"];
   };
+  "/api/auth/change-password": {
+    /** Change current user password */
+    post: operations["changePassword"];
+  };
   "/api/auth/me": {
     /** Get current user info */
     get: operations["getMe"];
@@ -215,6 +219,11 @@ export interface components {
       bootstrap_admin_available: boolean;
       default_admin_username?: string;
       default_admin_password?: string;
+      password_change_recommended?: boolean;
+    };
+    ChangePasswordRequest: {
+      current_password: string;
+      new_password: string;
     };
     Team: {
       id: number;
@@ -677,6 +686,28 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["MessageResponse"];
+        };
+      };
+    };
+  };
+  /** Change current user password */
+  changePassword: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ChangePasswordRequest"];
+      };
+    };
+    responses: {
+      /** @description Password updated */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MessageResponse"];
+        };
+      };
+      /** @description Cannot change password */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };

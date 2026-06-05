@@ -8,6 +8,7 @@ import type { components } from '~/types/api'
 const { authState, ensureInitialized } = useAuth()
 const toast = useToast()
 const route = useRoute()
+const { data: setupStatus, refresh: refreshSetupStatus } = await useAPI('auth-setup-status', 'get', '/api/auth/setup-status')
 
 interface TeamSummary {
   id: number
@@ -151,6 +152,7 @@ const onboardingMode = computed(() => {
 
 const showTeamOnboarding = computed(() => onboardingMode.value === 'team' && !team.value)
 const showAdminBootstrapGuide = computed(() => isAdmin.value && games.value.length === 0)
+const showPasswordSecurityNotice = computed(() => !!setupStatus.value?.password_change_recommended)
 
 const adminBootstrapSteps = computed(() => [
   {
@@ -206,6 +208,7 @@ async function fetchConsoleData() {
       games.value = gamesRes.value
       participationMap.value = await fetchParticipationMap(games.value.map(game => game.id))
       await loadAdminTodoData()
+      await refreshSetupStatus()
     }
     else {
       games.value = []
@@ -576,6 +579,26 @@ onMounted(async () => {
     </template>
 
     <template v-else>
+      <UAlert
+        v-if="showPasswordSecurityNotice"
+        class="mb-6"
+        color="warning"
+        variant="soft"
+        icon="i-lucide-key-round"
+        title="请尽快更新默认管理员密码"
+        description="当前管理员账号仍在使用首次启动时的默认口令。建议先去账号安全页修改密码，再继续长期使用管理端。"
+      >
+        <template #actions>
+          <UButton
+            label="前往修改密码"
+            color="warning"
+            variant="outline"
+            size="sm"
+            to="/console/account"
+          />
+        </template>
+      </UAlert>
+
       <UAlert
         v-if="showTeamOnboarding"
         class="mb-6"
@@ -1154,6 +1177,13 @@ onMounted(async () => {
                 icon="i-lucide-settings-2"
                 to="/console/admin"
                 variant="outline"
+                block
+              />
+              <UButton
+                label="账号安全"
+                icon="i-lucide-key-round"
+                to="/console/account"
+                variant="ghost"
                 block
               />
             </div>

@@ -25,6 +25,11 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password" binding:"required,min=6"`
+	NewPassword     string `json:"new_password" binding:"required,min=6"`
+}
+
 type AuthResponse struct {
 	Token string    `json:"token"`
 	User  *UserInfo `json:"user"`
@@ -39,9 +44,10 @@ type UserInfo struct {
 }
 
 type AuthSetupStatusResponse struct {
-	BootstrapAdminAvailable bool   `json:"bootstrap_admin_available"`
-	DefaultAdminUsername    string `json:"default_admin_username,omitempty"`
-	DefaultAdminPassword    string `json:"default_admin_password,omitempty"`
+	BootstrapAdminAvailable   bool   `json:"bootstrap_admin_available"`
+	DefaultAdminUsername      string `json:"default_admin_username,omitempty"`
+	DefaultAdminPassword      string `json:"default_admin_password,omitempty"`
+	PasswordChangeRecommended bool   `json:"password_change_recommended,omitempty"`
 }
 
 type ErrorResponse struct {
@@ -169,8 +175,35 @@ func (h *Handler) SetupStatus(c *gin.Context) {
 		resp.DefaultAdminUsername = defaultAdminUsername
 		resp.DefaultAdminPassword = defaultAdminPassword
 	}
+	if userIDValue, exists := c.Get("user_id"); exists {
+		if userID, ok := userIDValue.(uint); ok {
+			recommended, err := h.svc.IsUsingBootstrapPassword(userID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+				return
+			}
+			resp.PasswordChangeRecommended = recommended
+		}
+	}
 
 	c.JSON(http.StatusOK, resp)
+}
+
+func (h *Handler) ChangePassword(c *gin.Context) {
+	var req ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+
+	userID := c.MustGet("user_id").(uint)
+
+	if err := h.svc.ChangePassword(userID, req.CurrentPassword, req.NewPassword); err != nil {
+		c.JSON(http.StatusConflict, gin.H{"message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "password updated"})
 }
 
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
@@ -181,6 +214,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 		auth.POST("/login", h.Login)
 		auth.POST("/logout", h.Logout)
 		auth.GET("/me", h.GetMe)
+		auth.POST("/change-password", h.ChangePassword)
 	}
 }
 

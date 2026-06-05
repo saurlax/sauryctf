@@ -210,3 +210,64 @@ func TestGetUserByID(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestChangePassword(t *testing.T) {
+	database := setupTestDB(t)
+	svc := NewService(database, "test-secret")
+
+	user, err := svc.Register("alice", "alice@example.com", "password123")
+	require.NoError(t, err)
+
+	t.Run("success", func(t *testing.T) {
+		err := svc.ChangePassword(user.ID, "password123", "newpassword123")
+		assert.NoError(t, err)
+
+		_, _, err = svc.Login("alice@example.com", "newpassword123")
+		assert.NoError(t, err)
+	})
+
+	t.Run("reject wrong current password", func(t *testing.T) {
+		err := svc.ChangePassword(user.ID, "bad-password", "anotherpassword123")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "current password")
+	})
+
+	t.Run("reject same password", func(t *testing.T) {
+		err := svc.ChangePassword(user.ID, "newpassword123", "newpassword123")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "different")
+	})
+}
+
+func TestIsUsingBootstrapPassword(t *testing.T) {
+	database := setupTestDB(t)
+	svc := NewService(database, "test-secret")
+
+	admin, created, err := svc.EnsureBootstrapAdmin()
+	require.NoError(t, err)
+	require.True(t, created)
+
+	t.Run("bootstrap admin initially flagged", func(t *testing.T) {
+		inUse, err := svc.IsUsingBootstrapPassword(admin.ID)
+		assert.NoError(t, err)
+		assert.True(t, inUse)
+	})
+
+	t.Run("flag clears after password change", func(t *testing.T) {
+		err := svc.ChangePassword(admin.ID, defaultAdminPassword, "sauryctf-admin-2")
+		require.NoError(t, err)
+
+		inUse, err := svc.IsUsingBootstrapPassword(admin.ID)
+		assert.NoError(t, err)
+		assert.False(t, inUse)
+	})
+
+	t.Run("normal user is never flagged", func(t *testing.T) {
+		normalUser, err := svc.Register("alice", "alice@example.com", "password123")
+		require.NoError(t, err)
+
+		inUse, err := svc.IsUsingBootstrapPassword(normalUser.ID)
+		assert.NoError(t, err)
+		assert.False(t, inUse)
+	})
+}

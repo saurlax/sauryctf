@@ -22,6 +22,22 @@
 
 - `admin / sauryctf` 不是“系统保底账号”，而是“仅空库首次启动可用的引导账号”
 
+## 默认管理员改密
+
+- 当前已新增 `/console/account`
+- 登录后的任意账号都可以在这里修改自己的登录密码
+- 接口为 `POST /api/auth/change-password`
+- 如果当前登录的是仍在使用初始密码的默认管理员：
+  - `/api/auth/setup-status` 会额外返回 `password_change_recommended = true`
+  - `/console` 会显示一条显式安全提醒
+  - `/console/account` 会继续高亮“立即改密”的风险提示
+
+推荐顺序：
+
+1. 空库首次启动后先用 `admin / sauryctf` 登录
+2. 进入 `/console/account` 修改默认管理员密码
+3. 再继续创建比赛、题目和普通选手账号
+
 ## 普通用户链路
 
 - 直接访问 `/register` 注册成功后，会自动登录并直接进入 `/console/team?onboarding=created`
