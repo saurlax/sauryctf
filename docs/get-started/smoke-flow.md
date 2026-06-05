@@ -83,6 +83,24 @@ pnpm smoke:local
 
 这条脚本刻意要求数据库仍然是“无任何用户”的状态；一旦库里已有用户，它会直接退出，而不是尝试补建 `admin`。
 
+如果你已经显式开启：
+
+- `INSTANCE_DOCKER_PROVIDER_ENABLED=true`
+- 本机 Docker Server 可用
+
+也可以直接运行真实 Docker 版本：
+
+```bash
+pnpm smoke:local:docker
+```
+
+这条脚本会把动态题切成 `nginx:alpine + runtime.expose = [80]`，并额外验证：
+
+- 实例响应里返回了真实的本机 `127.0.0.1:<随机端口>`
+- 这个入口能直接返回 HTTP 200
+- 返回内容符合预期的 nginx 默认页
+- 销毁实例后，接口会回到 `idle`
+
 ## 管理员最小链路
 
 1. 打开 `http://127.0.0.1:3000/login`

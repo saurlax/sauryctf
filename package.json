@@ -6,6 +6,7 @@
     "dev:backend": "go run ./cmd/server",
     "dev:frontend": "pnpm --filter sauryctf-frontend dev:local",
     "smoke:local": "powershell -ExecutionPolicy Bypass -File ./scripts/smoke-local.ps1",
+    "smoke:local:docker": "powershell -ExecutionPolicy Bypass -File ./scripts/smoke-local.ps1 -DynamicMode docker",
     "test": "pnpm test:backend && pnpm test:frontend",
     "test:backend": "go test ./...",
     "test:frontend": "pnpm --filter sauryctf-frontend typecheck",

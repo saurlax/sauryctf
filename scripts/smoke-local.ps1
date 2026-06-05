@@ -1,7 +1,8 @@
 param(
   [string]$BaseUrl = "http://127.0.0.1:8080",
   [string]$AdminUsername = "admin",
-  [string]$AdminPassword = "sauryctf"
+  [string]$AdminPassword = "sauryctf",
+  [ValidateSet("mock", "docker")][string]$DynamicMode = "mock"
 )
 
 $ErrorActionPreference = "Stop"
@@ -77,6 +78,14 @@ function Assert-False {
   }
 }
 
+function Invoke-TextRequest {
+  param(
+    [Parameter(Mandatory = $true)][string]$Url
+  )
+
+  return Invoke-WebRequest -Method "GET" -Uri $Url
+}
+
 $suffix = Get-Date -Format "yyyyMMddHHmmss"
 $playerUsername = "smoke-$suffix"
 $playerEmail = "$playerUsername@example.com"
@@ -85,6 +94,7 @@ $teamName = "Smoke Team $suffix"
 $gameName = "Smoke Game $suffix"
 $challengeTitle = "Smoke Challenge $suffix"
 $dynamicChallengeTitle = "Smoke Dynamic Challenge $suffix"
+$dynamicChallengeImage = if ($DynamicMode -eq "docker") { "nginx:alpine" } else { "ctf/example:latest" }
 $flag = "flag{smoke-test}"
 $now = (Get-Date).ToUniversalTime()
 $startTime = $now.AddMinutes(-5).ToString("o")
@@ -93,6 +103,12 @@ $endTime = $now.AddHours(2).ToString("o")
 Write-Step "Checking backend health"
 $health = Invoke-JsonRequest -Method "GET" -Url "$BaseUrl/api/healthz"
 Assert-Equal $health.status "ok" "Backend health check failed."
+
+if ($DynamicMode -eq "docker") {
+  Write-Step "Checking local Docker prerequisites"
+  $dockerCheck = Invoke-Command -ScriptBlock { docker version --format '{{.Server.Version}}' } 2>$null
+  Assert-True (-not [string]::IsNullOrWhiteSpace(($dockerCheck | Out-String).Trim())) "Docker server is not reachable. Please start Docker Desktop or switch back to -DynamicMode mock."
+}
 
 Write-Step "Checking bootstrap admin availability"
 $setupStatus = Invoke-JsonRequest -Method "GET" -Url "$BaseUrl/api/auth/setup-status"
@@ -133,7 +149,7 @@ Assert-Equal $challenge.title $challengeTitle "Failed to create smoke challenge.
 Write-Step "Creating dynamic challenge"
 $dynamicChallenge = Invoke-JsonRequest -Method "POST" -Url "$BaseUrl/api/challenges" -Body @{
   title          = $dynamicChallengeTitle
-  description    = "Automated dynamic smoke challenge"
+  description    = if ($DynamicMode -eq "docker") { "Automated dynamic smoke challenge (real docker mode)" } else { "Automated dynamic smoke challenge" }
   category       = "web"
   type           = "dynamic"
   flag           = "flag{dynamic-smoke}"
@@ -144,15 +160,21 @@ $dynamicChallenge = Invoke-JsonRequest -Method "POST" -Url "$BaseUrl/api/challen
   container_spec = (@{
     runtime = @{
       provider = "docker"
-      image    = "ctf/example:latest"
-      expose   = @(8080)
+      image    = $dynamicChallengeImage
+      expose   = if ($DynamicMode -eq "docker") { @(80) } else { @(8080) }
     }
-    connection = @{
-      url     = "/mock-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}"
-      host    = "127.0.0.1"
-      port    = "{{team_id}}"
-      command = "open /mock-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}"
-      note    = "Dynamic smoke instance for team {{team_id}}"
+    connection = if ($DynamicMode -eq "docker") {
+      @{
+        note = "Real local docker smoke instance for team {{team_id}}"
+      }
+    } else {
+      @{
+        url     = "/mock-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}"
+        host    = "127.0.0.1"
+        port    = "{{team_id}}"
+        command = "open /mock-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}"
+        note    = "Dynamic smoke instance for team {{team_id}}"
+      }
     }
   } | ConvertTo-Json -Depth 10 -Compress)
 } -Session $adminSession
@@ -223,11 +245,27 @@ Assert-False ($instanceRunning.can_renew -eq $true) "Dynamic challenge instance 
 Assert-True ($instanceRunning.message.Contains("需在到期前 10 分钟内续期")) "Dynamic challenge instance should explain the current renewal window."
 Assert-True (-not [string]::IsNullOrWhiteSpace($instanceRunning.launch_url)) "Dynamic challenge instance did not return a launch URL."
 Assert-True (-not [string]::IsNullOrWhiteSpace($instanceRunning.host)) "Dynamic challenge instance did not return a host."
-Assert-True (-not [string]::IsNullOrWhiteSpace($instanceRunning.command)) "Dynamic challenge instance did not return a command."
 Assert-False ($instanceRunning.launch_url.Contains("{{")) "Dynamic challenge launch URL still contains unresolved template placeholders."
 Assert-False ($instanceRunning.host.Contains("{{")) "Dynamic challenge host still contains unresolved template placeholders."
-Assert-False ($instanceRunning.command.Contains("{{")) "Dynamic challenge command still contains unresolved template placeholders."
-Assert-True ($instanceRunning.launch_url.StartsWith("/mock-instance/")) "Dynamic challenge launch URL does not point to the local mock instance page."
+
+if ($DynamicMode -eq "docker") {
+  Assert-True ($instanceRunning.launch_url.StartsWith("http://127.0.0.1:")) "Dynamic challenge launch URL does not point to a local docker published port."
+  Assert-Equal $instanceRunning.host "127.0.0.1" "Dynamic challenge docker host should resolve to 127.0.0.1."
+  Assert-True ($instanceRunning.port -match '^\d+$') "Dynamic challenge docker port should resolve to a numeric host port."
+
+  Write-Step "Validating published docker web entry"
+  $instanceWeb = Invoke-TextRequest -Url $instanceRunning.launch_url
+  Assert-Equal $instanceWeb.StatusCode 200 "Dynamic challenge docker entry did not return HTTP 200."
+  Assert-True (($instanceWeb.Content | Out-String) -match "nginx") "Dynamic challenge docker entry does not look like the expected nginx page."
+} else {
+  Assert-True (-not [string]::IsNullOrWhiteSpace($instanceRunning.command)) "Dynamic challenge instance did not return a command."
+  Assert-False ($instanceRunning.command.Contains("{{")) "Dynamic challenge command still contains unresolved template placeholders."
+  Assert-True ($instanceRunning.launch_url.StartsWith("/mock-instance/")) "Dynamic challenge launch URL does not point to the local mock instance page."
+}
+
+Write-Step "Destroying dynamic instance lease"
+$destroyedInstance = Invoke-JsonRequest -Method "DELETE" -Url "$BaseUrl/api/games/$($game.id)/challenges/$($dynamicChallenge.id)/instance" -Session $playerSession
+Assert-Equal $destroyedInstance.status "idle" "Dynamic challenge instance was not destroyed back to idle state."
 
 Write-Step "Submitting correct flag"
 $submitResult = Invoke-JsonRequest -Method "POST" -Url "$BaseUrl/api/games/$($game.id)/challenges/$($challenge.id)/submit" -Body @{
@@ -249,5 +287,6 @@ Write-Host "Smoke flow passed." -ForegroundColor Green
 Write-Host "Contest: $gameName"
 Write-Host "Challenge: $challengeTitle"
 Write-Host "Dynamic Challenge: $dynamicChallengeTitle"
+Write-Host "Dynamic Mode: $DynamicMode"
 Write-Host "Player: $playerUsername"
 Write-Host "Team: $teamName"

@@ -17,6 +17,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 | Start backend only | `pnpm dev:backend` |
 | Start frontend only | `pnpm dev:frontend` |
 | Local smoke flow | `pnpm smoke:local` |
+| Local docker smoke flow | `pnpm smoke:local:docker` |
 | Backend tests | `pnpm test:backend` (single package: `go test ./internal/auth/... -v -p 1`) |
 | Frontend type check | `pnpm typecheck` |
 | Frontend build | `pnpm generate` |
@@ -42,6 +43,11 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
   - the instance response now includes explicit lease policy minutes for initial lease / extension / renewal window
   - a freshly started lease is not immediately renewable; local smoke now checks the current GZCTF-style renewal-window gating
   - the returned launch data no longer contains unresolved `{{team_hash}}`-style placeholders
+- `pnpm smoke:local:docker` now provides an opt-in real local Docker verification path:
+  - requires `INSTANCE_DOCKER_PROVIDER_ENABLED=true`
+  - provisions one `nginx:alpine`-backed dynamic challenge with `runtime.expose = [80]`
+  - verifies the returned `launch_url` is a reachable local published port
+  - also verifies destroy returns the instance state to `idle`
 - `/console/admin` now also exposes a one-click dynamic smoke provision flow:
   - creates one public auto-accept game
   - creates one `dynamic` challenge with team-scoped instance templates
