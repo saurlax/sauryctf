@@ -27,7 +27,7 @@ const pageLinks = computed(() => [
     <div class="mx-auto flex max-w-4xl flex-col gap-6">
       <UPageCard
         title="Mock Challenge Instance"
-        description="这是本地联调用的最小实例落点页。当前还不是实际容器服务，但会模拟每队独立实例入口已经被平台成功解析并下发。"
+        description="这是一个实例入口示例页。当前还不是实际容器服务，但会模拟每支队伍的独立实例入口已经被平台成功解析并下发。"
         icon="i-lucide-box"
       >
         <template #footer>

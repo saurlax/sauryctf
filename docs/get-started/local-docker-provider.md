@@ -1,12 +1,12 @@
 # 本地 Docker Dynamic 题
 
-这份说明面向“想让动态题在本机真的 `docker run` 起来”的最小联调场景。
+这份说明面向“想让动态题在本机真的 `docker run` 起来”的最小验证场景。
 
 ## 开启方式
 
 默认情况下，即使题目写了 `runtime.provider = docker`，平台仍然只会走 skeleton 租约，不会真的起容器。
 
-如果你是手动启动自己的后端进行联调，需要在 `.env` 里加入：
+如果你是手动启动自己的后端进行验证，需要在 `.env` 里加入：
 
 ```env
 INSTANCE_DOCKER_PROVIDER_ENABLED=true
@@ -105,4 +105,4 @@ docker info
 
 - 本地 Web 服务题
 - 只需要一个 HTTP 端口的演示型动态题
-- 想先验证 GZCTF 风格实例生命周期，而不是一次把完整容器平台做完的题
+- 想先验证实例生命周期，而不是一次把完整容器平台做完的题

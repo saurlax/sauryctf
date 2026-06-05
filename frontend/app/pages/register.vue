@@ -56,7 +56,7 @@ const afterRegisterSteps = computed(() => {
       },
       {
         title: '2. 创建或加入队伍',
-        description: '和 GZCTF 的常见参赛流程一样，账号只是第一步，真正参赛前还需要确定当前使用的队伍。',
+        description: '账号只是第一步，真正参赛前还需要先确定当前使用的队伍。',
         icon: 'i-lucide-user-round-plus',
       },
       {

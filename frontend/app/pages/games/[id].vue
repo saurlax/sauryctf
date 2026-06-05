@@ -940,7 +940,7 @@ const participationJourneyItems = computed(() => {
       },
       {
         title: '2. 再准备队伍',
-        description: '和 GZCTF 的常见参赛流程一样，账号只是入口，真正参赛前还需要确定当前使用的队伍。',
+        description: '账号只是入口，真正参赛前还需要先确定当前使用的队伍。',
         done: false,
         icon: 'i-lucide-users',
       },
@@ -2268,7 +2268,7 @@ onMounted(async () => {
                           color="info"
                           variant="soft"
                           title="当前还没到可续期时间"
-                          :description="instanceStates[ch.id]?.message || '为了贴近 GZCTF 的容器续期语义，当前实例只有在进入续期窗口后才开放续期。'"
+                          :description="instanceStates[ch.id]?.message || '当前实例只有在进入续期窗口后才开放续期。'"
                         />
 
                         <div class="mb-3 rounded-md border border-default px-3 py-3">

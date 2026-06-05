@@ -1460,7 +1460,7 @@ function fillSmokeGameTemplate() {
 
   gameForm.name = `Smoke Flow ${start.getFullYear()}`
   gameForm.description = '本地冒烟用最小比赛模板。建议先用它验证报名、题目显示、Flag 提交和排行榜更新。'
-  gameForm.notice = '这是本地联调用的最小模板比赛。先用普通用户走一遍注册、建队、报名和提交流程，再继续补题或调规则。'
+  gameForm.notice = '这是用于快速完成首次验证的公开比赛。建议先使用普通账号完成注册、组队、报名和提交流程，再继续补充题目与规则。'
   gameForm.divisions_text = ''
   gameForm.start_time = start.toISOString().slice(0, 16)
   gameForm.end_time = end.toISOString().slice(0, 16)
@@ -1571,11 +1571,11 @@ function fillPwnNetcatTemplate() {
 
 function fillDynamicContainerTemplate() {
   challengeForm.title = 'Local Docker Web Instance'
-  challengeForm.description = '这是一个面向本地真实 Docker 联调的动态题模板。启用 INSTANCE_DOCKER_PROVIDER_ENABLED 后，后端会按 runtime.image 与 runtime.expose 真正拉起当前题目的本地容器。'
+  challengeForm.description = '这是一个用于本地 Docker 环境验证的动态题模板。启用 INSTANCE_DOCKER_PROVIDER_ENABLED 后，后端会按 runtime.image 与 runtime.expose 启动当前题目的本地容器。'
   challengeForm.hints = JSON.stringify([
     '当前默认使用 nginx:alpine 和容器内 80 端口，适合本地先验证 docker run / inspect / rm -f 链路。',
     '启动实例后，比赛页应优先看到回填后的 host / port / launch_url，而不是手写固定地址。',
-    '如果想继续对齐 GZCTF 的每队独立环境，再改用“每队独立入口”模板或自行补充 team-scoped 连接信息。',
+    '如果需要为不同队伍提供独立访问入口，可以改用“每队独立入口”模板，或自行补充 team-scoped 连接信息。',
   ], null, 2)
   challengeForm.attachments = '[]'
   challengeForm.container_spec = JSON.stringify({
@@ -1593,7 +1593,7 @@ function fillDynamicContainerTemplate() {
         url: '由平台在实例启动后回填真实 launch_url',
       },
       {
-        label: '本地联调说明',
+        label: '本地运行说明',
         url: '/docs/get-started/local-docker-provider',
       },
     ],
@@ -1617,7 +1617,7 @@ function fillDynamicContainerTemplate() {
 
 function fillTeamScopedDynamicTemplate() {
   challengeForm.title = 'Team Scoped Dynamic Instance'
-  challengeForm.description = '这是一个更接近 GZCTF 体验的动态题模板。当前版本会先为每支队伍生成稳定但不同的入口信息，方便本地联调独立实例链路。'
+  challengeForm.description = '这是一个按队伍生成独立入口的动态题模板。当前版本会为每支队伍生成稳定但不同的入口信息，方便验证独立实例链路。'
   challengeForm.hints = JSON.stringify([
     '当前版本不会真的起容器，但会把每队入口模板稳定展开到实例租约响应里。',
     '后续接入真实 Docker / K8s provider 时，可以继续沿用这份结构。',
@@ -1667,7 +1667,7 @@ async function createSmokeProvision() {
       body: {
         name: `Smoke Flow ${start.getFullYear()}`,
         description: '本地冒烟用最小比赛模板。建议先用它验证报名、题目显示、Flag 提交和排行榜更新。',
-        notice: '这是本地联调用的最小模板比赛。先用普通用户走一遍注册、建队、报名和提交流程，再继续补题或调规则。',
+        notice: '这是用于快速完成首次验证的公开比赛。建议先使用普通账号完成注册、组队、报名和提交流程，再继续补充题目与规则。',
         divisions: [],
         start_time: start.toISOString(),
         end_time: end.toISOString(),
@@ -1740,7 +1740,7 @@ async function createDynamicSmokeProvision() {
       body: {
         name: `Dynamic Smoke ${start.getFullYear()}`,
         description: '本地动态实例冒烟用比赛模板。建议先用它验证 team-scoped 租约、实例入口展示和常规提交流程。',
-        notice: '这是本地动态题联调用的最小模板比赛。先验证实例状态与入口，再继续做普通报名和解题流程。',
+        notice: '这是用于验证动态实例能力的公开比赛。建议先确认实例状态与入口信息，再继续完成报名和解题流程。',
         divisions: [],
         start_time: start.toISOString(),
         end_time: end.toISOString(),
@@ -1833,7 +1833,7 @@ async function createLocalDockerSmokeProvision() {
       body: {
         name: `Local Docker Smoke ${start.getFullYear()}`,
         description: '本地真实 Docker Web 冒烟用比赛模板。建议先用它验证实例启动、入口回填、销毁回收和常规提交流程。',
-        notice: '这是本地真实 Docker provider 联调用的最小模板比赛。请先确认 Docker daemon 可用，再用普通用户走一遍报名、启动实例和提交流程。',
+        notice: '这是用于验证本地 Docker 实例能力的公开比赛。请先确认 Docker daemon 可用，再使用普通账号完成报名、启动实例和提交流程。',
         divisions: [],
         start_time: start.toISOString(),
         end_time: end.toISOString(),
@@ -2581,7 +2581,7 @@ onMounted(async () => {
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div class="space-y-2">
             <p class="text-sm text-muted">
-              一次点击自动创建一场公开比赛、一道 `flag{warmup}` 题目，并完成挂题。适合空库首次启动后的最小联调。
+              一次点击自动创建一场公开比赛、一道 `flag{warmup}` 题目，并完成挂题。适合空库首次启动后的快速验证。
             </p>
             <UAlert
               color="info"

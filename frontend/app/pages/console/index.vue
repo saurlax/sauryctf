@@ -609,7 +609,7 @@ onMounted(async () => {
             variant="soft"
             icon="i-lucide-circle-help"
             title="当前推荐顺序"
-            description="先在管理端完成最小建赛配置，再去公开比赛页确认展示、报名和提交流程。这样最接近 GZCTF 的首次联调节奏。"
+            description="先在管理端完成基础建赛配置，再去公开比赛页确认展示、报名和提交流程。"
           />
 
           <div

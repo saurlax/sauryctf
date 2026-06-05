@@ -79,7 +79,7 @@ const heroLinks = computed(() => {
     >
       <template #top>
         <UBadge variant="subtle" color="info">
-          GZCTF 风格演进中
+          赛事平台持续完善中
         </UBadge>
       </template>
     </UPageHero>
