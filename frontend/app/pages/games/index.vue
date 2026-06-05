@@ -212,7 +212,7 @@ const emptyStateMeta = computed(() => {
   if (authState.user && ['admin', 'super_admin'].includes(authState.user.role || '')) {
     return {
       title: '当前还没有公开比赛',
-      description: '这通常说明你还没有创建比赛，或者比赛仍处于 draft / 私有状态。先去管理端创建一场公开比赛并切到 active，再回这里验证公开页展示。',
+      description: '这通常说明你还没有创建比赛，或者比赛仍处于 draft / 私有状态。先去管理端创建一场公开比赛并切到 active，再回这里查看公开页展示。',
       icon: 'i-lucide-shield-check',
       actions: [
         {

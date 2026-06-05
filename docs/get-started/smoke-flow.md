@@ -1,6 +1,6 @@
-# 本地验证流程
+# 本地检查流程
 
-这份文档面向空库首次启动后的最小验证流程。
+这份文档面向空库首次启动后的最小检查流程。
 
 目标不是把所有功能都点一遍，而是确认这套项目已经能完成一条最基础的管理员建赛链路，以及一条最基础的选手参赛链路。
 
@@ -12,7 +12,7 @@
 pnpm dev
 ```
 
-默认验证入口：
+默认访问入口：
 
 - 前端：`http://127.0.0.1:3000`
 - 后端：`http://127.0.0.1:8080`
@@ -33,11 +33,11 @@ pnpm dev
 - 每支队伍同时运行实例上限：`3`
 - 过期实例后台清理间隔：`60` 秒
 
-这组语义现在采用 `defaultLifetime / extensionDuration / renewalWindow` 这一组更清晰的实例生命周期划分，适合本地验证流程。
+这组语义现在采用 `defaultLifetime / extensionDuration / renewalWindow` 这一组更清晰的实例生命周期划分，适合本地检查流程。
 
 动态题 provider 目前分两档：
 
-- 默认不额外配置时，`runtime.provider = docker` 仍然走本地 skeleton lease，仅验证租约与入口展示
+- 默认不额外配置时，`runtime.provider = docker` 仍然走本地 skeleton lease，仅用于检查租约与入口展示
 - 当你显式开启 `INSTANCE_DOCKER_PROVIDER_ENABLED=true` 后，后端会改用本机 `docker` CLI 真正执行 `docker run / inspect / rm -f`
 - 如果使用真实 Docker provider，建议同时设置：
   - `INSTANCE_DOCKER_HOST=127.0.0.1`
@@ -76,7 +76,7 @@ pnpm smoke:local
 7. 创建队伍
 8. 报名比赛
 9. 检查动态题实例初始 `idle` 状态
-10. 启动动态题实例租约，并确认模板入口已解析成当前队伍专属地址
+10. 启动动态题实例租约，并确认预设入口已解析成当前队伍专属地址
 11. 确认实例响应里已经带回当前 lease policy，并且刚启动时还不能立刻续期
 12. 提交静态题正确 Flag
 13. 以游客身份检查公开榜单

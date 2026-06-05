@@ -501,7 +501,7 @@ function getInstanceEntryLabel(challenge: GameChallengeDetail) {
     return isMockInstance(challenge) ? '本地访问入口' : '当前队伍实例'
   }
 
-  return hasChallengeInstanceTemplate(challenge.container_spec) ? '模板入口' : '静态入口'
+  return hasChallengeInstanceTemplate(challenge.container_spec) ? '预设入口' : '静态入口'
 }
 
 function getInstanceEntryColor(challenge: GameChallengeDetail) {
@@ -2179,8 +2179,8 @@ onMounted(async () => {
                         v-if="hasChallengeInstanceTemplate(ch.container_spec) && !instanceStates[ch.id]?.launch_url"
                         color="info"
                         variant="soft"
-                        title="当前显示的是模板入口"
-                        description="这道题的接入信息带有每队占位符。启动实例后，这里会优先显示已经为当前队伍解析好的真实入口。"
+                        title="当前显示的是预设入口"
+                        description="这道题的接入信息带有每队占位符。启动实例后，这里会优先显示已经为当前队伍解析好的实际入口。"
                       />
                       <p v-if="getChallengeInstanceSpec(ch.container_spec)?.note" class="leading-6 whitespace-pre-wrap">
                         {{ getChallengeInstanceSpec(ch.container_spec)?.note }}
@@ -2262,7 +2262,7 @@ onMounted(async () => {
                           :color="getInstanceStatusColor(ch.id)"
                           variant="soft"
                           title="当前队伍实例"
-                          :description="instanceStates[ch.id]?.message || (hasChallengeInstanceTemplate(ch.container_spec) ? '当前题目支持实例租约，并会把模板入口解析成当前队伍可用的独立地址。' : '当前题目支持实例租约，启动后会返回当前队伍的运行状态。')"
+                          :description="instanceStates[ch.id]?.message || (hasChallengeInstanceTemplate(ch.container_spec) ? '当前题目支持实例租约，并会把预设入口解析成当前队伍可用的独立地址。' : '当前题目支持实例租约，启动后会返回当前队伍的运行状态。')"
                         />
 
                         <UAlert

@@ -119,17 +119,17 @@ const heroLinks = computed(() => {
       </UPageGrid>
     </UPageSection>
 
-    <UPageSection title="推荐本地验证顺序" description="先验证管理员链路，再验证选手链路。">
+    <UPageSection title="推荐使用顺序" description="建议先完成管理配置，再进入选手侧流程。">
       <UPageGrid>
         <UPageCard
           title="1. 管理员建赛"
-          description="登录 admin，创建公开比赛、创建题目、挂载题目并激活比赛。"
+          description="登录管理员账号，创建公开比赛、创建题目、挂载题目并激活比赛。"
           icon="i-lucide-settings-2"
           to="/console/admin"
         />
         <UPageCard
           title="2. 选手参赛"
-          description="注册普通账号后先创建队伍，再进入比赛页报名并提交一条正确 Flag。"
+          description="注册普通账号后先创建队伍，再进入比赛页报名并提交正确 Flag。"
           icon="i-lucide-user-round-plus"
           to="/register"
         />

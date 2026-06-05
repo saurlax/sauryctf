@@ -156,7 +156,7 @@ const adminBootstrapSteps = computed(() => [
   {
     key: 'create-game',
     title: '1. 先创建一场公开比赛',
-    description: '先用最小配置建一场公开比赛，后面所有公开页验证、报名和提 Flag 都会围绕这场比赛展开。',
+    description: '先用最小配置建一场公开比赛，后续公开展示、报名和提交流程都会围绕这场比赛展开。',
     actionLabel: '去管理端建赛',
     actionTo: '/console/admin',
   },
@@ -169,7 +169,7 @@ const adminBootstrapSteps = computed(() => [
   },
   {
     key: 'verify-public',
-    title: '3. 最后回公开页验证选手链路',
+    title: '3. 最后回公开页检查选手流程',
     description: '把比赛切到 active 后，回到公开页确认比赛可见，再注册普通账号走一遍建队、报名和提 Flag。',
     actionLabel: '打开公开比赛页',
     actionTo: '/games',
@@ -600,7 +600,7 @@ onMounted(async () => {
         v-if="showAdminBootstrapGuide"
         class="mb-6"
         title="空库首次启动：先打通管理员建赛闭环"
-        description="当前还没有任何比赛。最省事的路径是先建一场公开比赛、挂一题、切到 active，再回公开页验证选手链路。"
+        description="当前还没有任何比赛。建议先建一场公开比赛、挂一道题、切到 active，再回公开页检查选手侧流程。"
         icon="i-lucide-shield-check"
       >
         <div class="space-y-3">

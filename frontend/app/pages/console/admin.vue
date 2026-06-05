@@ -379,7 +379,7 @@ const adminSetupContextMeta = computed(() => {
     game,
     title: shouldGuideToAttach ? '继续配置这场比赛：下一步先挂题' : '继续配置这场比赛：下一步检查比赛设置',
     description: shouldGuideToAttach
-      ? `${game.name} 已经创建完成。现在最值得先做的是把至少一道题目挂到这场比赛里，然后再切到 active 去公开页验证。`
+      ? `${game.name} 已经创建完成。下一步建议先挂载至少一道题目，然后再切到 active 并检查公开页。`
       : `${game.name} 当前已经挂了 ${gameChallengeCount} 道题。接下来更适合检查状态、公开性和报名模式，再决定是否直接开赛。`,
     actionLabel: shouldGuideToAttach ? '选中并去挂题' : '选中并去比赛设置',
     actionTo: shouldGuideToAttach ? '#attach-challenge' : '#game-settings',
@@ -803,7 +803,7 @@ const selectedGamePreflightChecks = computed(() => {
       done: overview.participantCount > 0,
       description: overview.participantCount > 0
         ? `当前 ${overview.participantCount} 支队伍，其中 ${overview.acceptedParticipantCount} 支已通过、${overview.pendingParticipantCount} 支待审核、${overview.rejectedParticipantCount} 支已拒绝。`
-        : '当前还没有报名队伍，适合先用普通用户走一遍本地验证流程。',
+        : '当前还没有报名队伍，建议先使用普通用户完成一轮报名与参赛流程。',
       actionLabel: overview.participantCount > 0 ? '查看报名队伍' : '打开公开页',
       actionTo: overview.participantCount > 0 ? '#attach-challenge' : `/games/${overview.game.id}`,
     },
@@ -817,7 +817,7 @@ const localDockerSmokeChecklist = computed(() => {
   }
 
   const hasLocalDockerSmokeChallenge = selectedGameChallenges.value.some(challenge =>
-    challenge.title === 'Local Docker Web Lease'
+    challenge.title === 'Local Docker Web Instance'
     && challenge.type === 'dynamic'
     && challenge.category === 'web',
   )
@@ -827,7 +827,7 @@ const localDockerSmokeChecklist = computed(() => {
   }
 
   const runningLeaseCount = instanceLeases.value.filter(lease =>
-    lease.challenge_title === 'Local Docker Web Lease'
+    lease.challenge_title === 'Local Docker Web Instance'
     && !lease.is_expired,
   ).length
 
@@ -837,7 +837,7 @@ const localDockerSmokeChecklist = computed(() => {
       label: '1. 先用普通用户报名比赛',
       done: overview.acceptedParticipantCount > 0,
       description: overview.acceptedParticipantCount > 0
-        ? `当前已有 ${overview.acceptedParticipantCount} 支队伍通过报名，可以继续验证实例启动。`
+        ? `当前已有 ${overview.acceptedParticipantCount} 支队伍通过报名，可以继续检查实例启动与访问状态。`
         : '先去公开比赛页用普通用户创建或加入队伍，并完成报名，让这场比赛真正进入选手视角。',
       actionLabel: '打开公开页',
       actionTo: `/games/${overview.game.id}`,
@@ -847,7 +847,7 @@ const localDockerSmokeChecklist = computed(() => {
       label: '2. 在题目卡片里启动本地 Docker 实例',
       done: runningLeaseCount > 0,
       description: runningLeaseCount > 0
-        ? `当前已有 ${runningLeaseCount} 条 Local Docker Web Lease 正在运行，说明实例至少已经成功启动一次。`
+        ? `当前已有 ${runningLeaseCount} 条 Local Docker Web Instance 正在运行，说明实例至少已经成功启动一次。`
         : '报名后到公开比赛页点击启动实例。成功时应拿到真实 host / port / launch_url，而不是手写固定入口。',
       actionLabel: '打开公开页',
       actionTo: `/games/${overview.game.id}`,
@@ -864,7 +864,7 @@ const localDockerSmokeChecklist = computed(() => {
     },
     {
       key: 'destroy-check',
-      label: '4. 最后验证销毁回收',
+      label: '4. 最后检查销毁回收',
       done: false,
       description: '可以在公开页销毁实例，或在管理端手动销毁租约，然后确认状态回到 idle，避免本地容器残留。',
       actionLabel: '查看赛事监控',
@@ -917,7 +917,7 @@ const adminSetupSteps = computed(() => {
     },
     {
       key: 'launch',
-      title: '4. 最后切到 active 并验证公开页',
+      title: '4. 最后切到 active 并检查公开页',
       description: activeGame
         ? `当前已有进行中的比赛：${activeGame.name}。现在可以去公开页检查报名、题目显示和排行榜。`
         : '确认比赛时间、公开性和挂题都无误后，再把状态从 draft 切到 active。',
@@ -1567,9 +1567,9 @@ function fillSmokeGameTemplate() {
   const freeze = new Date(end.getTime() - 30 * 60 * 1000)
   const writeupDeadline = new Date(end.getTime() + 24 * 60 * 60 * 1000)
 
-  gameForm.name = `Smoke Flow ${start.getFullYear()}`
-  gameForm.description = '本地验证用最小比赛模板。建议先用它验证报名、题目显示、Flag 提交和排行榜更新。'
-  gameForm.notice = '这是用于快速完成首次验证的公开比赛。建议先使用普通账号完成注册、组队、报名和提交流程，再继续补充题目与规则。'
+  gameForm.name = `Starter Contest ${start.getFullYear()}`
+  gameForm.description = '适合快速完成首场公开比赛配置的精简模板。'
+  gameForm.notice = '建议先使用普通账号完成注册、组队、报名和提交流程，再继续补充题目与规则。'
   gameForm.divisions_text = ''
   gameForm.start_time = start.toISOString().slice(0, 16)
   gameForm.end_time = end.toISOString().slice(0, 16)
@@ -1581,15 +1581,15 @@ function fillSmokeGameTemplate() {
   gameForm.writeup_deadline = writeupDeadline.toISOString().slice(0, 16)
   gameForm.is_public = true
 
-  toast.add({ title: '已填充比赛模板', description: '这是适合本地验证的最小公开比赛配置。', color: 'success' })
+  toast.add({ title: '已填充比赛模板', description: '已写入一份适合快速配置的公开比赛默认值。', color: 'success' })
 }
 
 function fillSmokeChallengeTemplate() {
-  challengeForm.title = 'Warmup Flag'
-  challengeForm.description = '这是一个本地验证用的最小题目模板。创建后把它挂到比赛里，再用普通用户提交 `flag{warmup}` 验证整条链路。'
+  challengeForm.title = 'Starter Flag'
+  challengeForm.description = '这是一个适合快速完成首轮提交流程配置的精简题目模板。'
   challengeForm.hints = JSON.stringify([
-    '直接提交标准示例 Flag 即可。',
-    '如果提交失败，优先检查报名状态和比赛是否已开始。',
+    '提交前先确认比赛已开始且当前队伍已通过报名。',
+    '如需正式使用，请及时替换题面、提示和 Flag。',
   ])
   challengeForm.attachments = '[]'
   challengeForm.container_spec = JSON.stringify({
@@ -1607,13 +1607,13 @@ function fillSmokeChallengeTemplate() {
   challengeForm.category = 'misc'
   challengeForm.type = 'static'
   challengeForm.difficulty = 'easy'
-  challengeForm.flag = 'flag{warmup}'
+  challengeForm.flag = 'flag{starter}'
   challengeForm.base_score = 100
   challengeForm.min_score = 100
   challengeForm.decay_rate = 0
   challengeForm.is_visible = true
 
-  toast.add({ title: '已填充题目模板', description: '当前题目适合用来验证最小提交流程。', color: 'success' })
+  toast.add({ title: '已填充题目模板', description: '已写入一份适合快速配置的基础题目默认值。', color: 'success' })
 }
 
 function fillStaticWebTemplate() {
@@ -1680,10 +1680,10 @@ function fillPwnNetcatTemplate() {
 
 function fillDynamicContainerTemplate() {
   challengeForm.title = 'Local Docker Web Instance'
-  challengeForm.description = '这是一个用于本地 Docker 环境验证的动态题模板。启用 INSTANCE_DOCKER_PROVIDER_ENABLED 后，后端会按 runtime.image 与 runtime.expose 启动当前题目的本地容器。'
+  challengeForm.description = '这是一个面向本地 Docker 运行环境的动态题模板。启用 INSTANCE_DOCKER_PROVIDER_ENABLED 后，后端会按 runtime.image 与 runtime.expose 启动当前题目的本地容器。'
   challengeForm.hints = JSON.stringify([
-    '当前默认使用 nginx:alpine 和容器内 80 端口，适合本地先验证 docker run / inspect / rm -f 链路。',
-    '启动实例后，比赛页应优先看到回填后的 host / port / launch_url，而不是手写固定地址。',
+    '当前默认使用 nginx:alpine 和容器内 80 端口。',
+    '启动实例后，比赛页应优先看到平台回填后的 host / port / launch_url。',
     '如果需要为不同队伍提供独立访问入口，可以改用“每队独立入口”模板，或自行补充 team-scoped 连接信息。',
   ], null, 2)
   challengeForm.attachments = '[]'
@@ -1694,7 +1694,7 @@ function fillDynamicContainerTemplate() {
       expose: [80],
     },
     connection: {
-      note: '启用 INSTANCE_DOCKER_PROVIDER_ENABLED 后，平台会在启动实例时为当前题目拉起一个本地 Docker Web 容器，并把实际 host / port / launch_url 回填到实例响应里。',
+      note: '启用 INSTANCE_DOCKER_PROVIDER_ENABLED 后，平台会在启动实例时为当前题目拉起本地 Docker Web 容器，并把实际 host / port / launch_url 回填到实例响应里。',
     },
     links: [
       {
@@ -1707,7 +1707,7 @@ function fillDynamicContainerTemplate() {
       },
     ],
     metadata: {
-      purpose: 'local-docker-web-smoke',
+      purpose: 'local-docker-web',
       expected_service: 'nginx default page',
       expected_port: 80,
     },
@@ -1721,14 +1721,14 @@ function fillDynamicContainerTemplate() {
   challengeForm.decay_rate = 0.1
   challengeForm.is_visible = true
 
-  toast.add({ title: '已填充本地 Docker Web 模板', description: '默认使用 nginx:alpine，适合直接验证真实本地 Docker provider。', color: 'success' })
+  toast.add({ title: '已填充本地 Docker Web 模板', description: '默认使用 nginx:alpine，适合快速配置本地 Docker Web 题。', color: 'success' })
 }
 
 function fillTeamScopedDynamicTemplate() {
   challengeForm.title = 'Team Scoped Dynamic Instance'
-  challengeForm.description = '这是一个按队伍生成独立入口的动态题模板。当前版本会为每支队伍生成稳定但不同的入口信息，方便验证独立实例链路。'
+  challengeForm.description = '这是一个按队伍生成独立入口的动态题模板。当前版本会为每支队伍生成稳定但不同的入口信息。'
   challengeForm.hints = JSON.stringify([
-    '当前版本不会真的起容器，但会把每队入口模板稳定展开到实例租约响应里。',
+    '当前版本不会真的起容器，但会把每队入口预设稳定展开到实例租约响应里。',
     '后续接入真实 Docker / K8s provider 时，可以继续沿用这份结构。',
   ], null, 2)
   challengeForm.attachments = '[]'
@@ -1761,7 +1761,7 @@ function fillTeamScopedDynamicTemplate() {
   challengeForm.decay_rate = 0.1
   challengeForm.is_visible = true
 
-  toast.add({ title: '已填充每队独立实例模板', description: '适合先验证 team-scoped 动态题入口。', color: 'success' })
+  toast.add({ title: '已填充每队独立实例模板', description: '适合快速配置带队伍独立入口的动态题。', color: 'success' })
 }
 
 async function createSmokeProvision() {
@@ -1774,9 +1774,9 @@ async function createSmokeProvision() {
   try {
     const game = await $api('post', '/api/games', {
       body: {
-        name: `Smoke Flow ${start.getFullYear()}`,
-        description: '本地验证用最小比赛模板。建议先用它验证报名、题目显示、Flag 提交和排行榜更新。',
-        notice: '这是用于快速完成首次验证的公开比赛。建议先使用普通账号完成注册、组队、报名和提交流程，再继续补充题目与规则。',
+        name: `Starter Contest ${start.getFullYear()}`,
+        description: '适合快速完成首场公开比赛配置的精简模板。',
+        notice: '建议先使用普通账号完成注册、组队、报名和提交流程，再继续补充题目与规则。',
         divisions: [],
         start_time: start.toISOString(),
         end_time: end.toISOString(),
@@ -1792,17 +1792,17 @@ async function createSmokeProvision() {
 
     const challenge = await $api('post', '/api/challenges', {
       body: {
-        title: 'Warmup Flag',
-        description: '这是一个本地验证用的最小题目模板。创建后把它挂到比赛里，再用普通用户提交 `flag{warmup}` 验证整条链路。',
+        title: 'Starter Flag',
+        description: '这是一个适合快速完成首轮提交流程配置的精简题目模板。',
         hints: JSON.stringify([
-          '直接提交标准示例 Flag 即可。',
-          '如果提交失败，优先检查报名状态和比赛是否已开始。',
+          '提交前先确认比赛已开始且当前队伍已通过报名。',
+          '如需正式使用，请及时替换题面、提示和 Flag。',
         ]),
         attachments: '[]',
         category: 'misc',
         type: 'static',
         difficulty: 'easy',
-        flag: 'flag{warmup}',
+        flag: 'flag{starter}',
         base_score: 100,
         min_score: 100,
         decay_rate: 0,
@@ -1823,14 +1823,14 @@ async function createSmokeProvision() {
     selectGameContext(game.id)
     attachForm.challenge_id = challenge.id
     toast.add({
-      title: '验证比赛已创建',
-      description: `已创建 ${game.name}，并自动挂上 Warmup Flag。现在可以直接去公开页验证整条链路。`,
+      title: '快速比赛已创建',
+      description: `已创建 ${game.name}，并自动挂上一道基础题目。现在可以直接去公开页继续配置或检查流程。`,
       color: 'success',
     })
     jumpToAdminAnchor('#attach-challenge')
   }
   catch (e: any) {
-    toast.add({ title: '创建验证比赛失败', description: e.data?.message || e.message, color: 'error' })
+    toast.add({ title: '创建快速比赛失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
     smokeProvisioning.value = false
@@ -1847,9 +1847,9 @@ async function createDynamicSmokeProvision() {
   try {
     const game = await $api('post', '/api/games', {
       body: {
-        name: `Dynamic Smoke ${start.getFullYear()}`,
-        description: '本地动态实例验证用比赛模板。建议先用它验证 team-scoped 租约、实例入口展示和常规提交流程。',
-        notice: '这是用于验证动态实例能力的公开比赛。建议先确认实例状态与入口信息，再继续完成报名和解题流程。',
+        name: `Dynamic Instance ${start.getFullYear()}`,
+        description: '适合快速配置动态实例流程的公开比赛模板。',
+        notice: '建议先确认实例状态与入口信息，再继续完成报名和解题流程。',
         divisions: [],
         start_time: start.toISOString(),
         end_time: end.toISOString(),
@@ -1865,11 +1865,11 @@ async function createDynamicSmokeProvision() {
 
     const challenge = await $api('post', '/api/challenges', {
       body: {
-        title: 'Dynamic Team Lease',
-        description: '这是一个本地动态实例验证题模板。创建后可以直接在公开比赛页验证实例租约、模板入口解析和当前队伍独立地址展示。',
+        title: 'Dynamic Team Instance',
+        description: '这是一个适合快速配置队伍独立入口的动态题模板。',
         hints: JSON.stringify([
           '先用普通用户报名比赛，再到题目卡片里点击启动实例。',
-          '启动后应优先看到当前队伍真实实例入口，而不是 {{team_hash}} 这类模板值。',
+          '启动后应优先看到当前队伍真实实例入口，而不是占位符原文。',
         ]),
         attachments: '[]',
         container_spec: JSON.stringify({
@@ -1916,14 +1916,14 @@ async function createDynamicSmokeProvision() {
     selectGameContext(game.id)
     attachForm.challenge_id = challenge.id
     toast.add({
-      title: '动态实例验证赛已创建',
-      description: `已创建 ${game.name}，并自动挂上 Dynamic Team Lease。现在可以直接去公开页验证实例租约链路。`,
+      title: '动态实例比赛已创建',
+      description: `已创建 ${game.name}，并自动挂上一道动态实例题。现在可以直接去公开页继续配置或检查实例链路。`,
       color: 'success',
     })
     jumpToAdminAnchor('#attach-challenge')
   }
   catch (e: any) {
-    toast.add({ title: '创建动态实例验证赛失败', description: e.data?.message || e.message, color: 'error' })
+    toast.add({ title: '创建动态实例比赛失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
     dynamicSmokeProvisioning.value = false
@@ -1940,9 +1940,9 @@ async function createLocalDockerSmokeProvision() {
   try {
     const game = await $api('post', '/api/games', {
       body: {
-        name: `Local Docker Smoke ${start.getFullYear()}`,
-        description: '本地真实 Docker Web 验证用比赛模板。建议先用它验证实例启动、入口回填、销毁回收和常规提交流程。',
-        notice: '这是用于验证本地 Docker 实例能力的公开比赛。请先确认 Docker daemon 可用，再使用普通账号完成报名、启动实例和提交流程。',
+        name: `Local Docker Web ${start.getFullYear()}`,
+        description: '适合快速配置本地 Docker Web 实例流程的公开比赛模板。',
+        notice: '请先确认 Docker daemon 可用，再使用普通账号完成报名、启动实例和提交流程。',
         divisions: [],
         start_time: start.toISOString(),
         end_time: end.toISOString(),
@@ -1958,11 +1958,11 @@ async function createLocalDockerSmokeProvision() {
 
     const challenge = await $api('post', '/api/challenges', {
       body: {
-        title: 'Local Docker Web Lease',
-        description: '这是一个本地真实 Docker Web 验证题模板。创建后可以直接在公开比赛页验证实例启动、host / port / launch_url 回填，以及销毁后的 idle 回收。',
+        title: 'Local Docker Web Instance',
+        description: '这是一个适合快速配置本地 Docker Web 实例流程的动态题模板。',
         hints: JSON.stringify([
           '先确认后端已经启用 INSTANCE_DOCKER_PROVIDER_ENABLED=true，且本机 docker version 能看到 Server 段。',
-          '启动实例后，应优先看到平台回填的真实 host / port / launch_url，而不是手写固定入口。',
+          '启动实例后，应优先看到平台回填的真实 host / port / launch_url。',
         ]),
         attachments: '[]',
         container_spec: JSON.stringify({
@@ -1981,7 +1981,7 @@ async function createLocalDockerSmokeProvision() {
             },
           ],
           metadata: {
-            purpose: 'local-docker-web-smoke',
+            purpose: 'local-docker-web',
             expected_service: 'nginx default page',
             expected_port: 80,
           },
@@ -2010,14 +2010,14 @@ async function createLocalDockerSmokeProvision() {
     selectGameContext(game.id)
     attachForm.challenge_id = challenge.id
     toast.add({
-      title: '本地 Docker 验证赛已创建',
-      description: `已创建 ${game.name}，并自动挂上 Local Docker Web Lease。现在可以直接去公开页验证真实本地 Docker Web 实例链路。`,
+      title: '本地 Docker 比赛已创建',
+      description: `已创建 ${game.name}，并自动挂上一道本地 Docker Web 题。现在可以直接去公开页继续配置或检查实例链路。`,
       color: 'success',
     })
     jumpToAdminAnchor('#attach-challenge')
   }
   catch (e: any) {
-    toast.add({ title: '创建本地 Docker 验证赛失败', description: e.data?.message || e.message, color: 'error' })
+    toast.add({ title: '创建本地 Docker 比赛失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
     localDockerSmokeProvisioning.value = false
@@ -2711,11 +2711,11 @@ onMounted(async () => {
         />
       </div>
 
-      <UPageCard title="本地验证入口" icon="i-lucide-flask-conical">
+      <UPageCard title="快速创建入口" icon="i-lucide-flask-conical">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div class="space-y-2">
             <p class="text-sm text-muted">
-              一次点击自动创建一场公开比赛、一道 `flag{warmup}` 题目，并完成挂题。适合空库首次启动后的快速核对。
+              可以直接生成一套精简的比赛与题目配置，方便快速建立首个可用流程。
             </p>
             <UAlert
               color="info"
@@ -2727,7 +2727,7 @@ onMounted(async () => {
 
           <div class="flex shrink-0 flex-wrap gap-2">
             <UButton icon="i-lucide-flask-conical" :loading="smokeProvisioning" @click="createSmokeProvision">
-              一键创建验证比赛
+              创建基础比赛
             </UButton>
             <UButton
               variant="outline"
@@ -2735,7 +2735,7 @@ onMounted(async () => {
               :loading="dynamicSmokeProvisioning"
               @click="createDynamicSmokeProvision"
             >
-              一键创建动态实例验证赛
+              创建动态实例比赛
             </UButton>
             <UButton
               variant="outline"
@@ -2743,13 +2743,13 @@ onMounted(async () => {
               :loading="localDockerSmokeProvisioning"
               @click="createLocalDockerSmokeProvision"
             >
-              一键创建本地 Docker 验证赛
+              创建本地 Docker 比赛
             </UButton>
             <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeGameTemplate">
-              只填比赛模板
+              填充比赛模板
             </UButton>
             <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeChallengeTemplate">
-              只填题目模板
+              填充题目模板
             </UButton>
           </div>
         </div>
@@ -2938,7 +2938,7 @@ onMounted(async () => {
 
       <UPageCard
         v-if="localDockerSmokeChecklist.length"
-        title="本地 Docker 验证清单"
+        title="本地 Docker 检查清单"
         icon="i-lucide-container"
         id="local-docker-checklist"
       >
@@ -2946,8 +2946,8 @@ onMounted(async () => {
           <UAlert
             color="info"
             variant="soft"
-            title="这场比赛已经命中本地 Docker Web 验证模板"
-            description="下面这组步骤只关注最小真实 Docker provider 链路：报名、启动实例、检查入口回填、最后确认销毁回收。"
+            title="这场比赛正在使用本地 Docker Web 模板"
+            description="下面这组步骤聚焦本地 Docker provider 的关键流程：报名、启动实例、检查入口回填，以及最后确认销毁回收。"
           />
 
           <div
@@ -2972,7 +2972,7 @@ onMounted(async () => {
                 </div>
               </div>
               <UBadge :color="item.done ? 'success' : 'warning'" variant="soft">
-                {{ item.done ? '已完成' : '待验证' }}
+                {{ item.done ? '已完成' : '待检查' }}
               </UBadge>
             </div>
 
@@ -3640,10 +3640,10 @@ onMounted(async () => {
           <template #footer>
             <div class="flex flex-wrap items-center justify-between gap-3">
               <p class="text-sm text-muted">
-                可以先填充一个本地验证模板，再按需要微调时间、公告和报名规则。
+                可以先填充一份基础模板，再按需要微调时间、公告和报名规则。
               </p>
               <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeGameTemplate">
-                填充验证模板
+                填充基础模板
               </UButton>
             </div>
           </template>
@@ -3894,11 +3894,11 @@ onMounted(async () => {
           <template #footer>
             <div class="flex flex-wrap items-center justify-between gap-3">
               <p class="text-sm text-muted">
-                可以直接套用验证题、Web 实例、Pwn 服务、本地 Docker Web 模板或每队独立入口模板，加快录题速度。
+                可以直接套用基础题、Web 实例、Pwn 服务、本地 Docker Web 模板或每队独立入口模板，加快录题速度。
               </p>
               <div class="flex flex-wrap gap-2">
                 <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeChallengeTemplate">
-                  验证题
+                  基础题
                 </UButton>
                 <UButton size="sm" variant="outline" icon="i-lucide-globe" @click="fillStaticWebTemplate">
                   Web 实例

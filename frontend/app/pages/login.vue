@@ -68,7 +68,7 @@ const afterLoginSteps = computed(() => {
       },
       {
         title: '3. 再继续报名或启动实例',
-        description: '准备好队伍后，就可以回到比赛里完成报名、提交 Flag，或继续验证动态题实例链路。',
+        description: '准备好队伍后，就可以回到比赛里完成报名、提交 Flag，或继续使用动态题实例能力。',
         icon: 'i-lucide-flag',
       },
     ]
@@ -87,7 +87,7 @@ const afterLoginSteps = computed(() => {
         icon: 'i-lucide-settings-2',
       },
       {
-        title: '3. 再注册普通选手验证参赛链路',
+        title: '3. 再注册普通选手完成参赛流程',
         description: '管理员链路确认后，再用普通账号走一遍建队、报名、提 Flag 和看榜。',
         icon: 'i-lucide-user-round-plus',
       },
