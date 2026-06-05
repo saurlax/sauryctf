@@ -45,7 +45,7 @@
 - 管理端顶部现在还额外提供“一键创建动态实例冒烟赛”：
   - 会自动创建一场公开比赛
   - 会自动创建一道 `dynamic` 题目
-  - 题目默认带 `runtime.provider = docker`、`runtime.image = ctf/example:latest`
+  - 题目默认带 `runtime.provider = docker`，但当前这条“一键冒烟赛”仍以本地 mock 入口链路为主
   - `connection.url` / `host` / `command` 默认会使用 `{{team_hash}}`、`{{team_id}}` 这类占位符
   - 当前默认会落到前端本地的 `/mock-instance/...` 页面，方便直接验证“入口可打开”
   - 适合直接验证 team-scoped 实例租约、模板入口解析，以及选手页里的动态题入口展示
@@ -62,7 +62,7 @@
 - 创建题目时现在额外提供三类快速模板：
   - `Web 实例`：适合统一入口的 Web 题
   - `Pwn 服务`：适合 `host / port / nc` 型服务题
-  - `动态容器`：先沉淀镜像、暴露端口和实例说明，为后续每队独立环境预留结构
+  - `动态容器`：默认使用 `nginx:alpine + expose: [80]`，适合直接验证本地 Docker provider
 - 题目表单现在还额外提供一个 `每队独立入口` 模板：
   - 适合先创建带 `runtime.provider` / `runtime.image` 的动态题
   - 会把 `connection.url`、`host`、`port`、`command` 预填成带占位符的模板
@@ -74,6 +74,9 @@
     - `{{user_id}}`
     - `{{team_hash}}`
   - 即使还没接真实容器 provider，也能先在选手页走通“每队不同实例入口”的体验
+- 如果你已经开启 `INSTANCE_DOCKER_PROVIDER_ENABLED=true`：
+  - 更推荐先用“动态容器”模板验证真实本地 Docker
+  - 如果只想验证入口模板解析与租约状态，再用“每队独立入口”模板
 - 即使题目处于隐藏状态，管理员仍能在挂题视图里看到完整题面、提示和附件字段，便于核对配置
 - 管理端当前使用到的删除比赛、导入/导出比赛、挂题详情、Writeup 审核接口都已补进 OpenAPI，前端统一通过同一套类型化 API 调用
 - 选手提交 Writeup 后，管理员列表现在会立即读到最新记录，不需要额外刷新数据库或重启服务

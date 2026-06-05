@@ -205,6 +205,7 @@ internal/<module>/
   - the current implementation uses deterministic container names plus `docker run -d`, `docker inspect`, and `docker rm -f`
   - `INSTANCE_DOCKER_HOST` controls the host returned to players in `launch_url` / `host`
   - `runtime.expose` is now parsed from `container_spec.runtime.expose` and is used to publish container ports when the real Docker provider is enabled
+  - the admin challenge form's generic `动态容器` template now defaults to `nginx:alpine` with `expose: [80]`, so local operators have one template that is closer to a truly runnable Docker-backed web challenge
   - current scope is intentionally local-machine oriented: one container per team/challenge lease, no compose, no volumes, no network policy, and no registry auth management yet
 - local dynamic instance renewal now behaves closer to GZCTF's `defaultLifetime / extensionDuration / renewalWindow` split, instead of reusing the initial lease duration for every renewal
 - Registration withdrawal now follows the current GZCTF-style rule:

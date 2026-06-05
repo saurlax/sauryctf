@@ -1427,34 +1427,33 @@ function fillPwnNetcatTemplate() {
 }
 
 function fillDynamicContainerTemplate() {
-  challengeForm.title = 'Dynamic Container'
-  challengeForm.description = '这是一个面向后续动态容器的题目模板。当前版本先沉淀镜像、端口和实例说明，后续再接真正的编排。'
+  challengeForm.title = 'Local Docker Web Instance'
+  challengeForm.description = '这是一个更接近真实本地 Docker 运行的动态题模板。启用 INSTANCE_DOCKER_PROVIDER_ENABLED 后，后端会按 runtime.image 与 runtime.expose 真正拉起当前题目的本地容器。'
   challengeForm.hints = JSON.stringify([
-    '如果题目需要每队独立环境，先把镜像和暴露端口写进接入信息。',
-    '后续真正接入容器编排时，可以继续沿用这份结构。',
+    '当前默认使用 nginx:alpine 和容器内 80 端口，适合本地先验证 docker run / inspect / rm -f 链路。',
+    '如果想继续对齐 GZCTF 的每队独立环境，再改用“每队独立入口”模板或自行补充 team-scoped 连接信息。',
   ], null, 2)
   challengeForm.attachments = '[]'
   challengeForm.container_spec = JSON.stringify({
     runtime: {
       provider: 'docker',
-      image: 'ctf/example:latest',
-      expose: [8080],
-      note: '这里先沉淀镜像与端口；后续可扩展成真正的动态容器参数。',
+      image: 'nginx:alpine',
+      expose: [80],
     },
     connection: {
-      note: '当前版本尚未自动创建实例。可以先手动部署，并把实际入口回填到这里。',
+      note: '启用 INSTANCE_DOCKER_PROVIDER_ENABLED 后，平台会在启动实例时为当前题目拉起一个本地 Docker Web 容器，并把实际 host / port / launch_url 回填到实例响应里。',
     },
   }, null, 2)
   challengeForm.category = 'web'
   challengeForm.type = 'dynamic'
-  challengeForm.difficulty = 'hard'
+  challengeForm.difficulty = 'medium'
   challengeForm.flag = ''
-  challengeForm.base_score = 500
-  challengeForm.min_score = 200
+  challengeForm.base_score = 300
+  challengeForm.min_score = 100
   challengeForm.decay_rate = 0.1
   challengeForm.is_visible = true
 
-  toast.add({ title: '已填充动态容器模板', description: '适合为后续独立实例题预留结构。', color: 'success' })
+  toast.add({ title: '已填充动态容器模板', description: '默认使用 nginx:alpine，适合直接验证本地 Docker provider。', color: 'success' })
 }
 
 function fillTeamScopedDynamicTemplate() {
@@ -3361,7 +3360,7 @@ onMounted(async () => {
           <template #footer>
             <div class="flex flex-wrap items-center justify-between gap-3">
               <p class="text-sm text-muted">
-                可以直接套用冒烟题、Web 实例、Pwn 服务或动态容器模板，加快录题速度。
+                可以直接套用冒烟题、Web 实例、Pwn 服务、真实本地 Docker 模板或 team-scoped mock 模板，加快录题速度。
               </p>
               <div class="flex flex-wrap gap-2">
                 <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeChallengeTemplate">

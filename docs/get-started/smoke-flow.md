@@ -117,7 +117,8 @@ pnpm smoke:local
 如果你还想顺手验证当前最小动态题链路，建议把第 6 步题目改成动态题模板，或直接使用管理端里的 `每队独立入口` 模板：
 
 - `runtime.provider = docker`
-- `runtime.image = ctf/example:latest`
+- `runtime.image = nginx:alpine`
+- `runtime.expose = [80]`
 - `connection.url = /mock-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}`
 
 默认这一步不会真的起容器，但比赛页会先显示模板入口，启动实例后再显示已经为当前队伍解析好的租约地址，并能直接跳到本地 mock instance 页面。

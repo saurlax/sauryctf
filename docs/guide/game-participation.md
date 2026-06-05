@@ -69,8 +69,9 @@
   - 对于 `dynamic` 题目，如果同时提供了 `runtime.provider` 或 `runtime.image`：
     - 当前比赛页还会额外展示一个“实例状态”区
     - 已通过报名的队伍可以主动启动实例，或在租约快结束时继续续期
-    - 当前实现还是“最小实例租约骨架”，只负责记录运行状态、到期时间和入口信息
-    - 目前不会真的调度容器编排系统，后续可以再把这层租约替换成真实 provider
+    - 默认实现仍然是最小实例租约骨架，只负责记录运行状态、到期时间和入口信息
+    - 当后端显式开启 `INSTANCE_DOCKER_PROVIDER_ENABLED=true` 后，`runtime.provider = docker` 会切换到本地真实 Docker CLI provider
+    - 当前这个真实 provider 适合先跑最小 Web 容器链路，例如 `nginx:alpine + expose: [80]`
   - 在未满足题面可见条件时，这部分会和题面、提示、附件一起隐藏
 - 按分类分组的题目列表
 - 当题面尚未开放时，前端会明确提示当前仍处于隐藏状态，而不是直接显示空白
@@ -194,10 +195,14 @@
   - 过期后会优先尝试调用 provider 清理
   - 清理成功后会删除本地租约记录
   - 这样即使选手不手动点击“销毁实例”，本地 mock / 后续真实 provider 也能逐步对齐平台回收流程
-- 现在默认还是占位实现：
+- 现在默认仍然是占位实现：
   - 只负责生成租约状态
   - 销毁时也只会走空实现，不会真的回收 Docker / K8s 容器
   - 不会真的起 Docker / K8s 容器
+- 但如果后端显式开启了 `INSTANCE_DOCKER_PROVIDER_ENABLED=true`：
+  - `"docker"` provider 会被替换成一个本地 Docker CLI provider
+  - 会真实执行 `docker run / inspect / rm -f`
+  - 会根据 `runtime.expose` 回填实际 `host / port / launch_url`
 - 这个占位 provider 现在也支持一层最小模板展开：
   - `{{game_id}}`
   - `{{challenge_id}}`
