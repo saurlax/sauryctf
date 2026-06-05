@@ -222,6 +222,35 @@ func (s *Service) TransferCaptain(teamID, targetUserID, requesterID uint) error 
 	})
 }
 
+func (s *Service) ResetInviteCode(teamID, requesterID uint) (string, error) {
+	var team models.Team
+	if err := s.db.First(&team, teamID).Error; err != nil {
+		return "", errors.New("team not found")
+	}
+
+	if team.CaptainID != requesterID {
+		return "", errors.New("only captain can reset invite code")
+	}
+
+	for attempt := 0; attempt < 5; attempt++ {
+		inviteCode, err := generateInviteCode()
+		if err != nil {
+			return "", err
+		}
+		result := s.db.Model(&models.Team{}).
+			Where("id = ? AND invite_code <> ?", teamID, inviteCode).
+			Update("invite_code", inviteCode)
+		if result.Error != nil {
+			return "", result.Error
+		}
+		if result.RowsAffected == 1 {
+			return inviteCode, nil
+		}
+	}
+
+	return "", errors.New("failed to rotate invite code")
+}
+
 func generateInviteCode() (string, error) {
 	bytes := make([]byte, 6)
 	if _, err := rand.Read(bytes); err != nil {

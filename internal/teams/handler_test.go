@@ -41,6 +41,11 @@ func setupTeamsRouter(mock *MockService) *gin.Engine {
 		fmt.Sscan(c.Param("teamId"), &teamId)
 		h.TransferTeamCaptain(c, teamId)
 	})
+	api.POST("/teams/:teamId/invite-code/reset", func(c *gin.Context) {
+		var teamId int
+		fmt.Sscan(c.Param("teamId"), &teamId)
+		h.ResetTeamInviteCode(c, teamId)
+	})
 	api.DELETE("/teams/:teamId/members/:memberId", func(c *gin.Context) {
 		var teamId, memberId int
 		fmt.Sscan(c.Param("teamId"), &teamId)
@@ -181,5 +186,31 @@ func TestHandler_TransferCaptain(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestHandler_ResetInviteCode(t *testing.T) {
+	mock := NewMockService()
+	mock.Teams[1] = &models.Team{ID: 1, Name: "Alpha", InviteCode: "INVITE", CaptainID: 1, Status: models.TeamStatusActive}
+	mock.Members[1] = map[uint]bool{1: true, 2: true}
+	r := setupTeamsRouter(mock)
+
+	t.Run("success", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/teams/1/invite-code/reset", nil)
+		req.Header.Set("X-Test-User-ID", "1")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "RESETCODE", mock.Teams[1].InviteCode)
+	})
+
+	t.Run("non captain denied", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/teams/1/invite-code/reset", nil)
+		req.Header.Set("X-Test-User-ID", "2")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusConflict, w.Code)
 	})
 }

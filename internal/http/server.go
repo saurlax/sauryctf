@@ -89,6 +89,9 @@ func NewServer(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	teamRoutes.POST("/:teamId/transfer", func(c *gin.Context) {
 		handler.TransferTeamCaptain(c, mustIntParam(c, "teamId"))
 	})
+	teamRoutes.POST("/:teamId/invite-code/reset", func(c *gin.Context) {
+		handler.ResetTeamInviteCode(c, mustIntParam(c, "teamId"))
+	})
 
 	engine.GET("/api/games/:id/announcements", func(c *gin.Context) {
 		id := mustIntParam(c, "id")

@@ -422,3 +422,60 @@ func TestTransferCaptain(t *testing.T) {
 		assert.Contains(t, err.Error(), "locked for an accepted game")
 	})
 }
+
+func TestResetInviteCode(t *testing.T) {
+	database := setupTestDB(t)
+	svc := NewService(database)
+
+	captain := createTestUser(t, database, "reset-captain")
+	member := createTestUser(t, database, "reset-member")
+
+	team, err := svc.CreateTeam("ResetInviteTeam", captain.ID)
+	require.NoError(t, err)
+	require.NoError(t, svc.JoinTeam(team.InviteCode, member.ID))
+
+	t.Run("captain can reset invite code", func(t *testing.T) {
+		previousCode := team.InviteCode
+
+		inviteCode, err := svc.ResetInviteCode(team.ID, captain.ID)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, inviteCode)
+		assert.NotEqual(t, previousCode, inviteCode)
+
+		var refreshed models.Team
+		require.NoError(t, database.First(&refreshed, team.ID).Error)
+		assert.Equal(t, inviteCode, refreshed.InviteCode)
+	})
+
+	t.Run("member cannot reset invite code", func(t *testing.T) {
+		_, err := svc.ResetInviteCode(team.ID, member.ID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "only captain")
+	})
+
+	t.Run("locked team can still reset invite code", func(t *testing.T) {
+		lockedCaptain := createTestUser(t, database, "reset-locked-captain")
+		lockedMember := createTestUser(t, database, "reset-locked-member")
+		lockedTeam, err := svc.CreateTeam("ResetLockedTeam", lockedCaptain.ID)
+		require.NoError(t, err)
+		require.NoError(t, svc.JoinTeam(lockedTeam.InviteCode, lockedMember.ID))
+
+		game := &models.Game{
+			Name:      "Invite Reset Locked Contest",
+			StartTime: time.Now().Add(-time.Hour),
+			EndTime:   time.Now().Add(time.Hour),
+			Status:    "active",
+			IsPublic:  true,
+			CreatedBy: lockedCaptain.ID,
+		}
+		require.NoError(t, database.Create(game).Error)
+		require.NoError(t, database.Create(&models.Participation{
+			GameID: game.ID, TeamID: lockedTeam.ID, UserID: lockedCaptain.ID, Status: models.ParticipationAccepted,
+		}).Error)
+
+		inviteCode, err := svc.ResetInviteCode(lockedTeam.ID, lockedCaptain.ID)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, inviteCode)
+		assert.NotEqual(t, lockedTeam.InviteCode, inviteCode)
+	})
+}

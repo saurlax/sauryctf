@@ -1863,6 +1863,39 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /api/teams/{teamId}/invite-code/reset:
+    post:
+      operationId: resetTeamInviteCode
+      summary: Reset team invite code (captain only)
+      tags: [teams]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Invite code reset
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message, invite_code]
+                properties:
+                  message:
+                    type: string
+                  invite_code:
+                    type: string
+        "409":
+          description: Cannot reset invite code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /api/admin/games/{id}:
     delete:
       operationId: deleteAdminGame

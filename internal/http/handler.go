@@ -71,6 +71,9 @@ func (h *Handler) LeaveTeam(c *gin.Context)  { h.teams.LeaveTeam(c) }
 func (h *Handler) TransferTeamCaptain(c *gin.Context, teamId int) {
 	h.teams.TransferTeamCaptain(c, teamId)
 }
+func (h *Handler) ResetTeamInviteCode(c *gin.Context, teamId int) {
+	h.teams.ResetTeamInviteCode(c, teamId)
+}
 func (h *Handler) RemoveTeamMember(c *gin.Context, teamId int, memberId int) {
 	h.teams.RemoveTeamMember(c, teamId, memberId)
 }

@@ -14,6 +14,7 @@ type ServiceInterface interface {
 	GetUserTeam(userID uint) (*TeamView, error)
 	RemoveMember(teamID, memberID, requesterID uint) error
 	TransferCaptain(teamID, targetUserID, requesterID uint) error
+	ResetInviteCode(teamID, requesterID uint) (string, error)
 }
 
 type TeamLockGame struct {

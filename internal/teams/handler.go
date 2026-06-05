@@ -117,3 +117,18 @@ func (h *Handler) TransferTeamCaptain(c *gin.Context, teamId int) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "captain transferred"})
 }
+
+func (h *Handler) ResetTeamInviteCode(c *gin.Context, teamId int) {
+	userID := c.MustGet("user_id").(uint)
+
+	inviteCode, err := h.svc.ResetInviteCode(uint(teamId), userID)
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":     "invite code reset",
+		"invite_code": inviteCode,
+	})
+}

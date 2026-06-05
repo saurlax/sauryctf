@@ -53,6 +53,10 @@ export interface paths {
     /** Transfer team captain role (captain only) */
     post: operations["transferTeamCaptain"];
   };
+  "/api/teams/{teamId}/invite-code/reset": {
+    /** Reset team invite code (captain only) */
+    post: operations["resetTeamInviteCode"];
+  };
   "/api/challenges": {
     /** List challenges */
     get: operations["listChallenges"];
@@ -821,6 +825,31 @@ export interface operations {
         };
       };
       /** @description Cannot transfer */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /** Reset team invite code (captain only) */
+  resetTeamInviteCode: {
+    parameters: {
+      path: {
+        teamId: number;
+      };
+    };
+    responses: {
+      /** @description Invite code reset */
+      200: {
+        content: {
+          "application/json": {
+            message: string;
+            invite_code: string;
+          };
+        };
+      };
+      /** @description Cannot reset invite code */
       409: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];

@@ -134,3 +134,18 @@ func (m *MockService) TransferCaptain(teamID, targetUserID, requesterID uint) er
 	team.CaptainID = targetUserID
 	return nil
 }
+
+func (m *MockService) ResetInviteCode(teamID, requesterID uint) (string, error) {
+	if m.Err != nil {
+		return "", m.Err
+	}
+	team, ok := m.Teams[teamID]
+	if !ok {
+		return "", assert.AnError
+	}
+	if team.CaptainID != requesterID {
+		return "", assert.AnError
+	}
+	team.InviteCode = "RESETCODE"
+	return team.InviteCode, nil
+}

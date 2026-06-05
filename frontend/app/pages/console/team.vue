@@ -42,6 +42,7 @@ const createLoading = ref(false)
 const joinLoading = ref(false)
 const removingMemberId = ref<number | null>(null)
 const transferringCaptainId = ref<number | null>(null)
+const resettingInviteCode = ref(false)
 
 const currentUserId = computed(() => authState.user?.id)
 const isCaptain = computed(() => team.value?.members?.some(member => member.user_id === currentUserId.value && member.role === 'captain') || false)
@@ -326,6 +327,33 @@ async function copyInviteLink() {
   }
 }
 
+async function resetInviteCode() {
+  if (!team.value) {
+    return
+  }
+
+  resettingInviteCode.value = true
+  try {
+    const res = await $api('post', '/api/teams/{teamId}/invite-code/reset', {
+      params: {
+        teamId: team.value.id,
+      },
+    })
+    await fetchTeam()
+    toast.add({
+      title: '邀请码已重置',
+      description: res.invite_code ? `新的邀请码为 ${res.invite_code}` : '旧邀请码已失效，请使用新邀请码邀请队友。',
+      color: 'success',
+    })
+  }
+  catch (e: any) {
+    toast.add({ title: '重置失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    resettingInviteCode.value = false
+  }
+}
+
 onMounted(async () => {
   await ensureInitialized()
   if (joinInviteFromRoute.value) {
@@ -457,12 +485,20 @@ onMounted(async () => {
                 icon="i-lucide-link"
                 variant="ghost"
                 size="xs"
-                :disabled="teamLocked"
                 @click="copyInviteLink()"
+              />
+              <UButton
+                v-if="isCaptain"
+                label="重置邀请码"
+                icon="i-lucide-refresh-cw"
+                variant="ghost"
+                size="xs"
+                :loading="resettingInviteCode"
+                @click="resetInviteCode()"
               />
             </div>
             <p v-if="teamLocked" class="mt-2 text-xs text-muted">
-              当前比赛锁定期间，不建议继续分发邀请码；待所有锁定中的比赛结束后，队伍会自动恢复可调整状态。
+              锁定期间仍可轮换邀请码，但当前不能新增成员；如需继续邀请，请在相关比赛结束后再分发新邀请码。
             </p>
           </div>
 
@@ -569,10 +605,10 @@ onMounted(async () => {
                 当前邀请码可直接分享给队友，复制邀请链接后，队友打开页面会自动填入邀请码。
               </p>
               <p v-if="teamLocked">
-                当前队伍已经通过一场仍未结束的比赛报名，队伍结构会被临时锁定，直到这些比赛结束。
+                当前队伍已经通过一场仍未结束的比赛报名，队伍结构会被临时锁定，直到这些比赛结束；如需停用旧邀请码，队长仍可先重置邀请码。
               </p>
               <p v-if="isCaptain">
-                你当前是队长，可以移除其他成员。当前版本下，队长不能直接退出队伍。
+                你当前是队长，可以移除其他成员、移交管理权以及重置邀请码。当前版本下，队长不能直接退出队伍。
               </p>
               <p v-else>
                 如果你需要离队，可以直接使用下方退出按钮，之后可重新加入其他队伍。
@@ -598,8 +634,12 @@ onMounted(async () => {
                 <span class="text-muted">当前锁定比赛</span>
                 <span>{{ lockedGames.length }}</span>
               </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-muted">可重置邀请码</span>
+                <span>是</span>
+              </div>
               <p class="text-muted">
-                {{ teamLocked ? '锁定期间请保持当前队伍结构，待相关比赛结束后再继续调整。' : '如果需要调整队伍，请先移除成员或保留当前队伍结构，再继续报名比赛。' }}
+                {{ teamLocked ? '锁定期间请保持当前队伍结构；如果旧邀请码已经扩散，可以先重置邀请码，待相关比赛结束后再继续邀请。' : '如果需要调整队伍，请先移除成员、重置邀请码或保留当前队伍结构，再继续报名比赛。' }}
               </p>
               <p class="text-muted">
                 如果当前队长需要退出队伍，请先把队长身份移交给其他成员，再由新队长继续管理队伍。
