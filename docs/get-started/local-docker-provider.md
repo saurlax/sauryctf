@@ -1,12 +1,12 @@
 # 本地 Docker Dynamic 题
 
-这份说明面向“想让动态题在本机真的 `docker run` 起来”的最小验证场景。
+这份说明面向“想让动态题在本机真的 `docker run` 起来”的最小检查场景。
 
 ## 开启方式
 
 默认情况下，即使题目写了 `runtime.provider = docker`，平台仍然只会走 skeleton 租约，不会真的起容器。
 
-如果你是手动启动自己的后端进行验证，需要在 `.env` 里加入：
+如果你是手动启动自己的后端进行检查，需要在 `.env` 里加入：
 
 ```env
 INSTANCE_DOCKER_PROVIDER_ENABLED=true
@@ -15,9 +15,9 @@ INSTANCE_DOCKER_HOST=127.0.0.1
 
 然后重启后端。
 
-## 最快验证
+## 最快检查
 
-如果你只是想最快验证真实本地 Docker provider，可以直接运行：
+如果你只是想最快检查真实本地 Docker provider，可以直接运行：
 
 ```bash
 pnpm smoke:local:docker
@@ -30,7 +30,7 @@ pnpm smoke:local:docker
 - 使用独立 SQLite 文件，不污染仓库主库
 - 跑完后自动关闭并清理
 
-随后脚本会自动创建一场比赛、一题静态题和一题 `nginx:alpine` 动态题，并验证：
+随后脚本会自动创建一场比赛、一题静态题和一题 `nginx:alpine` 动态题，并检查：
 
 - 能正常启动实例
 - 实例返回了真实 `127.0.0.1:<随机端口>` 入口
@@ -52,12 +52,12 @@ docker info
 
 根据 Docker CLI 官方文档，`docker version` 会同时输出 `Client` 和 `Server` 信息；如果 daemon 没起来，`Server` 信息就拿不到，脚本也会直接停在前置检查阶段。
 
-如果你更想从管理端直接走一遍最小链路，现在 `/console/admin` 里也提供了“一键创建本地 Docker 验证赛”：
+如果你更想从管理端直接走一遍最小链路，现在 `/console/admin` 里也提供了“创建本地 Docker 比赛”入口：
 
 - 会自动创建一场公开比赛
-- 会自动创建一道 `Local Docker Web Lease` 动态题
+- 会自动创建一道 `Local Docker Web Instance` 动态题
 - 会自动完成挂题
-- 随后可以直接用普通用户去公开比赛页验证真实本地 Docker Web 实例链路
+- 随后可以直接用普通用户去公开比赛页检查真实本地 Docker Web 实例链路
 
 ## 推荐最小题目模板
 
@@ -104,5 +104,5 @@ docker info
 ## 适合现在做的题
 
 - 本地 Web 服务题
-- 只需要一个 HTTP 端口的演示型动态题
-- 想先验证实例生命周期，而不是一次把完整容器平台做完的题
+- 只需要一个 HTTP 端口的基础动态题
+- 想先检查实例生命周期，而不是一次把完整容器平台做完的题
