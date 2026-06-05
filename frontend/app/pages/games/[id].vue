@@ -700,6 +700,98 @@ const participationHint = computed(() => {
   }
 })
 
+const registrationPanelSummary = computed(() => {
+  if (!authState.user) {
+    return {
+      title: '当前还不能发起报名',
+      description: '先登录账号后，比赛页才会识别你自己的队伍与报名状态，并继续显示报名入口。',
+      color: 'info' as const,
+      icon: 'i-lucide-log-in',
+    }
+  }
+
+  if (!participation.value?.has_team) {
+    return {
+      title: '当前需要先准备队伍',
+      description: '比赛报名、提 Flag 和排行榜都按队伍进行。先创建或加入队伍，再回来完成报名。',
+      color: 'warning' as const,
+      icon: 'i-lucide-users',
+    }
+  }
+
+  if (participation.value?.status === 'pending') {
+    return {
+      title: '当前报名已提交，正在等待审核',
+      description: '这次报名已经进入管理员审核队列。现在不需要重复提交，等待通过后就会开放正式参赛资格。',
+      color: 'warning' as const,
+      icon: 'i-lucide-hourglass',
+    }
+  }
+
+  if (participation.value?.status === 'rejected') {
+    return {
+      title: '当前报名未通过',
+      description: '你可以先撤回这次报名，调整队伍成员或邀请码后，再重新提交新的报名申请。',
+      color: 'error' as const,
+      icon: 'i-lucide-badge-x',
+    }
+  }
+
+  if (participation.value?.status === 'accepted') {
+    return {
+      title: '当前队伍已经具备参赛资格',
+      description: gameStatusMeta.value.label === '未开始'
+        ? '报名已经通过，接下来只需要等待开赛。开赛后会自动开放完整题面和提交入口。'
+        : gameStatusMeta.value.label === '已结束'
+            ? '这场比赛的正式报名已经完成。当前可以继续查看比赛信息，并按练习模式规则决定是否还能继续提交。'
+            : '报名已经通过，当前可以直接切换到题目标签开始解题、启动实例并提交 Flag。',
+      color: 'success' as const,
+      icon: 'i-lucide-badge-check',
+    }
+  }
+
+  if (gameStatusMeta.value.label === '已结束') {
+    return {
+      title: '比赛已结束，当前不会再受理新报名',
+      description: '你仍然可以查看当前比赛的公开信息、题目标题和排行榜，但不能再新增报名记录。',
+      color: 'error' as const,
+      icon: 'i-lucide-clock-3',
+    }
+  }
+
+  if (game.value?.registration_mode === 'auto_accept') {
+    return {
+      title: game.value?.invitation_required ? '当前报名会校验邀请码并直接通过' : '当前报名会直接通过',
+      description: game.value?.invitation_required
+        ? '提交正确的邀请码后，这次报名会立刻进入已通过状态；如果比赛已经开始，你的队伍随后就能直接提交 Flag。'
+        : '这场比赛使用自动通过模式。点击报名后不会进入人工审核，系统会立刻授予当前队伍参赛资格。',
+      color: 'success' as const,
+      icon: 'i-lucide-badge-check',
+    }
+  }
+
+  return {
+    title: game.value?.invitation_required ? '当前报名会先校验邀请码，再进入审核' : '当前报名需要等待管理员审核',
+    description: game.value?.invitation_required
+      ? '这场比赛设置了邀请码门槛。邀请码正确后，报名会先记录下来，再等待管理员审核通过。'
+      : '这场比赛使用审核制报名。提交后会先进入待审核状态，管理员通过后当前队伍才能正式参赛。',
+    color: 'info' as const,
+    icon: 'i-lucide-clipboard-check',
+  }
+})
+
+const registrationInputHint = computed(() => {
+  if (game.value?.invitation_required) {
+    return game.value?.registration_mode === 'auto_accept'
+      ? '当前比赛要求输入正确的邀请码；通过校验后，这次报名会直接进入已通过状态。'
+      : '当前比赛要求输入正确的邀请码；通过校验后，这次报名还需要等待管理员审核。'
+  }
+
+  return game.value?.registration_mode === 'auto_accept'
+    ? '当前比赛不要求邀请码。点击报名后会直接通过，不需要额外等待审核。'
+    : '当前比赛不要求邀请码。点击报名后会进入待审核状态，等待管理员通过。'
+})
+
 const submitHint = computed(() => publicParticipationHints.value.submitHint)
 
 const challengeVisibilityHint = computed(() => publicParticipationHints.value.visibilityHint)
@@ -1637,14 +1729,23 @@ onMounted(async () => {
               <p class="mt-2 text-sm text-muted max-w-2xl">
                 {{ participationHint.description }}
               </p>
+              <UAlert
+                class="mt-3 max-w-2xl"
+                :icon="registrationPanelSummary.icon"
+                :color="registrationPanelSummary.color"
+                variant="soft"
+                :title="registrationPanelSummary.title"
+                :description="registrationPanelSummary.description"
+              />
               <div
-                v-if="game?.invitation_required && authState.user && participation?.has_team && !participation?.participated"
+                v-if="authState.user && participation?.has_team && !participation?.participated"
                 class="mt-3 max-w-md"
               >
                 <UFormField
+                  v-if="game?.invitation_required"
                   label="比赛邀请码"
                   name="invitation_code"
-                  description="当前比赛设置了邀请码门槛，报名时需要提交正确的邀请码。"
+                  :description="registrationInputHint"
                 >
                   <UInput
                     v-model="registrationForm.invitation_code"
@@ -1652,6 +1753,9 @@ onMounted(async () => {
                     placeholder="请输入比赛邀请码"
                   />
                 </UFormField>
+                <p v-else class="text-sm text-muted">
+                  {{ registrationInputHint }}
+                </p>
               </div>
             </div>
 
