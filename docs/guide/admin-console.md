@@ -108,6 +108,11 @@
   - `practice_mode`：标记比赛结束后是否继续保留练习入口
   - `writeup_required`：标记比赛是否要求赛后提交 Writeup
   - `writeup_deadline`：留空即可；如果填写，不能早于比赛 `end_time`
+- 比赛时间字段当前会在前端先做一层关系校验：
+  - `end_time` 必须晚于 `start_time`
+  - `scoreboard_freeze_at` 不能早于开始时间，也不能晚于结束时间
+  - `writeup_deadline` 不能早于比赛结束时间
+  - 如果开启 `writeup_required`，则必须同时填写 `writeup_deadline`
 - 比赛分组当前支持：
   - 在创建比赛、编辑比赛、比赛设置里直接维护分组列表
   - 使用换行或逗号分隔，例如：`本科组, 公开组`

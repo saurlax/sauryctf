@@ -452,6 +452,69 @@ const settingsRuleSummary = computed(() => {
   ]
 })
 
+function parseOptionalLocalDateTime(value: string) {
+  if (!value.trim()) {
+    return null
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  return date
+}
+
+function validateGameTimeline(input: {
+  start_time?: string
+  end_time?: string
+  scoreboard_freeze_at?: string
+  writeup_deadline?: string
+  writeup_required?: boolean
+}, options?: {
+  requireStartEnd?: boolean
+}) {
+  const requireStartEnd = options?.requireStartEnd ?? false
+  const startAt = parseOptionalLocalDateTime(input.start_time || '')
+  const endAt = parseOptionalLocalDateTime(input.end_time || '')
+  const freezeAt = parseOptionalLocalDateTime(input.scoreboard_freeze_at || '')
+  const writeupDeadline = parseOptionalLocalDateTime(input.writeup_deadline || '')
+
+  if (requireStartEnd && !startAt) {
+    return '请填写有效的开始时间。'
+  }
+
+  if (requireStartEnd && !endAt) {
+    return '请填写有效的结束时间。'
+  }
+
+  if (startAt && endAt && endAt.getTime() <= startAt.getTime()) {
+    return '结束时间必须晚于开始时间。'
+  }
+
+  if (freezeAt) {
+    if (startAt && freezeAt.getTime() < startAt.getTime()) {
+      return '封榜时间不能早于开始时间。'
+    }
+
+    if (endAt && freezeAt.getTime() > endAt.getTime()) {
+      return '封榜时间不能晚于结束时间。'
+    }
+  }
+
+  if (writeupDeadline) {
+    if (endAt && writeupDeadline.getTime() < endAt.getTime()) {
+      return 'Writeup 截止时间不能早于比赛结束时间。'
+    }
+  }
+
+  if (input.writeup_required && !writeupDeadline) {
+    return '当前已要求 Writeup，请同时填写 Writeup 截止时间。'
+  }
+
+  return null
+}
+
 const activeMonitorTab = ref<'overview' | 'scoreboard' | 'submissions' | 'clues' | 'timeline' | 'ops'>('overview')
 
 const monitorTabItems = [
@@ -1968,6 +2031,12 @@ function selectGameContext(gameId?: number) {
 }
 
 async function createGame() {
+  const timelineError = validateGameTimeline(gameForm, { requireStartEnd: true })
+  if (timelineError) {
+    toast.add({ title: '比赛时间配置无效', description: timelineError, color: 'warning' })
+    return
+  }
+
   gameSubmitting.value = true
   try {
     await $api('post', '/api/games', {
@@ -2135,6 +2204,19 @@ async function updateGameSettings() {
     return
   }
 
+  const selected = selectedSettingsGame.value
+  const timelineError = validateGameTimeline({
+    start_time: selected?.start_time?.slice(0, 16) || '',
+    end_time: selected?.end_time?.slice(0, 16) || '',
+    scoreboard_freeze_at: gameSettingsForm.scoreboard_freeze_at,
+    writeup_deadline: gameSettingsForm.writeup_deadline,
+    writeup_required: gameSettingsForm.writeup_required,
+  }, { requireStartEnd: true })
+  if (timelineError) {
+    toast.add({ title: '比赛设置无效', description: timelineError, color: 'warning' })
+    return
+  }
+
   settingsSubmitting.value = true
   try {
     const body: {
@@ -2186,6 +2268,12 @@ async function updateGameSettings() {
 async function updateGameDetails() {
   if (!gameEditForm.game_id) {
     toast.add({ title: '请先选择比赛', color: 'warning' })
+    return
+  }
+
+  const timelineError = validateGameTimeline(gameEditForm, { requireStartEnd: true })
+  if (timelineError) {
+    toast.add({ title: '比赛信息无效', description: timelineError, color: 'warning' })
     return
   }
 
