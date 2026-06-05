@@ -97,16 +97,13 @@ pnpm smoke:local
 
 这条脚本依然刻意要求目标数据库是“无任何用户”的状态；一旦库里已有用户，它会直接退出，而不是尝试补建 `admin`。
 
-如果你已经显式开启：
-
-- `INSTANCE_DOCKER_PROVIDER_ENABLED=true`
-- 本机 Docker Server 可用
-
-也可以直接运行真实 Docker 版本：
+如果你本机 Docker Server 可用，也可以直接运行真实 Docker 版本：
 
 ```bash
 pnpm smoke:local:docker
 ```
+
+这条命令和 `pnpm smoke:local` 一样，也会先自启临时隔离后端；区别是它会额外为这份临时后端开启真实 Docker provider。
 
 这条脚本会把动态题切成 `nginx:alpine + runtime.expose = [80]`，并额外验证：
 
@@ -114,6 +111,14 @@ pnpm smoke:local:docker
 - 这个入口能直接返回 HTTP 200
 - 返回内容符合预期的 nginx 默认页
 - 销毁实例后，接口会回到 `idle`
+
+当前前置条件也更严格一些：
+
+- Docker Desktop 已启动
+- 当前 `docker` CLI 能连到可用的 daemon
+- `docker version` 能正常看到 `Server` 信息
+
+如果这一步失败，脚本现在会直接把 Docker CLI 的原始报错打印出来，方便区分“Docker 没启动”和“业务逻辑异常”。
 
 ## 管理员最小链路
 

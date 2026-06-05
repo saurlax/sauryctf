@@ -4,7 +4,9 @@
 
 ## 开启方式
 
-在 `.env` 里加入：
+默认情况下，即使题目写了 `runtime.provider = docker`，平台仍然只会走 skeleton 租约，不会真的起容器。
+
+如果你是手动启动自己的后端进行联调，需要在 `.env` 里加入：
 
 ```env
 INSTANCE_DOCKER_PROVIDER_ENABLED=true
@@ -13,22 +15,42 @@ INSTANCE_DOCKER_HOST=127.0.0.1
 
 然后重启后端。
 
-默认情况下，即使题目写了 `runtime.provider = docker`，平台仍然只会走 skeleton 租约，不会真的起容器。
-
 ## 最快验证
 
-如果当前数据库仍然是空库，并且后端已经按上面的方式开启了真实 Docker provider，可以直接运行：
+如果你只是想最快验证真实本地 Docker provider，可以直接运行：
 
 ```bash
 pnpm smoke:local:docker
 ```
 
-这条脚本会自动创建一场比赛、一题静态题和一题 `nginx:alpine` 动态题，并验证：
+这条命令现在会自动：
+
+- 启动一份临时隔离后端
+- 为这份后端自动开启 `INSTANCE_DOCKER_PROVIDER_ENABLED=true`
+- 使用独立 SQLite 文件，不污染仓库主库
+- 跑完后自动关闭并清理
+
+随后脚本会自动创建一场比赛、一题静态题和一题 `nginx:alpine` 动态题，并验证：
 
 - 能正常启动实例
 - 实例返回了真实 `127.0.0.1:<随机端口>` 入口
 - 入口能返回 nginx 默认页
 - 销毁实例后会重新回到 `idle`
+
+这条链路仍然要求本机 Docker daemon 可用。以当前 Windows 常见环境来说，至少需要：
+
+- Docker Desktop 已启动
+- 当前 Docker context 对应的 Linux engine 可用
+- `docker version` 能看到 `Server` 段，而不只是 `Client`
+
+如果脚本在前置检查阶段失败，优先手动运行：
+
+```bash
+docker version
+docker info
+```
+
+根据 Docker CLI 官方文档，`docker version` 会同时输出 `Client` 和 `Server` 信息；如果 daemon 没起来，`Server` 信息就拿不到，脚本也会直接停在前置检查阶段。
 
 ## 推荐最小题目模板
 

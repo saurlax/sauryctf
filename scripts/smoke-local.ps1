@@ -112,6 +112,18 @@ function Invoke-TextRequest {
   return Invoke-WebRequest -Method "GET" -Uri $Url
 }
 
+function Get-DockerServerVersion {
+  $dockerOutput = & docker version --format '{{.Server.Version}}' 2>&1
+  $dockerExitCode = $LASTEXITCODE
+  $dockerMessage = ($dockerOutput | Out-String).Trim()
+
+  if ($dockerExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($dockerMessage)) {
+    Fail "Docker server is not reachable.`nOutput: $dockerMessage`nPlease start Docker Desktop, ensure the Linux engine is running, or switch back to -DynamicMode mock."
+  }
+
+  return $dockerMessage
+}
+
 function Test-PortListening {
   param([int]$Port)
 
@@ -251,8 +263,8 @@ try {
 
   if ($DynamicMode -eq "docker") {
     Write-Step "Checking local Docker prerequisites"
-    $dockerCheck = Invoke-Command -ScriptBlock { docker version --format '{{.Server.Version}}' } 2>$null
-    Assert-True (-not [string]::IsNullOrWhiteSpace(($dockerCheck | Out-String).Trim())) "Docker server is not reachable. Please start Docker Desktop or switch back to -DynamicMode mock."
+    $dockerVersion = Get-DockerServerVersion
+    Write-Host "Docker server version: $dockerVersion"
   }
 
   Write-Step "Checking bootstrap admin availability"

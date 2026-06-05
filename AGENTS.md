@@ -45,7 +45,9 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
   - a freshly started lease is not immediately renewable; local smoke now checks the current GZCTF-style renewal-window gating
   - the returned launch data no longer contains unresolved `{{team_hash}}`-style placeholders
 - `pnpm smoke:local:docker` now provides an opt-in real local Docker verification path:
-  - requires `INSTANCE_DOCKER_PROVIDER_ENABLED=true`
+  - it now also self-starts an isolated backend plus temporary SQLite state, just like `pnpm smoke:local`
+  - the script enables `INSTANCE_DOCKER_PROVIDER_ENABLED=true` for that temporary backend automatically
+  - it still requires a reachable local Docker daemon; on Windows, `docker version` must be able to show the `Server` section
   - provisions one `nginx:alpine`-backed dynamic challenge with `runtime.expose = [80]`
   - verifies the returned `launch_url` is a reachable local published port
   - also verifies destroy returns the instance state to `idle`
