@@ -191,6 +191,57 @@ const summaryCards = computed(() => [
   },
 ])
 
+const managementSummaryRows = computed(() => {
+  if (!team.value) {
+    return []
+  }
+
+  return [
+    {
+      label: '当前角色',
+      value: isCaptain.value ? '队长' : '队员',
+    },
+    {
+      label: '邀请码状态',
+      value: teamLocked.value ? '可轮换，不可扩员' : '可继续邀请',
+    },
+    {
+      label: '可移除成员',
+      value: isCaptain.value ? `${removableMembers.value.length} 人` : '仅队长可操作',
+    },
+    {
+      label: '可移交队长',
+      value: isCaptain.value ? `${transferableMembers.value.length} 人` : '仅队长可操作',
+    },
+    {
+      label: '当前锁定比赛',
+      value: `${lockedGames.value.length} 场`,
+    },
+    {
+      label: '是否可直接退队',
+      value: isCaptain.value ? '需先移交队长' : teamLocked.value ? '否，比赛锁定中' : '是',
+    },
+  ]
+})
+
+const teamManagementHint = computed(() => {
+  if (!team.value) {
+    return ''
+  }
+
+  if (teamLocked.value) {
+    return isCaptain.value
+      ? '当前队伍已进入比赛锁定期。你仍可轮换邀请码，但应保持现有成员结构，待相关比赛结束后再继续调整。'
+      : '当前队伍已进入比赛锁定期。现在更适合直接返回比赛页继续参赛，而不是调整队伍结构。'
+  }
+
+  if (isCaptain.value) {
+    return '你当前负责邀请码、成员调整和队长移交。若需要退出队伍，请先把队长身份移交给其他成员。'
+  }
+
+  return '你当前可继续参赛；如需离开队伍，可直接使用下方退出按钮，之后再加入其他队伍。'
+})
+
 function resolveRedirect() {
   const redirect = route.query.redirect
   if (typeof redirect === 'string' && redirect.startsWith('/')) {
@@ -719,55 +770,27 @@ onMounted(async () => {
         </template>
         </UPageCard>
 
-        <div class="space-y-6">
-          <UPageCard title="队伍提示" icon="i-lucide-info">
-            <div class="space-y-3 text-sm text-muted">
-              <p>
-                当前邀请码可直接分享给队友，复制邀请链接后，队友打开页面会自动填入邀请码。
-              </p>
-              <p v-if="teamLocked">
-                当前队伍已经通过一场仍未结束的比赛报名，队伍结构会被临时锁定，直到这些比赛结束；如需停用旧邀请码，队长仍可先重置邀请码。
-              </p>
-              <p v-if="isCaptain">
-                你当前是队长，可以移除其他成员、移交管理权以及重置邀请码。当前版本下，队长不能直接退出队伍。
-              </p>
-              <p v-else>
-                如果你需要离队，可以直接使用下方退出按钮，之后可重新加入其他队伍。
-              </p>
-            </div>
-          </UPageCard>
-
-          <UPageCard v-if="isCaptain" title="队长操作" icon="i-lucide-shield-check">
+        <UPageCard :title="isCaptain ? '队伍管理摘要' : '当前操作范围'" :icon="isCaptain ? 'i-lucide-shield-check' : 'i-lucide-info'">
+          <div class="space-y-4">
             <div class="space-y-3 text-sm">
-              <div class="flex items-center justify-between gap-3">
-                <span class="text-muted">可移除成员</span>
-                <span>{{ removableMembers.length }}</span>
+              <div
+                v-for="row in managementSummaryRows"
+                :key="row.label"
+                class="flex items-center justify-between gap-3"
+              >
+                <span class="text-muted">{{ row.label }}</span>
+                <span class="text-right">{{ row.value }}</span>
               </div>
-              <div class="flex items-center justify-between gap-3">
-                <span class="text-muted">可移交队长</span>
-                <span>{{ transferableMembers.length }}</span>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <span class="text-muted">是否可直接退队</span>
-                <span>{{ teamLocked ? '否，比赛锁定中' : '否' }}</span>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <span class="text-muted">当前锁定比赛</span>
-                <span>{{ lockedGames.length }}</span>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <span class="text-muted">可重置邀请码</span>
-                <span>是</span>
-              </div>
-              <p class="text-muted">
-                {{ teamLocked ? '锁定期间请保持当前队伍结构；如果旧邀请码已经扩散，可以先重置邀请码，待相关比赛结束后再继续邀请。' : '如果需要调整队伍，请先移除成员、重置邀请码或保留当前队伍结构，再继续报名比赛。' }}
-              </p>
-              <p class="text-muted">
-                如果当前队长需要退出队伍，请先把队长身份移交给其他成员，再由新队长继续管理队伍。
-              </p>
             </div>
-          </UPageCard>
-        </div>
+
+            <UAlert
+              color="info"
+              variant="soft"
+              :title="isCaptain ? '当前维护建议' : '当前参赛建议'"
+              :description="teamManagementHint"
+            />
+          </div>
+        </UPageCard>
       </div>
     </template>
 
