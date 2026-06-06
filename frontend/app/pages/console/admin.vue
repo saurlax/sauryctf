@@ -114,6 +114,11 @@ const attachForm = reactive({
   challenge_id: undefined as number | undefined,
   score_override: undefined as number | undefined,
 })
+const attachChallengeSchema = z.object({
+  game_id: z.number({ message: '请选择比赛' }),
+  challenge_id: z.number({ message: '请选择题目' }),
+  score_override: z.number().min(0, '覆盖分值不能小于 0').optional(),
+})
 
 const gameSettingsForm = reactive({
   game_id: undefined as number | undefined,
@@ -197,6 +202,19 @@ const gameEditForm = reactive({
   writeup_required: false,
   writeup_deadline: '',
 })
+const gameEditSchema = z.object({
+  game_id: z.number({ message: '请选择比赛' }),
+  name: z.string().trim().min(1, '请输入比赛名称'),
+  description: z.string(),
+  notice: z.string(),
+  invitation_code: z.string(),
+  divisions_text: z.string(),
+  start_time: z.string().trim().min(1, '请填写开始时间'),
+  end_time: z.string().trim().min(1, '请填写结束时间'),
+  practice_mode: z.boolean(),
+  writeup_required: z.boolean(),
+  writeup_deadline: z.string(),
+})
 
 const challengeEditForm = reactive({
   challenge_id: undefined as number | undefined,
@@ -235,6 +253,9 @@ const submissionFilters = reactive({
 
 const announcementForm = reactive({
   content: '',
+})
+const announcementSchema = z.object({
+  content: z.string().trim().min(1, '请输入公告内容'),
 })
 
 const resourceFilters = reactive({
@@ -1951,7 +1972,7 @@ function resetSelectedGameContext() {
   }
 }
 
-async function createAnnouncement() {
+async function createAnnouncement(payload: FormSubmitEvent<z.output<typeof announcementSchema>>) {
   if (!attachForm.game_id) {
     return
   }
@@ -1961,7 +1982,7 @@ async function createAnnouncement() {
     const created = await $fetch<(typeof announcements.value)[number]>(`/api/admin/games/${attachForm.game_id}/announcements`, {
       method: 'POST',
       body: {
-        content: announcementForm.content,
+        content: payload.data.content,
       },
     })
     announcements.value = [created, ...announcements.value]
@@ -3225,13 +3246,8 @@ async function confirmUpdateGameSettings() {
   }
 }
 
-async function updateGameDetails() {
-  if (!gameEditForm.game_id) {
-    toast.add({ title: '请先选择比赛', color: 'warning' })
-    return
-  }
-
-  const timelineError = validateGameTimeline(gameEditForm, { requireStartEnd: true })
+async function updateGameDetails(payload: FormSubmitEvent<z.output<typeof gameEditSchema>>) {
+  const timelineError = validateGameTimeline(payload.data, { requireStartEnd: true })
   if (timelineError) {
     toast.add({ title: '比赛信息无效', description: timelineError, color: 'warning' })
     return
@@ -3241,20 +3257,20 @@ async function updateGameDetails() {
   try {
     await $api('put', '/api/games/{id}', {
       params: {
-        id: gameEditForm.game_id,
+        id: payload.data.game_id,
       },
       body: {
-        name: gameEditForm.name,
-        description: gameEditForm.description,
-        notice: gameEditForm.notice,
-        invitation_code: gameEditForm.invitation_code,
-        divisions: parseDivisionList(gameEditForm.divisions_text),
-        start_time: new Date(gameEditForm.start_time).toISOString(),
-        end_time: new Date(gameEditForm.end_time).toISOString(),
-        practice_mode: gameEditForm.practice_mode,
-        writeup_required: gameEditForm.writeup_required,
-        writeup_deadline: gameEditForm.writeup_deadline
-          ? new Date(gameEditForm.writeup_deadline).toISOString()
+        name: payload.data.name,
+        description: payload.data.description,
+        notice: payload.data.notice,
+        invitation_code: payload.data.invitation_code,
+        divisions: parseDivisionList(payload.data.divisions_text),
+        start_time: new Date(payload.data.start_time).toISOString(),
+        end_time: new Date(payload.data.end_time).toISOString(),
+        practice_mode: payload.data.practice_mode,
+        writeup_required: payload.data.writeup_required,
+        writeup_deadline: payload.data.writeup_deadline
+          ? new Date(payload.data.writeup_deadline).toISOString()
           : null,
       },
     })
@@ -3488,21 +3504,16 @@ async function importGamePackage() {
   }
 }
 
-async function attachChallengeToGame() {
-  if (!attachForm.game_id || !attachForm.challenge_id) {
-    toast.add({ title: '请先选择比赛和题目', color: 'warning' })
-    return
-  }
-
+async function attachChallengeToGame(payload: FormSubmitEvent<z.output<typeof attachChallengeSchema>>) {
   attachSubmitting.value = true
   try {
     await $api('post', '/api/games/{id}/challenges', {
       params: {
-        id: attachForm.game_id,
+        id: payload.data.game_id,
       },
       body: {
-        challenge_id: attachForm.challenge_id,
-        ...(attachForm.score_override !== undefined ? { score_override: attachForm.score_override } : {}),
+        challenge_id: payload.data.challenge_id,
+        ...(payload.data.score_override !== undefined ? { score_override: payload.data.score_override } : {}),
       },
     })
 
@@ -6019,15 +6030,23 @@ onMounted(async () => {
     v-model:open="attachChallengeModalOpen"
     title="比赛挂题"
     description="将现有题目加入比赛，并按需覆盖比赛内分值。"
+    :dismissible="!attachSubmitting"
     :ui="{ body: 'space-y-4', footer: 'justify-end' }"
   >
     <template #body>
-      <UForm :state="attachForm" class="space-y-4" @submit="attachChallengeToGame">
+      <UForm
+        id="attach-challenge-form"
+        :state="attachForm"
+        :schema="attachChallengeSchema"
+        class="space-y-4"
+        @submit="attachChallengeToGame"
+      >
         <UFormField label="选择比赛" name="game_id">
           <USelect
             v-model="attachForm.game_id"
             :items="gameOptions"
             class="w-full"
+            :disabled="attachSubmitting"
             placeholder="选择一个比赛"
           />
         </UFormField>
@@ -6037,12 +6056,20 @@ onMounted(async () => {
             v-model="attachForm.challenge_id"
             :items="challengeOptions"
             class="w-full"
+            :disabled="attachSubmitting"
             placeholder="选择一个题目"
           />
         </UFormField>
 
         <UFormField label="覆盖分值" name="score_override" description="留空时沿用题目基础分值">
-          <UInput v-model.number="attachForm.score_override" type="number" min="0" class="w-full" placeholder="例如：500" />
+          <UInput
+            v-model.number="attachForm.score_override"
+            type="number"
+            min="0"
+            class="w-full"
+            :disabled="attachSubmitting"
+            placeholder="例如：500"
+          />
         </UFormField>
       </UForm>
     </template>
@@ -6051,7 +6078,7 @@ onMounted(async () => {
       <UButton variant="ghost" :disabled="attachSubmitting" @click="close()">
         取消
       </UButton>
-      <UButton :loading="attachSubmitting" @click="attachChallengeToGame">
+      <UButton type="submit" form="attach-challenge-form" :loading="attachSubmitting" :disabled="attachSubmitting">
         加入比赛
       </UButton>
     </template>
@@ -6061,10 +6088,17 @@ onMounted(async () => {
     v-model:open="announcementModalOpen"
     title="发布公告"
     description="向当前比赛发布赛时通知、规则补充或维护说明。"
+    :dismissible="!announcementSubmitting"
     :ui="{ body: 'space-y-4', footer: 'justify-end' }"
   >
     <template #body>
-      <UForm :state="announcementForm" class="space-y-3" @submit="createAnnouncement">
+      <UForm
+        id="create-announcement-form"
+        :state="announcementForm"
+        :schema="announcementSchema"
+        class="space-y-3"
+        @submit="createAnnouncement"
+      >
         <UFormField
           label="公告内容"
           name="content"
@@ -6074,6 +6108,7 @@ onMounted(async () => {
             v-model="announcementForm.content"
             class="w-full"
             :rows="6"
+            :disabled="announcementSubmitting"
             placeholder="例如：平台将在 10 分钟后开放，请提前确认队伍成员与网络环境。"
           />
         </UFormField>
@@ -6084,7 +6119,13 @@ onMounted(async () => {
       <UButton variant="ghost" :disabled="announcementSubmitting" @click="close()">
         取消
       </UButton>
-      <UButton icon="i-lucide-send" :loading="announcementSubmitting" @click="createAnnouncement">
+      <UButton
+        type="submit"
+        form="create-announcement-form"
+        icon="i-lucide-send"
+        :loading="announcementSubmitting"
+        :disabled="announcementSubmitting"
+      >
         发布公告
       </UButton>
     </template>
@@ -6094,61 +6135,69 @@ onMounted(async () => {
     v-model:open="gameEditModalOpen"
     title="编辑比赛信息"
     description="修改比赛的基础信息、时间和补充规则。"
+    :dismissible="!gameEditing"
     :ui="{ body: 'space-y-4', footer: 'justify-end' }"
   >
     <template #body>
-      <UForm :state="gameEditForm" class="space-y-4" @submit="updateGameDetails">
+      <UForm
+        id="edit-game-form"
+        :state="gameEditForm"
+        :schema="gameEditSchema"
+        class="space-y-4"
+        @submit="updateGameDetails"
+      >
         <UFormField label="选择比赛" name="game_id">
           <USelect
             v-model="gameEditForm.game_id"
             :items="gameOptions"
             class="w-full"
+            :disabled="gameEditing"
             placeholder="选择一个比赛"
           />
         </UFormField>
 
         <UFormField label="比赛名称" name="name">
-          <UInput v-model="gameEditForm.name" class="w-full" placeholder="例如：Spring CTF 2026" />
+          <UInput v-model="gameEditForm.name" class="w-full" :disabled="gameEditing" placeholder="例如：Spring CTF 2026" />
         </UFormField>
 
         <UFormField label="比赛描述" name="description">
-          <UTextarea v-model="gameEditForm.description" class="w-full" :rows="4" placeholder="简要介绍比赛规则或主题" />
+          <UTextarea v-model="gameEditForm.description" class="w-full" :rows="4" :disabled="gameEditing" placeholder="简要介绍比赛规则或主题" />
         </UFormField>
 
         <UFormField label="规则补充" name="notice" description="这里适合填写长期有效的补充规则，会展示在公开比赛页的“规则补充”区域">
-          <UTextarea v-model="gameEditForm.notice" class="w-full" :rows="4" placeholder="例如：禁止共享 Flag；比赛开始前 15 分钟开放平台。" />
+          <UTextarea v-model="gameEditForm.notice" class="w-full" :rows="4" :disabled="gameEditing" placeholder="例如：禁止共享 Flag；比赛开始前 15 分钟开放平台。" />
         </UFormField>
 
         <UFormField label="比赛邀请码" name="invitation_code" description="留空表示关闭邀请码门槛">
-          <UInput v-model="gameEditForm.invitation_code" class="w-full" placeholder="例如：spring-2026" />
+          <UInput v-model="gameEditForm.invitation_code" class="w-full" :disabled="gameEditing" placeholder="例如：spring-2026" />
         </UFormField>
 
         <UFormField label="比赛分组" name="divisions_text" description="按行或逗号分隔，留空表示不分组">
-          <UTextarea v-model="gameEditForm.divisions_text" class="w-full" :rows="3" placeholder="本科组, 公开组" />
+          <UTextarea v-model="gameEditForm.divisions_text" class="w-full" :rows="3" :disabled="gameEditing" placeholder="本科组, 公开组" />
         </UFormField>
 
         <div class="grid gap-4 md:grid-cols-2">
           <UFormField label="开始时间" name="start_time">
-            <UInput v-model="gameEditForm.start_time" type="datetime-local" class="w-full" />
+            <UInput v-model="gameEditForm.start_time" type="datetime-local" class="w-full" :disabled="gameEditing" />
           </UFormField>
 
           <UFormField label="结束时间" name="end_time">
-            <UInput v-model="gameEditForm.end_time" type="datetime-local" class="w-full" />
+            <UInput v-model="gameEditForm.end_time" type="datetime-local" class="w-full" :disabled="gameEditing" />
           </UFormField>
         </div>
 
         <div class="grid gap-4 md:grid-cols-2">
           <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不额外设置截止时间；如果填写，应晚于比赛结束时间">
-            <UInput v-model="gameEditForm.writeup_deadline" type="datetime-local" class="w-full" />
+            <UInput v-model="gameEditForm.writeup_deadline" type="datetime-local" class="w-full" :disabled="gameEditing" />
           </UFormField>
 
           <div class="grid gap-4 md:grid-cols-2">
             <UFormField label="启用赛后练习" name="practice_mode">
-              <USwitch v-model="gameEditForm.practice_mode" />
+              <USwitch v-model="gameEditForm.practice_mode" :disabled="gameEditing" />
             </UFormField>
 
             <UFormField label="要求 Writeup" name="writeup_required">
-              <USwitch v-model="gameEditForm.writeup_required" />
+              <USwitch v-model="gameEditForm.writeup_required" :disabled="gameEditing" />
             </UFormField>
           </div>
         </div>
@@ -6174,7 +6223,7 @@ onMounted(async () => {
       <UButton variant="ghost" :disabled="gameEditing" @click="close()">
         取消
       </UButton>
-      <UButton :loading="gameEditing" @click="updateGameDetails">
+      <UButton type="submit" form="edit-game-form" :loading="gameEditing" :disabled="gameEditing">
         保存比赛信息
       </UButton>
     </template>
