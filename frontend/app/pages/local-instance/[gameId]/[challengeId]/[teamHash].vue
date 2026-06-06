@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import type { components } from '~/types/api'
+
+type Game = components['schemas']['Game']
+type GameChallengeDetail = components['schemas']['GameChallengeDetail']
+
 const route = useRoute()
 const toast = useToast()
 const { authState, ensureInitialized } = useAuth()
@@ -35,6 +40,8 @@ const challengeId = computed(() => Number(route.params.challengeId || 0))
 const teamHash = computed(() => String(route.params.teamHash || ''))
 const hintedTeamId = computed(() => typeof route.query.team === 'string' ? route.query.team : '')
 
+const gameMeta = ref<Game | null>(null)
+const challengeMeta = ref<GameChallengeDetail | null>(null)
 const instanceState = ref<ChallengeInstanceState | null>(null)
 const stateLoading = ref(false)
 const stateRefreshing = ref(false)
@@ -70,6 +77,17 @@ const canRenewNow = computed(() => {
 
   return !!instanceState.value?.can_renew || canRenewByClock.value
 })
+const challengeContextDescription = computed(() => {
+  if (challengeMeta.value?.category && challengeMeta.value?.difficulty) {
+    return `${challengeMeta.value.category.toUpperCase()} · ${challengeMeta.value.difficulty} · #${challengeId.value}`
+  }
+
+  if (challengeMeta.value?.category) {
+    return `${challengeMeta.value.category.toUpperCase()} · #${challengeId.value}`
+  }
+
+  return challengeId.value > 0 ? `#${challengeId.value}` : '-'
+})
 
 const pageLinks = computed(() => [
   {
@@ -89,13 +107,18 @@ const pageLinks = computed(() => [
 const summaryCards = computed(() => [
   {
     title: '比赛',
-    value: gameId.value > 0 ? `#${gameId.value}` : '-',
+    value: gameMeta.value?.name || (gameId.value > 0 ? `#${gameId.value}` : '-'),
     icon: 'i-lucide-trophy',
   },
   {
     title: '题目',
-    value: challengeId.value > 0 ? `#${challengeId.value}` : '-',
+    value: challengeMeta.value?.title || (challengeId.value > 0 ? `#${challengeId.value}` : '-'),
     icon: 'i-lucide-flag',
+  },
+  {
+    title: '题目上下文',
+    value: challengeContextDescription.value,
+    icon: 'i-lucide-shapes',
   },
   {
     title: 'Team Hash',
@@ -108,6 +131,36 @@ const summaryCards = computed(() => [
     icon: 'i-lucide-users',
   },
 ])
+
+async function loadChallengeContext() {
+  if (gameId.value <= 0 || challengeId.value <= 0) {
+    gameMeta.value = null
+    challengeMeta.value = null
+    return
+  }
+
+  try {
+    const [gameRes, challengesRes] = await Promise.all([
+      $api('get', '/api/games/{id}', {
+        params: {
+          id: gameId.value,
+        },
+      }),
+      $api('get', '/api/games/{id}/challenges', {
+        params: {
+          id: gameId.value,
+        },
+      }),
+    ])
+
+    gameMeta.value = gameRes
+    challengeMeta.value = challengesRes.find(item => item.id === challengeId.value) || null
+  }
+  catch {
+    gameMeta.value = null
+    challengeMeta.value = null
+  }
+}
 
 const statusBadge = computed(() => {
   if (!instanceState.value) {
@@ -399,6 +452,7 @@ watch(hasRunningInstance, (current, previous) => {
 
 onMounted(async () => {
   await ensureInitialized()
+  await loadChallengeContext()
   await loadInstanceState()
 
   ticker = setInterval(() => {
@@ -429,7 +483,9 @@ onBeforeUnmount(() => {
     <div class="mx-auto flex max-w-5xl flex-col gap-6">
       <UPageCard
         title="实例详情"
-        description="这里会展示当前账号在这道动态题下的实例租约、访问入口和续期策略，便于继续完成访问、续期和销毁操作。"
+        :description="challengeMeta?.title
+          ? `当前页对应 ${gameMeta?.name || `比赛 #${gameId}`} 的题目「${challengeMeta.title}」，会展示当前账号在这道动态题下的实例租约、访问入口和续期策略。`
+          : '这里会展示当前账号在这道动态题下的实例租约、访问入口和续期策略，便于继续完成访问、续期和销毁操作。'"
         icon="i-lucide-box"
       >
         <template #footer>
