@@ -53,6 +53,8 @@
   - 比赛日志可直接跳回对应比赛的设置、报名、公告、Writeup、实例监控或挂题区
   - 如果日志详情里带了 `announcement_id` 或 `challenge_id`，页面会继续承接到更具体的公告编辑或题目上下文
   - 题目日志可直接跳回题目维护区，并在可能时带上关联比赛上下文
+  - `admin.game.destroy_instance_lease` 这类实例运维日志当前会回到 `/console/admin?game_id=...&section=%23monitoring`
+  - 如果详情里还带了 `challenge_id`，管理端会继续保留题目级高亮，直接落到实例运维明细而不是总览标签
 - 当前已覆盖的动作名包括：
   - 导入比赛包 / 导出比赛包 / 导出榜单 / 导出 Writeup / 导出提交记录
   - 发布公告 / 编辑公告 / 删除公告

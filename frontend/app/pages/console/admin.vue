@@ -4644,7 +4644,7 @@ onMounted(async () => {
                     实例监控
                   </div>
                   <div class="text-sm text-muted">
-                    当前比赛下所有动态实例租约，可用于判断是否有队伍实例已经过期。
+                    当前比赛下所有动态实例租约会统一收口到“运维”标签，便于从审计日志、统计卡和监控入口直接落到实例明细。
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
@@ -4657,9 +4657,9 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <div v-if="instanceLeases.length" class="space-y-2">
+              <div v-if="instanceLeases.length" class="grid gap-3 xl:grid-cols-3">
                 <div
-                  v-for="lease in instanceLeases"
+                  v-for="lease in instanceLeases.slice(0, 3)"
                   :key="lease.id"
                   :class="[
                     'rounded-md px-3 py-3 transition-colors',
@@ -4674,90 +4674,37 @@ onMounted(async () => {
                         {{ lease.team_name }} · {{ lease.challenge_title }}
                       </div>
                       <div class="mt-1 text-xs text-muted">
-                        Team #{{ lease.team_id }} · Challenge #{{ lease.challenge_id }}{{ lease.provider ? ` · ${lease.provider}` : '' }}{{ lease.image ? ` · ${lease.image}` : '' }}
+                        {{ lease.is_expired ? '当前租约已过期' : `剩余 ${lease.seconds_left} 秒` }}
                       </div>
                       <div class="mt-2 flex flex-wrap items-center gap-2">
                         <UBadge :color="getInstanceLeaseProviderColor(lease)" variant="soft">
                           {{ getInstanceLeaseProviderLabel(lease) }}
                         </UBadge>
-                        <UBadge v-if="lease.host && lease.port" color="neutral" variant="subtle">
-                          {{ lease.host }}:{{ lease.port }}
+                        <UBadge :color="getInstanceLeaseStatusColor(lease)" variant="soft">
+                          {{ getInstanceLeaseStatusLabel(lease) }}
                         </UBadge>
                       </div>
-                      <div class="mt-2 grid gap-2 text-xs text-muted md:grid-cols-2 xl:grid-cols-4">
-                        <div>启动：{{ new Date(lease.started_at).toLocaleString() }}</div>
-                        <div>续期：{{ new Date(lease.last_renewed_at).toLocaleString() }}</div>
-                        <div>到期：{{ new Date(lease.expires_at).toLocaleString() }}</div>
-                        <div>{{ lease.is_expired ? '当前已过期' : `剩余 ${lease.seconds_left} 秒` }}</div>
-                      </div>
-                      <div v-if="lease.host || lease.port" class="mt-2 text-xs text-muted">
-                        当前入口主机：{{ lease.host || '未返回 host' }}<template v-if="lease.port">:{{ lease.port }}</template>
-                      </div>
-                      <div v-if="lease.launch_url" class="mt-2 text-xs text-muted break-all">
-                        入口：{{ lease.launch_url }}
-                      </div>
-                    </div>
-                    <div class="flex shrink-0 flex-col items-end gap-2">
-                      <UBadge :color="getInstanceLeaseStatusColor(lease)" variant="soft">
-                        {{ getInstanceLeaseStatusLabel(lease) }}
-                      </UBadge>
-                      <UButton
-                        v-if="lease.launch_url"
-                        size="xs"
-                        variant="ghost"
-                        icon="i-lucide-arrow-up-right"
-                        :to="lease.launch_url"
-                        target="_blank"
-                      >
-                        打开
-                      </UButton>
-                      <UButton
-                        size="xs"
-                        variant="ghost"
-                        icon="i-lucide-copy"
-                        @click="copyInstanceLeaseEntry(lease)"
-                      >
-                        复制入口
-                      </UButton>
-                      <UButton
-                        size="xs"
-                        variant="ghost"
-                        icon="i-lucide-logs"
-                        @click="navigateAdminTarget('#submissions', { challengeId: lease.challenge_id })"
-                      >
-                        同题提交
-                      </UButton>
-                      <UButton
-                        size="xs"
-                        color="error"
-                        variant="soft"
-                        icon="i-lucide-trash-2"
-                        :loading="deletingInstanceLeaseId === lease.id"
-                        @click="destroyInstanceLease(lease.id)"
-                      >
-                        销毁
-                      </UButton>
                     </div>
                   </div>
                 </div>
               </div>
-
               <div v-else-if="loadingInstances" class="text-sm text-muted">
                 正在加载实例租约...
               </div>
-              <UEmpty
-                v-else
-                icon="i-lucide-box"
-                title="当前还没有实例租约"
-                description="当前比赛下还没有运行中的动态实例。等队伍启动实例后，这里会显示租约状态、入口和到期时间。"
-                :actions="[{
-                  label: '打开公开页',
-                  icon: 'i-lucide-arrow-up-right',
-                  to: selectedAdminOverview ? `/games/${selectedAdminOverview.game.id}` : '/games',
-                  color: 'neutral',
-                  variant: 'outline',
-                }]"
-              />
+              <div v-else class="text-sm text-muted">
+                当前比赛下还没有运行中的动态实例。
+              </div>
+
+              <div class="mt-3 flex justify-end">
+                <UButton
+                  size="sm"
+                  variant="outline"
+                  icon="i-lucide-box"
+                  @click="jumpToAdminAnchor('#monitoring')"
+                >
+                  打开实例运维视图
+                </UButton>
+              </div>
             </div>
           </div>
 
@@ -5113,7 +5060,131 @@ onMounted(async () => {
             </div>
           </div>
 
-          <div v-else class="grid gap-4 xl:grid-cols-2">
+          <div v-else class="space-y-4">
+            <div id="monitoring" class="rounded-lg border border-default px-3 py-3">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <div class="font-medium">
+                    实例运维
+                  </div>
+                  <div class="text-sm text-muted">
+                    当前比赛下所有动态实例租约都会在这里集中展示，便于处理过期实例、核对入口与回看同题提交。
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <UBadge color="success" variant="soft">
+                    运行中 {{ instanceLeases.filter(item => !item.is_expired).length }}
+                  </UBadge>
+                  <UBadge color="warning" variant="soft">
+                    已过期 {{ instanceLeases.filter(item => item.is_expired).length }}
+                  </UBadge>
+                </div>
+              </div>
+
+              <div v-if="instanceLeases.length" class="space-y-2">
+                <div
+                  v-for="lease in instanceLeases"
+                  :key="lease.id"
+                  :class="[
+                    'rounded-md px-3 py-3 transition-colors',
+                    isHighlightedChallenge(lease.challenge_id)
+                      ? 'border border-primary bg-primary/5'
+                      : 'bg-elevated/60',
+                  ]"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="text-sm font-medium">
+                        {{ lease.team_name }} · {{ lease.challenge_title }}
+                      </div>
+                      <div class="mt-1 text-xs text-muted">
+                        Team #{{ lease.team_id }} · Challenge #{{ lease.challenge_id }}{{ lease.provider ? ` · ${lease.provider}` : '' }}{{ lease.image ? ` · ${lease.image}` : '' }}
+                      </div>
+                      <div class="mt-2 flex flex-wrap items-center gap-2">
+                        <UBadge :color="getInstanceLeaseProviderColor(lease)" variant="soft">
+                          {{ getInstanceLeaseProviderLabel(lease) }}
+                        </UBadge>
+                        <UBadge v-if="lease.host && lease.port" color="neutral" variant="subtle">
+                          {{ lease.host }}:{{ lease.port }}
+                        </UBadge>
+                      </div>
+                      <div class="mt-2 grid gap-2 text-xs text-muted md:grid-cols-2 xl:grid-cols-4">
+                        <div>启动：{{ new Date(lease.started_at).toLocaleString() }}</div>
+                        <div>续期：{{ new Date(lease.last_renewed_at).toLocaleString() }}</div>
+                        <div>到期：{{ new Date(lease.expires_at).toLocaleString() }}</div>
+                        <div>{{ lease.is_expired ? '当前已过期' : `剩余 ${lease.seconds_left} 秒` }}</div>
+                      </div>
+                      <div v-if="lease.host || lease.port" class="mt-2 text-xs text-muted">
+                        当前入口主机：{{ lease.host || '未返回 host' }}<template v-if="lease.port">:{{ lease.port }}</template>
+                      </div>
+                      <div v-if="lease.launch_url" class="mt-2 text-xs text-muted break-all">
+                        入口：{{ lease.launch_url }}
+                      </div>
+                    </div>
+                    <div class="flex shrink-0 flex-col items-end gap-2">
+                      <UBadge :color="getInstanceLeaseStatusColor(lease)" variant="soft">
+                        {{ getInstanceLeaseStatusLabel(lease) }}
+                      </UBadge>
+                      <UButton
+                        v-if="lease.launch_url"
+                        size="xs"
+                        variant="ghost"
+                        icon="i-lucide-arrow-up-right"
+                        :to="lease.launch_url"
+                        target="_blank"
+                      >
+                        打开
+                      </UButton>
+                      <UButton
+                        size="xs"
+                        variant="ghost"
+                        icon="i-lucide-copy"
+                        @click="copyInstanceLeaseEntry(lease)"
+                      >
+                        复制入口
+                      </UButton>
+                      <UButton
+                        size="xs"
+                        variant="ghost"
+                        icon="i-lucide-logs"
+                        @click="navigateAdminTarget('#submissions', { challengeId: lease.challenge_id })"
+                      >
+                        同题提交
+                      </UButton>
+                      <UButton
+                        size="xs"
+                        color="error"
+                        variant="soft"
+                        icon="i-lucide-trash-2"
+                        :loading="deletingInstanceLeaseId === lease.id"
+                        @click="destroyInstanceLease(lease.id)"
+                      >
+                        销毁
+                      </UButton>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div v-else-if="loadingInstances" class="text-sm text-muted">
+                正在加载实例租约...
+              </div>
+              <UEmpty
+                v-else
+                icon="i-lucide-box"
+                title="当前还没有实例租约"
+                description="当前比赛下还没有运行中的动态实例。等队伍启动实例后，这里会显示租约状态、入口和到期时间。"
+                :actions="[{
+                  label: '打开公开页',
+                  icon: 'i-lucide-arrow-up-right',
+                  to: selectedAdminOverview ? `/games/${selectedAdminOverview.game.id}` : '/games',
+                  color: 'neutral',
+                  variant: 'outline',
+                }]"
+              />
+            </div>
+
+            <div class="grid gap-4 xl:grid-cols-2">
             <div class="rounded-lg border border-default px-3 py-3">
               <div class="mb-3 flex items-center justify-between gap-2">
                 <div class="font-medium">
@@ -5211,6 +5282,7 @@ onMounted(async () => {
                   打开公开页
                 </UButton>
               </div>
+            </div>
             </div>
           </div>
         </div>
