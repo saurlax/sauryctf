@@ -645,37 +645,6 @@ onMounted(async () => {
 
     <template v-else-if="team">
       <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
-        <div v-if="inviteFlowMeta" class="xl:col-span-2">
-          <div class="rounded-lg border border-default bg-elevated/50 px-4 py-3">
-            <div class="flex items-start justify-between gap-4 flex-wrap">
-              <div class="min-w-0">
-                <div class="flex items-center gap-2 font-medium text-highlighted">
-                  <UIcon :name="inviteFlowMeta.icon" class="size-4" />
-                  <span>{{ inviteFlowMeta.title }}</span>
-                </div>
-                <p class="mt-2 text-sm text-muted leading-6">
-                  {{ inviteFlowMeta.description }}
-                </p>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <UButton
-                  :label="inviteFlowMeta.actionLabel"
-                  :color="inviteFlowMeta.color"
-                  variant="outline"
-                  size="sm"
-                  :to="inviteFlowMeta.actionTo"
-                />
-                <UButton
-                  v-if="inviteFlowMeta.secondaryLabel && inviteFlowMeta.secondaryTo"
-                  :label="inviteFlowMeta.secondaryLabel"
-                  variant="ghost"
-                  size="sm"
-                  :to="inviteFlowMeta.secondaryTo"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
         <div v-if="teamNextStepMeta" class="xl:col-span-2">
           <div class="rounded-lg border border-default bg-elevated/50 px-4 py-3">
             <div class="flex items-start justify-between gap-4 flex-wrap">
@@ -703,6 +672,38 @@ onMounted(async () => {
                   :label="teamNextStepMeta.secondaryLabel"
                   variant="ghost"
                 />
+              </div>
+            </div>
+            <div
+              v-if="inviteFlowMeta"
+              class="mt-3 rounded-lg border border-default px-3 py-3 text-sm"
+            >
+              <div class="flex items-start justify-between gap-3 flex-wrap">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2 text-highlighted">
+                    <UIcon :name="inviteFlowMeta.icon" class="size-4" />
+                    <span>{{ inviteFlowMeta.title }}</span>
+                  </div>
+                  <p class="mt-1 text-muted leading-6">
+                    {{ inviteFlowMeta.description }}
+                  </p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <UButton
+                    :label="inviteFlowMeta.actionLabel"
+                    :color="inviteFlowMeta.color"
+                    variant="ghost"
+                    size="sm"
+                    :to="inviteFlowMeta.actionTo"
+                  />
+                  <UButton
+                    v-if="inviteFlowMeta.secondaryLabel && inviteFlowMeta.secondaryTo"
+                    :label="inviteFlowMeta.secondaryLabel"
+                    variant="ghost"
+                    size="sm"
+                    :to="inviteFlowMeta.secondaryTo"
+                  />
+                </div>
               </div>
             </div>
           </div>
