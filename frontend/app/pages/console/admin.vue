@@ -63,6 +63,23 @@ const gameSettingsForm = reactive({
   writeup_deadline: '',
   is_public: true,
 })
+const gameSettingsConfirmModalOpen = ref(false)
+const pendingGameSettingsPayload = ref<null | {
+  gameId: number
+  gameName: string
+  body: {
+    status: 'draft' | 'active' | 'ended'
+    invitation_code: string
+    divisions: string[]
+    registration_mode: 'review' | 'auto_accept'
+    max_team_members: number
+    practice_mode: boolean
+    writeup_required: boolean
+    writeup_deadline?: string | null
+    is_public: boolean
+    scoreboard_freeze_at?: string | null
+  }
+}>(null)
 
 const gameEditForm = reactive({
   game_id: undefined as number | undefined,
@@ -630,6 +647,51 @@ const settingsRuleSummary = computed(() => {
       : '不要求 Writeup',
     gameSettingsForm.scoreboard_freeze_at ? `公开榜单将于 ${new Date(gameSettingsForm.scoreboard_freeze_at).toLocaleString()} 封榜` : '公开榜单不封榜',
   ]
+})
+const gameSettingsConfirmRows = computed(() => {
+  const target = pendingGameSettingsPayload.value
+  if (!target) {
+    return []
+  }
+
+  return [
+    {
+      label: '目标比赛',
+      value: target.gameName,
+    },
+    {
+      label: '比赛状态',
+      value: getGameStatusLabel(target.body.status),
+    },
+    {
+      label: '报名模式',
+      value: getRegistrationModeLabel(target.body.registration_mode),
+    },
+    {
+      label: '公开性',
+      value: target.body.is_public ? '公开比赛' : '私有比赛',
+    },
+    {
+      label: '邀请码',
+      value: target.body.invitation_code.trim() ? '已启用' : '未启用',
+    },
+  ]
+})
+const gameSettingsConfirmDescription = computed(() => {
+  const target = pendingGameSettingsPayload.value
+  if (!target) {
+    return ''
+  }
+
+  if (target.body.status === 'active') {
+    return '这次保存会按当前规则对外开放比赛设置。请确认公开性、报名模式、封榜时间和 Writeup 约束都已核对完毕。'
+  }
+
+  if (target.body.status === 'ended') {
+    return '这次保存会把比赛状态切到已结束。请确认当前确实需要进入赛后查看或练习阶段。'
+  }
+
+  return '这次保存会更新当前比赛的运行规则。请确认报名、公开性、分组和赛后策略都符合预期。'
 })
 
 function parseOptionalLocalDateTime(value: string) {
@@ -1954,6 +2016,16 @@ function getRegistrationModeLabel(mode?: 'review' | 'auto_accept') {
   return mode === 'auto_accept' ? '自动通过' : '人工审核'
 }
 
+function getGameStatusLabel(status?: 'draft' | 'active' | 'ended') {
+  if (status === 'active') {
+    return '进行中'
+  }
+  if (status === 'ended') {
+    return '已结束'
+  }
+  return '草稿'
+}
+
 function getPracticeModeLabel(enabled?: boolean) {
   return enabled ? '赛后练习开启' : '仅正赛'
 }
@@ -2872,6 +2944,11 @@ async function updateGameSettings() {
   }
 
   const selected = selectedSettingsGame.value
+  if (!selected) {
+    toast.add({ title: '请先选择比赛', color: 'warning' })
+    return
+  }
+
   const timelineError = validateGameTimeline({
     start_time: selected?.start_time?.slice(0, 16) || '',
     end_time: selected?.end_time?.slice(0, 16) || '',
@@ -2884,20 +2961,10 @@ async function updateGameSettings() {
     return
   }
 
-  settingsSubmitting.value = true
-  try {
-    const body: {
-      status: 'draft' | 'active' | 'ended'
-      invitation_code: string
-      divisions: string[]
-      registration_mode: 'review' | 'auto_accept'
-      max_team_members: number
-      practice_mode: boolean
-      writeup_required: boolean
-      writeup_deadline?: string | null
-      is_public: boolean
-      scoreboard_freeze_at?: string | null
-    } = {
+  pendingGameSettingsPayload.value = {
+    gameId: gameSettingsForm.game_id,
+    gameName: selected.name,
+    body: {
       status: gameSettingsForm.status,
       invitation_code: gameSettingsForm.invitation_code,
       divisions: parseDivisionList(gameSettingsForm.divisions_text),
@@ -2912,16 +2979,29 @@ async function updateGameSettings() {
       scoreboard_freeze_at: gameSettingsForm.scoreboard_freeze_at
         ? new Date(gameSettingsForm.scoreboard_freeze_at).toISOString()
         : null,
-    }
+    },
+  }
+  gameSettingsConfirmModalOpen.value = true
+}
 
+async function confirmUpdateGameSettings() {
+  if (!pendingGameSettingsPayload.value) {
+    gameSettingsConfirmModalOpen.value = false
+    return
+  }
+
+  settingsSubmitting.value = true
+  try {
     await $api('put', '/api/games/{id}', {
       params: {
-        id: gameSettingsForm.game_id,
+        id: pendingGameSettingsPayload.value.gameId,
       },
-      body,
+      body: pendingGameSettingsPayload.value.body,
     })
 
     toast.add({ title: '比赛设置已更新', color: 'success' })
+    gameSettingsConfirmModalOpen.value = false
+    pendingGameSettingsPayload.value = null
     await loadAdminResources()
   }
   catch (e: any) {
@@ -6093,6 +6173,58 @@ onMounted(async () => {
       </UButton>
       <UButton icon="i-lucide-file-up" :loading="importingGame" @click="importGamePackage">
         导入比赛
+      </UButton>
+    </template>
+  </UModal>
+
+  <UModal
+    v-model:open="gameSettingsConfirmModalOpen"
+    title="确认保存比赛设置"
+    :description="gameSettingsConfirmDescription"
+    :dismissible="!settingsSubmitting"
+    :ui="{ footer: 'justify-end' }"
+  >
+    <template #body>
+      <div class="space-y-4">
+        <div class="rounded-lg border border-default px-3 py-3 text-sm">
+          <div
+            v-for="row in gameSettingsConfirmRows"
+            :key="row.label"
+            class="flex items-center justify-between gap-3 py-2"
+          >
+            <span class="text-muted">{{ row.label }}</span>
+            <span class="text-right">{{ row.value }}</span>
+          </div>
+        </div>
+
+        <div v-if="settingsRuleSummary.length" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+          <div class="mb-2 font-medium text-highlighted">
+            保存后规则摘要
+          </div>
+          <ul class="space-y-2">
+            <li v-for="item in settingsRuleSummary" :key="`confirm-${item}`">
+              {{ item }}
+            </li>
+          </ul>
+        </div>
+      </div>
+    </template>
+
+    <template #footer>
+      <UButton
+        variant="outline"
+        color="neutral"
+        :disabled="settingsSubmitting"
+        @click="gameSettingsConfirmModalOpen = false; pendingGameSettingsPayload = null"
+      >
+        取消
+      </UButton>
+      <UButton
+        icon="i-lucide-save"
+        :loading="settingsSubmitting"
+        @click="confirmUpdateGameSettings"
+      >
+        确认保存
       </UButton>
     </template>
   </UModal>
