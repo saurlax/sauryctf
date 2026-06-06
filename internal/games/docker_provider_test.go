@@ -48,6 +48,8 @@ func TestDockerCLIProvider_EnsureLeaseCreatesContainerAndInspectsRandomPort(t *t
 				"--label", "sauryctf.team_id=56",
 				"-p", "80",
 				"-p", "443/tcp",
+				"--env", "FLAG=flag{team-56}",
+				"--env", "TEAM_HASH=578dd75cad60",
 				"nginx:alpine",
 			}, "\x00"): {
 				output: []byte("container-id\n"),
@@ -73,6 +75,10 @@ func TestDockerCLIProvider_EnsureLeaseCreatesContainerAndInspectsRandomPort(t *t
 			Provider: "docker",
 			Image:    "nginx:alpine",
 			Expose:   []string{"80", "443/tcp"},
+			Env: map[string]string{
+				"TEAM_HASH": "{{team_hash}}",
+				"FLAG":      "flag{team-{{team_id}}}",
+			},
 			Note:     "fixture note",
 		},
 	})
@@ -88,6 +94,8 @@ func TestDockerCLIProvider_EnsureLeaseCreatesContainerAndInspectsRandomPort(t *t
 		"--label", "sauryctf.team_id=56",
 		"-p", "80",
 		"-p", "443/tcp",
+		"--env", "FLAG=flag{team-56}",
+		"--env", "TEAM_HASH=578dd75cad60",
 		"nginx:alpine",
 	}, runner.calls[0])
 	assert.Equal(t, []string{"inspect", "--format", "{{json .NetworkSettings.Ports}}", "sauryctf-g12-c34-t56-578dd75cad60"}, runner.calls[1])
@@ -102,6 +110,27 @@ func TestDockerCLIProvider_EnsureLeaseCreatesContainerAndInspectsRandomPort(t *t
 	assert.Equal(t, now.Add(30*time.Minute), state.ExpiresAt)
 	assert.Contains(t, state.Note, "fixture note")
 	assert.Contains(t, state.Note, "docker container: sauryctf-g12-c34-t56-578dd75cad60")
+}
+
+func TestNormalizeDockerEnvArgsSortsAndTemplatesValues(t *testing.T) {
+	req := ChallengeInstanceProviderRequest{
+		GameID:      9,
+		ChallengeID: 8,
+		TeamID:      7,
+		UserID:      6,
+	}
+
+	args := normalizeDockerEnvArgs(map[string]string{
+		"TEAM_HASH": "{{team_hash}}",
+		"FLAG":      "flag{team-{{team_id}}}",
+		"EMPTY":     "",
+	}, req)
+
+	assert.Equal(t, []string{
+		"EMPTY=",
+		"FLAG=flag{team-7}",
+		fmt.Sprintf("TEAM_HASH=%s", challengeInstanceTeamHash(req)),
+	}, args)
 }
 
 func TestDockerCLIProvider_EnsureLeaseReusesExistingContainer(t *testing.T) {

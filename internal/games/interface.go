@@ -15,6 +15,7 @@ type ChallengeInstanceRuntimeSpec struct {
 	Provider  string
 	Image     string
 	Expose    []string
+	Env       map[string]string
 	LaunchURL string
 	Host      string
 	Port      string

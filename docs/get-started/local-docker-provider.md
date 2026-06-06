@@ -80,6 +80,24 @@ docker info
 
 - 实例真正启动前，不需要手写固定 `url`，平台会在租约响应里回填真实 `host / port / launch_url`
 - 这份模板优先服务于本地真实 Docker provider 检查，而不是固定入口网关场景
+- 如果题目需要最小运行参数，也可以继续在 `runtime.env` 里声明：
+
+```json
+{
+  "runtime": {
+    "provider": "docker",
+    "image": "nginx:alpine",
+    "expose": [80],
+    "env": {
+      "TEAM_ID": "{{team_id}}",
+      "TEAM_HASH": "{{team_hash}}"
+    }
+  }
+}
+```
+
+- 当前 `runtime.env` 会在 `docker run` 时转换成多条 `--env KEY=VALUE`
+- 值里同样支持 `{{game_id}} / {{challenge_id}} / {{team_id}} / {{user_id}} / {{team_hash}}` 模板
 
 ## 当前行为
 
@@ -87,6 +105,7 @@ docker info
 
 - 调用 `docker run -d`
 - 按 `runtime.expose` 自动发布容器端口
+- 按 `runtime.env` 透传最小环境变量
 - 调用 `docker inspect` 读回实际宿主机端口
 - 在实例响应里回填：
   - `host`

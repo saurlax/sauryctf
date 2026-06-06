@@ -47,6 +47,7 @@ type parsedInstanceSpec struct {
 	Provider  string
 	Image     string
 	Expose    []string
+	Env       map[string]string
 	LaunchURL string
 	Host      string
 	Port      string
@@ -153,6 +154,30 @@ func normalizeStringList(value any) []string {
 	return result
 }
 
+func normalizeStringMap(value any) map[string]string {
+	record, ok := value.(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	result := make(map[string]string, len(record))
+	for key, rawValue := range record {
+		normalizedKey := strings.TrimSpace(key)
+		if normalizedKey == "" {
+			continue
+		}
+
+		normalizedValue := normalizeStringValue(rawValue)
+		result[normalizedKey] = normalizedValue
+	}
+
+	if len(result) == 0 {
+		return nil
+	}
+
+	return result
+}
+
 func parseManagedInstanceSpec(raw string) *parsedInstanceSpec {
 	if strings.TrimSpace(raw) == "" {
 		return nil
@@ -172,6 +197,7 @@ func parseManagedInstanceSpec(raw string) *parsedInstanceSpec {
 		Provider:  normalizeStringValue(runtime["provider"]),
 		Image:     normalizeStringValue(runtime["image"]),
 		Expose:    normalizeStringList(runtime["expose"]),
+		Env:       normalizeStringMap(runtime["env"]),
 		LaunchURL: normalizeStringValue(connection["url"]),
 		Host:      normalizeStringValue(connection["host"]),
 		Port:      normalizeStringValue(connection["port"]),
@@ -189,12 +215,26 @@ func toChallengeInstanceRuntimeSpec(spec *parsedInstanceSpec) ChallengeInstanceR
 		Provider:  spec.Provider,
 		Image:     spec.Image,
 		Expose:    append([]string(nil), spec.Expose...),
+		Env:       cloneStringMap(spec.Env),
 		LaunchURL: spec.LaunchURL,
 		Host:      spec.Host,
 		Port:      spec.Port,
 		Command:   spec.Command,
 		Note:      spec.Note,
 	}
+}
+
+func cloneStringMap(source map[string]string) map[string]string {
+	if len(source) == 0 {
+		return nil
+	}
+
+	cloned := make(map[string]string, len(source))
+	for key, value := range source {
+		cloned[key] = value
+	}
+
+	return cloned
 }
 
 func (s *Service) getAcceptedParticipationForUser(gameID uint, userID uint) (*models.Game, *models.Challenge, *models.Participation, *parsedInstanceSpec, error) {

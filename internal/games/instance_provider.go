@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
 
@@ -167,6 +168,9 @@ func (p *dockerCLIProvider) EnsureLease(req ChallengeInstanceProviderRequest) (*
 		for _, port := range expose {
 			args = append(args, "-p", port)
 		}
+		for _, envItem := range normalizeDockerEnvArgs(req.Runtime.Env, req) {
+			args = append(args, "--env", envItem)
+		}
 		args = append(args, image)
 
 		if _, err := p.run(args...); err != nil {
@@ -282,6 +286,29 @@ func normalizeDockerExposedPorts(expose []string, fallbackPort string) []string 
 		}
 	}
 
+	return result
+}
+
+func normalizeDockerEnvArgs(env map[string]string, req ChallengeInstanceProviderRequest) []string {
+	if len(env) == 0 {
+		return nil
+	}
+
+	keys := make([]string, 0, len(env))
+	for key := range env {
+		normalizedKey := strings.TrimSpace(key)
+		if normalizedKey == "" {
+			continue
+		}
+		keys = append(keys, normalizedKey)
+	}
+	sort.Strings(keys)
+
+	result := make([]string, 0, len(keys))
+	for _, key := range keys {
+		value := templateChallengeInstanceValue(env[key], req)
+		result = append(result, fmt.Sprintf("%s=%s", key, value))
+	}
 	return result
 }
 

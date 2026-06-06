@@ -13,6 +13,7 @@ type ChallengeInstanceSpec = {
   runtimeProvider: string
   runtimeImage: string
   runtimeExpose: string[]
+  runtimeEnv: Array<{ key: string, value: string }>
   raw: string
 }
 
@@ -28,6 +29,28 @@ function toStringList(value: unknown) {
   return value
     .map(item => toTrimmedString(item))
     .filter(Boolean)
+}
+
+function toStringEntries(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return []
+  }
+
+  return Object.entries(value as Record<string, unknown>)
+    .map(([key, rawValue]) => {
+      const normalizedKey = toTrimmedString(key)
+      if (!normalizedKey) {
+        return null
+      }
+
+      const value = rawValue === undefined || rawValue === null ? '' : String(rawValue).trim()
+      return {
+        key: normalizedKey,
+        value,
+      }
+    })
+    .filter((item): item is { key: string, value: string } => Boolean(item))
+    .sort((a, b) => a.key.localeCompare(b.key))
 }
 
 export function parseChallengeInstanceSpec(raw?: string): ChallengeInstanceSpec | null {
@@ -73,6 +96,7 @@ export function parseChallengeInstanceSpec(raw?: string): ChallengeInstanceSpec 
         runtimeProvider: toTrimmedString(runtime.provider),
         runtimeImage: toTrimmedString(runtime.image),
         runtimeExpose: toStringList(runtime.expose),
+        runtimeEnv: toStringEntries(runtime.env),
         raw: source,
       }
     }
@@ -91,6 +115,7 @@ export function parseChallengeInstanceSpec(raw?: string): ChallengeInstanceSpec 
     runtimeProvider: '',
     runtimeImage: '',
     runtimeExpose: [],
+    runtimeEnv: [],
     raw: source,
   }
 }
@@ -110,7 +135,8 @@ export function hasChallengeInstanceSpec(raw?: string) {
     || spec.links.length
     || spec.runtimeProvider
     || spec.runtimeImage
-    || spec.runtimeExpose.length,
+    || spec.runtimeExpose.length
+    || spec.runtimeEnv.length,
   )
 }
 

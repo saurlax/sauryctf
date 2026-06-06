@@ -6368,7 +6368,7 @@ onMounted(async () => {
                 附加入口：{{ link.label }} -> {{ link.url }}
               </div>
             </div>
-            <div v-if="challengeFormInstanceSpec.runtimeProvider || challengeFormInstanceSpec.runtimeImage || challengeFormInstanceSpec.runtimeExpose.length" class="rounded-md border border-default bg-default px-3 py-2 text-xs">
+            <div v-if="challengeFormInstanceSpec.runtimeProvider || challengeFormInstanceSpec.runtimeImage || challengeFormInstanceSpec.runtimeExpose.length || challengeFormInstanceSpec.runtimeEnv.length" class="rounded-md border border-default bg-default px-3 py-2 text-xs">
               <div v-if="challengeFormInstanceSpec.runtimeProvider">
                 运行环境：{{ challengeFormInstanceSpec.runtimeProvider }}
               </div>
@@ -6377,6 +6377,9 @@ onMounted(async () => {
               </div>
               <div v-if="challengeFormInstanceSpec.runtimeExpose.length">
                 暴露端口：{{ challengeFormInstanceSpec.runtimeExpose.join(' / ') }}
+              </div>
+              <div v-if="challengeFormInstanceSpec.runtimeEnv.length">
+                环境变量：{{ challengeFormInstanceSpec.runtimeEnv.map(item => `${item.key}=${item.value}`).join(' / ') }}
               </div>
             </div>
           </div>
@@ -6786,7 +6789,7 @@ onMounted(async () => {
                 附加入口：{{ link.label }} -> {{ link.url }}
               </div>
             </div>
-            <div v-if="challengeEditInstanceSpec.runtimeProvider || challengeEditInstanceSpec.runtimeImage || challengeEditInstanceSpec.runtimeExpose.length" class="rounded-md border border-default bg-default px-3 py-2 text-xs">
+            <div v-if="challengeEditInstanceSpec.runtimeProvider || challengeEditInstanceSpec.runtimeImage || challengeEditInstanceSpec.runtimeExpose.length || challengeEditInstanceSpec.runtimeEnv.length" class="rounded-md border border-default bg-default px-3 py-2 text-xs">
               <div v-if="challengeEditInstanceSpec.runtimeProvider">
                 运行环境：{{ challengeEditInstanceSpec.runtimeProvider }}
               </div>
@@ -6795,6 +6798,9 @@ onMounted(async () => {
               </div>
               <div v-if="challengeEditInstanceSpec.runtimeExpose.length">
                 暴露端口：{{ challengeEditInstanceSpec.runtimeExpose.join(' / ') }}
+              </div>
+              <div v-if="challengeEditInstanceSpec.runtimeEnv.length">
+                环境变量：{{ challengeEditInstanceSpec.runtimeEnv.map(item => `${item.key}=${item.value}`).join(' / ') }}
               </div>
             </div>
           </div>
