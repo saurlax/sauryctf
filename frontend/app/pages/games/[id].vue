@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import * as z from 'zod'
+import type { FormSubmitEvent } from '@nuxt/ui'
 import type { components } from '~/types/api'
 
 type Game = components['schemas']['Game']
@@ -52,6 +54,22 @@ const writeupForm = reactive({
 const registrationForm = reactive({
   invitation_code: '',
 })
+const registrationSchema = z.object({
+  invitation_code: z.string().default(''),
+}).superRefine((value, ctx) => {
+  if (game.value?.invitation_required && !value.invitation_code.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['invitation_code'],
+      message: '请输入比赛邀请码',
+    })
+  }
+})
+const writeupSchema = z.object({
+  content: z.string().trim().min(1, '请输入 Writeup 内容'),
+})
+type RegistrationSchema = z.output<typeof registrationSchema>
+type WriteupSchema = z.output<typeof writeupSchema>
 const now = ref(Date.now())
 const registrationModalOpen = ref(false)
 const confirmModalOpen = ref(false)
@@ -323,7 +341,7 @@ async function submitFlag(challengeId: number) {
   }
 }
 
-async function joinGame() {
+async function joinGame(payload: FormSubmitEvent<RegistrationSchema>) {
   const teamId = participation.value?.team?.id
   if (!teamId) {
     toast.add({ title: '请先创建或加入队伍', color: 'warning' })
@@ -336,7 +354,7 @@ async function joinGame() {
       params: { id: Number(gameId) },
       body: {
         team_id: teamId,
-        invitation_code: registrationForm.invitation_code,
+        invitation_code: payload.data.invitation_code.trim(),
       },
     })
     toast.add({
@@ -445,15 +463,16 @@ function confirmDestroyChallengeInstance(challenge: GameChallengeDetail) {
   })
 }
 
-async function submitWriteup() {
+async function submitWriteup(payload: FormSubmitEvent<WriteupSchema>) {
   writeupSubmitting.value = true
   try {
     writeup.value = await $api('put', '/api/games/{id}/writeup', {
       params: { id: Number(gameId) },
       body: {
-        content: writeupForm.content,
+        content: payload.data.content,
       },
     })
+    writeupForm.content = writeup.value?.content || payload.data.content
     toast.add({ title: 'Writeup 已提交', color: 'success' })
   }
   catch (e: any) {
@@ -2947,13 +2966,25 @@ onMounted(async () => {
                   :description="writeupGuide.description"
                 />
 
-                <UForm v-if="canEditWriteup" :state="writeupForm" class="space-y-4" @submit="submitWriteup">
+                <UForm
+                  v-if="canEditWriteup"
+                  :state="writeupForm"
+                  :schema="writeupSchema"
+                  class="space-y-4"
+                  @submit="submitWriteup"
+                >
                   <UFormField
                     label="Writeup 内容"
                     name="content"
                     :description="writeup?.can_submit ? '支持重复提交。' : writeupGuide.description"
                   >
-                    <UTextarea v-model="writeupForm.content" class="w-full" :rows="14" placeholder="记录解题思路、复盘总结、关键截图或附件说明。" />
+                    <UTextarea
+                      v-model="writeupForm.content"
+                      class="w-full"
+                      :rows="14"
+                      :disabled="writeupSubmitting || !writeup?.can_submit"
+                      placeholder="记录解题思路、复盘总结、关键截图或附件说明。"
+                    />
                   </UFormField>
 
                   <div class="flex justify-end">
@@ -3087,6 +3118,7 @@ onMounted(async () => {
       v-model:open="registrationModalOpen"
       title="报名比赛"
       :description="registrationInputHint"
+      :dismissible="!joining"
       :ui="{ body: 'space-y-4', footer: 'justify-end' }"
     >
       <template #body>
@@ -3100,7 +3132,13 @@ onMounted(async () => {
             </div>
           </div>
 
-          <UForm :state="registrationForm" class="space-y-4" @submit="joinGame">
+          <UForm
+            id="game-registration-form"
+            :state="registrationForm"
+            :schema="registrationSchema"
+            class="space-y-4"
+            @submit="joinGame"
+          >
             <UFormField
               v-if="game?.invitation_required"
               label="比赛邀请码"
@@ -3109,6 +3147,7 @@ onMounted(async () => {
               <UInput
                 v-model="registrationForm.invitation_code"
                 class="w-full"
+                :disabled="joining"
                 placeholder="请输入比赛邀请码"
               />
             </UFormField>
@@ -3125,8 +3164,10 @@ onMounted(async () => {
           取消
         </UButton>
         <UButton
+          type="submit"
+          form="game-registration-form"
           :loading="joining"
-          @click="joinGame"
+          :disabled="joining"
         >
           确认报名
         </UButton>
