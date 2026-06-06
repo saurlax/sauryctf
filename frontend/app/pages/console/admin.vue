@@ -4129,7 +4129,7 @@ onMounted(async () => {
             color="info"
             variant="soft"
             title="比赛基础信息通过弹层录入"
-            description="创建、编辑和导入比赛统一收进弹层处理；页面主体只保留状态、设置和监控视图。"
+            description="创建、编辑和导入统一收进弹层处理；页面主体只保留状态、设置、审核和监控视图。"
           />
 
           <div class="flex flex-wrap gap-2">
@@ -4262,17 +4262,54 @@ onMounted(async () => {
 
         <UPageCard id="create-challenge" title="题目维护" icon="i-lucide-flag">
           <div class="space-y-4">
+            <UAlert
+              color="info"
+              variant="soft"
+              title="题目录入通过弹层处理"
+              description="创建、编辑和模板填充集中在这里完成，再继续挂题或回到当前比赛检查展示效果。"
+            />
+
             <div class="flex flex-wrap gap-2">
               <UButton icon="i-lucide-plus" @click="createChallengeModalOpen = true">
                 创建题目
               </UButton>
+              <UButton
+                icon="i-lucide-wand-sparkles"
+                variant="outline"
+                @click="fillStarterChallengeTemplate(); createChallengeModalOpen = true"
+              >
+                使用基础模板
+              </UButton>
               <UButton icon="i-lucide-file-pen-line" variant="outline" @click="challengeEditModalOpen = true">
                 编辑题目
               </UButton>
+              <UButton icon="i-lucide-link" variant="ghost" @click="jumpToAdminAnchor('#attach-challenge')">
+                去挂题
+              </UButton>
             </div>
 
-            <div v-if="selectedEditableChallenge" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              当前已选：{{ selectedEditableChallenge.title }} · {{ selectedEditableChallenge.category }}
+            <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+                <div class="mb-2 font-medium text-highlighted">
+                  维护顺序
+                </div>
+                <ul class="space-y-2">
+                  <li>先补齐题面、提示、附件和接入信息，再挂到比赛里。</li>
+                  <li>动态题建议保存前先看一遍实例预览，确认入口语义和运行配置。</li>
+                </ul>
+              </div>
+
+              <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+                <div class="mb-2 font-medium text-highlighted">
+                  当前上下文
+                </div>
+                <div v-if="selectedEditableChallenge">
+                  {{ selectedEditableChallenge.title }} · {{ selectedEditableChallenge.category }}
+                </div>
+                <div v-else>
+                  还没有选中题目。可直接创建新题，或从资源列表选择现有题目继续维护。
+                </div>
+              </div>
             </div>
           </div>
         </UPageCard>
@@ -4352,16 +4389,51 @@ onMounted(async () => {
         </UPageCard>
 
         <div class="space-y-6">
-          <UPageCard title="导入比赛包" icon="i-lucide-upload">
+          <UPageCard title="维护入口" icon="i-lucide-briefcase" id="maintenance-actions">
             <div class="space-y-4">
-              <div class="flex justify-end">
+              <UAlert
+                color="info"
+                variant="soft"
+                title="低频维护动作集中在这里"
+                description="导入比赛包、发布公告和跳转公开页都保留为入口动作，避免在页面主体分散重复出现。"
+              />
+
+              <div class="flex flex-wrap gap-2">
                 <UButton
                   icon="i-lucide-file-up"
                   variant="outline"
                   @click="importModalOpen = true"
                 >
-                  打开导入弹层
+                  导入比赛包
                 </UButton>
+                <UButton
+                  icon="i-lucide-send"
+                  variant="outline"
+                  :disabled="!selectedGame"
+                  @click="announcementModalOpen = true"
+                >
+                  发布公告
+                </UButton>
+                <UButton
+                  icon="i-lucide-arrow-up-right"
+                  variant="ghost"
+                  :disabled="!selectedGame"
+                  :to="selectedGame ? `/games/${selectedGame.id}` : undefined"
+                >
+                  打开公开页
+                </UButton>
+              </div>
+
+              <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+                <div class="mb-2 font-medium text-highlighted">
+                  当前上下文
+                </div>
+                <div v-if="selectedGame">
+                  {{ selectedGame.name }} · {{ announcements.length }} 条公告 · {{ participants.length }} 支队伍
+                </div>
+                <div v-else>
+                  还没有选中比赛。导入比赛包不受影响；发布公告和公开页跳转需先进入某场比赛上下文。
+                </div>
               </div>
             </div>
           </UPageCard>
