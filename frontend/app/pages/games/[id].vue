@@ -1286,8 +1286,8 @@ const writeupGuide = computed(() => {
 
   if (!game.value?.writeup_required) {
     return {
-      title: '当前比赛不强制要求 Writeup',
-      description: '你仍然可以在这里沉淀复盘内容，但它不会作为本场比赛的强制参赛条件。',
+      title: '当前比赛未启用 Writeup 提交',
+      description: '当前比赛不会开放选手侧 Writeup 提交，这里仅展示相关状态说明。',
       color: 'neutral' as const,
     }
   }
@@ -1688,7 +1688,7 @@ const writeupSummaryCards = computed(() => [
   {
     label: '截止时间',
     value: game.value?.writeup_deadline ? new Date(game.value.writeup_deadline).toLocaleString() : '未单独设置',
-    hint: game.value?.writeup_required ? '当前比赛要求按这个时间前完成 Writeup 处理' : '当前比赛不强制要求 Writeup',
+    hint: game.value?.writeup_required ? '当前比赛要求按这个时间前完成 Writeup 处理' : '当前比赛未启用 Writeup 提交',
     icon: 'i-lucide-calendar-clock',
     color: game.value?.writeup_deadline ? 'info' as const : 'neutral' as const,
   },
@@ -1711,7 +1711,7 @@ const writeupRuleItems = computed(() => [
       : '当前比赛以内队形式管理 Writeup，内容会绑定到你当前队伍。',
   game.value?.writeup_required
     ? '当前比赛要求提交 Writeup。'
-    : '当前比赛不强制要求 Writeup，但你仍可以在这里沉淀复盘内容。',
+    : '当前比赛未启用 Writeup 提交，本页仅展示状态说明。',
   game.value?.writeup_deadline
     ? `如果需要提交，截止时间为 ${new Date(game.value.writeup_deadline).toLocaleString()}。`
     : '当前没有单独设置 Writeup 截止时间。',

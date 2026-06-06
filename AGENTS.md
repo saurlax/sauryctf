@@ -219,8 +219,9 @@ internal/<module>/
 - the public game page now also summarizes the current lease policy in-place, so players can distinguish "initial lease" from "renewal adds more time" without guessing from backend behavior
 - the managed instance API now also returns an explicit `policy` object with initial lease / extension / renewal-window minutes, so frontend panels can render the real current strategy instead of inferring it from messages
   - the same policy now also includes a per-team active-instance limit, so local verification flows already expose a minimal resource cap for managed instances
-  - managed instances now also support a minimal player-side destroy flow so the current team can reset an active lease without touching the admin side
-  - managed instance renewal is now gated by a minimal renewal window: the current lease only becomes renewable within 10 minutes before expiry
+- managed instances now also support a minimal player-side destroy flow so the current team can reset an active lease without touching the admin side
+- managed instance renewal is now gated by a minimal renewal window: the current lease only becomes renewable within 10 minutes before expiry
+- when a contest does not enable `writeup_required`, the public game page should keep the Writeup tab informational only and must not imply that players can still submit content there
 - the current local container policy is now env-configurable via:
   - `INSTANCE_LEASE_DURATION_MINUTES` for the initial lease
   - `INSTANCE_EXTENSION_DURATION_MINUTES` for each successful renewal
