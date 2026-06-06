@@ -751,7 +751,7 @@ const monitorFocusItems = computed(() => {
         description: `${firstClue.challenge_title} 当前已有 ${firstClue.team_count} 支队伍重复提交同一错误 Flag，可继续排查线索传播。`,
         badge: '线索',
         color: 'error' as const,
-        to: '#submissions',
+        to: '#clues',
       })
     }
   }
@@ -1934,6 +1934,11 @@ function getSubmissionResultLabel(result: 'accepted' | 'wrong_flag' | 'already_s
 function syncMonitorTabForAnchor(target: string) {
   if (target === '#submissions') {
     activeMonitorTab.value = 'submissions'
+    return
+  }
+
+  if (target === '#clues') {
+    activeMonitorTab.value = 'clues'
     return
   }
 
@@ -4955,7 +4960,7 @@ onMounted(async () => {
             />
           </UPageCard>
 
-          <UPageCard title="可疑提交线索" icon="i-lucide-shield-alert">
+          <UPageCard title="可疑提交线索" icon="i-lucide-shield-alert" id="clues">
             <div v-if="selectedGame" class="mb-3 flex items-center justify-between gap-3">
               <div class="text-sm text-muted">
                 {{ selectedGame.name }} · {{ loadingCheatClues ? '正在分析线索...' : `${cheatClues.length} 条线索` }}
@@ -5007,9 +5012,9 @@ onMounted(async () => {
               title="当前还没有异常提交线索"
               description="还没有发现跨队重复错误 Flag 的聚集模式。出现可疑情况后，这里会自动汇总。"
               :actions="[{
-                label: '查看最近提交',
-                icon: 'i-lucide-logs',
-                onClick: () => jumpToAdminAnchor('#submissions'),
+                label: '查看线索视图',
+                icon: 'i-lucide-shield-alert',
+                onClick: () => jumpToAdminAnchor('#clues'),
                 color: 'neutral',
                 variant: 'outline',
               }]"
