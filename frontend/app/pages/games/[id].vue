@@ -1303,8 +1303,8 @@ const writeupGuide = computed(() => {
 
   if (!participation.value?.has_team) {
     return {
-      title: '需要先加入队伍',
-      description: '当前比赛以内队形式参赛。先准备队伍，再回来查看或提交 Writeup。',
+      title: '需要先关联队伍',
+      description: '当前比赛以内队形式参赛。请先创建或加入队伍，再返回此处查看或提交 Writeup。',
       color: 'warning' as const,
     }
   }
@@ -1751,7 +1751,7 @@ const canEditWriteup = computed(() => !!writeup.value?.can_submit)
 const writeupBlockedAction = computed(() => {
   if (!authState.user) {
     return {
-      label: '先去登录',
+      label: '登录账号',
       to: loginEntry.value,
       icon: 'i-lucide-log-in',
     }
@@ -1759,7 +1759,7 @@ const writeupBlockedAction = computed(() => {
 
   if (!participation.value?.has_team) {
     return {
-      label: '去准备队伍',
+      label: '管理队伍',
       to: teamEntry.value,
       icon: 'i-lucide-users',
     }
@@ -1767,7 +1767,7 @@ const writeupBlockedAction = computed(() => {
 
   if (!participation.value?.participated || participation.value.status !== 'accepted') {
     return {
-      label: '回到比赛概览',
+      label: '查看比赛概览',
       to: undefined,
       icon: 'i-lucide-layout-template',
     }
@@ -1779,7 +1779,7 @@ const writeupBlockedAction = computed(() => {
 const flagBlockedAction = computed(() => {
   if (!authState.user) {
     return {
-      label: '先去登录',
+      label: '登录账号',
       to: loginEntry.value,
       icon: 'i-lucide-log-in',
     }
@@ -1787,7 +1787,7 @@ const flagBlockedAction = computed(() => {
 
   if (!participation.value?.has_team) {
     return {
-      label: '去准备队伍',
+      label: '管理队伍',
       to: teamEntry.value,
       icon: 'i-lucide-users',
     }
@@ -1795,7 +1795,7 @@ const flagBlockedAction = computed(() => {
 
   if (!participation.value?.participated || participation.value.status !== 'accepted') {
     return {
-      label: '回到比赛概览',
+      label: '查看比赛概览',
       to: undefined,
       icon: 'i-lucide-layout-template',
     }
@@ -2139,7 +2139,7 @@ onMounted(async () => {
               </div>
             </UPageCard>
 
-            <UPageCard title="参赛步骤" icon="i-lucide-route">
+            <UPageCard title="参赛状态" icon="i-lucide-route">
               <UPageGrid :cols="{ default: 1, sm: 2 }">
                 <UPageCard
                   v-for="card in registrationStepCards"
@@ -2693,7 +2693,7 @@ onMounted(async () => {
                 : '当前还没有产生可公开展示的队伍或解题记录；通常需要至少有队伍报名并开始解题后，公开榜单才会出现内容。'"
               :actions="[
                 {
-                  label: authState.user ? '返回比赛概览' : '先去登录',
+                  label: authState.user ? '查看比赛概览' : '登录账号',
                   icon: authState.user ? 'i-lucide-layout-template' : 'i-lucide-log-in',
                   to: authState.user ? undefined : loginEntry,
                   color: 'neutral',
@@ -2708,7 +2708,7 @@ onMounted(async () => {
                     icon="i-lucide-layout-template"
                     @click="activeTab = 'overview'"
                   >
-                    返回比赛概览
+                    查看比赛概览
                   </UButton>
                 </div>
               </template>
@@ -2948,7 +2948,7 @@ onMounted(async () => {
               :to="loginEntry"
               icon="i-lucide-log-in"
             >
-              先去登录
+              登录账号
             </UButton>
           </div>
         </template>
