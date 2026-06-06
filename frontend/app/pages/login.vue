@@ -40,17 +40,17 @@ const quickLinks = computed(() => [
   },
 ])
 
-const afterLoginNotes = computed(() => {
+const afterLoginStatus = computed(() => {
   if (redirectTarget.value.startsWith('/games/')) {
     return [
       {
         title: '返回原比赛',
-        description: '登录成功后会直接跳回刚才的比赛详情页，继续查看报名状态、题目和排行榜。',
+        description: '登录成功后会直接返回刚才的比赛详情页，继续查看报名状态、题目和排行榜。',
         icon: 'i-lucide-undo-2',
       },
       {
         title: '按需准备队伍',
-        description: '比赛报名、提 Flag 和排行榜都按队伍进行，缺队伍时再去队伍页处理会更顺。',
+        description: '比赛报名、提交 Flag 和排行榜都按队伍进行，缺少队伍时可再进入队伍页处理。',
         icon: 'i-lucide-users',
       },
       {
@@ -146,7 +146,7 @@ const state = reactive<Partial<LoginSchema>>({
       </UPageCard>
 
       <div class="space-y-6">
-        <UPageCard title="登录说明" icon="i-lucide-list-checks">
+        <UPageCard title="登录后状态" icon="i-lucide-list-checks">
           <div class="space-y-3">
             <UAlert
               color="info"
@@ -156,7 +156,7 @@ const state = reactive<Partial<LoginSchema>>({
             />
 
             <div
-              v-for="item in afterLoginNotes"
+              v-for="item in afterLoginStatus"
               :key="item.title"
               class="rounded-lg border border-default px-3 py-3"
             >

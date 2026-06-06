@@ -49,8 +49,8 @@ const accessCards = computed(() => [
 const landingGuideMeta = computed(() => {
   if (isLoggedIn.value) {
     return {
-      title: '当前下一步：进入控制台继续处理',
-      description: '你已经处于登录状态。现在最值得先进入控制台确认队伍、比赛待办和管理入口，再决定是继续建赛还是去公开比赛页参赛。',
+      title: '当前状态：可进入控制台继续处理',
+      description: '你已经处于登录状态。现在可以进入控制台确认队伍、比赛待办和管理入口，再决定后续操作。',
       color: 'success' as const,
       icon: 'i-lucide-layout-dashboard',
       actionLabel: '进入控制台',

@@ -28,7 +28,7 @@ const initialRegisterLanding = computed(() => {
   return '/console/team'
 })
 
-const afterRegisterNotes = computed(() => {
+const afterRegisterStatus = computed(() => {
   if (redirectTarget.value.startsWith('/games/')) {
     return [
       {
@@ -49,7 +49,7 @@ const afterRegisterNotes = computed(() => {
     ]
   }
 
-    return [
+  return [
       {
         title: '自动登录',
         description: '注册成功后会直接建立登录态，并进入队伍页。',
@@ -123,7 +123,7 @@ const loginTo = computed(() => {
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.05fr)_360px] xl:items-start">
       <UPageCard
         title="注册"
-        description="创建一个新的选手账号。注册成功后会直接登录，并进入队伍相关页面。"
+        description="创建一个新的选手账号。注册成功后会直接登录，并进入队伍页面。"
         icon="i-lucide-user-plus"
       >
         <UForm :schema="registerSchema" :state="state" class="space-y-4" @submit="onRegister">
@@ -161,7 +161,7 @@ const loginTo = computed(() => {
             />
 
             <div
-              v-for="item in afterRegisterNotes"
+              v-for="item in afterRegisterStatus"
               :key="item.title"
               class="rounded-lg border border-default px-3 py-3"
             >
