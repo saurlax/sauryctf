@@ -1433,6 +1433,28 @@ const writeupGuide = computed(() => {
   }
 })
 
+const participationContextRows = computed(() => {
+  const rows = [
+    {
+      label: '当前状态',
+      value: participationSummaryLabel.value,
+    },
+    {
+      label: '下一步',
+      value: nextStepMeta.value.title,
+    },
+  ]
+
+  if (participation.value?.team?.name) {
+    rows.splice(1, 0, {
+      label: '当前队伍',
+      value: participation.value.team.name,
+    })
+  }
+
+  return rows
+})
+
 const participationSummaryLabel = computed(() => {
   if (!authState.user) {
     return '访客可浏览'
@@ -2004,18 +2026,7 @@ onMounted(async () => {
                 <UIcon name="i-lucide-loader-2" class="size-4 animate-spin" />
                 <span>加载中...</span>
               </div>
-              <div v-else class="flex items-center gap-2 flex-wrap">
-                <UBadge
-                  :color="participationSummaryColor"
-                  variant="soft"
-                >
-                  {{ participationSummaryLabel }}
-                </UBadge>
-                <span v-if="participation?.team" class="text-sm text-muted">
-                  当前队伍：{{ participation.team.name }}
-                </span>
-              </div>
-              <div class="mt-3 max-w-2xl rounded-lg border border-default bg-elevated/50 px-3 py-3">
+              <div v-else class="mt-3 max-w-2xl rounded-lg border border-default bg-elevated/50 px-3 py-3">
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">
                     <div class="flex items-center gap-2 font-medium text-highlighted">
@@ -2030,67 +2041,81 @@ onMounted(async () => {
                     {{ participationSummaryLabel }}
                   </UBadge>
                 </div>
-              </div>
-              <div class="mt-3 flex items-start justify-between gap-4 rounded-lg border border-default px-3 py-3 text-sm flex-wrap">
-                <div class="min-w-0">
-                  <div class="font-medium text-highlighted">
-                    {{ nextStepMeta.title }}
+                <div class="mt-3 rounded-lg border border-default px-3 py-3 text-sm text-muted">
+                  <div
+                    v-for="row in participationContextRows"
+                    :key="row.label"
+                    class="flex items-center justify-between gap-3 py-2"
+                  >
+                    <span>{{ row.label }}</span>
+                    <span class="text-right">{{ row.value }}</span>
                   </div>
-                  <p class="mt-1 text-muted leading-6">
-                    {{ nextStepMeta.description }}
-                  </p>
+                </div>
+                <div class="mt-3 flex items-start justify-between gap-4 text-sm flex-wrap border-t border-default pt-3">
+                  <div class="min-w-0">
+                    <div class="font-medium text-highlighted">
+                      {{ nextStepMeta.title }}
+                    </div>
+                    <p class="mt-1 text-muted leading-6">
+                      {{ nextStepMeta.description }}
+                    </p>
+                  </div>
+                  <div class="flex gap-2 flex-wrap">
+                    <UButton
+                      size="sm"
+                      :to="nextStepMeta.actionTo"
+                      :color="nextStepMeta.color === 'neutral' ? 'neutral' : 'primary'"
+                      @click="handleNextStepAction(nextStepMeta)"
+                    >
+                      {{ nextStepMeta.actionLabel }}
+                    </UButton>
+                    <UButton
+                      v-if="nextStepMeta.secondaryLabel && nextStepMeta.secondaryTo"
+                      size="sm"
+                      variant="outline"
+                      :to="nextStepMeta.secondaryTo"
+                    >
+                      {{ nextStepMeta.secondaryLabel }}
+                    </UButton>
+                  </div>
+                </div>
+              </div>
+              <div class="mt-3 flex items-start justify-between gap-4 text-sm flex-wrap">
+                <div class="min-w-0 text-sm text-muted">
+                  当前主操作会随登录、队伍与报名状态自动切换。
                 </div>
                 <div class="flex gap-2 flex-wrap">
                   <UButton
-                    size="sm"
-                    :to="nextStepMeta.actionTo"
-                    :color="nextStepMeta.color === 'neutral' ? 'neutral' : 'primary'"
-                    @click="handleNextStepAction(nextStepMeta)"
+                    v-if="detailPrimaryAction.mode === 'link'"
+                    :to="detailPrimaryAction.to"
+                    :icon="detailPrimaryAction.icon"
+                    :color="detailPrimaryAction.color"
+                    :variant="detailPrimaryAction.variant"
                   >
-                    {{ nextStepMeta.actionLabel }}
+                    {{ detailPrimaryAction.label }}
                   </UButton>
                   <UButton
-                    v-if="nextStepMeta.secondaryLabel && nextStepMeta.secondaryTo"
-                    size="sm"
-                    variant="outline"
-                    :to="nextStepMeta.secondaryTo"
+                    v-else
+                    :icon="detailPrimaryAction.icon"
+                    :color="detailPrimaryAction.color"
+                    :variant="detailPrimaryAction.variant"
+                    :loading="detailPrimaryAction.loading"
+                    :disabled="detailPrimaryAction.disabled"
+                    :to="detailPrimaryAction.to"
+                    @click="detailPrimaryAction.onClick?.()"
                   >
-                    {{ nextStepMeta.secondaryLabel }}
+                    {{ detailPrimaryAction.label }}
+                  </UButton>
+                  <UButton
+                    v-if="detailSecondaryAction"
+                    :to="detailSecondaryAction.to"
+                    variant="outline"
+                    :icon="detailSecondaryAction.icon"
+                  >
+                    {{ detailSecondaryAction.label }}
                   </UButton>
                 </div>
               </div>
-            </div>
-
-            <div class="flex gap-2">
-              <UButton
-                v-if="detailPrimaryAction.mode === 'link'"
-                :to="detailPrimaryAction.to"
-                :icon="detailPrimaryAction.icon"
-                :color="detailPrimaryAction.color"
-                :variant="detailPrimaryAction.variant"
-              >
-                {{ detailPrimaryAction.label }}
-              </UButton>
-              <UButton
-                v-else
-                :icon="detailPrimaryAction.icon"
-                :color="detailPrimaryAction.color"
-                :variant="detailPrimaryAction.variant"
-                :loading="detailPrimaryAction.loading"
-                :disabled="detailPrimaryAction.disabled"
-                :to="detailPrimaryAction.to"
-                @click="detailPrimaryAction.onClick?.()"
-              >
-                {{ detailPrimaryAction.label }}
-              </UButton>
-              <UButton
-                v-if="detailSecondaryAction"
-                :to="detailSecondaryAction.to"
-                variant="outline"
-                :icon="detailSecondaryAction.icon"
-              >
-                {{ detailSecondaryAction.label }}
-              </UButton>
             </div>
           </div>
         </div>
