@@ -1664,6 +1664,24 @@ const registrationStepCards = computed(() => [
     color: canSubmitFlag.value ? 'success' as const : 'neutral' as const,
   },
 ])
+const contestInfoRows = computed(() => [
+  {
+    label: '比赛阶段',
+    value: gameStatusMeta.value.label,
+  },
+  {
+    label: '报名方式',
+    value: game.value?.registration_mode === 'auto_accept' ? '自动通过' : '管理员审核',
+  },
+  {
+    label: '榜单模式',
+    value: game.value?.scoreboard_freeze_at ? '启用封榜' : '实时公开',
+  },
+  {
+    label: '赛后练习',
+    value: game.value?.practice_mode ? '开启' : '关闭',
+  },
+])
 
 const contestRuleSummaryItems = computed(() => [
   '当前比赛以内队形式组织参赛。',
@@ -2121,34 +2139,60 @@ onMounted(async () => {
                 v-if="game.notice"
                 color="info"
                 variant="soft"
-                title="补充信息"
+                title="规则补充"
                 :description="game.notice"
               />
 
-              <div class="rounded-lg border border-default bg-muted/40 p-4">
-                <ul class="space-y-2 text-muted">
-                  <li
-                    v-for="(item, index) in contestRuleSummaryItems"
-                    :key="`${index}-${item}`"
-                  >
-                    {{ index + 1 }}. {{ item }}
-                  </li>
-                </ul>
+              <div class="space-y-3 rounded-lg border border-default px-4 py-4">
+                <div class="font-medium">
+                  基础信息
+                </div>
+                <div
+                  v-for="row in contestInfoRows"
+                  :key="row.label"
+                  class="flex items-center justify-between gap-3 rounded-md bg-elevated/60 px-3 py-2 text-sm"
+                >
+                  <span class="text-muted">{{ row.label }}</span>
+                  <span class="text-right">{{ row.value }}</span>
+                </div>
+              </div>
+
+              <div class="space-y-3 rounded-lg border border-default px-4 py-4">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="font-medium">
+                    规则摘要
+                  </div>
+                  <UBadge color="neutral" variant="subtle">
+                    {{ contestRuleSummaryItems.length }} 条
+                  </UBadge>
+                </div>
+                <div
+                  v-for="(item, index) in contestRuleSummaryItems"
+                  :key="`${index}-${item}`"
+                  class="rounded-md bg-elevated/60 px-3 py-3 text-muted"
+                >
+                  {{ index + 1 }}. {{ item }}
+                </div>
               </div>
 
               <div
                 v-if="announcements.length"
-                class="rounded-lg border border-default bg-muted/40 p-4"
+                class="space-y-3 rounded-lg border border-default px-4 py-4"
               >
-                <div class="mb-3 flex items-center gap-2 font-medium">
-                  <UIcon name="i-lucide-megaphone" class="size-4 text-info" />
-                  <span>赛时通知</span>
+                <div class="flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-2 font-medium">
+                    <UIcon name="i-lucide-megaphone" class="size-4 text-info" />
+                    <span>赛时通知</span>
+                  </div>
+                  <UBadge color="info" variant="subtle">
+                    {{ announcements.length }} 条
+                  </UBadge>
                 </div>
                 <div class="space-y-3">
                   <div
                     v-for="announcement in announcements"
                     :key="announcement.id"
-                    class="rounded-lg border border-default bg-default px-3 py-3"
+                    class="rounded-lg border border-default bg-elevated/60 px-3 py-3"
                   >
                     <div class="text-xs text-muted">
                       {{ new Date(announcement.created_at).toLocaleString() }}
