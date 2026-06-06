@@ -34,8 +34,8 @@ const passwordSecurityRisk = computed(() => !!securityStatus.value?.password_cha
 const securityNextStepMeta = computed(() => {
   if (passwordSecurityRisk.value) {
     return {
-      title: '建议优先更新登录密码',
-      description: '当前管理员账号仍在使用默认口令。完成改密后再继续日常管理操作会更安全。',
+      title: '请立即更新登录密码',
+      description: '当前管理员账号仍在使用默认口令。完成改密后，再继续日常管理操作。',
       color: 'warning' as const,
       icon: 'i-lucide-triangle-alert',
       actionLabel: '打开管理端',
@@ -46,7 +46,7 @@ const securityNextStepMeta = computed(() => {
   }
 
   return {
-    title: '账号可继续使用',
+    title: '账号状态正常',
     description: '当前账号安全状态正常，可以返回控制台继续处理比赛、队伍或其他待办。',
     color: 'success' as const,
     icon: 'i-lucide-shield-check',
@@ -93,7 +93,7 @@ const securityFacts = computed(() => [
   },
   {
     label: '推荐操作',
-    value: passwordSecurityRisk.value ? '改密后返回管理端' : '返回控制台继续使用',
+    value: passwordSecurityRisk.value ? '完成改密后返回管理端' : '返回控制台',
     icon: 'i-lucide-navigation',
   },
 ])
@@ -178,8 +178,8 @@ onMounted(async () => {
               color="warning"
               variant="soft"
               icon="i-lucide-triangle-alert"
-              title="初始管理员账号仍在使用初始密码"
-              description="当前账号仍在使用平台首次启动时的默认口令。为避免长期保留高风险凭据，请尽快更新为新的管理员密码。"
+              title="当前账号仍在使用初始密码"
+              description="当前账号仍在使用平台首次启动时的默认口令，请尽快更新为新的管理员密码。"
             />
 
             <div class="rounded-lg border border-default px-4 py-4">
@@ -189,7 +189,7 @@ onMounted(async () => {
                     登录密码维护
                   </div>
                   <p class="text-sm text-muted">
-                    密码修改属于低频敏感操作，提交前请确认当前账号与新密码信息无误。
+                    密码修改属于低频敏感操作，提交前请确认当前密码与新密码信息无误。
                   </p>
                 </div>
 
@@ -242,6 +242,9 @@ onMounted(async () => {
                 <span class="text-right">{{ item.value }}</span>
               </div>
             </div>
+            <p class="text-sm text-muted leading-6">
+              修改密码后，当前账号的既有会话会立即失效，后续需使用新密码重新登录。
+            </p>
           </div>
         </UPageCard>
       </div>
@@ -260,7 +263,7 @@ onMounted(async () => {
           color="warning"
           variant="soft"
           icon="i-lucide-triangle-alert"
-          title="当前账号存在改密风险"
+          title="当前账号需要立即改密"
           description="初始管理员密码不应长期保留，请尽快完成更新。"
         />
 
