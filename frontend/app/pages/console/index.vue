@@ -768,9 +768,9 @@ onMounted(async () => {
             </div>
           </UPageCard>
 
-          <UPageCard title="快捷操作" icon="i-lucide-rocket">
+          <UPageCard :title="team ? '常用操作' : '下一步入口'" icon="i-lucide-rocket">
             <div class="flex flex-col gap-3">
-              <UButton label="我的队伍" icon="i-lucide-users" to="/console/team" variant="outline" block />
+              <UButton :label="team ? '管理我的队伍' : '去准备队伍'" icon="i-lucide-users" to="/console/team" variant="outline" block />
               <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="outline" block />
               <UButton
                 v-if="nextGame"
@@ -1241,32 +1241,8 @@ onMounted(async () => {
             />
           </UPageCard>
 
-          <UPageCard :title="isAdmin ? '快捷入口' : '常用入口'" :icon="isAdmin ? 'i-lucide-shield-check' : 'i-lucide-navigation'">
+          <UPageCard :title="isAdmin ? '账号与导航' : '常用入口'" :icon="isAdmin ? 'i-lucide-shield-check' : 'i-lucide-navigation'">
             <div class="space-y-3 text-sm text-muted">
-              <UButton
-                v-if="isAdmin"
-                label="打开管理端"
-                icon="i-lucide-settings-2"
-                to="/console/admin"
-                variant="outline"
-                block
-              />
-              <UButton
-                v-if="isAdmin"
-                label="用户管理"
-                icon="i-lucide-users-round"
-                to="/console/admin/users"
-                variant="outline"
-                block
-              />
-              <UButton
-                v-if="isAdmin"
-                label="审计日志"
-                icon="i-lucide-scroll-text"
-                to="/console/admin/audit"
-                variant="outline"
-                block
-              />
               <UButton
                 label="账号安全"
                 icon="i-lucide-key-round"
@@ -1275,8 +1251,15 @@ onMounted(async () => {
                 block
               />
               <UButton
-                v-if="!isAdmin"
-                label="浏览比赛"
+                v-if="isAdmin"
+                label="赛事管理"
+                icon="i-lucide-settings-2"
+                to="/console/admin"
+                variant="outline"
+                block
+              />
+              <UButton
+                :label="isAdmin ? '浏览公开页' : '浏览比赛'"
                 icon="i-lucide-trophy"
                 to="/games"
                 variant="outline"
