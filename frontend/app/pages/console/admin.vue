@@ -3905,7 +3905,7 @@ onMounted(async () => {
           <div class="space-y-4">
             <div class="space-y-2">
               <p class="text-sm text-muted">
-                这里集中提供比赛创建与常用维护入口，便于快速建立可继续管理的赛事内容。
+                这里集中提供比赛创建与常用维护入口，用于建立和维护正式赛事内容。
               </p>
               <UAlert
                 color="info"
@@ -3936,10 +3936,10 @@ onMounted(async () => {
                 新建容器实例赛
               </UButton>
               <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillStarterGameTemplate">
-                填充比赛模板
+                载入比赛预设
               </UButton>
               <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillStarterChallengeTemplate">
-                填充题目模板
+                载入题目预设
               </UButton>
             </div>
           </div>
@@ -4843,8 +4843,8 @@ onMounted(async () => {
                 </UBadge>
               </div>
               <div class="space-y-2 text-sm text-muted">
-                <p>用于维护当前比赛的赛时通知、规则补充和维护说明。</p>
-                <p>如果比赛已经公开但仍无公告，建议至少补一条状态说明。</p>
+                <p>用于维护当前比赛的赛时通知、规则补充和维护公告。</p>
+                <p>比赛公开后，可在此补充当前状态、规则调整或维护安排。</p>
               </div>
               <div class="mt-3 flex justify-end">
                 <UButton size="sm" variant="outline" @click="jumpToAdminAnchor('#announcements')">
@@ -4863,8 +4863,8 @@ onMounted(async () => {
                 </UBadge>
               </div>
               <div class="space-y-2 text-sm text-muted">
-                <p>如需继续维护，可直接回到比赛设置、挂题和参赛队伍区。</p>
-                <p>如果已经开赛，可以直接打开公开页观察报名、题目和排行榜状态。</p>
+                <p>可直接回到比赛设置、挂题和参赛队伍区域继续维护。</p>
+                <p>比赛处于运行阶段时，可打开公开页核对报名、题目和排行榜状态。</p>
               </div>
               <div class="mt-3 flex flex-wrap justify-end gap-2">
                 <UButton size="sm" variant="outline" @click="jumpToAdminAnchor('#game-settings')">
@@ -4904,7 +4904,7 @@ onMounted(async () => {
               variant="outline"
               @click="fillStarterGameTemplate(); createGameModalOpen = true"
             >
-              载入基础配置
+              载入比赛预设
             </UButton>
             <UButton icon="i-lucide-pencil-line" variant="outline" @click="gameEditModalOpen = true">
               编辑比赛信息
@@ -4920,8 +4920,8 @@ onMounted(async () => {
                 录入约定
               </div>
               <ul class="space-y-2">
-                <li>新建比赛默认进入 `draft`，建议完成挂题和公开页检查后再切换到 `active`。</li>
-                <li>如需复用常见字段，可先载入基础配置，再补齐正式时间、规则与公告。</li>
+                <li>新建比赛默认进入 `draft`，完成挂题和公开页核对后再切换到 `active`。</li>
+                <li>如需复用常见字段，可先载入比赛预设，再补齐正式时间、规则与公告。</li>
               </ul>
             </div>
 
@@ -5037,7 +5037,7 @@ onMounted(async () => {
               color="info"
               variant="soft"
               title="题目信息通过弹层维护"
-              description="创建、编辑和模板填充集中在这里完成，再继续挂题或回到当前比赛检查展示效果。"
+              description="创建、编辑和预设载入集中在这里完成，再挂题或回到当前比赛核对展示效果。"
             />
 
             <div class="flex flex-wrap gap-2">
@@ -5049,7 +5049,7 @@ onMounted(async () => {
                 variant="outline"
                 @click="fillStarterChallengeTemplate(); createChallengeModalOpen = true"
               >
-                写入默认值
+                载入题目预设
               </UButton>
               <UButton icon="i-lucide-file-pen-line" variant="outline" @click="challengeEditModalOpen = true">
                 编辑题目
@@ -5066,7 +5066,7 @@ onMounted(async () => {
                 </div>
                 <ul class="space-y-2">
                   <li>先补齐题面、提示、附件和接入信息，再挂载到比赛。</li>
-                  <li>动态题建议在保存前检查一次实例预览，确认入口语义和运行配置。</li>
+                  <li>动态题在保存前应检查一次实例预览，确认入口语义和运行配置。</li>
                 </ul>
               </div>
 
@@ -5150,9 +5150,9 @@ onMounted(async () => {
               v-else-if="selectedGame && !loadingGameChallenges"
               icon="i-lucide-link"
               title="这场比赛还没有挂载题目"
-              description="先把现有题目挂到当前比赛，公开页里才会开始出现可见题目和分题统计。"
+              description="先把现有题目挂到当前比赛，公开页才会出现可参与题目和分题统计。"
               :actions="[{
-                label: '继续挂题',
+                label: '挂载题目',
                 icon: 'i-lucide-plus',
                 color: 'neutral',
                 variant: 'outline',
@@ -5206,7 +5206,7 @@ onMounted(async () => {
                   {{ selectedGame.name }} · {{ announcements.length }} 条公告 · {{ participants.length }} 支队伍
                 </div>
                 <div v-else>
-                  还没有选中比赛。导入比赛包不受影响；发布公告和公开页跳转需先进入某场比赛上下文。
+                  还没有选中比赛。导入比赛包不受影响；发布公告和公开页跳转需先进入对应比赛上下文。
                 </div>
               </div>
             </div>
@@ -5462,7 +5462,7 @@ onMounted(async () => {
                 v-else-if="!loadingAnnouncements"
                 icon="i-lucide-megaphone"
                 title="当前还没有比赛公告"
-                description="这场比赛还没有对外发布通知。你可以在上方直接补充开赛提醒、规则变更或维护说明。"
+                description="这场比赛还没有对外发布通知。可在上方补充开赛提醒、规则变更或维护公告。"
               />
             </div>
           </UPageCard>
@@ -5803,7 +5803,7 @@ onMounted(async () => {
                 v-else
                 icon="i-lucide-flag"
                 title="当前还没有题目"
-                description="先创建至少一道题目，再把它挂到比赛中，公开页才会出现真正可参与的内容。"
+                description="先创建至少一道题目并挂入比赛，公开页才会出现可参与内容。"
                 :actions="[{
                   label: '去创建题目',
                   icon: 'i-lucide-plus',
@@ -5823,7 +5823,7 @@ onMounted(async () => {
   <UModal
     v-model:open="createGameModalOpen"
     title="创建比赛"
-    description="录入比赛基础信息，创建后可继续在比赛设置中调整公开性、状态和报名规则。"
+    description="录入比赛基础信息。创建后可在比赛设置中继续调整公开性、状态和报名规则。"
     :dismissible="!gameSubmitting"
     :ui="{ body: 'space-y-4', footer: 'justify-end' }"
   >
@@ -5836,23 +5836,23 @@ onMounted(async () => {
         @submit="createGame"
       >
         <UFormField label="比赛名称" name="name" required>
-          <UInput v-model="gameForm.name" class="w-full" placeholder="例如：2026 校内选拔赛" :disabled="gameSubmitting" />
+          <UInput v-model="gameForm.name" class="w-full" placeholder="请输入比赛名称" :disabled="gameSubmitting" />
         </UFormField>
 
         <UFormField label="比赛描述" name="description">
           <UTextarea v-model="gameForm.description" class="w-full" :rows="3" placeholder="面向选手展示的比赛简介" :disabled="gameSubmitting" />
         </UFormField>
 
-        <UFormField label="规则补充" name="notice" description="适合填写长期有效的规则说明或补充约束">
-          <UTextarea v-model="gameForm.notice" class="w-full" :rows="3" placeholder="例如：禁止账号共享、禁止队伍间共享 Flag。" :disabled="gameSubmitting" />
+        <UFormField label="规则补充" name="notice" description="填写长期有效的规则说明或补充约束">
+          <UTextarea v-model="gameForm.notice" class="w-full" :rows="3" placeholder="请输入规则补充" :disabled="gameSubmitting" />
         </UFormField>
 
         <UFormField label="比赛邀请码" name="invitation_code" description="留空表示任何队伍都可报名">
-          <UInput v-model="gameForm.invitation_code" class="w-full" placeholder="例如：spring-2026" :disabled="gameSubmitting" />
+          <UInput v-model="gameForm.invitation_code" class="w-full" placeholder="留空表示不启用邀请码" :disabled="gameSubmitting" />
         </UFormField>
 
-        <UFormField label="比赛分组" name="divisions_text" description="按行或逗号分隔，例如：本科组, 公开组">
-          <UTextarea v-model="gameForm.divisions_text" class="w-full" :rows="2" placeholder="本科组, 公开组" :disabled="gameSubmitting" />
+        <UFormField label="比赛分组" name="divisions_text" description="按行或逗号分隔">
+          <UTextarea v-model="gameForm.divisions_text" class="w-full" :rows="2" placeholder="请输入比赛分组" :disabled="gameSubmitting" />
         </UFormField>
 
         <div class="grid gap-4 md:grid-cols-2">
@@ -5899,7 +5899,7 @@ onMounted(async () => {
 
         <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
           <div class="mb-2 font-medium text-highlighted">
-            当前规则摘要
+            规则校对
           </div>
           <ul class="space-y-2">
             <li v-for="item in createGameRuleSummary" :key="item">
@@ -5930,7 +5930,7 @@ onMounted(async () => {
     <template #body>
       <div class="flex flex-wrap gap-2">
         <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillStarterChallengeTemplate">
-          静态题
+          静态题预设
         </UButton>
         <UButton size="sm" variant="outline" icon="i-lucide-globe" @click="fillStaticWebTemplate">
           Web 实例
@@ -5954,18 +5954,18 @@ onMounted(async () => {
         @submit="createChallenge"
       >
         <UFormField label="题目名称" name="title" required>
-          <UInput v-model="challengeForm.title" class="w-full" placeholder="例如：Easy XSS" :disabled="challengeSubmitting" />
+          <UInput v-model="challengeForm.title" class="w-full" placeholder="请输入题目名称" :disabled="challengeSubmitting" />
         </UFormField>
 
         <UFormField label="题目描述" name="description">
-          <UTextarea v-model="challengeForm.description" class="w-full" :rows="4" placeholder="题目简介、提示或附件说明" :disabled="challengeSubmitting" />
+          <UTextarea v-model="challengeForm.description" class="w-full" :rows="4" placeholder="请输入题目描述" :disabled="challengeSubmitting" />
         </UFormField>
 
-        <UFormField label="提示列表" name="hints" description='使用 JSON 数组，例如 ["先看首页","再看接口返回"]'>
-          <UTextarea v-model="challengeForm.hints" class="w-full" :rows="3" placeholder='["提示 1","提示 2"]' :disabled="challengeSubmitting" />
+        <UFormField label="提示列表" name="hints" description="使用 JSON 数组格式">
+          <UTextarea v-model="challengeForm.hints" class="w-full" :rows="3" placeholder='["提示内容"]' :disabled="challengeSubmitting" />
         </UFormField>
 
-        <UFormField label="附件链接" name="attachments" description='使用 JSON 数组，例如 ["https://example.com/files/web.zip"]'>
+        <UFormField label="附件链接" name="attachments" description="使用 JSON 数组格式">
           <div class="space-y-3">
             <UFileUpload
               v-model="challengeAttachmentUploadForm.file"
@@ -5984,15 +5984,15 @@ onMounted(async () => {
                 上传并插入
               </UButton>
             </div>
-            <UTextarea v-model="challengeForm.attachments" class="w-full" :rows="3" placeholder='["https://example.com/files/challenge.zip"]' :disabled="challengeSubmitting" />
+            <UTextarea v-model="challengeForm.attachments" class="w-full" :rows="3" placeholder='["/attachments/file.zip"]' :disabled="challengeSubmitting" />
           </div>
         </UFormField>
 
-        <UFormField label="实例接入信息" name="container_spec" description='使用 JSON 记录实例 URL、host/port、连接命令或代理入口'>
-          <UTextarea v-model="challengeForm.container_spec" class="w-full font-mono" :rows="8" placeholder='{"connection":{"url":"","note":"请填写实际入口或接入说明"}}' :disabled="challengeSubmitting" />
+        <UFormField label="实例接入信息" name="container_spec" description="使用 JSON 记录实例 URL、host、port、连接命令或代理入口">
+          <UTextarea v-model="challengeForm.container_spec" class="w-full font-mono" :rows="8" placeholder='{"connection":{"url":"","note":""}}' :disabled="challengeSubmitting" />
         </UFormField>
 
-        <UPageCard title="模板占位符" icon="i-lucide-braces" description="动态题的 connection 字段可以直接使用这些占位符，为不同队伍生成不同入口。">
+        <UPageCard title="可用变量" icon="i-lucide-braces" description="动态题的 connection 字段可直接使用这些变量生成不同队伍入口。">
           <div class="flex flex-wrap gap-2">
             <UBadge v-for="token in instanceTemplateTokens" :key="token" color="neutral" variant="subtle">
               {{ token }}
@@ -6000,7 +6000,7 @@ onMounted(async () => {
           </div>
         </UPageCard>
 
-        <UPageCard v-if="challengeFormInstanceSpec" title="实例预览" icon="i-lucide-box" description="这里会按比赛页的展示逻辑预览当前实例接入信息。">
+        <UPageCard v-if="challengeFormInstanceSpec" title="实例预览" icon="i-lucide-box" description="按比赛页展示逻辑预览当前实例接入信息。">
           <div class="space-y-2 text-sm text-muted">
             <UAlert
               v-if="challengeFormAccessMode"
@@ -6061,9 +6061,9 @@ onMounted(async () => {
         <UFormField
           label="Flag 格式"
           name="flag_format"
-          description="用于公开页展示提交示例。留空时建议仍保持平台统一格式示意。"
+          description="用于公开页展示提交格式。"
         >
-          <UInput v-model="challengeForm.flag_format" class="w-full" placeholder="例如：flag{...}" :disabled="challengeSubmitting" />
+          <UInput v-model="challengeForm.flag_format" class="w-full" placeholder="flag{...}" :disabled="challengeSubmitting" />
         </UFormField>
 
         <div class="grid gap-4 md:grid-cols-3">
@@ -6142,7 +6142,7 @@ onMounted(async () => {
             min="0"
             class="w-full"
             :disabled="attachSubmitting"
-            placeholder="例如：500"
+            placeholder="留空表示沿用题目分值"
           />
         </UFormField>
       </UForm>
@@ -6176,14 +6176,14 @@ onMounted(async () => {
         <UFormField
           label="公告内容"
           name="content"
-          description="适合发布开赛提醒、规则补充、实例维护通知或 Writeup 截止提醒。"
+          description="用于发布开赛提醒、规则补充、实例维护通知或 Writeup 截止通知。"
         >
           <UTextarea
             v-model="announcementForm.content"
             class="w-full"
             :rows="6"
             :disabled="announcementSubmitting"
-            placeholder="例如：平台将在 10 分钟后开放，请提前确认队伍成员与网络环境。"
+            placeholder="请输入公告内容"
           />
         </UFormField>
       </UForm>
@@ -6231,23 +6231,23 @@ onMounted(async () => {
         </UFormField>
 
         <UFormField label="比赛名称" name="name">
-          <UInput v-model="gameEditForm.name" class="w-full" :disabled="gameEditing" placeholder="例如：Spring CTF 2026" />
+          <UInput v-model="gameEditForm.name" class="w-full" :disabled="gameEditing" placeholder="请输入比赛名称" />
         </UFormField>
 
         <UFormField label="比赛描述" name="description">
-          <UTextarea v-model="gameEditForm.description" class="w-full" :rows="4" :disabled="gameEditing" placeholder="简要介绍比赛规则或主题" />
+          <UTextarea v-model="gameEditForm.description" class="w-full" :rows="4" :disabled="gameEditing" placeholder="请输入比赛描述" />
         </UFormField>
 
-        <UFormField label="规则补充" name="notice" description="这里适合填写长期有效的补充规则，会展示在公开比赛页的“规则补充”区域">
-          <UTextarea v-model="gameEditForm.notice" class="w-full" :rows="4" :disabled="gameEditing" placeholder="例如：禁止共享 Flag；比赛开始前 15 分钟开放平台。" />
+        <UFormField label="规则补充" name="notice" description="填写长期有效的补充规则，会展示在公开比赛页的“规则补充”区域">
+          <UTextarea v-model="gameEditForm.notice" class="w-full" :rows="4" :disabled="gameEditing" placeholder="请输入规则补充" />
         </UFormField>
 
         <UFormField label="比赛邀请码" name="invitation_code" description="留空表示关闭邀请码门槛">
-          <UInput v-model="gameEditForm.invitation_code" class="w-full" :disabled="gameEditing" placeholder="例如：spring-2026" />
+          <UInput v-model="gameEditForm.invitation_code" class="w-full" :disabled="gameEditing" placeholder="留空表示不启用邀请码" />
         </UFormField>
 
         <UFormField label="比赛分组" name="divisions_text" description="按行或逗号分隔，留空表示不分组">
-          <UTextarea v-model="gameEditForm.divisions_text" class="w-full" :rows="3" :disabled="gameEditing" placeholder="本科组, 公开组" />
+          <UTextarea v-model="gameEditForm.divisions_text" class="w-full" :rows="3" :disabled="gameEditing" placeholder="请输入比赛分组" />
         </UFormField>
 
         <div class="grid gap-4 md:grid-cols-2">
@@ -6282,7 +6282,7 @@ onMounted(async () => {
 
         <div v-if="editGameRuleSummary.length" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
           <div class="mb-2 font-medium text-highlighted">
-            编辑后规则摘要
+            规则校对
           </div>
           <ul class="space-y-2">
             <li v-for="item in editGameRuleSummary" :key="item">
@@ -6329,25 +6329,25 @@ onMounted(async () => {
         </UFormField>
 
         <UFormField label="题目名称" name="title">
-          <UInput v-model="challengeEditForm.title" class="w-full" :disabled="challengeEditing || challengeEditAttachmentUploading" placeholder="例如：Easy XSS" />
+          <UInput v-model="challengeEditForm.title" class="w-full" :disabled="challengeEditing || challengeEditAttachmentUploading" placeholder="请输入题目名称" />
         </UFormField>
 
         <UFormField label="题目描述" name="description">
-          <UTextarea v-model="challengeEditForm.description" class="w-full" :rows="4" :disabled="challengeEditing || challengeEditAttachmentUploading" placeholder="题目简介、提示或附件说明" />
+          <UTextarea v-model="challengeEditForm.description" class="w-full" :rows="4" :disabled="challengeEditing || challengeEditAttachmentUploading" placeholder="请输入题目描述" />
         </UFormField>
 
         <UFormField
           label="提示列表"
           name="hints"
-          description='使用 JSON 数组，例如 ["先看首页","再看接口返回"]'
+          description="使用 JSON 数组格式"
         >
-          <UTextarea v-model="challengeEditForm.hints" class="w-full" :rows="3" :disabled="challengeEditing || challengeEditAttachmentUploading" placeholder='["提示 1","提示 2"]' />
+          <UTextarea v-model="challengeEditForm.hints" class="w-full" :rows="3" :disabled="challengeEditing || challengeEditAttachmentUploading" placeholder='["提示内容"]' />
         </UFormField>
 
         <UFormField
           label="附件链接"
           name="attachments"
-          description='使用 JSON 数组，例如 ["https://example.com/files/web.zip"]'
+          description="使用 JSON 数组格式"
         >
           <div class="space-y-3">
             <UFileUpload
@@ -6369,22 +6369,22 @@ onMounted(async () => {
                 上传并插入
               </UButton>
             </div>
-            <UTextarea v-model="challengeEditForm.attachments" class="w-full" :rows="3" :disabled="challengeEditing || challengeEditAttachmentUploading" placeholder='["https://example.com/files/challenge.zip"]' />
+            <UTextarea v-model="challengeEditForm.attachments" class="w-full" :rows="3" :disabled="challengeEditing || challengeEditAttachmentUploading" placeholder='["/attachments/file.zip"]' />
           </div>
         </UFormField>
 
         <UFormField
           label="实例接入信息"
           name="container_spec"
-          description='使用 JSON 记录实例 URL、host/port、连接命令或代理入口'
+          description="使用 JSON 记录实例 URL、host、port、连接命令或代理入口"
         >
-          <UTextarea v-model="challengeEditForm.container_spec" class="w-full font-mono" :rows="8" :disabled="challengeEditing || challengeEditAttachmentUploading" placeholder='{"connection":{"url":"","note":"请填写实际入口或接入说明"}}' />
+          <UTextarea v-model="challengeEditForm.container_spec" class="w-full font-mono" :rows="8" :disabled="challengeEditing || challengeEditAttachmentUploading" placeholder='{"connection":{"url":"","note":""}}' />
         </UFormField>
 
         <UPageCard
-          title="模板占位符"
+          title="可用变量"
           icon="i-lucide-braces"
-          description="编辑动态题时同样可以在 connection 字段里使用这些占位符。"
+          description="编辑动态题时同样可在 connection 字段中使用这些变量。"
         >
           <div class="flex flex-wrap gap-2">
             <UBadge
@@ -6402,7 +6402,7 @@ onMounted(async () => {
           v-if="challengeEditInstanceSpec"
           title="实例预览"
           icon="i-lucide-box"
-          description="编辑时也会按比赛页的展示逻辑预览当前实例接入信息。"
+          description="按比赛页展示逻辑预览当前实例接入信息。"
         >
           <div class="space-y-2 text-sm text-muted">
             <UAlert
@@ -6463,9 +6463,9 @@ onMounted(async () => {
         <UFormField
           label="Flag 格式"
           name="flag_format"
-          description="用于公开页展示提交示例。留空时建议仍保持平台统一格式示意。"
+          description="用于公开页展示提交格式。"
         >
-          <UInput v-model="challengeEditForm.flag_format" class="w-full" :disabled="challengeEditing || challengeEditAttachmentUploading" placeholder="例如：flag{...}" />
+          <UInput v-model="challengeEditForm.flag_format" class="w-full" :disabled="challengeEditing || challengeEditAttachmentUploading" placeholder="flag{...}" />
         </UFormField>
 
         <div class="grid gap-4 md:grid-cols-3">
@@ -6648,7 +6648,7 @@ onMounted(async () => {
 
         <div v-if="settingsRuleSummary.length" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
           <div class="mb-2 font-medium text-highlighted">
-            保存后规则摘要
+            规则校对
           </div>
           <ul class="space-y-2">
             <li v-for="item in settingsRuleSummary" :key="`confirm-${item}`">
