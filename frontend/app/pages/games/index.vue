@@ -263,6 +263,31 @@ const emptyStateMeta = computed(() => {
   }
 })
 
+const filteredEmptyStateMeta = computed(() => {
+  if (!games.value.length) {
+    return null
+  }
+
+  const hasKeyword = searchQuery.value.trim().length > 0
+  const hasStatusFilter = statusFilter.value !== 'all'
+  const filterSummary = [
+    hasKeyword ? `关键词“${searchQuery.value.trim()}”` : '',
+    hasStatusFilter ? `状态“${statusFilter.value === 'active' ? '进行中' : '已结束'}”` : '',
+  ].filter(Boolean).join(' + ')
+
+  return {
+    title: '当前筛选条件下没有匹配的比赛',
+    description: filterSummary
+      ? `还没有比赛同时满足 ${filterSummary}。你可以先清空筛选，或直接回到全部公开比赛继续浏览。`
+      : '当前没有匹配的比赛。你可以先清空筛选，再继续浏览全部公开比赛。',
+  }
+})
+
+function resetFilters() {
+  searchQuery.value = ''
+  statusFilter.value = 'all'
+}
+
 onMounted(async () => {
   await ensureInitialized()
   await fetchGames()
@@ -359,12 +384,29 @@ onMounted(async () => {
         :actions="emptyStateMeta.actions"
       />
 
-      <div v-else-if="filteredGames.length === 0" class="text-center py-16">
-        <UIcon name="i-lucide-search-x" class="size-12 text-muted mx-auto mb-4" />
-        <p class="text-muted">
-          当前筛选条件下没有匹配的比赛
-        </p>
-      </div>
+      <UEmpty
+        v-else-if="filteredGames.length === 0"
+        class="py-16"
+        icon="i-lucide-search-x"
+        :title="filteredEmptyStateMeta?.title || '当前筛选条件下没有匹配的比赛'"
+        :description="filteredEmptyStateMeta?.description || '可以先清空筛选，再继续浏览全部公开比赛。'"
+        :actions="[
+          {
+            label: '清空筛选',
+            icon: 'i-lucide-refresh-cw',
+            color: 'neutral',
+            variant: 'outline',
+            onClick: resetFilters,
+          },
+          {
+            label: authState.user ? '回控制台' : '去登录',
+            icon: authState.user ? 'i-lucide-layout-dashboard' : 'i-lucide-log-in',
+            to: authState.user ? '/console' : '/login?redirect=%2Fgames',
+            color: 'neutral',
+            variant: 'ghost',
+          },
+        ]"
+      />
 
       <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       <UPageCard
