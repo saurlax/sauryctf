@@ -2021,14 +2021,14 @@ onMounted(async () => {
           <UPageCard title="比赛信息" icon="i-lucide-scroll-text">
             <div class="space-y-4 text-sm leading-7">
               <p class="text-default whitespace-pre-wrap">
-                {{ game.description || '当前比赛暂未填写详细规则。你可以先完成队伍准备与比赛报名。' }}
+                {{ game.description || '当前比赛暂未填写详细信息。' }}
               </p>
 
               <UAlert
                 v-if="game.notice"
                 color="info"
                 variant="soft"
-                title="规则补充"
+                title="补充信息"
                 :description="game.notice"
               />
 
@@ -2248,7 +2248,7 @@ onMounted(async () => {
           title="当前还没有可浏览的题目"
           :description="authState.user
             ? '如果这场比赛已经开赛但仍然没有题目，建议先回到概览区确认比赛状态或联系管理员继续配置。'
-            : '当前可以先浏览比赛说明和排行榜；题目开放后，这里会直接展示对应分类和题目列表。'"
+            : '当前可以先浏览比赛信息和排行榜；题目开放后，这里会展示对应分类和题目列表。'"
           :actions="[
             {
               label: '返回比赛概览',
@@ -2506,7 +2506,7 @@ onMounted(async () => {
                           color="warning"
                           variant="soft"
                           title="当前入口已跳转到实例详情页"
-                          description="这说明平台已经完成了队伍维度的入口解析，当前可以继续在实例详情页核对访问入口、租约状态和续期策略。"
+                          description="当前队伍入口已经解析完成，你可以继续在实例详情页核对访问入口、租约状态和续期策略。"
                         />
 
                         <div class="grid gap-3 text-xs text-muted md:grid-cols-2">
@@ -2913,7 +2913,7 @@ onMounted(async () => {
                       class="mt-2"
                       icon="i-lucide-message-square-text"
                       title="当前还没有审核备注"
-                      description="管理员暂时还没有留下额外说明。审核状态变化后，这里会优先显示对应备注。"
+                      description="管理员当前还没有留下备注。审核状态变化后，这里会显示对应内容。"
                       variant="naked"
                     />
                     <div v-else class="mt-2 leading-6">
@@ -2923,7 +2923,7 @@ onMounted(async () => {
                 </div>
               </UPageCard>
 
-              <UPageCard title="规则摘要" icon="i-lucide-list-checks">
+              <UPageCard title="提交要求" icon="i-lucide-list-checks">
                 <div class="space-y-3 text-sm text-muted">
                   <p
                     v-for="(item, index) in writeupRuleItems"
