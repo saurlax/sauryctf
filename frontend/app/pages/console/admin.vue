@@ -105,6 +105,14 @@ const announcementForm = reactive({
   content: '',
 })
 
+const resourceFilters = reactive({
+  gameKeyword: '',
+  gameStatus: 'all' as 'all' | 'draft' | 'active' | 'ended',
+  challengeKeyword: '',
+  challengeCategory: 'all' as 'all' | 'web' | 'pwn' | 'crypto' | 'reverse' | 'misc' | 'forensics' | 'awd',
+  challengeVisibility: 'all' as 'all' | 'visible' | 'hidden',
+})
+
 const gameSubmitting = ref(false)
 const challengeSubmitting = ref(false)
 const attachSubmitting = ref(false)
@@ -385,6 +393,22 @@ const submissionTypeOptions = [
   { label: '只看重复提交', value: 'already_solved' },
 ]
 
+const resourceGameStatusOptions = [
+  { label: '全部状态', value: 'all' },
+  ...gameStatusOptions,
+]
+
+const resourceChallengeCategoryOptions = [
+  { label: '全部分类', value: 'all' },
+  ...categoryOptions,
+]
+
+const resourceChallengeVisibilityOptions = [
+  { label: '全部可见性', value: 'all' },
+  { label: '仅可见', value: 'visible' },
+  { label: '仅隐藏', value: 'hidden' },
+]
+
 const gameOptions = computed(() => games.value.map(game => ({
   label: `#${game.id} ${game.name}`,
   value: game.id,
@@ -401,6 +425,57 @@ const selectedEditableGame = computed(() => games.value.find(game => game.id ===
 const selectedEditableChallenge = computed(() => challenges.value.find(challenge => challenge.id === challengeEditForm.challenge_id) || null)
 const challengeFormInstanceSpec = computed(() => parseChallengeInstanceSpec(challengeForm.container_spec))
 const challengeEditInstanceSpec = computed(() => parseChallengeInstanceSpec(challengeEditForm.container_spec))
+const filteredGames = computed(() => {
+  const keyword = resourceFilters.gameKeyword.trim().toLowerCase()
+
+  return games.value.filter((game) => {
+    if (resourceFilters.gameStatus !== 'all' && game.status !== resourceFilters.gameStatus) {
+      return false
+    }
+
+    if (!keyword) {
+      return true
+    }
+
+    return [
+      String(game.id),
+      game.name,
+      game.description || '',
+      game.notice || '',
+    ].some(field => field.toLowerCase().includes(keyword))
+  })
+})
+
+const filteredChallenges = computed(() => {
+  const keyword = resourceFilters.challengeKeyword.trim().toLowerCase()
+
+  return challenges.value.filter((challenge) => {
+    if (resourceFilters.challengeCategory !== 'all' && challenge.category !== resourceFilters.challengeCategory) {
+      return false
+    }
+
+    if (resourceFilters.challengeVisibility === 'visible' && !challenge.is_visible) {
+      return false
+    }
+
+    if (resourceFilters.challengeVisibility === 'hidden' && challenge.is_visible) {
+      return false
+    }
+
+    if (!keyword) {
+      return true
+    }
+
+    return [
+      String(challenge.id),
+      challenge.title,
+      challenge.description || '',
+      challenge.hints || '',
+      challenge.attachments || '',
+      challenge.container_spec || '',
+    ].some(field => field.toLowerCase().includes(keyword))
+  })
+})
 const selectedGameDivisionOptions = computed(() => (selectedGame.value?.divisions || []).map(division => ({
   label: division,
   value: division,
@@ -4507,9 +4582,22 @@ onMounted(async () => {
               <div class="mb-2 text-sm font-medium">
                 比赛列表
               </div>
-              <div v-if="games.length" class="space-y-2 text-sm">
+              <div class="mb-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
+                <UInput
+                  v-model="resourceFilters.gameKeyword"
+                  icon="i-lucide-search"
+                  placeholder="搜索比赛名称、说明或规则补充"
+                  class="w-full"
+                />
+                <USelect
+                  v-model="resourceFilters.gameStatus"
+                  :items="resourceGameStatusOptions"
+                  class="w-full"
+                />
+              </div>
+              <div v-if="filteredGames.length" class="space-y-2 text-sm">
                 <div
-                  v-for="game in games"
+                  v-for="game in filteredGames"
                   :key="game.id"
                   class="flex items-start justify-between gap-3 rounded-lg border border-default px-3 py-2"
                 >
@@ -4589,6 +4677,12 @@ onMounted(async () => {
                 </div>
               </div>
               <UEmpty
+                v-else-if="games.length"
+                icon="i-lucide-search-x"
+                title="没有匹配的比赛"
+                description="调整关键字或状态筛选后，再试一次。"
+              />
+              <UEmpty
                 v-else
                 icon="i-lucide-trophy"
                 title="当前还没有比赛"
@@ -4607,9 +4701,27 @@ onMounted(async () => {
               <div class="mb-2 text-sm font-medium">
                 题目列表
               </div>
-              <div v-if="challenges.length" class="space-y-2 text-sm">
+              <div class="mb-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_180px]">
+                <UInput
+                  v-model="resourceFilters.challengeKeyword"
+                  icon="i-lucide-search"
+                  placeholder="搜索题目名称、题面、提示或接入信息"
+                  class="w-full"
+                />
+                <USelect
+                  v-model="resourceFilters.challengeCategory"
+                  :items="resourceChallengeCategoryOptions"
+                  class="w-full"
+                />
+                <USelect
+                  v-model="resourceFilters.challengeVisibility"
+                  :items="resourceChallengeVisibilityOptions"
+                  class="w-full"
+                />
+              </div>
+              <div v-if="filteredChallenges.length" class="space-y-2 text-sm">
                 <div
-                  v-for="challenge in challenges"
+                  v-for="challenge in filteredChallenges"
                   :key="challenge.id"
                   class="flex items-start justify-between gap-3 rounded-lg border border-default px-3 py-2"
                 >
@@ -4650,6 +4762,12 @@ onMounted(async () => {
                   </div>
                 </div>
               </div>
+              <UEmpty
+                v-else-if="challenges.length"
+                icon="i-lucide-search-x"
+                title="没有匹配的题目"
+                description="调整关键字、分类或可见性筛选后，再试一次。"
+              />
               <UEmpty
                 v-else
                 icon="i-lucide-flag"
