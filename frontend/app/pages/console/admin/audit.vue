@@ -18,11 +18,13 @@ type AuditLog = {
 const toast = useToast()
 const loading = ref(true)
 const logs = ref<AuditLog[]>([])
+const expandedLogIds = ref<number[]>([])
 
 const filters = reactive({
   actorUserId: undefined as number | undefined,
   targetType: 'all',
   limit: 50,
+  keyword: '',
 })
 
 const targetTypeOptions = [
@@ -44,8 +46,31 @@ const recent24hLogs = computed(() => {
   const since = Date.now() - 24 * 60 * 60 * 1000
   return logs.value.filter(log => new Date(log.created_at).getTime() >= since).length
 })
+const filteredLogs = computed(() => {
+  const keyword = filters.keyword.trim().toLowerCase()
+
+  return logs.value.filter((log) => {
+    if (!keyword) {
+      return true
+    }
+
+    return [
+      log.summary,
+      log.detail,
+      log.actor_username,
+      log.action,
+      log.target_type,
+      String(log.target_id),
+      String(log.actor_user_id),
+    ].some(value => value?.toLowerCase().includes(keyword))
+  })
+})
 const activeFilterSummary = computed(() => {
   const items: string[] = []
+
+  if (filters.keyword.trim()) {
+    items.push(`关键词：${filters.keyword.trim()}`)
+  }
 
   if (filters.actorUserId) {
     items.push(`操作者 #${filters.actorUserId}`)
@@ -58,6 +83,7 @@ const activeFilterSummary = computed(() => {
   items.push(`最近 ${filters.limit} 条`)
   return items.join(' / ')
 })
+const expandedLogSet = computed(() => new Set(expandedLogIds.value))
 
 function getActionLabel(action: string) {
   const labels: Record<string, string> = {
@@ -109,6 +135,15 @@ async function loadLogs() {
   }
 }
 
+function toggleLogExpanded(logId: number) {
+  if (expandedLogSet.value.has(logId)) {
+    expandedLogIds.value = expandedLogIds.value.filter(id => id !== logId)
+    return
+  }
+
+  expandedLogIds.value = [...expandedLogIds.value, logId]
+}
+
 onMounted(loadLogs)
 </script>
 
@@ -130,7 +165,10 @@ onMounted(loadLogs)
     </UPageGrid>
 
     <UPageCard title="筛选" icon="i-lucide-filter" class="mb-6">
-      <div class="grid gap-3 md:grid-cols-[160px_180px_140px_auto] md:items-end">
+      <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px_180px_140px_auto] md:items-end">
+        <UFormField label="关键词" name="audit-keyword">
+          <UInput v-model="filters.keyword" class="w-full" placeholder="搜索摘要、详情、操作者或对象 ID" />
+        </UFormField>
         <UFormField label="操作者 ID" name="actor-user-id">
           <UInputNumber v-model="filters.actorUserId" :min="1" orientation="vertical" class="w-full" placeholder="例如：1" />
         </UFormField>
@@ -140,7 +178,14 @@ onMounted(loadLogs)
         <UFormField label="记录条数" name="limit">
           <USelect v-model="filters.limit" :items="limitOptions" class="w-full" />
         </UFormField>
-        <div class="flex justify-end">
+        <div class="flex justify-end gap-2">
+          <UButton
+            variant="outline"
+            icon="i-lucide-rotate-ccw"
+            @click="filters.keyword = ''; filters.actorUserId = undefined; filters.targetType = 'all'; filters.limit = 50"
+          >
+            重置
+          </UButton>
           <UButton icon="i-lucide-refresh-cw" :loading="loading" @click="loadLogs">
             刷新
           </UButton>
@@ -158,9 +203,9 @@ onMounted(loadLogs)
         <UIcon name="i-lucide-loader-2" class="size-6 animate-spin text-muted" />
       </div>
 
-      <div v-else-if="logs.length" class="space-y-3">
+      <div v-else-if="filteredLogs.length" class="space-y-3">
         <div
-          v-for="log in logs"
+          v-for="log in filteredLogs"
           :key="log.id"
           class="rounded-lg border border-default px-4 py-4"
         >
@@ -178,8 +223,21 @@ onMounted(loadLogs)
               <div class="mt-2 text-sm text-muted">
                 操作者：{{ log.actor_username }} (#{{ log.actor_user_id }})
               </div>
-              <div v-if="log.detail" class="mt-2 rounded bg-elevated px-3 py-2 text-xs text-muted break-all">
-                {{ log.detail }}
+              <div v-if="log.detail" class="mt-3">
+                <UButton
+                  size="xs"
+                  variant="ghost"
+                  :icon="expandedLogSet.has(log.id) ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+                  @click="toggleLogExpanded(log.id)"
+                >
+                  {{ expandedLogSet.has(log.id) ? '收起详情' : '展开详情' }}
+                </UButton>
+                <div
+                  v-if="expandedLogSet.has(log.id)"
+                  class="mt-2 rounded bg-elevated px-3 py-2 text-xs text-muted break-all"
+                >
+                  {{ log.detail }}
+                </div>
               </div>
             </div>
             <div class="text-xs text-muted">
@@ -190,7 +248,7 @@ onMounted(loadLogs)
       </div>
 
       <div v-else class="text-sm text-muted">
-        当前还没有可展示的管理操作记录。
+        当前筛选下没有可展示的管理操作记录。
       </div>
     </UPageCard>
   </div>

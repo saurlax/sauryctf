@@ -15,6 +15,11 @@ const toast = useToast()
 const loading = ref(true)
 const savingUserId = ref<number | null>(null)
 const users = ref<UserInfo[]>([])
+const filters = reactive({
+  keyword: '',
+  role: 'all' as 'all' | UserRole,
+  status: 'all' as 'all' | UserStatus,
+})
 
 const roleDrafts = reactive<Record<number, UserRole>>({})
 const statusDrafts = reactive<Record<number, UserStatus>>({})
@@ -37,6 +42,37 @@ const adminUsers = computed(() => users.value.filter(user => ['admin', 'super_ad
 const bannedUsers = computed(() => users.value.filter(user => user.status === 'banned').length)
 const currentUserId = computed(() => authState.user?.id || 0)
 const currentUserRole = computed<UserRole | ''>(() => authState.user?.role || '')
+const filterRoleOptions = computed(() => [{ label: '全部角色', value: 'all' as const }, ...roleOptions])
+const filterStatusOptions = computed(() => [{ label: '全部状态', value: 'all' as const }, ...statusOptions])
+const filteredUsers = computed(() => {
+  const keyword = filters.keyword.trim().toLowerCase()
+
+  return users.value.filter((user) => {
+    const matchesKeyword = !keyword
+      || user.username.toLowerCase().includes(keyword)
+      || user.email.toLowerCase().includes(keyword)
+      || String(user.id).includes(keyword)
+    const matchesRole = filters.role === 'all' || user.role === filters.role
+    const matchesStatus = filters.status === 'all' || user.status === filters.status
+
+    return matchesKeyword && matchesRole && matchesStatus
+  })
+})
+const activeFilterSummary = computed(() => {
+  const items: string[] = []
+
+  if (filters.keyword.trim()) {
+    items.push(`关键词：${filters.keyword.trim()}`)
+  }
+  if (filters.role !== 'all') {
+    items.push(`角色：${filters.role}`)
+  }
+  if (filters.status !== 'all') {
+    items.push(`状态：${filters.status === 'active' ? '正常' : '封禁'}`)
+  }
+
+  return items.length ? items.join(' / ') : '全部用户'
+})
 
 function syncDrafts() {
   for (const user of users.value) {
@@ -206,14 +242,42 @@ onMounted(async () => {
       <UPageCard title="已封禁" :description="String(bannedUsers)" icon="i-lucide-user-round-x" />
     </UPageGrid>
 
+    <UPageCard title="筛选" icon="i-lucide-filter" class="mb-6">
+      <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_180px_auto] md:items-end">
+        <UFormField label="关键词" name="user-keyword">
+          <UInput v-model="filters.keyword" class="w-full" placeholder="搜索用户名、邮箱或 ID" />
+        </UFormField>
+        <UFormField label="角色" name="user-role">
+          <USelect v-model="filters.role" :items="filterRoleOptions" class="w-full" />
+        </UFormField>
+        <UFormField label="状态" name="user-status">
+          <USelect v-model="filters.status" :items="filterStatusOptions" class="w-full" />
+        </UFormField>
+        <div class="flex justify-end">
+          <UButton
+            variant="outline"
+            icon="i-lucide-rotate-ccw"
+            @click="filters.keyword = ''; filters.role = 'all'; filters.status = 'all'"
+          >
+            重置
+          </UButton>
+        </div>
+      </div>
+      <template #footer>
+        <div class="text-sm text-muted">
+          当前筛选：{{ activeFilterSummary }} · 命中 {{ filteredUsers.length }} / {{ totalUsers }}
+        </div>
+      </template>
+    </UPageCard>
+
     <UPageCard title="账号列表" icon="i-lucide-list">
       <div v-if="loading" class="flex justify-center py-10">
         <UIcon name="i-lucide-loader-2" class="size-6 animate-spin text-muted" />
       </div>
 
-      <div v-else-if="users.length" class="space-y-3">
+      <div v-else-if="filteredUsers.length" class="space-y-3">
         <div
-          v-for="user in users"
+          v-for="user in filteredUsers"
           :key="user.id"
           class="rounded-lg border border-default px-4 py-4"
         >
@@ -276,7 +340,7 @@ onMounted(async () => {
       </div>
 
       <div v-else class="text-sm text-muted">
-        当前还没有可管理的用户记录。
+        当前筛选下没有匹配的用户记录。
       </div>
     </UPageCard>
   </div>
