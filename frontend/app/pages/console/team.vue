@@ -915,7 +915,7 @@ onMounted(async () => {
     </template>
 
     <template v-else>
-      <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+      <div class="grid grid-cols-1 gap-6">
         <UPageCard title="队伍入口" icon="i-lucide-users">
           <div class="space-y-4">
             <div class="rounded-lg border border-default bg-elevated/50 px-4 py-3">
@@ -947,6 +947,10 @@ onMounted(async () => {
               </div>
             </div>
 
+            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted leading-6">
+              比赛报名、Flag 提交和排行榜都按队伍进行。创建者自动成为队长；完成创建或加入后，可直接返回比赛页继续后续操作。
+            </div>
+
             <div class="flex flex-wrap gap-2">
               <UButton icon="i-lucide-plus" @click="createTeamModalOpen = true">
                 创建队伍
@@ -962,12 +966,6 @@ onMounted(async () => {
               <UButton label="回到控制台" variant="outline" icon="i-lucide-layout-dashboard" to="/console" />
             </div>
           </template>
-        </UPageCard>
-
-        <UPageCard title="队伍规则" icon="i-lucide-shield-check">
-          <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted leading-6">
-            比赛报名、Flag 提交和排行榜都按队伍进行。创建者自动成为队长；完成创建或加入后，可直接返回比赛页继续后续操作。
-          </div>
         </UPageCard>
       </div>
     </template>
