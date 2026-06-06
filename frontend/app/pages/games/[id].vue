@@ -1057,6 +1057,63 @@ const challengeSubmitMeta = computed(() => {
   }
 })
 
+function getChallengeCardMeta(challenge: GameChallengeDetail) {
+  const hasVisibleContent = Boolean(challenge.description)
+    || parseStringList(challenge.hints).length > 0
+    || parseStringList(challenge.attachments).length > 0
+  const hasInstanceSpec = !!getChallengeInstanceSpec(challenge.container_spec)
+  const hasManagedInstance = supportsManagedInstance(challenge)
+
+  if (!hasVisibleContent) {
+    return {
+      color: 'warning' as const,
+      icon: 'i-lucide-eye-off',
+      title: '题面内容暂未开放',
+      description: hasInstanceSpec
+        ? '当前只能查看题目基础信息。题面、提示、附件和实例细节会在具备参赛资格后自动开放。'
+        : '当前只能查看题目基础信息。题面、提示和附件会在具备参赛资格后自动开放。',
+    }
+  }
+
+  if (canSubmitFlag.value) {
+    if (hasManagedInstance) {
+      return {
+        color: 'success' as const,
+        icon: 'i-lucide-rocket',
+        title: gameStatusMeta.value.label === '已结束' ? '当前可继续练习并管理实例' : '当前可解题、提交并管理实例',
+        description: gameStatusMeta.value.label === '已结束'
+          ? '当前比赛已进入赛后练习阶段。你可以继续查看题面、提交 Flag，并按练习规则启动或续期当前队伍实例。'
+          : '当前题面已开放。你可以直接查看题目内容、提交 Flag，并按当前队伍状态启动或续期实例。',
+      }
+    }
+
+    return {
+      color: 'success' as const,
+      icon: 'i-lucide-flag',
+      title: gameStatusMeta.value.label === '已结束' ? '当前可继续练习提交' : '当前可直接提交 Flag',
+      description: gameStatusMeta.value.label === '已结束'
+        ? '当前比赛开启了赛后练习模式。你可以继续查看题面并提交练习解题记录。'
+        : '当前题面已开放，队伍也已具备参赛资格，可以直接在下方输入 Flag 提交。',
+    }
+  }
+
+  if (hasManagedInstance) {
+    return {
+      color: 'info' as const,
+      icon: 'i-lucide-box',
+      title: '当前可查看题面与实例信息',
+      description: '题面已经开放，但当前还不满足正式提交条件。你仍然可以先阅读题面，并结合实例状态区确认入口与运行策略。',
+    }
+  }
+
+  return {
+    color: 'info' as const,
+    icon: 'i-lucide-file-text',
+    title: '当前可查看题面，但还不能提交',
+    description: '题面内容已经开放。当前不能提交 Flag 时，页面会继续说明具体原因和下一步操作入口。',
+  }
+}
+
 const nextStepMeta = computed(() => {
   if (!authState.user) {
     return {
@@ -2432,6 +2489,14 @@ onMounted(async () => {
                 </div>
 
                 <div class="space-y-3 mb-4 text-sm">
+                  <UAlert
+                    :color="getChallengeCardMeta(ch).color"
+                    :icon="getChallengeCardMeta(ch).icon"
+                    variant="soft"
+                    :title="getChallengeCardMeta(ch).title"
+                    :description="getChallengeCardMeta(ch).description"
+                  />
+
                   <p class="text-muted leading-6 whitespace-pre-wrap">
                     {{ ch.description || '当前题面内容暂未开放，待报名通过并开赛后会自动显示。' }}
                   </p>
