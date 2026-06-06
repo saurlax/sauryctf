@@ -503,15 +503,15 @@ const selectedGameDivisionOptions = computed(() => (selectedGame.value?.division
   label: division,
   value: division,
 })))
-const preferredSetupGame = computed(() =>
+const preferredContextGame = computed(() =>
   games.value.find(game => game.status === 'draft')
   || games.value.find(game => game.status === 'active')
   || games.value[0]
   || null,
 )
 
-const adminSetupContextMeta = computed(() => {
-  const game = preferredSetupGame.value
+const adminContextSelectionMeta = computed(() => {
+  const game = preferredContextGame.value
   if (!game) {
     return null
   }
@@ -1015,7 +1015,7 @@ const localDockerInstanceChecklist = computed(() => {
   ]
 })
 
-const adminSetupSteps = computed(() => {
+const adminChecklistSteps = computed(() => {
   const hasGames = games.value.length > 0
   const hasChallenges = challenges.value.length > 0
   const hasMountedChallenges = selectedGameChallenges.value.length > 0
@@ -1055,7 +1055,7 @@ const adminSetupSteps = computed(() => {
       done: hasMountedChallenges,
       actionLabel: '去挂题',
       actionTo: '#attach-challenge',
-      contextGameId: preferredSetupGame.value?.id,
+      contextGameId: preferredContextGame.value?.id,
     },
     {
       key: 'launch',
@@ -1066,7 +1066,7 @@ const adminSetupSteps = computed(() => {
       done: Boolean(activeGame),
       actionLabel: activeGame ? '打开公开页' : '去比赛设置',
       actionTo: activeGame ? `/games/${activeGame.id}` : '#game-settings',
-      contextGameId: (activeGame || preferredSetupGame.value)?.id,
+      contextGameId: (activeGame || preferredContextGame.value)?.id,
     },
   ]
 })
@@ -1912,7 +1912,7 @@ function jumpToAdminAnchor(target: string) {
   }
 }
 
-function handleSetupAction(step: { actionTo: string, contextGameId?: number }) {
+function handleChecklistAction(step: { actionTo: string, contextGameId?: number }) {
   if (step.contextGameId) {
     selectGameContext(step.contextGameId)
   }
@@ -3287,7 +3287,7 @@ onMounted(async () => {
 
           <div class="grid gap-3 xl:grid-cols-2">
             <div
-              v-for="step in adminSetupSteps"
+              v-for="step in adminChecklistSteps"
               :key="step.key"
               class="rounded-lg border border-default px-3 py-3"
             >
@@ -3313,7 +3313,7 @@ onMounted(async () => {
               </div>
 
               <div class="mt-3 flex justify-end">
-                <UButton size="sm" variant="outline" :to="step.actionTo" @click="handleSetupAction(step)">
+                <UButton size="sm" variant="outline" :to="step.actionTo" @click="handleChecklistAction(step)">
                   {{ step.actionLabel }}
                 </UButton>
               </div>
@@ -3375,29 +3375,29 @@ onMounted(async () => {
             title="还没有选中比赛"
             description="先在下方任意比赛选择框里选中一场比赛，或直接从资源列表点“编辑”，这里就会变成该比赛的一屏概览。"
           >
-            <template v-if="adminSetupContextMeta" #footer>
+            <template v-if="adminContextSelectionMeta" #footer>
               <div class="space-y-3">
                 <UAlert
                   color="info"
                   variant="soft"
                   icon="i-lucide-route"
                   title="已有待维护的比赛"
-                  :description="adminSetupContextMeta.description"
+                  :description="adminContextSelectionMeta.description"
                 />
                 <div class="flex flex-wrap justify-center gap-2">
                   <UButton
                     size="sm"
                     variant="outline"
-                    @click="selectGameContext(adminSetupContextMeta.game.id); jumpToAdminAnchor(adminSetupContextMeta.actionTo)"
+                    @click="selectGameContext(adminContextSelectionMeta.game.id); jumpToAdminAnchor(adminContextSelectionMeta.actionTo)"
                   >
-                    {{ adminSetupContextMeta.actionLabel }}
+                    {{ adminContextSelectionMeta.actionLabel }}
                   </UButton>
                   <UButton
                     size="sm"
                     variant="ghost"
-                    @click="selectGameContext(adminSetupContextMeta.game.id)"
+                    @click="selectGameContext(adminContextSelectionMeta.game.id)"
                   >
-                    只选中 {{ adminSetupContextMeta.game.name }}
+                    只选中 {{ adminContextSelectionMeta.game.name }}
                   </UButton>
                 </div>
               </div>

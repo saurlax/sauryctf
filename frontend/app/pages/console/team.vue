@@ -79,7 +79,7 @@ const joinInviteFromRoute = computed(() => {
   return typeof invite === 'string' ? invite.trim() : ''
 })
 const contestRedirect = computed(() => resolveRedirect())
-const teamSetupGuideMeta = computed(() => {
+const teamEntryGuideMeta = computed(() => {
   if (contestRedirect.value) {
     return {
       title: '当前尚未加入队伍',
@@ -817,25 +817,25 @@ onMounted(async () => {
         </div>
         <div class="xl:col-span-3">
           <UAlert
-            :color="teamSetupGuideMeta.color"
+            :color="teamEntryGuideMeta.color"
             variant="soft"
-            :icon="teamSetupGuideMeta.icon"
-            :title="teamSetupGuideMeta.title"
-            :description="teamSetupGuideMeta.description"
+            :icon="teamEntryGuideMeta.icon"
+            :title="teamEntryGuideMeta.title"
+            :description="teamEntryGuideMeta.description"
           >
             <template #actions>
               <div class="flex flex-wrap gap-2">
                 <UButton
                   size="sm"
-                  :to="teamSetupGuideMeta.actionTo"
-                  :label="teamSetupGuideMeta.actionLabel"
+                  :to="teamEntryGuideMeta.actionTo"
+                  :label="teamEntryGuideMeta.actionLabel"
                   variant="outline"
                 />
                 <UButton
-                  v-if="teamSetupGuideMeta.secondaryLabel && teamSetupGuideMeta.secondaryTo"
+                  v-if="teamEntryGuideMeta.secondaryLabel && teamEntryGuideMeta.secondaryTo"
                   size="sm"
-                  :to="teamSetupGuideMeta.secondaryTo"
-                  :label="teamSetupGuideMeta.secondaryLabel"
+                  :to="teamEntryGuideMeta.secondaryTo"
+                  :label="teamEntryGuideMeta.secondaryLabel"
                   variant="ghost"
                 />
               </div>
