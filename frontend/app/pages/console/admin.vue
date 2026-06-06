@@ -3322,9 +3322,9 @@ onMounted(async () => {
         </div>
       </UPageCard>
 
-      <div class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <UPageCard title="当前比赛概览" icon="i-lucide-clipboard-list">
-          <div v-if="selectedAdminOverview" class="space-y-4">
+      <UPageCard title="当前比赛视图" icon="i-lucide-clipboard-list">
+        <div v-if="selectedAdminOverview" class="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+          <div class="space-y-4">
             <div class="flex items-start justify-between gap-3 flex-wrap">
               <div>
                 <div class="text-lg font-medium">
@@ -3369,48 +3369,11 @@ onMounted(async () => {
             </div>
           </div>
 
-          <UEmpty
-            v-else
-            icon="i-lucide-clipboard-list"
-            title="还没有选中比赛"
-            description="先在下方任意比赛选择框里选中一场比赛，或直接从资源列表点“编辑”，这里就会变成该比赛的一屏概览。"
-          >
-            <template v-if="adminContextSelectionMeta" #footer>
-              <div class="space-y-3">
-                <UAlert
-                  color="info"
-                  variant="soft"
-                  icon="i-lucide-route"
-                  title="已有待维护的比赛"
-                  :description="adminContextSelectionMeta.description"
-                />
-                <div class="flex flex-wrap justify-center gap-2">
-                  <UButton
-                    size="sm"
-                    variant="outline"
-                    @click="selectGameContext(adminContextSelectionMeta.game.id); jumpToAdminAnchor(adminContextSelectionMeta.actionTo)"
-                  >
-                    {{ adminContextSelectionMeta.actionLabel }}
-                  </UButton>
-                  <UButton
-                    size="sm"
-                    variant="ghost"
-                    @click="selectGameContext(adminContextSelectionMeta.game.id)"
-                  >
-                    只选中 {{ adminContextSelectionMeta.game.name }}
-                  </UButton>
-                </div>
-              </div>
-            </template>
-          </UEmpty>
-        </UPageCard>
-
-        <UPageCard title="赛前检查" icon="i-lucide-shield-alert">
-          <div v-if="selectedGamePreflightChecks.length" class="space-y-3">
+          <div class="space-y-3">
             <UAlert
               color="info"
               variant="soft"
-              title="开赛前先确认这几项"
+              title="发布前检查"
               description="这里只保留当前最影响公开运行的检查项，便于判断是否可以继续发布。"
             />
 
@@ -3447,15 +3410,43 @@ onMounted(async () => {
               </div>
             </div>
           </div>
+        </div>
 
-          <UEmpty
-            v-else
-            icon="i-lucide-shield-alert"
-            title="还没有可检查的比赛"
-            description="先选择一场比赛，这里会根据挂题、报名状态和公开配置给出当前最值得补的检查项。"
-          />
-        </UPageCard>
-      </div>
+        <UEmpty
+          v-else
+          icon="i-lucide-clipboard-list"
+          title="还没有选中比赛"
+          description="先在下方任意比赛选择框里选中一场比赛，或直接从资源列表点“编辑”，这里就会变成该比赛的当前视图。"
+        >
+          <template v-if="adminContextSelectionMeta" #footer>
+            <div class="space-y-3">
+              <UAlert
+                color="info"
+                variant="soft"
+                icon="i-lucide-route"
+                title="已有待维护的比赛"
+                :description="adminContextSelectionMeta.description"
+              />
+              <div class="flex flex-wrap justify-center gap-2">
+                <UButton
+                  size="sm"
+                  variant="outline"
+                  @click="selectGameContext(adminContextSelectionMeta.game.id); jumpToAdminAnchor(adminContextSelectionMeta.actionTo)"
+                >
+                  {{ adminContextSelectionMeta.actionLabel }}
+                </UButton>
+                <UButton
+                  size="sm"
+                  variant="ghost"
+                  @click="selectGameContext(adminContextSelectionMeta.game.id)"
+                >
+                  只选中 {{ adminContextSelectionMeta.game.name }}
+                </UButton>
+              </div>
+            </div>
+          </template>
+        </UEmpty>
+      </UPageCard>
 
       <UPageCard
         v-if="localDockerInstanceChecklist.length"
@@ -4219,8 +4210,8 @@ onMounted(async () => {
           <UAlert
             color="info"
             variant="soft"
-            title="比赛基础信息通过弹层录入"
-            description="创建、编辑和导入统一收进弹层处理；页面主体只保留状态、设置、审核和监控视图。"
+            title="比赛信息通过弹层维护"
+            description="创建、编辑和导入统一通过弹层完成，页面主体仅保留概览、设置、审核与监控。"
           />
 
           <div class="flex flex-wrap gap-2">
@@ -4245,11 +4236,11 @@ onMounted(async () => {
           <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
             <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
               <div class="mb-2 font-medium text-highlighted">
-                新建比赛默认会进入草稿状态
+                录入约定
               </div>
               <ul class="space-y-2">
-                <li>建议先完成题目录入、挂题和公开页检查，再切换到 `active`。</li>
-                <li>如需减少重复录入，可先载入基础配置，再在弹层里补齐正式时间、规则和公告。</li>
+                <li>新建比赛默认进入 `draft`，建议完成挂题和公开页检查后再切换到 `active`。</li>
+                <li>如需复用常见字段，可先载入基础配置，再补齐正式时间、规则与公告。</li>
               </ul>
             </div>
 
@@ -4356,7 +4347,7 @@ onMounted(async () => {
             <UAlert
               color="info"
               variant="soft"
-              title="题目录入通过弹层处理"
+              title="题目信息通过弹层维护"
               description="创建、编辑和模板填充集中在这里完成，再继续挂题或回到当前比赛检查展示效果。"
             />
 
@@ -4385,8 +4376,8 @@ onMounted(async () => {
                   维护顺序
                 </div>
                 <ul class="space-y-2">
-                  <li>先补齐题面、提示、附件和接入信息，再挂到比赛里。</li>
-                  <li>动态题建议保存前先看一遍实例预览，确认入口语义和运行配置。</li>
+                  <li>先补齐题面、提示、附件和接入信息，再挂载到比赛。</li>
+                  <li>动态题建议在保存前检查一次实例预览，确认入口语义和运行配置。</li>
                 </ul>
               </div>
 
@@ -4485,8 +4476,8 @@ onMounted(async () => {
               <UAlert
                 color="info"
                 variant="soft"
-                title="低频维护动作集中在这里"
-                description="导入比赛包、发布公告和跳转公开页都保留为入口动作，避免在页面主体分散重复出现。"
+                title="维护入口"
+                description="导入比赛包、发布公告和公开页跳转统一保留为入口动作，避免在主体区域重复展开。"
               />
 
               <div class="flex flex-wrap gap-2">
