@@ -42,6 +42,7 @@ const stateDestroying = ref(false)
 const stateEnsuring = ref(false)
 const stateLoadError = ref('')
 const now = ref(Date.now())
+const destroyConfirmModalOpen = ref(false)
 
 const currentEntry = computed(() => instanceState.value?.launch_url || route.fullPath)
 const hasRunningInstance = computed(() => instanceState.value?.status === 'running' && getSecondsLeft() > 0)
@@ -210,6 +211,21 @@ async function copyValue(value?: string, successTitle = '内容已复制') {
   }
 }
 
+const destroyConfirmRows = computed(() => [
+  {
+    label: '当前状态',
+    value: statusBadge.value.label,
+  },
+  {
+    label: '实例入口',
+    value: instanceState.value?.launch_url || currentEntry.value,
+  },
+  {
+    label: '剩余时间',
+    value: formatSecondsLeft(getSecondsLeft()),
+  },
+])
+
 async function loadInstanceState(options?: { silent?: boolean }) {
   if (gameId.value <= 0 || challengeId.value <= 0) {
     stateLoadError.value = '当前实例地址缺少有效的比赛或题目编号。'
@@ -296,6 +312,7 @@ async function destroyInstance() {
       },
     })
     stateLoadError.value = ''
+    destroyConfirmModalOpen.value = false
     toast.add({
       title: '实例已销毁',
       description: instanceState.value?.message || '当前队伍实例已销毁。',
@@ -312,6 +329,14 @@ async function destroyInstance() {
   finally {
     stateDestroying.value = false
   }
+}
+
+function openDestroyConfirm() {
+  if (!hasRunningInstance.value) {
+    return
+  }
+
+  destroyConfirmModalOpen.value = true
 }
 
 let ticker: ReturnType<typeof setInterval> | null = null
@@ -467,7 +492,7 @@ onBeforeUnmount(() => {
                   icon="i-lucide-trash-2"
                   :loading="stateDestroying"
                   :disabled="stateEnsuring || stateLoading || stateRefreshing"
-                  @click="destroyInstance"
+                  @click="openDestroyConfirm"
                 >
                   销毁实例
                 </UButton>
@@ -599,5 +624,45 @@ onBeforeUnmount(() => {
         </div>
       </UPageCard>
     </div>
+
+    <UModal
+      v-model:open="destroyConfirmModalOpen"
+      title="确认销毁当前实例"
+      description="销毁后，当前队伍需要重新启动实例才能继续获得访问入口。"
+      :dismissible="!stateDestroying"
+      :ui="{ footer: 'justify-end' }"
+    >
+      <template #body>
+        <div class="rounded-lg border border-default px-3 py-3 text-sm">
+          <div
+            v-for="row in destroyConfirmRows"
+            :key="row.label"
+            class="flex items-center justify-between gap-3 py-2"
+          >
+            <span class="text-muted">{{ row.label }}</span>
+            <span class="max-w-[70%] break-all text-right">{{ row.value }}</span>
+          </div>
+        </div>
+      </template>
+
+      <template #footer>
+        <UButton
+          variant="outline"
+          color="neutral"
+          :disabled="stateDestroying"
+          @click="destroyConfirmModalOpen = false"
+        >
+          取消
+        </UButton>
+        <UButton
+          color="error"
+          icon="i-lucide-trash-2"
+          :loading="stateDestroying"
+          @click="destroyInstance"
+        >
+          确认销毁
+        </UButton>
+      </template>
+    </UModal>
   </UContainer>
 </template>
