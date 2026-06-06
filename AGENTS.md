@@ -335,6 +335,7 @@ internal/<module>/
   - admins can list submitted writeups per contest and mark them `approved` or `rejected`
 - Once player submission, admin review, and export behavior all exist, keep the writeup flow documented as one standalone guide under `docs/guide/` instead of leaving the rules fragmented only across broader page docs.
 - Keep `docs/README.md` updated as the main human-facing entrypoint whenever new guide or get-started documents are added; avoid making readers discover important docs only by scanning the folder tree.
+- When an admin-facing list page such as audit logs references a concrete user, game, or challenge, prefer giving operators a direct route back to the relevant management context instead of leaving the page read-only.
 - Challenge content delivery is now expected to use:
   - `description` for the main statement
   - `hints` as a JSON string array

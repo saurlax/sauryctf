@@ -3,6 +3,7 @@ definePageMeta({
   middleware: 'admin',
 })
 
+const route = useRoute()
 type AuditLog = {
   id: number
   actor_user_id: number
@@ -117,6 +118,14 @@ const activeFilterSummary = computed(() => {
   return items.join(' / ')
 })
 const expandedLogSet = computed(() => new Set(expandedLogIds.value))
+const highlightUserId = computed(() => {
+  const raw = route.query.highlight_user_id
+  const value = typeof raw === 'string' ? Number(raw) : Number(Array.isArray(raw) ? raw[0] : NaN)
+  return Number.isFinite(value) ? value : null
+})
+const logActionTargets = computed<Record<number, { label: string, to: string } | null>>(() =>
+  Object.fromEntries(filteredLogs.value.map(log => [log.id, resolveLogTarget(log)])),
+)
 
 function getActionLabel(action: string) {
   const labels: Record<string, string> = {
@@ -153,6 +162,48 @@ function getTargetTypeLabel(targetType: string) {
   }
 
   return labels[targetType] || targetType
+}
+
+function resolveLogTarget(log: AuditLog) {
+  if (log.target_type === 'user') {
+    return {
+      label: '去用户管理',
+      to: `/console/admin/users?highlight_user_id=${log.target_id}`,
+    }
+  }
+
+  if (log.target_type === 'game') {
+    const section = (() => {
+      if (log.action.includes('writeup')) {
+        return '#writeups'
+      }
+      if (log.action.includes('announcement')) {
+        return '#announcements'
+      }
+      if (log.action.includes('participation')) {
+        return '#participants'
+      }
+      if (log.action.includes('attach_challenge') || log.action.includes('remove_challenge')) {
+        return '#attach-challenge'
+      }
+      return '#game-settings'
+    })()
+
+    const mode = log.action === 'admin.game.update' ? '&mode=edit-game' : ''
+    return {
+      label: '去比赛管理',
+      to: `/console/admin?game_id=${log.target_id}&section=${encodeURIComponent(section)}${mode}`,
+    }
+  }
+
+  if (log.target_type === 'challenge') {
+    return {
+      label: '去题目维护',
+      to: `/console/admin?challenge_id=${log.target_id}&section=${encodeURIComponent('#create-challenge')}&mode=edit-challenge`,
+    }
+  }
+
+  return null
 }
 
 async function loadLogs() {
@@ -195,6 +246,10 @@ onMounted(loadLogs)
       <p class="mt-1 text-muted">
         查看最近的管理操作记录，便于复盘账号、比赛与题目配置变更。
       </p>
+    </div>
+
+    <div v-if="highlightUserId" class="mb-4 rounded-lg border border-default px-3 py-3 text-sm text-muted leading-6">
+      当前从用户对象上下文进入，目标用户：#{{ highlightUserId }}。
     </div>
 
     <UPageGrid :cols="{ default: 1, sm: 3 }" class="mb-6">
@@ -264,6 +319,16 @@ onMounted(loadLogs)
               </div>
               <div class="mt-2 text-sm text-muted">
                 操作者：{{ log.actor_username }} (#{{ log.actor_user_id }})
+              </div>
+              <div v-if="logActionTargets[log.id]" class="mt-3">
+                <UButton
+                  size="xs"
+                  variant="outline"
+                  icon="i-lucide-arrow-up-right"
+                  :to="logActionTargets[log.id]!.to"
+                >
+                  {{ logActionTargets[log.id]!.label }}
+                </UButton>
               </div>
               <div v-if="log.detail" class="mt-3">
                 <UButton

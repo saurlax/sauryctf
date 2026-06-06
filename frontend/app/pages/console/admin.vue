@@ -6,6 +6,7 @@ definePageMeta({
   middleware: 'admin',
 })
 
+const route = useRoute()
 const { authState, ensureInitialized } = useAuth()
 const router = useRouter()
 const toast = useToast()
@@ -3003,6 +3004,44 @@ function selectGameContext(gameId?: number) {
   gameEditForm.game_id = gameId
 }
 
+async function applyRouteContext() {
+  const gameIdRaw = route.query.game_id
+  const challengeIdRaw = route.query.challenge_id
+  const sectionRaw = route.query.section
+  const modeRaw = route.query.mode
+
+  const gameIdValue = typeof gameIdRaw === 'string' ? gameIdRaw : Array.isArray(gameIdRaw) ? gameIdRaw[0] : ''
+  const challengeIdValue = typeof challengeIdRaw === 'string' ? challengeIdRaw : Array.isArray(challengeIdRaw) ? challengeIdRaw[0] : ''
+  const sectionValue = typeof sectionRaw === 'string' ? sectionRaw : Array.isArray(sectionRaw) ? sectionRaw[0] : ''
+  const modeValue = typeof modeRaw === 'string' ? modeRaw : Array.isArray(modeRaw) ? modeRaw[0] : ''
+
+  const gameId = Number(gameIdValue)
+  const challengeId = Number(challengeIdValue)
+
+  if (Number.isFinite(gameId) && games.value.some(game => game.id === gameId)) {
+    selectGameContext(gameId)
+  }
+
+  if (Number.isFinite(challengeId) && challenges.value.some(challenge => challenge.id === challengeId)) {
+    challengeEditForm.challenge_id = challengeId
+    attachForm.challenge_id = challengeId
+  }
+
+  if (modeValue === 'edit-game' && Number.isFinite(gameId) && games.value.some(game => game.id === gameId)) {
+    gameEditModalOpen.value = true
+  }
+
+  if (modeValue === 'edit-challenge' && Number.isFinite(challengeId) && challenges.value.some(challenge => challenge.id === challengeId)) {
+    challengeEditModalOpen.value = true
+  }
+
+  if (sectionValue) {
+    nextTick(() => {
+      jumpToAdminAnchor(sectionValue.startsWith('#') ? sectionValue : `#${sectionValue}`)
+    })
+  }
+}
+
 function syncAdminResourceContext() {
   if (attachForm.game_id && !games.value.some(game => game.id === attachForm.game_id)) {
     attachForm.game_id = undefined
@@ -3927,6 +3966,7 @@ onMounted(async () => {
   }
 
   await loadAdminResources()
+  await applyRouteContext()
 })
 </script>
 
