@@ -75,10 +75,10 @@ type ServiceInterface interface {
 	ListGames(showAll bool) ([]GameResponse, error)
 	UpdateGame(id uint, req UpdateGameRequest, updatedBy ...uint) (*GameResponse, error)
 	DeleteGame(id uint, deletedBy ...uint) error
-	ExportGamePackage(id uint) ([]byte, string, error)
-	ExportScoreboardPackage(id uint, division string) ([]byte, string, error)
-	ExportWriteupsPackage(id uint) ([]byte, string, error)
-	ExportSubmissionsPackage(id uint) ([]byte, string, error)
+	ExportGamePackage(id uint, exportedBy ...uint) ([]byte, string, error)
+	ExportScoreboardPackage(id uint, division string, exportedBy ...uint) ([]byte, string, error)
+	ExportWriteupsPackage(id uint, exportedBy ...uint) ([]byte, string, error)
+	ExportSubmissionsPackage(id uint, exportedBy ...uint) ([]byte, string, error)
 	ListAnnouncements(gameID uint) ([]GameAnnouncementResponse, error)
 	CreateAnnouncement(gameID uint, createdBy uint, req CreateGameAnnouncementRequest) (*GameAnnouncementResponse, error)
 	DeleteAnnouncement(gameID uint, announcementID uint, deletedBy ...uint) error
@@ -87,7 +87,7 @@ type ServiceInterface interface {
 	GetAdminDashboardSummary(limit int) (*AdminDashboardSummaryResponse, error)
 	ListInstanceLeases(gameID uint) ([]GameInstanceLeaseEntry, error)
 	DestroyInstanceLease(gameID uint, leaseID uint, destroyedBy ...uint) error
-	ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error)
+	ImportGamePackage(data []byte, createdBy uint, importedBy ...uint) (*GameResponse, error)
 	AddChallenge(gameID uint, challengeID uint, scoreOverride int, addedBy ...uint) error
 	RemoveChallenge(gameID uint, challengeID uint, removedBy ...uint) error
 	// Participation
@@ -108,7 +108,7 @@ type ServiceInterface interface {
 	GetScoreboard(gameID uint, division string) (*ScoreboardResponse, error)
 	GetParticipants(gameID uint) ([]GameParticipantEntry, error)
 	UpdateParticipationStatus(gameID uint, teamID uint, status string, division *string, updatedBy ...uint) (*GameParticipantEntry, error)
-	RemoveParticipation(gameID uint, teamID uint) error
+	RemoveParticipation(gameID uint, teamID uint, removedBy ...uint) error
 	GetWriteup(gameID uint, userID uint) (*GameWriteupResponse, error)
 	SubmitWriteup(gameID uint, userID uint, req SubmitGameWriteupRequest) (*GameWriteupResponse, error)
 	ListWriteups(gameID uint) ([]GameWriteupResponse, error)

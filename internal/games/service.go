@@ -1055,7 +1055,7 @@ func (s *Service) DeleteGame(id uint, deletedBy ...uint) error {
 	})
 }
 
-func (s *Service) ExportGamePackage(id uint) ([]byte, string, error) {
+func (s *Service) ExportGamePackage(id uint, exportedBy ...uint) ([]byte, string, error) {
 	var game models.Game
 	if err := s.db.First(&game, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1199,10 +1199,15 @@ func (s *Service) ExportGamePackage(id uint) ([]byte, string, error) {
 	}
 
 	filename := fmt.Sprintf("game-%d-%s-export.zip", game.ID, sanitizeExportName(game.Name))
+	if actorUserID := firstGameActorID(exportedBy...); actorUserID > 0 {
+		if err := s.writeAuditLog(actorUserID, "admin.game.export", "game", game.ID, fmt.Sprintf("导出比赛 %s", game.Name), fmt.Sprintf(`{"filename":%q,"challenge_count":%d}`, filename, len(pkg.Challenges))); err != nil {
+			return nil, "", err
+		}
+	}
 	return archive.Bytes(), filename, nil
 }
 
-func (s *Service) ExportScoreboardPackage(id uint, division string) ([]byte, string, error) {
+func (s *Service) ExportScoreboardPackage(id uint, division string, exportedBy ...uint) ([]byte, string, error) {
 	var game models.Game
 	if err := s.db.First(&game, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1261,11 +1266,16 @@ func (s *Service) ExportScoreboardPackage(id uint, division string) ([]byte, str
 	if strings.TrimSpace(scoreboard.Division) != "" {
 		filename = fmt.Sprintf("game-%d-%s-scoreboard-%s-export.zip", game.ID, sanitizeExportName(game.Name), sanitizeExportName(scoreboard.Division))
 	}
+	if actorUserID := firstGameActorID(exportedBy...); actorUserID > 0 {
+		if err := s.writeAuditLog(actorUserID, "admin.game.export_scoreboard", "game", game.ID, fmt.Sprintf("导出比赛 %s 的榜单", game.Name), fmt.Sprintf(`{"filename":%q,"division":%q,"entry_count":%d}`, filename, scoreboard.Division, len(scoreboard.Entries))); err != nil {
+			return nil, "", err
+		}
+	}
 
 	return archive.Bytes(), filename, nil
 }
 
-func (s *Service) ExportWriteupsPackage(id uint) ([]byte, string, error) {
+func (s *Service) ExportWriteupsPackage(id uint, exportedBy ...uint) ([]byte, string, error) {
 	var game models.Game
 	if err := s.db.First(&game, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1330,10 +1340,15 @@ func (s *Service) ExportWriteupsPackage(id uint) ([]byte, string, error) {
 	}
 
 	filename := fmt.Sprintf("game-%d-%s-writeups-export.zip", game.ID, sanitizeExportName(game.Name))
+	if actorUserID := firstGameActorID(exportedBy...); actorUserID > 0 {
+		if err := s.writeAuditLog(actorUserID, "admin.game.export_writeups", "game", game.ID, fmt.Sprintf("导出比赛 %s 的 Writeup", game.Name), fmt.Sprintf(`{"filename":%q,"writeup_count":%d}`, filename, len(writeups))); err != nil {
+			return nil, "", err
+		}
+	}
 	return archive.Bytes(), filename, nil
 }
 
-func (s *Service) ExportSubmissionsPackage(id uint) ([]byte, string, error) {
+func (s *Service) ExportSubmissionsPackage(id uint, exportedBy ...uint) ([]byte, string, error) {
 	var game models.Game
 	if err := s.db.First(&game, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1381,6 +1396,11 @@ func (s *Service) ExportSubmissionsPackage(id uint) ([]byte, string, error) {
 	}
 
 	filename := fmt.Sprintf("game-%d-%s-submissions-export.zip", game.ID, sanitizeExportName(game.Name))
+	if actorUserID := firstGameActorID(exportedBy...); actorUserID > 0 {
+		if err := s.writeAuditLog(actorUserID, "admin.game.export_submissions", "game", game.ID, fmt.Sprintf("导出比赛 %s 的提交记录", game.Name), fmt.Sprintf(`{"filename":%q,"submission_count":%d}`, filename, len(submissions))); err != nil {
+			return nil, "", err
+		}
+	}
 	return archive.Bytes(), filename, nil
 }
 
@@ -1481,7 +1501,7 @@ func (s *Service) DeleteAnnouncement(gameID uint, announcementID uint, deletedBy
 	return nil
 }
 
-func (s *Service) ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error) {
+func (s *Service) ImportGamePackage(data []byte, createdBy uint, importedBy ...uint) (*GameResponse, error) {
 	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return nil, errors.New("invalid import package")
@@ -1644,6 +1664,12 @@ func (s *Service) ImportGamePackage(data []byte, createdBy uint) (*GameResponse,
 		return nil
 	}); err != nil {
 		return nil, err
+	}
+
+	if actorUserID := firstGameActorID(importedBy...); actorUserID > 0 && importedGame != nil {
+		if err := s.writeAuditLog(actorUserID, "admin.game.import", "game", importedGame.ID, fmt.Sprintf("导入比赛 %s", importedGame.Name), fmt.Sprintf(`{"challenge_count":%d,"status":%q}`, len(pkg.Challenges), importedGame.Status)); err != nil {
+			return nil, err
+		}
 	}
 
 	return importedGame, nil
@@ -3117,18 +3143,38 @@ func (s *Service) UpdateParticipationStatus(gameID uint, teamID uint, status str
 	return nil, errors.New("participation not found")
 }
 
-func (s *Service) RemoveParticipation(gameID uint, teamID uint) error {
+func (s *Service) RemoveParticipation(gameID uint, teamID uint, removedBy ...uint) error {
 	var game models.Game
 	if err := s.db.First(&game, gameID).Error; err != nil {
 		return errors.New("game not found")
+	}
+
+	var participation models.Participation
+	if err := s.db.Where("game_id = ? AND team_id = ?", gameID, teamID).First(&participation).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("participation not found")
+		}
+		return err
+	}
+
+	var team models.Team
+	if err := s.db.First(&team, teamID).Error; err != nil {
+		return err
 	}
 
 	result := s.db.Where("game_id = ? AND team_id = ?", gameID, teamID).Delete(&models.Participation{})
 	if result.RowsAffected == 0 {
 		return errors.New("participation not found")
 	}
+	if result.Error != nil {
+		return result.Error
+	}
 
-	return result.Error
+	if actorUserID := firstGameActorID(removedBy...); actorUserID > 0 {
+		return s.writeAuditLog(actorUserID, "admin.game.remove_participation", "game", game.ID, fmt.Sprintf("移除比赛 %s 中队伍 %s 的报名", game.Name, team.Name), fmt.Sprintf(`{"team_id":%d,"status":%q,"division":%q}`, team.ID, participation.Status, participation.Division))
+	}
+
+	return nil
 }
 
 func normalizeWriteupStatus(status string) (models.WriteupStatus, error) {

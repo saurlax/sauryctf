@@ -228,7 +228,7 @@ func (m *MockService) DeleteGame(id uint, deletedBy ...uint) error {
 	return nil
 }
 
-func (m *MockService) ExportGamePackage(id uint) ([]byte, string, error) {
+func (m *MockService) ExportGamePackage(id uint, _ ...uint) ([]byte, string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -279,7 +279,7 @@ func (m *MockService) ExportGamePackage(id uint) ([]byte, string, error) {
 	return archive.Bytes(), fmt.Sprintf("game-%d-%s-export.zip", game.ID, sanitizeExportName(game.Name)), nil
 }
 
-func (m *MockService) ExportScoreboardPackage(id uint, division string) ([]byte, string, error) {
+func (m *MockService) ExportScoreboardPackage(id uint, division string, _ ...uint) ([]byte, string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -338,7 +338,7 @@ func (m *MockService) ExportScoreboardPackage(id uint, division string) ([]byte,
 	return archive.Bytes(), filename, nil
 }
 
-func (m *MockService) ExportWriteupsPackage(id uint) ([]byte, string, error) {
+func (m *MockService) ExportWriteupsPackage(id uint, _ ...uint) ([]byte, string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -401,7 +401,7 @@ func (m *MockService) ExportWriteupsPackage(id uint) ([]byte, string, error) {
 	return archive.Bytes(), fmt.Sprintf("game-%d-%s-writeups-export.zip", game.ID, sanitizeExportName(game.Name)), nil
 }
 
-func (m *MockService) ExportSubmissionsPackage(id uint) ([]byte, string, error) {
+func (m *MockService) ExportSubmissionsPackage(id uint, _ ...uint) ([]byte, string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -601,7 +601,7 @@ func (m *MockService) DeleteAnnouncement(gameID uint, announcementID uint, _ ...
 	return fmt.Errorf("announcement not found")
 }
 
-func (m *MockService) ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error) {
+func (m *MockService) ImportGamePackage(data []byte, createdBy uint, _ ...uint) (*GameResponse, error) {
 	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return nil, fmt.Errorf("invalid import package")
@@ -1066,7 +1066,7 @@ func (m *MockService) UpdateParticipationStatus(gameID uint, teamID uint, status
 	return nil, fmt.Errorf("participation not found")
 }
 
-func (m *MockService) RemoveParticipation(gameID uint, teamID uint) error {
+func (m *MockService) RemoveParticipation(gameID uint, teamID uint, _ ...uint) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

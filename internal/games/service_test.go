@@ -667,7 +667,7 @@ func TestService_ExportGamePackage_IncludesGameAndMountedChallenges(t *testing.T
 		Where("game_id = ? AND challenge_id = ?", gameID, challengeID).
 		Update("score_override", 250).Error)
 
-	archiveBytes, filename, err := svc.ExportGamePackage(gameID)
+	archiveBytes, filename, err := svc.ExportGamePackage(gameID, 1)
 	require.NoError(t, err)
 	assert.Contains(t, filename, "game-")
 	assert.Contains(t, filename, "-export.zip")
@@ -716,6 +716,12 @@ func TestService_ExportGamePackage_IncludesGameAndMountedChallenges(t *testing.T
 	embeddedData, err := io.ReadAll(embeddedFile)
 	require.NoError(t, err)
 	assert.Equal(t, "fixture payload", string(embeddedData))
+
+	var logs []models.AuditLog
+	require.NoError(t, database.Order("id ASC").Find(&logs).Error)
+	require.Len(t, logs, 1)
+	assert.Equal(t, "admin.game.export", logs[0].Action)
+	assert.Contains(t, logs[0].Detail, `"challenge_count":1`)
 }
 
 func TestService_ExportScoreboardPackage_IncludesJSONAndCSVs(t *testing.T) {
@@ -736,7 +742,7 @@ func TestService_ExportScoreboardPackage_IncludesJSONAndCSVs(t *testing.T) {
 	_, err = svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
 	require.NoError(t, err)
 
-	archiveBytes, filename, err := svc.ExportScoreboardPackage(gameID, "student")
+	archiveBytes, filename, err := svc.ExportScoreboardPackage(gameID, "student", 1)
 	require.NoError(t, err)
 	assert.Contains(t, filename, "scoreboard-student-export.zip")
 
@@ -761,6 +767,12 @@ func TestService_ExportScoreboardPackage_IncludesJSONAndCSVs(t *testing.T) {
 	assert.Contains(t, files["rankings.csv"], "Team One")
 	assert.Contains(t, files["challenge-stats.csv"], "challenge_id,title,category,score,solved_count,first_blood_team,second_blood_team,third_blood_team")
 	assert.Contains(t, files["challenge-stats.csv"], "Fixture Challenge")
+
+	var logs []models.AuditLog
+	require.NoError(t, database.Order("id ASC").Find(&logs).Error)
+	require.Len(t, logs, 1)
+	assert.Equal(t, "admin.game.export_scoreboard", logs[0].Action)
+	assert.Contains(t, logs[0].Detail, `"division":"student"`)
 }
 
 func TestService_ExportWriteupsPackage_IncludesJSONCSVAndMarkdownFiles(t *testing.T) {
@@ -782,7 +794,7 @@ func TestService_ExportWriteupsPackage_IncludesJSONCSVAndMarkdownFiles(t *testin
 	require.NoError(t, err)
 	require.Equal(t, team1ID, submitted.TeamID)
 
-	archiveBytes, filename, err := svc.ExportWriteupsPackage(gameID)
+	archiveBytes, filename, err := svc.ExportWriteupsPackage(gameID, 1)
 	require.NoError(t, err)
 	assert.Contains(t, filename, "writeups-export.zip")
 
@@ -804,6 +816,12 @@ func TestService_ExportWriteupsPackage_IncludesJSONCSVAndMarkdownFiles(t *testin
 	assert.Contains(t, files["writeups.csv"], "game_id,team_id,team_name,submitted_by,status,review_remark,submitted_at,reviewed_at,can_submit")
 	assert.Contains(t, files["writeups.csv"], "Team One")
 	assert.Contains(t, files["writeups/team-1-team-one.md"], "# Team One")
+
+	var logs []models.AuditLog
+	require.NoError(t, database.Order("id ASC").Find(&logs).Error)
+	require.Len(t, logs, 1)
+	assert.Equal(t, "admin.game.export_writeups", logs[0].Action)
+	assert.Contains(t, logs[0].Detail, `"writeup_count":1`)
 }
 
 func TestService_ExportSubmissionsPackage_IncludesJSONAndCSV(t *testing.T) {
@@ -818,7 +836,7 @@ func TestService_ExportSubmissionsPackage_IncludesJSONAndCSV(t *testing.T) {
 	_, err = svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
 	require.NoError(t, err)
 
-	archiveBytes, filename, err := svc.ExportSubmissionsPackage(gameID)
+	archiveBytes, filename, err := svc.ExportSubmissionsPackage(gameID, 1)
 	require.NoError(t, err)
 	assert.Contains(t, filename, "submissions-export.zip")
 
@@ -845,6 +863,12 @@ func TestService_ExportSubmissionsPackage_IncludesJSONAndCSV(t *testing.T) {
 	assert.Contains(t, files["submissions.csv"], "Team One")
 	assert.Contains(t, files["submissions.csv"], "accepted,correct,true")
 	assert.Contains(t, files["submissions.csv"], "flag{fixture}")
+
+	var logs []models.AuditLog
+	require.NoError(t, database.Order("id ASC").Find(&logs).Error)
+	require.Len(t, logs, 1)
+	assert.Equal(t, "admin.game.export_submissions", logs[0].Action)
+	assert.Contains(t, logs[0].Detail, `"submission_count":1`)
 }
 
 func TestService_ListSubmissionRecords_IncludesWrongAndAcceptedAttempts(t *testing.T) {
@@ -1253,7 +1277,7 @@ func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {
 	archiveBytes, _, err := svc.ExportGamePackage(gameID)
 	require.NoError(t, err)
 
-	imported, err := svc.ImportGamePackage(archiveBytes, 99)
+	imported, err := svc.ImportGamePackage(archiveBytes, 1, 1)
 	require.NoError(t, err)
 	require.NotNil(t, imported)
 	assert.NotEqual(t, gameID, imported.ID)
@@ -1266,7 +1290,7 @@ func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {
 	assert.True(t, imported.PracticeMode)
 	assert.True(t, imported.WriteupRequired)
 	assert.False(t, imported.IsPublic)
-	assert.Equal(t, uint(99), imported.CreatedBy)
+	assert.Equal(t, uint(1), imported.CreatedBy)
 	require.NotNil(t, imported.ScoreboardFreezeAt)
 	assert.True(t, imported.ScoreboardFreezeAt.Equal(freezeAt))
 	require.NotNil(t, imported.WriteupDeadline)
@@ -1276,8 +1300,12 @@ func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {
 	require.NoError(t, database.Model(&models.Challenge{}).Count(&challengeCount).Error)
 	assert.EqualValues(t, 2, challengeCount)
 
+	var importedMount models.GameChallenge
+	require.NoError(t, database.Where("game_id = ?", imported.ID).First(&importedMount).Error)
+	assert.Equal(t, 333, importedMount.ScoreOverride)
+
 	var importedChallenge models.Challenge
-	require.NoError(t, database.Where("created_by = ? AND title = ?", 99, "Imported Challenge").First(&importedChallenge).Error)
+	require.NoError(t, database.First(&importedChallenge, importedMount.ChallengeID).Error)
 	assert.Equal(t, "full imported statement", importedChallenge.Description)
 	assert.Equal(t, "[\"import hint\"]", importedChallenge.Hints)
 	var importedAttachments []string
@@ -1298,9 +1326,11 @@ func TestService_ImportGamePackage_CreatesNewGameAndChallenges(t *testing.T) {
 	assert.Equal(t, 7, importedChallenge.MaxAttempts)
 	assert.False(t, importedChallenge.IsVisible)
 
-	var importedMount models.GameChallenge
-	require.NoError(t, database.Where("game_id = ? AND challenge_id = ?", imported.ID, importedChallenge.ID).First(&importedMount).Error)
-	assert.Equal(t, 333, importedMount.ScoreOverride)
+	var logs []models.AuditLog
+	require.NoError(t, database.Order("id ASC").Find(&logs).Error)
+	require.NotEmpty(t, logs)
+	assert.Equal(t, "admin.game.import", logs[len(logs)-1].Action)
+	assert.Contains(t, logs[len(logs)-1].Detail, `"challenge_count":1`)
 }
 
 func TestService_ImportGamePackage_RejectsUnsupportedVersion(t *testing.T) {
@@ -1843,6 +1873,24 @@ func TestService_RemoveParticipation(t *testing.T) {
 
 	_, err = svc.GetParticipation(gameID, team1ID)
 	assert.Error(t, err)
+}
+
+func TestService_RemoveParticipation_WritesAuditLog(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, _, team1ID, _ := createGameChallengeFixture(t, database)
+
+	require.NoError(t, svc.RemoveParticipation(gameID, team1ID, 1))
+
+	var logs []models.AuditLog
+	require.NoError(t, database.Order("id ASC").Find(&logs).Error)
+	require.Len(t, logs, 1)
+	assert.Equal(t, "admin.game.remove_participation", logs[0].Action)
+	assert.Contains(t, logs[0].Detail, `"team_id":1`)
 }
 
 func TestService_SubmitFlag_RejectsPendingParticipation(t *testing.T) {

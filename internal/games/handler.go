@@ -121,7 +121,8 @@ func (h *Handler) DeleteGame(c *gin.Context, id int) {
 }
 
 func (h *Handler) ExportGamePackage(c *gin.Context, id int) {
-	data, filename, err := h.svc.ExportGamePackage(uint(id))
+	userID := c.MustGet("user_id").(uint)
+	data, filename, err := h.svc.ExportGamePackage(uint(id), userID)
 	if err != nil {
 		switch err.Error() {
 		case "game not found":
@@ -138,7 +139,8 @@ func (h *Handler) ExportGamePackage(c *gin.Context, id int) {
 }
 
 func (h *Handler) ExportScoreboardPackage(c *gin.Context, id int) {
-	data, filename, err := h.svc.ExportScoreboardPackage(uint(id), c.Query("division"))
+	userID := c.MustGet("user_id").(uint)
+	data, filename, err := h.svc.ExportScoreboardPackage(uint(id), c.Query("division"), userID)
 	if err != nil {
 		switch err.Error() {
 		case "game not found":
@@ -157,7 +159,8 @@ func (h *Handler) ExportScoreboardPackage(c *gin.Context, id int) {
 }
 
 func (h *Handler) ExportWriteupsPackage(c *gin.Context, id int) {
-	data, filename, err := h.svc.ExportWriteupsPackage(uint(id))
+	userID := c.MustGet("user_id").(uint)
+	data, filename, err := h.svc.ExportWriteupsPackage(uint(id), userID)
 	if err != nil {
 		switch err.Error() {
 		case "game not found":
@@ -174,7 +177,8 @@ func (h *Handler) ExportWriteupsPackage(c *gin.Context, id int) {
 }
 
 func (h *Handler) ExportSubmissionsPackage(c *gin.Context, id int) {
-	data, filename, err := h.svc.ExportSubmissionsPackage(uint(id))
+	userID := c.MustGet("user_id").(uint)
+	data, filename, err := h.svc.ExportSubmissionsPackage(uint(id), userID)
 	if err != nil {
 		switch err.Error() {
 		case "game not found":
@@ -323,7 +327,7 @@ func (h *Handler) ImportGamePackage(c *gin.Context) {
 	}
 
 	userID := c.MustGet("user_id").(uint)
-	game, err := h.svc.ImportGamePackage(data, userID)
+	game, err := h.svc.ImportGamePackage(data, userID, userID)
 	if err != nil {
 		switch err.Error() {
 		case "missing import file", "invalid import package", "game.json not found in import package", "invalid game.json", "unsupported import package version", "invalid registration mode", "invalid max team members", "invalid game timeline", "invalid scoreboard freeze time", "invalid writeup deadline":
@@ -654,7 +658,8 @@ func (h *Handler) UpdateParticipantStatus(c *gin.Context, id int, teamId int) {
 }
 
 func (h *Handler) RemoveParticipant(c *gin.Context, id int, teamId int) {
-	if err := h.svc.RemoveParticipation(uint(id), uint(teamId)); err != nil {
+	userID := c.MustGet("user_id").(uint)
+	if err := h.svc.RemoveParticipation(uint(id), uint(teamId), userID); err != nil {
 		switch err.Error() {
 		case "game not found", "participation not found":
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
