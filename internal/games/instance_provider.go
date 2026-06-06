@@ -286,14 +286,22 @@ func normalizeDockerExposedPorts(expose []string, fallbackPort string) []string 
 }
 
 func dockerPortKey(value string) string {
-	port := strings.TrimSpace(value)
-	if port == "" {
+	published := strings.TrimSpace(value)
+	if published == "" {
 		return ""
 	}
-	if strings.Contains(port, "/") {
-		return port
+
+	parts := strings.Split(published, ":")
+	containerPort := strings.TrimSpace(parts[len(parts)-1])
+	if containerPort == "" {
+		return ""
 	}
-	return port + "/tcp"
+
+	if strings.Contains(containerPort, "/") {
+		return containerPort
+	}
+
+	return containerPort + "/tcp"
 }
 
 func challengeInstanceTeamHash(req ChallengeInstanceProviderRequest) string {

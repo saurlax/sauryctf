@@ -189,3 +189,57 @@ func TestDockerCLIProvider_DestroyLeaseIgnoresMissingContainer(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+func TestDockerPortKeyUsesContainerSidePortForPublishedMappings(t *testing.T) {
+	assert.Equal(t, "80/tcp", dockerPortKey("80"))
+	assert.Equal(t, "80/tcp", dockerPortKey("8080:80"))
+	assert.Equal(t, "80/tcp", dockerPortKey("127.0.0.1:8080:80"))
+	assert.Equal(t, "80/tcp", dockerPortKey("127.0.0.1::80"))
+	assert.Equal(t, "53/udp", dockerPortKey("127.0.0.1:5300:53/udp"))
+}
+
+func TestDockerCLIProvider_EnsureLeaseMatchesInspectPortsForPublishedMappings(t *testing.T) {
+	req := ChallengeInstanceProviderRequest{
+		GameID:            21,
+		ChallengeID:       22,
+		TeamID:            23,
+		UserID:            24,
+		Now:               time.Date(2026, 6, 7, 8, 0, 0, 0, time.UTC),
+		LeaseDuration:     30 * time.Minute,
+		ExtensionDuration: 30 * time.Minute,
+		Runtime: ChallengeInstanceRuntimeSpec{
+			Provider: "docker",
+			Image:    "nginx:alpine",
+			Expose:   []string{"127.0.0.1:8080:80"},
+		},
+	}
+	containerName := dockerInstanceContainerName(req)
+
+	runner := &fakeDockerCommandRunner{
+		outputs: map[string]fakeDockerCommandResult{
+			strings.Join([]string{
+				"run", "-d",
+				"--name", containerName,
+				"--label", "sauryctf.managed=true",
+				"--label", "sauryctf.game_id=21",
+				"--label", "sauryctf.challenge_id=22",
+				"--label", "sauryctf.team_id=23",
+				"-p", "127.0.0.1:8080:80",
+				"nginx:alpine",
+			}, "\x00"): {
+				output: []byte("container-id\n"),
+			},
+			strings.Join([]string{"inspect", "--format", "{{json .NetworkSettings.Ports}}", containerName}, "\x00"): {
+				output: []byte(`{"80/tcp":[{"HostIp":"127.0.0.1","HostPort":"8080"}]}`),
+			},
+		},
+	}
+
+	provider := newDockerCLIProvider("127.0.0.1", runner).(*dockerCLIProvider)
+	state, err := provider.EnsureLease(req)
+	require.NoError(t, err)
+
+	require.Len(t, runner.calls, 2)
+	assert.Equal(t, "8080", state.Port)
+	assert.Equal(t, "http://127.0.0.1:8080", state.LaunchURL)
+}
