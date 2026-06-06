@@ -56,13 +56,13 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
   - provisions one `nginx:alpine`-backed dynamic challenge with `runtime.expose = [80]`
   - verifies the returned `launch_url` is a reachable local published port
   - also verifies destroy returns the instance state to `idle`
-- `/console/admin` now also exposes one-click contest provisioning entries for fast local setup:
+- `/console/admin` now also exposes one-click contest creation entries for fast local setup:
   - creates one public auto-accept game
   - creates one `dynamic` challenge with team-scoped instance defaults
   - mounts it automatically so operators can jump straight into public-page lease verification
 - Admin-facing copy has been tightened to stay product-oriented:
   - public pages and admin shortcuts no longer reference external projects in user-facing descriptions
-  - quick-create entries are now described by contest capability (`基础比赛` / `动态实例比赛` / `容器实例比赛`) instead of validation slang
+  - quick-create entries use formal contest labels and avoid setup-style wording
 - Admin audit logs are now minimally implemented:
   - `/console/admin/audit` lists recent management actions for users, games, and challenges
   - current recorded actions include create/update/delete flows for games and challenges, plus admin user updates and challenge mounting

@@ -950,8 +950,8 @@ onMounted(async () => {
             <UAlert
               color="info"
               variant="soft"
-              title="队伍按入口动作处理"
-              description="创建和加入都通过弹层完成，页面主体仅保留返回比赛、队伍规则和当前入口状态。"
+              title="队伍操作"
+              description="创建新队伍或通过邀请码加入现有队伍。"
             />
 
             <div class="flex flex-wrap gap-2">
@@ -984,7 +984,7 @@ onMounted(async () => {
             color="info"
             variant="soft"
             title="队伍是比赛参与的基础单元"
-            description="比赛报名、Flag 提交和排行榜都按队伍进行。创建者会自动成为队长，其他成员通过邀请码加入。"
+            description="比赛报名、Flag 提交和排行榜都按队伍进行。创建者会自动成为队长，其他成员可通过邀请码加入。"
           />
           <template #footer>
             <div class="flex flex-wrap items-center gap-2">

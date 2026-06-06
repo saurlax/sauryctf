@@ -3433,19 +3433,19 @@ onMounted(async () => {
           <div class="space-y-4">
             <div class="space-y-2">
               <p class="text-sm text-muted">
-                这里集中保留比赛创建、预置方案和默认值填充入口，用于建立可继续维护的比赛与题目上下文。
+                这里集中提供比赛创建与常用维护入口，便于快速建立可继续管理的赛事内容。
               </p>
               <UAlert
                 color="info"
                 variant="soft"
                 title="录入约定"
-                description="预置方案只写入基础结构。正式发布前仍应补全题面、入口、镜像、附件与规则设置。"
+                description="快捷创建仅写入基础结构。正式发布前仍应补全题面、入口、镜像、附件与规则设置。"
               />
             </div>
 
             <div class="flex flex-wrap gap-2">
               <UButton icon="i-lucide-layout-template" :loading="starterProvisioning" @click="createStarterProvision">
-                创建公开比赛
+                新建公开赛
               </UButton>
               <UButton
                 variant="outline"
@@ -3453,7 +3453,7 @@ onMounted(async () => {
                 :loading="dynamicProvisioning"
                 @click="createDynamicProvision"
               >
-                创建动态实例比赛
+                新建动态实例赛
               </UButton>
               <UButton
                 variant="outline"
@@ -3461,13 +3461,13 @@ onMounted(async () => {
                 :loading="localDockerProvisioning"
                 @click="createLocalDockerProvision"
               >
-                创建容器实例比赛
+                新建容器实例赛
               </UButton>
               <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillStarterGameTemplate">
-                写入比赛默认值
+                填充比赛模板
               </UButton>
               <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillStarterChallengeTemplate">
-                写入题目默认值
+                填充题目模板
               </UButton>
             </div>
           </div>
