@@ -95,9 +95,6 @@ async function fetchAll() {
     const participationRequest = authState.user
       ? $api('get', '/api/games/{id}/participation', { params: { id: Number(gameId) } })
       : Promise.resolve(null)
-    const writeupRequest = authState.user
-      ? $api('get', '/api/games/{id}/writeup', { params: { id: Number(gameId) } })
-      : Promise.resolve(null)
 
     const [gameRes, challengesRes, announcementsRes, participationRes] = await Promise.all([
       gameRequest,
@@ -105,7 +102,10 @@ async function fetchAll() {
       announcementsRequest,
       participationRequest,
     ])
-    const writeupRes = await writeupRequest
+    const shouldFetchWriteup = !!authState.user && !!participationRes?.has_team
+    const writeupRes = shouldFetchWriteup
+      ? await $api('get', '/api/games/{id}/writeup', { params: { id: Number(gameId) } })
+      : null
     pageLoadError.value = ''
     game.value = gameRes
     challenges.value = challengesRes
@@ -140,6 +140,12 @@ async function fetchWriteup() {
     return
   }
 
+  if (!participation.value?.has_team) {
+    writeup.value = null
+    writeupForm.content = ''
+    return
+  }
+
   try {
     writeup.value = await $api('get', '/api/games/{id}/writeup', {
       params: { id: Number(gameId) },
@@ -150,6 +156,11 @@ async function fetchWriteup() {
     toast.add({ title: '获取 Writeup 失败', description: e.data?.message || e.message, color: 'error' })
   }
 }
+
+const writeupDeadlinePassed = computed(() =>
+  participation.value?.writeup_deadline_passed
+  ?? (game.value?.writeup_deadline ? Date.now() > new Date(game.value.writeup_deadline).getTime() : false),
+)
 
 async function refreshParticipationView() {
   participationLoading.value = true
@@ -1141,8 +1152,8 @@ const nextStepMeta = computed(() => {
     return {
       title: '需要补交 Writeup',
       description: participation.value.writeup_deadline
-        ? `当前队伍还没有提交 Writeup，请在 ${new Date(participation.value.writeup_deadline).toLocaleString()} 前切换到 Writeup 标签补交。`
-        : '当前队伍还没有提交 Writeup，请切换到 Writeup 标签尽快补交。',
+        ? `当前队伍在 ${new Date(participation.value.writeup_deadline).toLocaleString()} 前仍未提交 Writeup，请尽快联系管理员确认补交流程。`
+        : '当前队伍仍有未提交的 Writeup，请尽快联系管理员确认后续处理流程。',
       color: 'warning' as const,
       actionLabel: '去 Writeup',
       actionTo: `/games/${gameId}`,
@@ -1339,10 +1350,12 @@ const writeupGuide = computed(() => {
     }
   }
 
-  if (game.value?.writeup_deadline && Date.now() > new Date(game.value.writeup_deadline).getTime()) {
+  if (writeupDeadlinePassed.value) {
     return {
       title: 'Writeup 截止时间已过',
-      description: `当前比赛的 Writeup 截止时间是 ${new Date(game.value.writeup_deadline).toLocaleString()}，现在已经不能继续更新内容。`,
+      description: game.value?.writeup_deadline
+        ? `当前比赛的 Writeup 截止时间是 ${new Date(game.value.writeup_deadline).toLocaleString()}，现在已经不能继续更新内容。`
+        : '当前比赛的 Writeup 提交流程已经结束，现在不能继续更新内容。',
       color: 'error' as const,
     }
   }
@@ -1717,9 +1730,17 @@ const writeupSummaryCards = computed(() => [
   {
     label: '截止时间',
     value: game.value?.writeup_deadline ? new Date(game.value.writeup_deadline).toLocaleString() : '未单独设置',
-    hint: game.value?.writeup_required ? '当前比赛要求按这个时间前完成 Writeup 处理' : '当前比赛未启用 Writeup 提交',
+    hint: !game.value?.writeup_required
+      ? '当前比赛未启用 Writeup 提交'
+      : writeupDeadlinePassed.value
+          ? '当前截止时间已过，不能继续提交或更新'
+          : '当前比赛要求按这个时间前完成 Writeup 处理',
     icon: 'i-lucide-calendar-clock',
-    color: game.value?.writeup_deadline ? 'info' as const : 'neutral' as const,
+    color: !game.value?.writeup_deadline
+      ? 'neutral' as const
+      : writeupDeadlinePassed.value
+          ? 'error' as const
+          : 'info' as const,
   },
   {
     label: '最近提交',
@@ -1742,7 +1763,9 @@ const writeupRuleItems = computed(() => [
     ? '当前比赛要求提交 Writeup。'
     : '当前比赛未启用 Writeup 提交，本页仅展示状态说明。',
   game.value?.writeup_deadline
-    ? `如果需要提交，截止时间为 ${new Date(game.value.writeup_deadline).toLocaleString()}。`
+    ? (writeupDeadlinePassed.value
+        ? `Writeup 截止时间已于 ${new Date(game.value.writeup_deadline).toLocaleString()} 结束。`
+        : `如果需要提交，截止时间为 ${new Date(game.value.writeup_deadline).toLocaleString()}。`)
     : '当前没有单独设置 Writeup 截止时间。',
   writeup.value?.status === 'rejected'
     ? '当前 Writeup 已被驳回，修改后重新提交会回到 submitted 状态。'
