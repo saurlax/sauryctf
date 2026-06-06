@@ -3,6 +3,20 @@ import type { components } from '~/types/api'
 
 type Game = components['schemas']['Game']
 type GameChallengeDetail = components['schemas']['GameChallengeDetail']
+type ResolutionAction = {
+  label: string
+  to?: string
+  icon: string
+  variant: 'outline' | 'ghost'
+  onClick?: () => void | Promise<void>
+}
+type ResolutionMeta = {
+  title: string
+  description: string
+  badge: string
+  color: 'info' | 'warning' | 'neutral' | 'error'
+  actions: ResolutionAction[]
+}
 
 const route = useRoute()
 const toast = useToast()
@@ -55,6 +69,7 @@ const lastAutoRefreshAt = ref(0)
 const currentEntry = computed(() => instanceState.value?.launch_url || route.fullPath)
 const hasRunningInstance = computed(() => instanceState.value?.status === 'running' && getSecondsLeft() > 0)
 const loginLink = computed(() => buildAuthEntryPath('/login', route.fullPath))
+const teamLink = computed(() => buildRedirectedPath('/console/team', gameChallengeReturnLink.value))
 const renewalWindowRemainingSeconds = computed(() => {
   const policy = instanceState.value?.policy
   if (!hasRunningInstance.value || !policy?.renewal_window_minutes) {
@@ -118,6 +133,176 @@ const pageLinks = computed(() => [
     variant: 'soft' as const,
   },
 ])
+
+const accessResolutionMeta = computed<ResolutionMeta | null>(() => {
+  if (!authState.user) {
+    return {
+      title: '需要先登录',
+      description: '实例详情依赖当前账号所属队伍和报名状态。登录后才能读取当前队伍的真实实例信息。',
+      badge: '登录后继续',
+      color: 'info' as const,
+      actions: [
+        {
+          label: '前往登录',
+          to: loginLink.value,
+          icon: 'i-lucide-log-in',
+          variant: 'outline' as const,
+        },
+        {
+          label: '返回比赛页',
+          to: gameChallengeReturnLink.value,
+          icon: 'i-lucide-arrow-left',
+          variant: 'ghost' as const,
+        },
+      ],
+    }
+  }
+
+  if (!stateLoadError.value) {
+    return null
+  }
+
+  if (stateLoadError.value === 'user has no team') {
+    return {
+      title: '需要先准备队伍',
+      description: '实例按队伍分配。先创建或加入队伍后，再回到当前比赛继续处理实例申请。',
+      badge: '队伍未就绪',
+      color: 'warning' as const,
+      actions: [
+        {
+          label: '前往队伍页',
+          to: teamLink.value,
+          icon: 'i-lucide-users',
+          variant: 'outline' as const,
+        },
+        {
+          label: '返回比赛页',
+          to: gameChallengeReturnLink.value,
+          icon: 'i-lucide-arrow-left',
+          variant: 'ghost' as const,
+        },
+      ],
+    }
+  }
+
+  if (stateLoadError.value === 'team has not joined this game') {
+    return {
+      title: '当前队伍尚未报名',
+      description: '先回到比赛页完成报名，再返回这里读取当前队伍的实例详情。',
+      badge: '尚未报名',
+      color: 'info' as const,
+      actions: [
+        {
+          label: '返回比赛页',
+          to: gameChallengeReturnLink.value,
+          icon: 'i-lucide-arrow-left',
+          variant: 'outline' as const,
+        },
+        {
+          label: '前往队伍页',
+          to: teamLink.value,
+          icon: 'i-lucide-users',
+          variant: 'ghost' as const,
+        },
+      ],
+    }
+  }
+
+  if (stateLoadError.value === 'team is not approved for this game yet') {
+    return {
+      title: '当前报名仍待审核',
+      description: '报名通过后才会开放实例申请。你可以先回到比赛页继续查看当前报名状态。',
+      badge: '等待审核',
+      color: 'warning' as const,
+      actions: [
+        {
+          label: '返回比赛页',
+          to: gameChallengeReturnLink.value,
+          icon: 'i-lucide-arrow-left',
+          variant: 'outline' as const,
+        },
+      ],
+    }
+  }
+
+  if (stateLoadError.value === 'game has not started yet') {
+    return {
+      title: '比赛尚未开始',
+      description: '实例操作会在比赛开始后开放。当前可先返回比赛页继续查看题目与赛程信息。',
+      badge: '未开始',
+      color: 'info' as const,
+      actions: [
+        {
+          label: '返回比赛页',
+          to: gameChallengeReturnLink.value,
+          icon: 'i-lucide-arrow-left',
+          variant: 'outline' as const,
+        },
+      ],
+    }
+  }
+
+  if (stateLoadError.value === 'game has already ended' || stateLoadError.value === 'game is not active') {
+    return {
+      title: '当前不再开放实例操作',
+      description: '比赛当前不处于可申请实例的阶段。你可以先回到比赛页确认当前开放范围。',
+      badge: '实例已关闭',
+      color: 'neutral' as const,
+      actions: [
+        {
+          label: '返回比赛页',
+          to: gameChallengeReturnLink.value,
+          icon: 'i-lucide-arrow-left',
+          variant: 'outline' as const,
+        },
+        {
+          label: '浏览比赛列表',
+          to: '/games',
+          icon: 'i-lucide-trophy',
+          variant: 'ghost' as const,
+        },
+      ],
+    }
+  }
+
+  if (stateLoadError.value === '当前实例地址缺少有效的比赛或题目编号。') {
+    return {
+      title: '当前实例地址无效',
+      description: '当前地址缺少有效的比赛或题目编号。请返回比赛页或比赛列表重新进入实例详情。',
+      badge: '地址无效',
+      color: 'error' as const,
+      actions: [
+        {
+          label: '浏览比赛列表',
+          to: '/games',
+          icon: 'i-lucide-trophy',
+          variant: 'outline' as const,
+        },
+      ],
+    }
+  }
+
+  return {
+    title: '实例状态暂时不可用',
+    description: stateLoadError.value,
+    badge: '读取失败',
+    color: 'error' as const,
+    actions: [
+      {
+        label: '刷新状态',
+        onClick: () => loadInstanceState({ silent: true }),
+        icon: 'i-lucide-refresh-cw',
+        variant: 'outline' as const,
+      },
+      {
+        label: '返回比赛页',
+        to: gameChallengeReturnLink.value,
+        icon: 'i-lucide-arrow-left',
+        variant: 'ghost' as const,
+      },
+    ],
+  }
+})
 
 const summaryCards = computed(() => [
   {
@@ -204,6 +389,10 @@ function formatDateTime(value?: string | null) {
   }
 
   return new Date(value).toLocaleString()
+}
+
+function runResolutionAction(action: ResolutionAction) {
+  return action.onClick?.()
 }
 
 function getSecondsLeft() {
@@ -341,7 +530,7 @@ async function loadInstanceState(options?: { silent?: boolean }) {
   }
 
   if (!authState.user) {
-    stateLoadError.value = '登录后才能查看当前队伍的实例详情。'
+    stateLoadError.value = ''
     instanceState.value = null
     return
   }
@@ -536,19 +725,44 @@ onBeforeUnmount(() => {
           >
             <div class="space-y-4">
               <div class="rounded-lg border border-default bg-elevated/50 px-4 py-3">
-                <div v-if="!authState.user" class="flex items-start justify-between gap-4 flex-wrap">
+                <div v-if="accessResolutionMeta" class="flex items-start justify-between gap-4 flex-wrap">
                   <div class="min-w-0">
                     <div class="font-medium text-highlighted">
-                      需要先登录
+                      {{ accessResolutionMeta.title }}
                     </div>
                     <p class="mt-2 text-sm text-muted leading-6">
-                      实例详情依赖当前账号所属队伍和报名状态。登录后才能读取当前队伍的真实实例信息。
+                      {{ accessResolutionMeta.description }}
                     </p>
                   </div>
-                  <div class="flex flex-wrap gap-2">
-                    <UButton :to="loginLink" size="sm" icon="i-lucide-log-in" variant="outline">
-                      前往登录
-                    </UButton>
+                  <div class="flex items-center gap-2">
+                    <UBadge :color="accessResolutionMeta.color" variant="soft">
+                      {{ accessResolutionMeta.badge }}
+                    </UBadge>
+                  </div>
+                  <div class="w-full flex flex-wrap gap-2">
+                    <template
+                      v-for="action in accessResolutionMeta.actions"
+                      :key="action.label"
+                    >
+                      <UButton
+                        v-if="action.to"
+                        size="sm"
+                        :to="action.to"
+                        :icon="action.icon"
+                        :variant="action.variant"
+                      >
+                        {{ action.label }}
+                      </UButton>
+                      <UButton
+                        v-else
+                        size="sm"
+                        :icon="action.icon"
+                        :variant="action.variant"
+                        @click="runResolutionAction(action)"
+                      >
+                        {{ action.label }}
+                      </UButton>
+                    </template>
                   </div>
                 </div>
 
