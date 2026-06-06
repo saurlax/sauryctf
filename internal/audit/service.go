@@ -13,7 +13,7 @@ type Service struct {
 }
 
 type ServiceInterface interface {
-	ListLogs(actorUserID *uint, targetType string, limit int) ([]models.AuditLog, error)
+	ListLogs(actorUserID *uint, targetType string, action string, limit int) ([]models.AuditLog, error)
 }
 
 type LogEntry struct {
@@ -44,7 +44,7 @@ func CreateLog(db *gorm.DB, entry LogEntry) error {
 	return db.Create(&log).Error
 }
 
-func (s *Service) ListLogs(actorUserID *uint, targetType string, limit int) ([]models.AuditLog, error) {
+func (s *Service) ListLogs(actorUserID *uint, targetType string, action string, limit int) ([]models.AuditLog, error) {
 	query := s.db.Model(&models.AuditLog{}).Order("created_at DESC, id DESC")
 
 	if actorUserID != nil && *actorUserID > 0 {
@@ -54,6 +54,11 @@ func (s *Service) ListLogs(actorUserID *uint, targetType string, limit int) ([]m
 	targetType = strings.TrimSpace(targetType)
 	if targetType != "" {
 		query = query.Where("target_type = ?", targetType)
+	}
+
+	action = strings.TrimSpace(action)
+	if action != "" {
+		query = query.Where("action = ?", action)
 	}
 
 	var logs []models.AuditLog

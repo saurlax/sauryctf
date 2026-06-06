@@ -1112,6 +1112,7 @@ type bearerAuthContextKey string
 // ListAdminAuditLogsParams defines parameters for ListAdminAuditLogs.
 type ListAdminAuditLogsParams struct {
 	ActorUserId *int    `form:"actor_user_id,omitempty" json:"actor_user_id,omitempty"`
+	Action      *string `form:"action,omitempty" json:"action,omitempty"`
 	TargetType  *string `form:"target_type,omitempty" json:"target_type,omitempty"`
 	Limit       *int    `form:"limit,omitempty" json:"limit,omitempty"`
 }
@@ -1411,6 +1412,14 @@ func (siw *ServerInterfaceWrapper) ListAdminAuditLogs(c *gin.Context) {
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "actor_user_id", c.Request.URL.Query(), &params.ActorUserId, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter actor_user_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "action" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "action", c.Request.URL.Query(), &params.Action, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter action: %w", err), http.StatusBadRequest)
 		return
 	}
 

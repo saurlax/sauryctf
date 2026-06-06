@@ -280,6 +280,7 @@ async function loadLogs() {
     logs.value = await $fetch<AuditLog[]>('/api/admin/audit-logs', {
       query: {
         actor_user_id: filters.actorUserId || undefined,
+        action: filters.action === 'all' ? undefined : filters.action,
         target_type: filters.targetType === 'all' ? undefined : filters.targetType,
         limit: filters.limit,
       },

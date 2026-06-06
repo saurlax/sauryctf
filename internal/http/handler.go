@@ -73,7 +73,13 @@ func (h *Handler) UpdateAdminUser(c *gin.Context, userId int) {
 	h.auth.UpdateUserAccount(c, userId)
 }
 func (h *Handler) ListAdminAuditLogs(c *gin.Context, params ListAdminAuditLogsParams) {
-	h.audit.ListLogsWithFilters(c, params.ActorUserId, valueOrEmpty(params.TargetType), intValueToString(params.Limit))
+	h.audit.ListLogsWithFilters(
+		c,
+		params.ActorUserId,
+		valueOrEmpty(params.TargetType),
+		valueOrEmpty(params.Action),
+		intValueToString(params.Limit),
+	)
 }
 func (h *Handler) GetAuthSetupStatus(c *gin.Context) {
 	h.auth.SetupStatus(c)

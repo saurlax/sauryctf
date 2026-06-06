@@ -1833,6 +1833,7 @@ export interface operations {
     parameters: {
       query?: {
         actor_user_id?: number;
+        action?: string;
         target_type?: string;
         limit?: number;
       };

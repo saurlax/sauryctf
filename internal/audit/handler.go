@@ -16,10 +16,10 @@ func NewHandler(svc ServiceInterface) *Handler {
 }
 
 func (h *Handler) ListLogs(c *gin.Context) {
-	h.ListLogsWithFilters(c, nil, c.Query("target_type"), c.Query("limit"))
+	h.ListLogsWithFilters(c, nil, c.Query("target_type"), c.Query("action"), c.Query("limit"))
 }
 
-func (h *Handler) ListLogsWithFilters(c *gin.Context, actorUserIDParam *int, targetType string, limitRaw string) {
+func (h *Handler) ListLogsWithFilters(c *gin.Context, actorUserIDParam *int, targetType string, action string, limitRaw string) {
 	var actorUserID *uint
 	if actorUserIDParam != nil {
 		parsed := uint(*actorUserIDParam)
@@ -50,7 +50,11 @@ func (h *Handler) ListLogsWithFilters(c *gin.Context, actorUserIDParam *int, tar
 		targetType = c.Query("target_type")
 	}
 
-	logs, err := h.svc.ListLogs(actorUserID, targetType, limit)
+	if action == "" {
+		action = c.Query("action")
+	}
+
+	logs, err := h.svc.ListLogs(actorUserID, targetType, action, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
