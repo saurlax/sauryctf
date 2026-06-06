@@ -1912,6 +1912,26 @@ function getParticipantStatusLabel(status: 'pending' | 'accepted' | 'rejected') 
   return '已拒绝'
 }
 
+function getWriteupStatusColor(status: 'submitted' | 'approved' | 'rejected') {
+  if (status === 'approved') {
+    return 'success' as const
+  }
+  if (status === 'rejected') {
+    return 'error' as const
+  }
+  return 'warning' as const
+}
+
+function getWriteupStatusLabel(status: 'submitted' | 'approved' | 'rejected') {
+  if (status === 'approved') {
+    return '已通过'
+  }
+  if (status === 'rejected') {
+    return '已驳回'
+  }
+  return '待审核'
+}
+
 function getRegistrationModeLabel(mode?: 'review' | 'auto_accept') {
   return mode === 'auto_accept' ? '自动通过' : '人工审核'
 }
@@ -4867,8 +4887,8 @@ onMounted(async () => {
                   <div class="font-medium">
                     {{ writeup.team_name }}
                   </div>
-                  <UBadge :color="writeup.status === 'approved' ? 'success' : writeup.status === 'rejected' ? 'error' : 'warning'" variant="soft">
-                    {{ writeup.status }}
+                  <UBadge :color="getWriteupStatusColor(writeup.status)" variant="soft">
+                    {{ getWriteupStatusLabel(writeup.status) }}
                   </UBadge>
                 </div>
 
