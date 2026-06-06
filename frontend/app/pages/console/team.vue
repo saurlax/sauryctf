@@ -247,6 +247,44 @@ const teamNextStepMeta = computed(() => {
   }
 })
 
+const teamContextRows = computed(() => {
+  if (!team.value || !inviteFlowMeta.value) {
+    return []
+  }
+
+  return [
+    {
+      label: '当前上下文',
+      value: inviteFlowMeta.value.title,
+    },
+    {
+      label: '主要去向',
+      value: inviteFlowMeta.value.actionLabel,
+    },
+    ...(inviteFlowMeta.value.secondaryLabel
+      ? [{
+          label: '补充入口',
+          value: inviteFlowMeta.value.secondaryLabel,
+        }]
+      : []),
+  ]
+})
+
+const noTeamSummaryRows = computed(() => [
+  {
+    label: '参赛单位',
+    value: '队伍',
+  },
+  {
+    label: '创建后角色',
+    value: '创建者自动成为队长',
+  },
+  {
+    label: '完成后流转',
+    value: contestRedirect.value ? '保留原比赛返回路径' : '可继续前往比赛页',
+  },
+])
+
 const summaryCards = computed(() => [
   {
     label: '成员数',
@@ -676,33 +714,19 @@ onMounted(async () => {
             </div>
             <div
               v-if="inviteFlowMeta"
-              class="mt-3 rounded-lg border border-default px-3 py-3 text-sm"
+              class="mt-3 border-t border-default pt-3"
             >
-              <div class="flex items-start justify-between gap-3 flex-wrap">
-                <div class="min-w-0">
-                  <div class="flex items-center gap-2 text-highlighted">
-                    <UIcon :name="inviteFlowMeta.icon" class="size-4" />
-                    <span>{{ inviteFlowMeta.title }}</span>
-                  </div>
-                  <p class="mt-1 text-muted leading-6">
-                    {{ inviteFlowMeta.description }}
-                  </p>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                  <UButton
-                    :label="inviteFlowMeta.actionLabel"
-                    :color="inviteFlowMeta.color"
-                    variant="ghost"
-                    size="sm"
-                    :to="inviteFlowMeta.actionTo"
-                  />
-                  <UButton
-                    v-if="inviteFlowMeta.secondaryLabel && inviteFlowMeta.secondaryTo"
-                    :label="inviteFlowMeta.secondaryLabel"
-                    variant="ghost"
-                    size="sm"
-                    :to="inviteFlowMeta.secondaryTo"
-                  />
+              <p class="text-sm text-muted leading-6">
+                {{ inviteFlowMeta.description }}
+              </p>
+              <div class="mt-3 rounded-lg border border-default px-3 py-3 text-sm text-muted">
+                <div
+                  v-for="row in teamContextRows"
+                  :key="row.label"
+                  class="flex items-center justify-between gap-3 py-2"
+                >
+                  <span>{{ row.label }}</span>
+                  <span class="text-right">{{ row.value }}</span>
                 </div>
               </div>
             </div>
@@ -947,8 +971,15 @@ onMounted(async () => {
               </div>
             </div>
 
-            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted leading-6">
-              比赛报名、Flag 提交和排行榜都按队伍进行。创建者自动成为队长；完成创建或加入后，可直接返回比赛页继续后续操作。
+            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+              <div
+                v-for="row in noTeamSummaryRows"
+                :key="row.label"
+                class="flex items-center justify-between gap-3 py-2"
+              >
+                <span>{{ row.label }}</span>
+                <span class="text-right">{{ row.value }}</span>
+              </div>
             </div>
 
             <div class="flex flex-wrap gap-2">

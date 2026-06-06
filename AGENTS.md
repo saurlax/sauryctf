@@ -101,6 +101,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - The public home page should function as a concise platform entry, not a marketing-style feature showcase; prefer direct access cards and current actions over large capability grids.
 - The no-team view at `/console/team` should keep a single primary entry card plus one concise rules/boundary card; avoid stacking multiple alerts and repeated status summaries for the same create/join flow.
 - On `/console/team`, invite-context, next-step, and no-team entry notices should prefer compact summary cards with actions instead of full-width `UAlert` blocks when they are mainly restating current state and available navigation.
+- On `/console/team`, if next-step context and invite/redirect context both exist, merge them into one summary card and render the secondary context as compact summary rows instead of another nested elevated notice block.
 - Admin-visible page copy should also avoid temporary operator phrasing such as `使用说明` or `快速开始`; prefer formal maintenance labels like `录入约定`, `检查项`, and `概览`.
 - The top-right guest navigation keeps two distinct actions, `登录` and `注册`; do not collapse them into a merged auth button.
 - Account-related status cards should avoid `当前状态：...`-style headings; prefer direct operational titles.
