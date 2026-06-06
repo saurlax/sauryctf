@@ -86,9 +86,6 @@ func NewServer(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	admin.GET("/dashboard/summary", func(c *gin.Context) {
 		handler.games.GetAdminDashboardSummary(c)
 	})
-	admin.GET("/audit-logs", func(c *gin.Context) {
-		handler.ListAdminAuditLogs(c)
-	})
 
 	engine.GET("/api/games/:id/announcements", func(c *gin.Context) {
 		id := mustIntParam(c, "id")

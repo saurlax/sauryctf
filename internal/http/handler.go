@@ -1,6 +1,7 @@
 package http
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -71,11 +72,25 @@ func (h *Handler) ListAdminUsers(c *gin.Context) {
 func (h *Handler) UpdateAdminUser(c *gin.Context, userId int) {
 	h.auth.UpdateUserAccount(c, userId)
 }
-func (h *Handler) ListAdminAuditLogs(c *gin.Context) {
-	h.audit.ListLogs(c)
+func (h *Handler) ListAdminAuditLogs(c *gin.Context, params ListAdminAuditLogsParams) {
+	h.audit.ListLogsWithFilters(c, params.ActorUserId, valueOrEmpty(params.TargetType), intValueToString(params.Limit))
 }
 func (h *Handler) GetAuthSetupStatus(c *gin.Context) {
 	h.auth.SetupStatus(c)
+}
+
+func valueOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func intValueToString(value *int) string {
+	if value == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d", *value)
 }
 
 // ── Teams ───────────────────────────────────────────────────────────────────

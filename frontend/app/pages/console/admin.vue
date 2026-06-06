@@ -817,7 +817,7 @@ const localDockerSmokeChecklist = computed(() => {
   }
 
   const hasLocalDockerSmokeChallenge = selectedGameChallenges.value.some(challenge =>
-    challenge.title === 'Local Docker Web Instance'
+    challenge.title === 'Web Dynamic Container'
     && challenge.type === 'dynamic'
     && challenge.category === 'web',
   )
@@ -827,7 +827,7 @@ const localDockerSmokeChecklist = computed(() => {
   }
 
   const runningLeaseCount = instanceLeases.value.filter(lease =>
-    lease.challenge_title === 'Dynamic Web Instance'
+    lease.challenge_title === 'Web Dynamic Container'
     && !lease.is_expired,
   ).length
 
@@ -1585,54 +1585,54 @@ function fillSmokeGameTemplate() {
 }
 
 function fillSmokeChallengeTemplate() {
-  challengeForm.title = 'Starter Flag'
-  challengeForm.description = '这是一个适合快速完成首轮提交流程配置的精简题目模板。'
+  challengeForm.title = 'Basic Challenge'
+  challengeForm.description = '这是一个基础静态题模板，适合先完成题面、提示、附件和计分配置。'
   challengeForm.hints = JSON.stringify([
-    '提交前先确认比赛已开始且当前队伍已通过报名。',
-    '如需正式使用，请及时替换题面、提示和 Flag。',
+    '请在发布前补充正式题面、提示和附件信息。',
+    '建议保存前确认 Flag、分值和可见性设置已经完成。',
   ])
   challengeForm.attachments = '[]'
   challengeForm.container_spec = JSON.stringify({
     connection: {
-      url: 'http://127.0.0.1:8081',
-      note: '把这里替换成题目实例、靶机或代理入口。',
+      url: '',
+      note: '如需提供统一访问入口，请在这里填写题目实例、靶机或代理地址。',
     },
     links: [
       {
-        label: '打开题目实例',
-        url: 'http://127.0.0.1:8081',
+        label: '附件或入口说明',
+        url: '',
       },
     ],
   }, null, 2)
   challengeForm.category = 'misc'
   challengeForm.type = 'static'
   challengeForm.difficulty = 'easy'
-  challengeForm.flag = 'flag{starter}'
+  challengeForm.flag = ''
   challengeForm.base_score = 100
   challengeForm.min_score = 100
   challengeForm.decay_rate = 0
   challengeForm.is_visible = true
 
-  toast.add({ title: '已填充题目模板', description: '已写入一份适合快速配置的基础题目默认值。', color: 'success' })
+  toast.add({ title: '已填充题目模板', description: '已写入一份适合正式录题的基础默认值。', color: 'success' })
 }
 
 function fillStaticWebTemplate() {
   challengeForm.title = 'Web Instance'
-  challengeForm.description = '这是一个带实例入口的 Web 题模板。适合先把题面、提示和访问地址一起沉淀到平台里。'
+  challengeForm.description = '这是一个带统一访问入口的 Web 题模板，适合记录题面、提示和访问地址。'
   challengeForm.hints = JSON.stringify([
-    '先确认比赛页里的实例入口是否能打开。',
-    '如果题目依赖账号或 token，可以继续写到接入说明里。',
+    '请确认选手侧访问入口、账号体系和附加依赖已经准备完成。',
+    '如果题目依赖额外凭据或访问限制，建议写入接入说明。',
   ], null, 2)
   challengeForm.attachments = '[]'
   challengeForm.container_spec = JSON.stringify({
     connection: {
-      url: 'http://127.0.0.1:8081',
-      note: '把这里替换成题目统一访问入口，例如反代、LB 或静态靶机地址。',
+      url: '',
+      note: '请填写统一访问入口，例如反向代理、负载均衡地址或固定靶机地址。',
     },
     links: [
       {
         label: '打开 Web 实例',
-        url: 'http://127.0.0.1:8081',
+        url: '',
       },
     ],
   }, null, 2)
@@ -1679,12 +1679,12 @@ function fillPwnNetcatTemplate() {
 }
 
 function fillDynamicContainerTemplate() {
-  challengeForm.title = 'Dynamic Web Instance'
-  challengeForm.description = '这是一个面向动态 Web 实例链路的题目模板。启用 INSTANCE_DOCKER_PROVIDER_ENABLED 后，后端会按 runtime.image 与 runtime.expose 启动当前题目的本地容器。'
+  challengeForm.title = 'Web Dynamic Container'
+  challengeForm.description = '这是一个动态容器题模板。启用本地 Docker provider 后，平台会按 runtime.image 与 runtime.expose 启动实例。'
   challengeForm.hints = JSON.stringify([
-    '当前默认使用 nginx:alpine 和容器内 80 端口。',
-    '启动实例后，比赛页应优先看到平台回填后的 host / port / launch_url。',
-    '如果需要为不同队伍提供独立访问入口，可以改用“每队独立入口”模板，或自行补充 team-scoped 连接信息。',
+    '请先确认运行节点已启用对应 provider，并能拉取题目镜像。',
+    '实例启动后，应以平台回填的 host、port 和 launch_url 作为选手入口。',
+    '如需为不同队伍分配独立入口，可改用“每队独立入口”模板。',
   ], null, 2)
   challengeForm.attachments = '[]'
   challengeForm.container_spec = JSON.stringify({
@@ -1694,7 +1694,7 @@ function fillDynamicContainerTemplate() {
       expose: [80],
     },
     connection: {
-      note: '启用 INSTANCE_DOCKER_PROVIDER_ENABLED 后，平台会在启动实例时为当前题目拉起容器，并把实际 host / port / launch_url 回填到实例响应里。',
+      note: '实例启动后，平台会把实际 host、port 和 launch_url 回填到实例响应里。',
     },
     links: [
       {
@@ -1721,15 +1721,15 @@ function fillDynamicContainerTemplate() {
   challengeForm.decay_rate = 0.1
   challengeForm.is_visible = true
 
-  toast.add({ title: '已填充动态 Web 模板', description: '默认使用 nginx:alpine，适合快速配置动态 Web 题。', color: 'success' })
+  toast.add({ title: '已填充动态容器模板', description: '默认使用 nginx:alpine，适合配置动态 Web 题。', color: 'success' })
 }
 
 function fillTeamScopedDynamicTemplate() {
-  challengeForm.title = 'Team Scoped Dynamic Instance'
-  challengeForm.description = '这是一个按队伍生成独立入口的动态题模板。当前版本会为每支队伍生成稳定但不同的入口信息。'
+  challengeForm.title = 'Team Scoped Instance'
+  challengeForm.description = '这是一个按队伍生成独立入口的动态题模板，适合需要稳定队伍级地址分发的场景。'
   challengeForm.hints = JSON.stringify([
-    '当前版本不会真的起容器，但会把每队入口预设稳定展开到实例租约响应里。',
-    '如果后端继续扩展其他实例 provider，可以继续沿用这份结构。',
+    '请根据实际部署方式调整 runtime、connection 和 links 字段。',
+    '如果后端后续接入新的实例 provider，可以继续复用这份结构。',
   ], null, 2)
   challengeForm.attachments = '[]'
   challengeForm.container_spec = JSON.stringify({
@@ -1740,10 +1740,10 @@ function fillTeamScopedDynamicTemplate() {
     },
     connection: {
       url: '/local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
-      host: '127.0.0.1',
-      port: '{{team_id}}',
-      command: 'open /local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
-      note: '当前队伍 {{team_id}} 会看到独立入口。默认会落到实例访问页，后端也可以继续替换成正式的入口分发地址。',
+      host: 'team-{{team_id}}.example.internal',
+      port: 443,
+      command: '访问平台分配的专属入口',
+      note: '每支队伍都会获得独立入口。请在上线前替换为真实的入口分发地址或代理规则。',
     },
     links: [
       {
@@ -1792,17 +1792,17 @@ async function createSmokeProvision() {
 
     const challenge = await $api('post', '/api/challenges', {
       body: {
-        title: 'Starter Flag',
-        description: '这是一个适合快速完成首轮提交流程配置的精简题目模板。',
+        title: 'Basic Challenge',
+        description: '这是一个基础静态题模板，适合先完成题面、提示、附件和计分配置。',
         hints: JSON.stringify([
-          '提交前先确认比赛已开始且当前队伍已通过报名。',
-          '如需正式使用，请及时替换题面、提示和 Flag。',
+          '请在发布前补充正式题面、提示和附件信息。',
+          '建议保存前确认 Flag、分值和可见性设置已经完成。',
         ]),
         attachments: '[]',
         category: 'misc',
         type: 'static',
         difficulty: 'easy',
-        flag: 'flag{starter}',
+        flag: 'flag{replace_me}',
         base_score: 100,
         min_score: 100,
         decay_rate: 0,
@@ -1866,10 +1866,10 @@ async function createDynamicSmokeProvision() {
     const challenge = await $api('post', '/api/challenges', {
       body: {
         title: 'Dynamic Team Instance',
-        description: '这是一个适合快速配置队伍独立入口的动态题模板。',
+        description: '这是一个按队伍分配独立入口的动态题模板。',
         hints: JSON.stringify([
-          '先用普通用户报名比赛，再到题目卡片里点击启动实例。',
-          '启动后应优先看到当前队伍真实实例入口，而不是占位符原文。',
+          '请先确认入口模板、分发规则和实例 provider 已经准备完成。',
+          '实例启动后，应优先看到当前队伍的真实入口，而不是占位符原文。',
         ]),
         attachments: '[]',
         container_spec: JSON.stringify({
@@ -1880,10 +1880,10 @@ async function createDynamicSmokeProvision() {
           },
           connection: {
             url: '/local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
-            host: '127.0.0.1',
-            port: '{{team_id}}',
-            command: 'open /local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
-            note: '当前队伍 {{team_id}} 会看到独立入口。默认会落到实例访问页，后端也可以继续替换成正式的入口分发地址。',
+            host: 'team-{{team_id}}.example.internal',
+            port: 443,
+            command: '访问平台分配的专属入口',
+            note: '每支队伍都会获得独立入口。请在上线前替换为真实的入口分发地址或代理规则。',
           },
           links: [
             {
@@ -1895,7 +1895,7 @@ async function createDynamicSmokeProvision() {
         category: 'web',
         type: 'dynamic',
         difficulty: 'hard',
-        flag: 'flag{dynamic-instance}',
+        flag: 'flag{replace_me}',
         base_score: 300,
         min_score: 100,
         decay_rate: 0.1,
@@ -1958,11 +1958,11 @@ async function createLocalDockerSmokeProvision() {
 
     const challenge = await $api('post', '/api/challenges', {
       body: {
-        title: 'Dynamic Web Instance',
-        description: '这是一个适合快速配置容器实例流程的动态题模板。',
+        title: 'Web Dynamic Container',
+        description: '这是一个动态容器题模板，适合先完成镜像、端口和入口配置。',
         hints: JSON.stringify([
-          '先确认后端已经启用 INSTANCE_DOCKER_PROVIDER_ENABLED=true，且本机 docker version 能看到 Server 段。',
-          '启动实例后，应优先看到平台回填的真实 host / port / launch_url。',
+          '请先确认运行节点已启用本地 Docker provider，且 Docker daemon 可用。',
+          '实例启动后，应优先看到平台回填的真实 host、port 和 launch_url。',
         ]),
         attachments: '[]',
         container_spec: JSON.stringify({
@@ -1989,7 +1989,7 @@ async function createLocalDockerSmokeProvision() {
         category: 'web',
         type: 'dynamic',
         difficulty: 'medium',
-        flag: 'flag{dynamic-web-instance}',
+        flag: 'flag{replace_me}',
         base_score: 300,
         min_score: 100,
         decay_rate: 0.1,
@@ -3946,7 +3946,7 @@ onMounted(async () => {
               name="container_spec"
               description='使用 JSON 记录实例 URL、host/port、连接命令或代理入口'
             >
-              <UTextarea v-model="challengeForm.container_spec" class="w-full font-mono" :rows="8" placeholder='{"connection":{"url":"http://127.0.0.1:8081","note":"instance entry"}}' />
+              <UTextarea v-model="challengeForm.container_spec" class="w-full font-mono" :rows="8" placeholder='{"connection":{"url":"","note":"请填写实际入口或接入说明"}}' />
             </UFormField>
 
             <UPageCard
@@ -4022,7 +4022,7 @@ onMounted(async () => {
             </div>
 
             <UFormField label="Flag" name="flag">
-              <UInput v-model="challengeForm.flag" class="w-full" placeholder="flag{example}" />
+              <UInput v-model="challengeForm.flag" class="w-full" placeholder="请填写正式 Flag" />
             </UFormField>
 
             <div class="grid gap-4 md:grid-cols-3">
@@ -4089,7 +4089,7 @@ onMounted(async () => {
               name="container_spec"
               description='使用 JSON 记录实例 URL、host/port、连接命令或代理入口'
             >
-              <UTextarea v-model="challengeEditForm.container_spec" class="w-full font-mono" :rows="8" placeholder='{"connection":{"url":"http://127.0.0.1:8081","note":"instance entry"}}' />
+              <UTextarea v-model="challengeEditForm.container_spec" class="w-full font-mono" :rows="8" placeholder='{"connection":{"url":"","note":"请填写实际入口或接入说明"}}' />
             </UFormField>
 
             <UPageCard
