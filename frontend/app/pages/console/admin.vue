@@ -500,10 +500,10 @@ const adminSetupContextMeta = computed(() => {
 
   return {
     game,
-    title: shouldGuideToAttach ? '继续配置这场比赛：下一步先挂题' : '继续配置这场比赛：下一步检查比赛设置',
+    title: shouldGuideToAttach ? '继续配置这场比赛：先完成挂题' : '继续配置这场比赛：检查比赛设置',
     description: shouldGuideToAttach
-      ? `${game.name} 已经创建完成。下一步建议先挂载至少一道题目，然后再切到 active 并检查公开页。`
-      : `${game.name} 当前已经挂了 ${gameChallengeCount} 道题。接下来更适合检查状态、公开性和报名模式，再决定是否直接开赛。`,
+      ? `${game.name} 已经创建完成。先挂载至少一道题目，再切换比赛状态并检查公开页展示。`
+      : `${game.name} 当前已经挂了 ${gameChallengeCount} 道题。接下来可以继续检查状态、公开性和报名模式。`,
     actionLabel: shouldGuideToAttach ? '选中并去挂题' : '选中并去比赛设置',
     actionTo: shouldGuideToAttach ? '#attach-challenge' : '#game-settings',
   }
@@ -685,7 +685,7 @@ const monitorFocusItems = computed(() => {
     items.push({
       key: 'participants',
       title: '还有报名待审核',
-      description: `${overview.pendingParticipantCount} 支队伍还在等待通过，建议先处理参赛资格，避免影响开赛体验。`,
+      description: `${overview.pendingParticipantCount} 支队伍仍在等待通过，优先处理后可以更快恢复报名链路。`,
       badge: '报名',
       color: 'warning' as const,
       to: '#attach-challenge',
@@ -735,7 +735,7 @@ const monitorFocusItems = computed(() => {
     items.push({
       key: 'announcement',
       title: '比赛还没有发布公告',
-      description: '如果这场比赛已经对外开放，建议至少发一条开赛或维护公告，方便参赛队伍同步状态。',
+      description: '如果这场比赛已经对外开放，可以先发布一条开赛或维护公告，方便参赛队伍同步状态。',
       badge: '公告',
       color: 'neutral' as const,
       to: '#attach-challenge',
@@ -1718,7 +1718,7 @@ function fillSmokeGameTemplate() {
 
   gameForm.name = `Starter Contest ${start.getFullYear()}`
   gameForm.description = '适合快速完成首场公开比赛配置的精简模板。'
-  gameForm.notice = '建议先使用普通账号完成注册、组队、报名和提交流程，再继续补充题目与规则。'
+  gameForm.notice = '可先使用普通账号完成注册、组队、报名和提交流程，再继续补充题目与规则。'
   gameForm.divisions_text = ''
   gameForm.start_time = start.toISOString().slice(0, 16)
   gameForm.end_time = end.toISOString().slice(0, 16)
@@ -1738,7 +1738,7 @@ function fillSmokeChallengeTemplate() {
   challengeForm.description = '这是一个基础静态题模板，适合先完成题面、提示、附件和计分配置。'
   challengeForm.hints = JSON.stringify([
     '请在发布前补充正式题面、提示和附件信息。',
-    '建议保存前确认 Flag、分值和可见性设置已经完成。',
+    '保存前请确认 Flag、分值和可见性设置已经完成。',
   ])
   challengeForm.attachments = '[]'
   challengeForm.container_spec = JSON.stringify({
@@ -1770,7 +1770,7 @@ function fillStaticWebTemplate() {
   challengeForm.description = '这是一个带统一访问入口的 Web 题模板，适合记录题面、提示和访问地址。'
   challengeForm.hints = JSON.stringify([
     '请确认选手侧访问入口、账号体系和附加依赖已经准备完成。',
-    '如果题目依赖额外凭据或访问限制，建议写入接入说明。',
+    '如果题目依赖额外凭据或访问限制，请写入接入说明。',
   ], null, 2)
   challengeForm.attachments = '[]'
   challengeForm.container_spec = JSON.stringify({
@@ -1802,7 +1802,7 @@ function fillPwnNetcatTemplate() {
   challengeForm.description = '这是一个 nc / tcp 服务题模板。适合先记录 host、port、连接命令和附件。'
   challengeForm.hints = JSON.stringify([
     '优先把题目附件放到 attachments 里。',
-    '如果服务地址会变化，建议保留一个稳定代理入口。',
+    '如果服务地址会变化，请保留一个稳定代理入口。',
   ], null, 2)
   challengeForm.attachments = JSON.stringify([
     'https://example.com/files/pwn.tar.gz',
@@ -3309,7 +3309,7 @@ onMounted(async () => {
                 v-else
                 icon="i-lucide-megaphone"
                 title="当前还没有公告"
-                description="这场比赛还没有发布赛时通知。建议至少补一条开赛提醒、规则补充或维护公告，方便参赛队伍同步状态。"
+                description="这场比赛还没有发布赛时通知。可以先补一条开赛提醒、规则补充或维护公告，方便参赛队伍同步状态。"
                 :actions="[{
                   label: '去公告区',
                   icon: 'i-lucide-send',
@@ -3852,7 +3852,7 @@ onMounted(async () => {
               </div>
               <div class="space-y-2 text-sm text-muted">
                 <p>适合发布开赛提醒、规则补充、实例维护通知或 Writeup 截止提醒。</p>
-                <p>如果比赛已经公开但仍无公告，建议至少补一条开赛说明。</p>
+                <p>如果比赛已经公开但仍无公告，可以先补一条开赛说明。</p>
               </div>
               <div class="mt-3 flex justify-end">
                 <UButton size="sm" variant="outline" @click="jumpToAdminAnchor('#attach-challenge')">
@@ -3899,7 +3899,7 @@ onMounted(async () => {
           <template #footer>
             <div class="flex flex-wrap items-center justify-between gap-3">
               <p class="text-sm text-muted">
-                可以先填充一份基础模板，再按需要微调时间、公告和报名规则。
+                可以先填充一份基础模板，再按需要调整时间、公告和报名规则。
               </p>
               <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeGameTemplate">
                 填充基础模板
@@ -3951,7 +3951,7 @@ onMounted(async () => {
                 <UInput v-model.number="gameForm.max_team_members" type="number" min="0" class="w-full" />
               </UFormField>
 
-              <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不额外设置截止时间；如果填写，建议晚于比赛结束时间">
+              <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不额外设置截止时间；如果填写，应晚于比赛结束时间">
                 <UInput v-model="gameForm.writeup_deadline" type="datetime-local" class="w-full" />
               </UFormField>
             </div>
@@ -4052,7 +4052,7 @@ onMounted(async () => {
               <UInput v-model.number="gameSettingsForm.max_team_members" type="number" min="0" class="w-full" />
             </UFormField>
 
-            <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不额外设置截止时间；如果填写，建议晚于比赛结束时间">
+            <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不额外设置截止时间；如果填写，应晚于比赛结束时间">
               <UInput v-model="gameSettingsForm.writeup_deadline" type="datetime-local" class="w-full" />
             </UFormField>
 
@@ -5140,7 +5140,7 @@ onMounted(async () => {
         </div>
 
         <div class="grid gap-4 md:grid-cols-2">
-          <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不额外设置截止时间；如果填写，建议晚于比赛结束时间">
+          <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不额外设置截止时间；如果填写，应晚于比赛结束时间">
             <UInput v-model="gameEditForm.writeup_deadline" type="datetime-local" class="w-full" />
           </UFormField>
 
