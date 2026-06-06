@@ -384,6 +384,7 @@ const createGameModalOpen = ref(false)
 const createChallengeModalOpen = ref(false)
 const attachChallengeModalOpen = ref(false)
 const announcementModalOpen = ref(false)
+const gameSettingsModalOpen = ref(false)
 const gameEditModalOpen = ref(false)
 const challengeEditModalOpen = ref(false)
 const importModalOpen = ref(false)
@@ -3305,6 +3306,7 @@ async function confirmUpdateGameSettings() {
     })
 
     toast.add({ title: '比赛设置已更新', color: 'success' })
+    gameSettingsModalOpen.value = false
     gameSettingsConfirmModalOpen.value = false
     pendingGameSettingsPayload.value = null
     await loadAdminResources()
@@ -4982,76 +4984,42 @@ onMounted(async () => {
 
       <div class="grid gap-6 xl:grid-cols-2">
         <UPageCard id="game-settings" title="比赛设置" icon="i-lucide-sliders-horizontal">
-          <UForm
-            :state="gameSettingsForm"
-            :schema="gameSettingsSchema"
-            class="space-y-4"
-            @submit="updateGameSettings"
-          >
-            <UFormField label="选择比赛" name="game_id">
-              <USelect
-                v-model="gameSettingsForm.game_id"
-                :items="gameOptions"
-                class="w-full"
-                :disabled="settingsSubmitting"
-                placeholder="选择一个比赛"
-              />
-            </UFormField>
-
-            <UFormField label="比赛状态" name="status">
-              <USelect
-                v-model="gameSettingsForm.status"
-                :items="gameStatusOptions"
-                class="w-full"
-                :disabled="settingsSubmitting"
-              />
-            </UFormField>
-
-            <UFormField label="比赛邀请码" name="invitation_code" description="公开接口只会暴露“需要邀请码”，不会返回这里的明文">
-              <UInput v-model="gameSettingsForm.invitation_code" class="w-full" :disabled="settingsSubmitting" placeholder="留空表示不需要邀请码" />
-            </UFormField>
-
-            <UFormField label="比赛分组" name="divisions_text" description="按行或逗号分隔，榜单和参赛分配都会使用这里的分组">
-              <UTextarea v-model="gameSettingsForm.divisions_text" class="w-full" :rows="3" :disabled="settingsSubmitting" placeholder="本科组, 公开组" />
-            </UFormField>
-
-            <UFormField label="封榜时间" name="scoreboard_freeze_at" description="留空表示不封榜；到达这个时间后公开榜单冻结，但比赛仍可继续提交">
-              <UInput v-model="gameSettingsForm.scoreboard_freeze_at" type="datetime-local" class="w-full" :disabled="settingsSubmitting" />
-            </UFormField>
-
-            <UFormField label="报名模式" name="registration_mode" description="决定队伍报名后是直接获得参赛资格，还是进入待审核">
-              <USelect
-                v-model="gameSettingsForm.registration_mode"
-                :items="registrationModeOptions"
-                class="w-full"
-                :disabled="settingsSubmitting"
-              />
-            </UFormField>
-
-            <UFormField label="队伍人数上限" name="max_team_members" description="0 表示不限制">
-              <UInput v-model.number="gameSettingsForm.max_team_members" type="number" min="0" class="w-full" :disabled="settingsSubmitting" />
-            </UFormField>
-
-            <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不额外设置截止时间；如果填写，应晚于比赛结束时间">
-              <UInput v-model="gameSettingsForm.writeup_deadline" type="datetime-local" class="w-full" :disabled="settingsSubmitting" />
-            </UFormField>
-
-            <div class="grid gap-4 md:grid-cols-3">
-              <UFormField label="公开比赛" name="is_public">
-                <USwitch v-model="gameSettingsForm.is_public" :disabled="settingsSubmitting" />
-              </UFormField>
-
-              <UFormField label="启用赛后练习" name="practice_mode">
-                <USwitch v-model="gameSettingsForm.practice_mode" :disabled="settingsSubmitting" />
-              </UFormField>
-
-              <UFormField label="要求 Writeup" name="writeup_required">
-                <USwitch v-model="gameSettingsForm.writeup_required" :disabled="settingsSubmitting" />
-              </UFormField>
+          <div class="space-y-4">
+            <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="font-medium text-highlighted">
+                    比赛设置通过弹层维护
+                  </div>
+                  <div class="mt-2 text-sm text-muted">
+                    状态、分组、邀请码、封榜和 Writeup 规则统一在弹层内修改，页面主体仅保留当前配置摘要。
+                  </div>
+                </div>
+                <UBadge color="info" variant="soft">
+                  弹层维护
+                </UBadge>
+              </div>
             </div>
 
-            <div v-if="selectedSettingsGame" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              当前比赛：{{ selectedSettingsGame.name }} · {{ new Date(selectedSettingsGame.start_time).toLocaleString() }} · {{ getRegistrationModeLabel(selectedSettingsGame.registration_mode) }} · {{ selectedSettingsGame.max_team_members ? `最多 ${selectedSettingsGame.max_team_members} 人` : '人数不限' }} · {{ selectedSettingsGame.invitation_required ? '需要邀请码' : '无需邀请码' }} · {{ getPracticeModeLabel(selectedSettingsGame.practice_mode) }} · {{ selectedSettingsGame.writeup_required ? '需要 Writeup' : '不要求 Writeup' }} · {{ selectedSettingsGame.scoreboard_freeze_at ? `封榜于 ${new Date(selectedSettingsGame.scoreboard_freeze_at).toLocaleString()}` : '不封榜' }}
+            <div class="flex flex-wrap gap-2">
+              <UButton icon="i-lucide-sliders-horizontal" @click="gameSettingsModalOpen = true">
+                打开比赛设置
+              </UButton>
+              <UButton icon="i-lucide-pencil-line" variant="outline" @click="gameEditModalOpen = true">
+                编辑比赛信息
+              </UButton>
+            </div>
+
+            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+              <div class="mb-2 font-medium text-highlighted">
+                当前上下文
+              </div>
+              <div v-if="selectedSettingsGame">
+                {{ selectedSettingsGame.name }} · {{ new Date(selectedSettingsGame.start_time).toLocaleString() }} · {{ getRegistrationModeLabel(selectedSettingsGame.registration_mode) }} · {{ selectedSettingsGame.max_team_members ? `最多 ${selectedSettingsGame.max_team_members} 人` : '人数不限' }} · {{ selectedSettingsGame.invitation_required ? '需要邀请码' : '无需邀请码' }} · {{ getPracticeModeLabel(selectedSettingsGame.practice_mode) }} · {{ selectedSettingsGame.writeup_required ? '需要 Writeup' : '不要求 Writeup' }} · {{ selectedSettingsGame.scoreboard_freeze_at ? `封榜于 ${new Date(selectedSettingsGame.scoreboard_freeze_at).toLocaleString()}` : '不封榜' }}
+              </div>
+              <div v-else>
+                还没有选中比赛。可从资源列表切换上下文，或先创建一场新比赛。
+              </div>
             </div>
 
             <div v-if="settingsRuleSummary.length" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
@@ -5064,11 +5032,7 @@ onMounted(async () => {
                 </li>
               </ul>
             </div>
-
-            <UButton type="submit" :loading="settingsSubmitting" :disabled="settingsSubmitting">
-              保存比赛设置
-            </UButton>
-          </UForm>
+          </div>
         </UPageCard>
 
         <UPageCard id="create-challenge" title="题目维护" icon="i-lucide-flag">
@@ -6602,6 +6566,110 @@ onMounted(async () => {
       </UButton>
       <UButton type="submit" form="import-game-form" icon="i-lucide-file-up" :loading="importingGame" :disabled="importingGame">
         导入比赛
+      </UButton>
+    </template>
+  </UModal>
+
+  <UModal
+    v-model:open="gameSettingsModalOpen"
+    title="比赛设置"
+    description="修改状态、分组、邀请码、封榜和 Writeup 规则。"
+    :dismissible="!settingsSubmitting"
+    :ui="{ body: 'space-y-4', footer: 'justify-end' }"
+  >
+    <template #body>
+      <UForm
+        id="game-settings-form"
+        :state="gameSettingsForm"
+        :schema="gameSettingsSchema"
+        class="space-y-4"
+        @submit="updateGameSettings"
+      >
+        <UFormField label="选择比赛" name="game_id">
+          <USelect
+            v-model="gameSettingsForm.game_id"
+            :items="gameOptions"
+            class="w-full"
+            :disabled="settingsSubmitting"
+            placeholder="选择一个比赛"
+          />
+        </UFormField>
+
+        <UFormField label="比赛状态" name="status">
+          <USelect
+            v-model="gameSettingsForm.status"
+            :items="gameStatusOptions"
+            class="w-full"
+            :disabled="settingsSubmitting"
+          />
+        </UFormField>
+
+        <UFormField label="比赛邀请码" name="invitation_code" description="公开接口只会暴露“需要邀请码”，不会返回这里的明文">
+          <UInput v-model="gameSettingsForm.invitation_code" class="w-full" :disabled="settingsSubmitting" placeholder="留空表示不需要邀请码" />
+        </UFormField>
+
+        <UFormField label="比赛分组" name="divisions_text" description="按行或逗号分隔，榜单和参赛分配都会使用这里的分组">
+          <UTextarea v-model="gameSettingsForm.divisions_text" class="w-full" :rows="3" :disabled="settingsSubmitting" placeholder="本科组, 公开组" />
+        </UFormField>
+
+        <UFormField label="封榜时间" name="scoreboard_freeze_at" description="留空表示不封榜；到达这个时间后公开榜单冻结，但比赛仍可继续提交">
+          <UInput v-model="gameSettingsForm.scoreboard_freeze_at" type="datetime-local" class="w-full" :disabled="settingsSubmitting" />
+        </UFormField>
+
+        <UFormField label="报名模式" name="registration_mode" description="决定队伍报名后是直接获得参赛资格，还是进入待审核">
+          <USelect
+            v-model="gameSettingsForm.registration_mode"
+            :items="registrationModeOptions"
+            class="w-full"
+            :disabled="settingsSubmitting"
+          />
+        </UFormField>
+
+        <UFormField label="队伍人数上限" name="max_team_members" description="0 表示不限制">
+          <UInput v-model.number="gameSettingsForm.max_team_members" type="number" min="0" class="w-full" :disabled="settingsSubmitting" />
+        </UFormField>
+
+        <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不额外设置截止时间；如果填写，应晚于比赛结束时间">
+          <UInput v-model="gameSettingsForm.writeup_deadline" type="datetime-local" class="w-full" :disabled="settingsSubmitting" />
+        </UFormField>
+
+        <div class="grid gap-4 md:grid-cols-3">
+          <UFormField label="公开比赛" name="is_public">
+            <USwitch v-model="gameSettingsForm.is_public" :disabled="settingsSubmitting" />
+          </UFormField>
+
+          <UFormField label="启用赛后练习" name="practice_mode">
+            <USwitch v-model="gameSettingsForm.practice_mode" :disabled="settingsSubmitting" />
+          </UFormField>
+
+          <UFormField label="要求 Writeup" name="writeup_required">
+            <USwitch v-model="gameSettingsForm.writeup_required" :disabled="settingsSubmitting" />
+          </UFormField>
+        </div>
+
+        <div v-if="selectedSettingsGame" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+          当前比赛：{{ selectedSettingsGame.name }} · {{ new Date(selectedSettingsGame.start_time).toLocaleString() }} · {{ getRegistrationModeLabel(selectedSettingsGame.registration_mode) }} · {{ selectedSettingsGame.max_team_members ? `最多 ${selectedSettingsGame.max_team_members} 人` : '人数不限' }} · {{ selectedSettingsGame.invitation_required ? '需要邀请码' : '无需邀请码' }} · {{ getPracticeModeLabel(selectedSettingsGame.practice_mode) }} · {{ selectedSettingsGame.writeup_required ? '需要 Writeup' : '不要求 Writeup' }} · {{ selectedSettingsGame.scoreboard_freeze_at ? `封榜于 ${new Date(selectedSettingsGame.scoreboard_freeze_at).toLocaleString()}` : '不封榜' }}
+        </div>
+
+        <div v-if="settingsRuleSummary.length" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+          <div class="mb-2 font-medium text-highlighted">
+            当前设置摘要
+          </div>
+          <ul class="space-y-2">
+            <li v-for="item in settingsRuleSummary" :key="`modal-${item}`">
+              {{ item }}
+            </li>
+          </ul>
+        </div>
+      </UForm>
+    </template>
+
+    <template #footer="{ close }">
+      <UButton variant="ghost" :disabled="settingsSubmitting" @click="close()">
+        取消
+      </UButton>
+      <UButton type="submit" form="game-settings-form" icon="i-lucide-save" :loading="settingsSubmitting" :disabled="settingsSubmitting">
+        保存比赛设置
       </UButton>
     </template>
   </UModal>

@@ -114,6 +114,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - On the public `/games` list page, prefer one compact entry banner and one combined per-card participation/rules summary. Do not split card-level context into multiple stacked status boxes.
 - In admin-facing checklist sections, prefer a compact section summary header plus the actual checklist cards. Avoid placing a full-width `UAlert` above a list when it only repeats the section title and purpose.
 - On admin entry cards such as `管理入口`, `比赛录入`, `题目维护`, and `维护入口`, prefer one compact summary header instead of stacking a `UAlert` above the actual action row and context cards.
+- On `/console/admin`, low-frequency maintenance forms such as contest settings, create/edit flows, import/export confirmations, and similar operator write actions should prefer `UModal`; the page body should focus on overview, lists, monitoring, and current context summaries.
 - On console and admin list pages, page-top reminders such as password-risk notices or account-permission scope should also prefer one compact summary card instead of a standalone full-width `UAlert`.
 - On utility pages such as `/console/account` or `/local-instance/**`, state conclusions like password risk, login requirement, load failure, or current lease status should prefer one compact summary card per area instead of multiple stacked `UAlert` blocks.
 - In console pages, prefer neutral internal names such as `context`, `checklist`, and `entry` over `setup` for maintenance-oriented panels and computed state.
