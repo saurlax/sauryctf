@@ -10,7 +10,9 @@
     "test": "pnpm test:backend && pnpm test:frontend",
     "test:backend": "go test ./...",
     "test:frontend": "pnpm --filter sauryctf-frontend typecheck",
-    "generate:api": "openapi-typescript api/openapi.yaml -o frontend/app/types/api.d.ts",
+    "generate:api:backend": "go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.7.0 --config api/oapi-codegen.yaml api/openapi.yaml",
+    "generate:api:frontend": "openapi-typescript api/openapi.yaml -o frontend/app/types/api.d.ts",
+    "generate:api": "pnpm generate:api:backend && pnpm generate:api:frontend",
     "generate": "pnpm generate:api && pnpm --filter sauryctf-frontend generate",
     "typecheck": "pnpm --filter sauryctf-frontend typecheck"
   },

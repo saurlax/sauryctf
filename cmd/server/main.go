@@ -17,7 +17,7 @@
 // @name                        Authorization
 // @description                 JWT token: "Bearer <token>"
 //
-//go:generate oapi-codegen --config ../../api/oapi-codegen.yaml ../../api/openapi.yaml
+//go:generate go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.7.0 --config ../../api/oapi-codegen.yaml ../../api/openapi.yaml
 package main
 
 import (

@@ -609,10 +609,8 @@ type AuthResponse struct {
 
 // AuthSetupStatusResponse defines model for AuthSetupStatusResponse.
 type AuthSetupStatusResponse struct {
-	BootstrapAdminAvailable   bool    `json:"bootstrap_admin_available"`
-	DefaultAdminPassword      *string `json:"default_admin_password,omitempty"`
-	DefaultAdminUsername      *string `json:"default_admin_username,omitempty"`
-	PasswordChangeRecommended *bool   `json:"password_change_recommended,omitempty"`
+	BootstrapAdminAvailable   bool  `json:"bootstrap_admin_available"`
+	PasswordChangeRecommended *bool `json:"password_change_recommended,omitempty"`
 }
 
 // Challenge defines model for Challenge.

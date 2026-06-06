@@ -21,11 +21,16 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 | Backend tests | `pnpm test:backend` (single package: `go test ./internal/auth/... -v -p 1`) |
 | Frontend type check | `pnpm typecheck` |
 | Frontend build | `pnpm generate` |
+| Refresh OpenAPI outputs | `pnpm generate:api` |
 | Full test suite | `pnpm test` |
 
 ## Local Smoke Flow
 
 - End-to-end local validation guide lives in `docs/get-started/smoke-flow.md`.
+- OpenAPI generation now has one canonical refresh command:
+  - `pnpm generate:api`
+  - this regenerates both backend `internal/http/api.gen.go` and frontend `frontend/app/types/api.d.ts`
+  - when `api/openapi.yaml` changes, do not update only one side
 - Preferred verification order on a fresh database:
   1. login with `admin / sauryctf`
   2. create one public contest
