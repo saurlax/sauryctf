@@ -271,7 +271,6 @@ try {
   $setupStatus = Invoke-JsonRequest -Method "GET" -Url "$BaseUrl/api/auth/setup-status"
   if (-not $StartBackend) {
     Assert-True ($setupStatus.bootstrap_admin_available -eq $true) "Bootstrap admin is not available. This smoke script is intended for a fresh database with no existing users."
-    Assert-Equal $setupStatus.default_admin_username $AdminUsername "Bootstrap admin username mismatch."
   }
 
   Write-Step "Logging in bootstrap admin"

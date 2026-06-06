@@ -52,8 +52,6 @@ type UserInfo struct {
 
 type AuthSetupStatusResponse struct {
 	BootstrapAdminAvailable   bool   `json:"bootstrap_admin_available"`
-	DefaultAdminUsername      string `json:"default_admin_username,omitempty"`
-	DefaultAdminPassword      string `json:"default_admin_password,omitempty"`
 	PasswordChangeRecommended bool   `json:"password_change_recommended,omitempty"`
 }
 
@@ -177,10 +175,6 @@ func (h *Handler) SetupStatus(c *gin.Context) {
 
 	resp := AuthSetupStatusResponse{
 		BootstrapAdminAvailable: available,
-	}
-	if available {
-		resp.DefaultAdminUsername = defaultAdminUsername
-		resp.DefaultAdminPassword = defaultAdminPassword
 	}
 	if userIDValue, exists := c.Get("user_id"); exists {
 		if userID, ok := userIDValue.(uint); ok {

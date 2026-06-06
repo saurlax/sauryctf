@@ -189,8 +189,8 @@ func TestHandler_SetupStatus(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Body.String(), `"bootstrap_admin_available":true`)
-		assert.Contains(t, w.Body.String(), `"default_admin_username":"admin"`)
-		assert.Contains(t, w.Body.String(), `"default_admin_password":"sauryctf"`)
+		assert.NotContains(t, w.Body.String(), `"default_admin_username"`)
+		assert.NotContains(t, w.Body.String(), `"default_admin_password"`)
 	})
 
 	t.Run("bootstrap admin hidden after users exist", func(t *testing.T) {

@@ -176,14 +176,10 @@ func TestServer_AuthSetupStatusReflectsBootstrapAdminAvailability(t *testing.T) 
 	require.Equal(t, http.StatusOK, setupResp.StatusCode)
 
 	var before struct {
-		BootstrapAdminAvailable bool   `json:"bootstrap_admin_available"`
-		DefaultAdminUsername    string `json:"default_admin_username"`
-		DefaultAdminPassword    string `json:"default_admin_password"`
+		BootstrapAdminAvailable bool `json:"bootstrap_admin_available"`
 	}
 	require.NoError(t, json.NewDecoder(setupResp.Body).Decode(&before))
 	assert.True(t, before.BootstrapAdminAvailable)
-	assert.Equal(t, "admin", before.DefaultAdminUsername)
-	assert.Equal(t, "sauryctf", before.DefaultAdminPassword)
 
 	registerBody := bytes.NewBufferString(`{"username":"first-user","email":"first@example.com","password":"password123"}`)
 	registerReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/auth/register", registerBody)
@@ -201,14 +197,10 @@ func TestServer_AuthSetupStatusReflectsBootstrapAdminAvailability(t *testing.T) 
 	require.Equal(t, http.StatusOK, setupRespAfter.StatusCode)
 
 	var after struct {
-		BootstrapAdminAvailable bool    `json:"bootstrap_admin_available"`
-		DefaultAdminUsername    *string `json:"default_admin_username"`
-		DefaultAdminPassword    *string `json:"default_admin_password"`
+		BootstrapAdminAvailable bool `json:"bootstrap_admin_available"`
 	}
 	require.NoError(t, json.NewDecoder(setupRespAfter.Body).Decode(&after))
 	assert.False(t, after.BootstrapAdminAvailable)
-	assert.Nil(t, after.DefaultAdminUsername)
-	assert.Nil(t, after.DefaultAdminPassword)
 }
 
 func TestServer_BootstrapAdminCanCreateGame(t *testing.T) {

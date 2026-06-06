@@ -251,8 +251,6 @@ export interface components {
     };
     AuthSetupStatusResponse: {
       bootstrap_admin_available: boolean;
-      default_admin_username?: string;
-      default_admin_password?: string;
       password_change_recommended?: boolean;
     };
     Team: {

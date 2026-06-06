@@ -140,10 +140,6 @@ components:
       properties:
         bootstrap_admin_available:
           type: boolean
-        default_admin_username:
-          type: string
-        default_admin_password:
-          type: string
         password_change_recommended:
           type: boolean
 

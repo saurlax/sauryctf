@@ -17,6 +17,7 @@
 - 后端不会再补建 `admin`
 - 首页和 `/login` 也不会继续把默认口令当成常规入口提示
 - `/api/auth/setup-status` 会立即切到 `bootstrap_admin_available = false`
+- `/api/auth/setup-status` 不会向访客回传默认管理员口令
 
 需要注意的一点：
 
@@ -31,6 +32,9 @@
   - `/api/auth/setup-status` 会额外返回 `password_change_recommended = true`
   - `/console` 会显示一条显式安全提醒
   - `/console/account` 会继续高亮“立即改密”的风险提示
+- `/api/auth/setup-status` 当前只承担两类状态信号：
+  - 是否仍处于空库首次启动阶段
+  - 当前登录用户是否仍在使用初始管理员密码
 - `/console/account` 当前采用更紧凑的状态卡：
   - 顶部仅保留一条账号安全状态提示
   - 右侧改为账号信息与安全状态摘要，不再堆叠长段建议文案
