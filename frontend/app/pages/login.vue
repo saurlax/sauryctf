@@ -43,8 +43,8 @@ const quickLinks = computed(() => {
 
   if (setupStatus.value?.bootstrap_admin_available) {
     links.unshift({
-      title: '初始管理员入口',
-      description: `当前可直接使用 ${setupStatus.value.default_admin_username} / ${setupStatus.value.default_admin_password} 登录管理端。`,
+      title: '后台管理入口',
+      description: `当前系统尚无用户，可直接使用 ${setupStatus.value.default_admin_username} / ${setupStatus.value.default_admin_password} 登录后台。`,
       icon: 'i-lucide-shield-check',
       to: '/console/admin',
     })
@@ -78,7 +78,7 @@ const afterLoginNotes = computed(() => {
     return [
       {
         title: '进入管理端',
-        description: '空库阶段登录成功后会直接进入管理端，方便先完成平台基础配置。',
+        description: '登录成功后会直接进入管理端，便于先完成比赛、题目和公开入口配置。',
         icon: 'i-lucide-layout-dashboard',
       },
       {
@@ -163,8 +163,8 @@ const state = reactive<Partial<LoginSchema>>({
           class="mb-4"
           color="info"
           variant="soft"
-          title="初始管理员账号"
-          :description="`当前库为空，可直接使用 ${setupStatus.default_admin_username} / ${setupStatus.default_admin_password} 登录。`"
+          title="默认管理员账号"
+          :description="`当前系统尚无用户，可直接使用 ${setupStatus.default_admin_username} / ${setupStatus.default_admin_password} 登录。`"
         />
 
         <UAlert
@@ -172,8 +172,8 @@ const state = reactive<Partial<LoginSchema>>({
           class="mb-4"
           color="neutral"
           variant="soft"
-          title="初始管理员入口已关闭"
-          description="当前数据库里已经有用户，后端不会再补建默认 admin 账号。请使用现有账号登录。"
+          title="默认管理员入口已关闭"
+          description="当前数据库里已经存在用户，系统不会再补建默认管理员账号。请使用现有账号登录。"
         />
 
         <UForm :schema="loginSchema" :state="state" class="space-y-4" @submit="onLogin">

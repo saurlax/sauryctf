@@ -27,10 +27,10 @@ const features = [
 
 const accessCards = computed(() => [
   {
-    title: setupStatus.value?.bootstrap_admin_available ? '空库管理入口' : '管理入口',
+    title: '管理入口',
     description: setupStatus.value?.bootstrap_admin_available
-      ? `当前仍处于空库首次启动阶段，可直接用 ${setupStatus.value.default_admin_username} / ${setupStatus.value.default_admin_password} 登录后完成建赛。`
-      : '数据库里已经有用户时，请直接使用现有账号登录管理后台，不再依赖默认管理员口令。',
+      ? `当前系统尚无用户，可使用 ${setupStatus.value.default_admin_username} / ${setupStatus.value.default_admin_password} 登录后台。`
+      : '使用现有管理账号登录控制台，继续维护比赛、题目和参赛流程。',
     icon: 'i-lucide-shield-check',
     to: '/login',
   },
@@ -64,8 +64,8 @@ const landingGuideMeta = computed(() => {
 
   if (setupStatus.value?.bootstrap_admin_available) {
     return {
-      title: '当前状态：可直接使用默认管理员登录',
-      description: `当前数据库为空，可直接使用 ${setupStatus.value.default_admin_username} / ${setupStatus.value.default_admin_password} 登录并完成基础配置。`,
+      title: '当前状态：可直接进入后台配置',
+      description: `当前系统尚无用户，可直接使用 ${setupStatus.value.default_admin_username} / ${setupStatus.value.default_admin_password} 登录后台。`,
       color: 'info' as const,
       icon: 'i-lucide-shield-check',
       actionLabel: '去登录',
@@ -120,7 +120,7 @@ const heroLinks = computed(() => {
     >
       <template #top>
         <UBadge variant="subtle" color="info">
-          赛事平台持续完善中
+          Go + Nuxt 赛事平台
         </UBadge>
       </template>
     </UPageHero>

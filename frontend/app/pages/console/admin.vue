@@ -135,6 +135,7 @@ const exportingWriteupsGameId = ref<number | null>(null)
 const exportingSubmissionsGameId = ref<number | null>(null)
 const importingGame = ref(false)
 const deletingChallengeId = ref<number | null>(null)
+const announcementModalOpen = ref(false)
 const gameEditModalOpen = ref(false)
 const challengeEditModalOpen = ref(false)
 const importModalOpen = ref(false)
@@ -1310,6 +1311,7 @@ async function createAnnouncement() {
     })
     announcements.value = [created, ...announcements.value]
     announcementForm.content = ''
+    announcementModalOpen.value = false
     toast.add({ title: '比赛公告已发布', color: 'success' })
   }
   catch (e: any) {
@@ -4492,30 +4494,15 @@ onMounted(async () => {
             </div>
 
             <div v-if="selectedGame" class="space-y-4">
-              <UForm :state="announcementForm" class="space-y-3" @submit="createAnnouncement">
-                <UFormField
-                  label="公告内容"
-                  name="content"
-                  description="适合发布开赛提醒、规则补充、实例维护通知或 Writeup 截止提醒。"
+              <div class="flex justify-end">
+                <UButton
+                  icon="i-lucide-send"
+                  variant="outline"
+                  @click="announcementModalOpen = true"
                 >
-                  <UTextarea
-                    v-model="announcementForm.content"
-                    class="w-full"
-                    :rows="4"
-                    placeholder="例如：平台将在 10 分钟后开放，请提前确认队伍成员与网络环境。"
-                  />
-                </UFormField>
-
-                <div class="flex justify-end">
-                  <UButton
-                    type="submit"
-                    icon="i-lucide-send"
-                    :loading="announcementSubmitting"
-                  >
-                    发布公告
-                  </UButton>
-                </div>
-              </UForm>
+                  发布公告
+                </UButton>
+              </div>
 
               <div v-if="announcements.length" class="space-y-2">
                 <div
@@ -4864,6 +4851,39 @@ onMounted(async () => {
       </div>
     </div>
   </div>
+
+  <UModal
+    v-model:open="announcementModalOpen"
+    title="发布公告"
+    description="向当前比赛发布赛时通知、规则补充或维护说明。"
+    :ui="{ body: 'space-y-4', footer: 'justify-end' }"
+  >
+    <template #body>
+      <UForm :state="announcementForm" class="space-y-3" @submit="createAnnouncement">
+        <UFormField
+          label="公告内容"
+          name="content"
+          description="适合发布开赛提醒、规则补充、实例维护通知或 Writeup 截止提醒。"
+        >
+          <UTextarea
+            v-model="announcementForm.content"
+            class="w-full"
+            :rows="6"
+            placeholder="例如：平台将在 10 分钟后开放，请提前确认队伍成员与网络环境。"
+          />
+        </UFormField>
+      </UForm>
+    </template>
+
+    <template #footer="{ close }">
+      <UButton variant="ghost" :disabled="announcementSubmitting" @click="close()">
+        取消
+      </UButton>
+      <UButton icon="i-lucide-send" :loading="announcementSubmitting" @click="createAnnouncement">
+        发布公告
+      </UButton>
+    </template>
+  </UModal>
 
   <UModal
     v-model:open="gameEditModalOpen"

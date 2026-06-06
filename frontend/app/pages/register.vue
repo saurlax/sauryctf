@@ -16,16 +16,16 @@ const redirectTarget = computed(() => {
   if (typeof redirect === 'string' && redirect.startsWith('/')) {
     return redirect
   }
-  return '/console/team?onboarding=created'
+  return '/console/team'
 })
 
 const initialRegisterLanding = computed(() => {
   const redirect = route.query.redirect
   if (typeof redirect === 'string' && redirect.startsWith('/')) {
-    return `/console/team?onboarding=created&redirect=${redirect}`
+    return `/console/team?redirect=${redirect}`
   }
 
-  return '/console/team?onboarding=created'
+  return '/console/team'
 })
 
 const afterRegisterNotes = computed(() => {
@@ -99,16 +99,12 @@ function resolveRedirect() {
     return {
       path: '/console/team',
       query: {
-        onboarding: 'created',
         redirect,
       },
     }
   }
   return {
     path: '/console/team',
-    query: {
-      onboarding: 'created',
-    },
   }
 }
 

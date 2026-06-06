@@ -7,7 +7,6 @@ import type { components } from '~/types/api'
 
 const { authState, ensureInitialized } = useAuth()
 const toast = useToast()
-const route = useRoute()
 const { data: setupStatus, refresh: refreshSetupStatus } = await useAPI('auth-setup-status', 'get', '/api/auth/setup-status')
 
 interface TeamSummary {
@@ -155,12 +154,6 @@ const nextGame = computed(() => {
     .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0] || null
 })
 
-const onboardingMode = computed(() => {
-  const value = route.query.onboarding
-  return typeof value === 'string' ? value : ''
-})
-
-const showTeamOnboarding = computed(() => onboardingMode.value === 'team' && !team.value)
 const showAdminBootstrapGuide = computed(() => isAdmin.value && games.value.length === 0)
 const showPasswordSecurityNotice = computed(() => !!setupStatus.value?.password_change_recommended)
 
@@ -646,30 +639,10 @@ onMounted(async () => {
         </template>
       </UAlert>
 
-      <UAlert
-        v-if="showTeamOnboarding"
-        class="mb-6"
-        color="info"
-        variant="soft"
-        icon="i-lucide-flag"
-        title="账号已经创建完成，下一步先准备队伍"
-        description="CTF 的报名、提 Flag 和排行榜都基于队伍进行。先创建自己的队伍，或使用邀请码加入队伍，再回来选择比赛会最顺。"
-      >
-        <template #actions>
-          <UButton
-            label="立即去队伍页"
-            color="info"
-            variant="outline"
-            size="sm"
-            to="/console/team"
-          />
-        </template>
-      </UAlert>
-
       <UPageCard
         v-if="showAdminBootstrapGuide"
         class="mb-6"
-        title="空库首次启动：先打通管理员建赛闭环"
+        title="后台配置建议"
         description="当前还没有任何比赛。建议先建一场公开比赛、挂一道题、切到 active，再回公开页检查选手侧流程。"
         icon="i-lucide-shield-check"
       >

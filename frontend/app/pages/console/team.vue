@@ -56,11 +56,6 @@ const joinInviteFromRoute = computed(() => {
   const invite = route.query.invite
   return typeof invite === 'string' ? invite.trim() : ''
 })
-const onboardingMode = computed(() => {
-  const onboarding = route.query.onboarding
-  return typeof onboarding === 'string' ? onboarding : ''
-})
-const showCreatedOnboarding = computed(() => onboardingMode.value === 'created' && !team.value)
 const contestRedirect = computed(() => resolveRedirect())
 const teamSetupGuideMeta = computed(() => {
   if (contestRedirect.value) {
@@ -73,19 +68,6 @@ const teamSetupGuideMeta = computed(() => {
       actionTo: contestRedirect.value,
       secondaryLabel: '浏览全部比赛',
       secondaryTo: '/games',
-    }
-  }
-
-  if (showCreatedOnboarding.value) {
-    return {
-      title: '当前下一步：把队伍准备完整',
-      description: '账号已经创建完成，接下来最值得先做的是创建或加入队伍。报名、提交 Flag、排行榜和实例能力都基于队伍进行。',
-      color: 'success' as const,
-      icon: 'i-lucide-users-round',
-      actionLabel: '浏览比赛',
-      actionTo: '/games',
-      secondaryLabel: '回控制台',
-      secondaryTo: '/console',
     }
   }
 
@@ -690,15 +672,6 @@ onMounted(async () => {
 
     <template v-else>
       <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1.25fr)_320px]">
-        <div v-if="showCreatedOnboarding" class="xl:col-span-3">
-          <UAlert
-            color="success"
-            variant="soft"
-            icon="i-lucide-circle-check-big"
-            title="账号已经创建完成，下一步先准备队伍"
-            description="你现在已经处于登录状态。CTF 的报名、提 Flag 和排行榜都按队伍进行，所以建议先创建自己的队伍，或者使用邀请码加入现有队伍。"
-          />
-        </div>
         <div v-if="contestRedirect" class="xl:col-span-3">
           <UAlert
             color="info"
@@ -791,9 +764,6 @@ onMounted(async () => {
             </div>
             <div v-if="contestRedirect" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
               当前来自某个比赛详情页，创建或加入成功后会自动回到原比赛继续操作。
-            </div>
-            <div v-else-if="showCreatedOnboarding" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              当前是首次注册后的队伍准备阶段。先把队伍准备好，再进入公开比赛列表会更顺。
             </div>
           </div>
 
