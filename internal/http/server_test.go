@@ -203,6 +203,74 @@ func TestServer_AuthSetupStatusReflectsBootstrapAdminAvailability(t *testing.T) 
 	assert.False(t, after.BootstrapAdminAvailable)
 }
 
+func TestServer_BootstrapAdminPasswordRecommendationLifecycle(t *testing.T) {
+	server := setupHTTPTestServer(t)
+	defer server.Close()
+
+	tokenCookie := loginBootstrapAdmin(t, server.URL)
+
+	setupReq, err := http.NewRequest(http.MethodGet, server.URL+"/api/auth/setup-status", nil)
+	require.NoError(t, err)
+	setupReq.AddCookie(tokenCookie)
+
+	setupResp, err := http.DefaultClient.Do(setupReq)
+	require.NoError(t, err)
+	defer setupResp.Body.Close()
+	require.Equal(t, http.StatusOK, setupResp.StatusCode)
+
+	var before struct {
+		PasswordChangeRecommended bool `json:"password_change_recommended"`
+	}
+	require.NoError(t, json.NewDecoder(setupResp.Body).Decode(&before))
+	assert.True(t, before.PasswordChangeRecommended)
+
+	changeBody := bytes.NewBufferString(`{"current_password":"sauryctf","new_password":"sauryctf-admin-2"}`)
+	changeReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/auth/change-password", changeBody)
+	require.NoError(t, err)
+	changeReq.Header.Set("Content-Type", "application/json")
+	changeReq.AddCookie(tokenCookie)
+
+	changeResp, err := http.DefaultClient.Do(changeReq)
+	require.NoError(t, err)
+	defer changeResp.Body.Close()
+	require.Equal(t, http.StatusOK, changeResp.StatusCode)
+
+	setupAfterReq, err := http.NewRequest(http.MethodGet, server.URL+"/api/auth/setup-status", nil)
+	require.NoError(t, err)
+	setupAfterReq.AddCookie(tokenCookie)
+
+	setupAfterResp, err := http.DefaultClient.Do(setupAfterReq)
+	require.NoError(t, err)
+	defer setupAfterResp.Body.Close()
+	require.Equal(t, http.StatusOK, setupAfterResp.StatusCode)
+
+	var after struct {
+		PasswordChangeRecommended bool `json:"password_change_recommended"`
+	}
+	require.NoError(t, json.NewDecoder(setupAfterResp.Body).Decode(&after))
+	assert.False(t, after.PasswordChangeRecommended)
+
+	oldLoginBody := bytes.NewBufferString(`{"username":"admin","password":"sauryctf"}`)
+	oldLoginReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/auth/login", oldLoginBody)
+	require.NoError(t, err)
+	oldLoginReq.Header.Set("Content-Type", "application/json")
+
+	oldLoginResp, err := http.DefaultClient.Do(oldLoginReq)
+	require.NoError(t, err)
+	defer oldLoginResp.Body.Close()
+	assert.Equal(t, http.StatusUnauthorized, oldLoginResp.StatusCode)
+
+	newLoginBody := bytes.NewBufferString(`{"username":"admin","password":"sauryctf-admin-2"}`)
+	newLoginReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/auth/login", newLoginBody)
+	require.NoError(t, err)
+	newLoginReq.Header.Set("Content-Type", "application/json")
+
+	newLoginResp, err := http.DefaultClient.Do(newLoginReq)
+	require.NoError(t, err)
+	defer newLoginResp.Body.Close()
+	assert.Equal(t, http.StatusOK, newLoginResp.StatusCode)
+}
+
 func TestServer_BootstrapAdminCanCreateGame(t *testing.T) {
 	server := setupHTTPTestServer(t)
 	defer server.Close()
