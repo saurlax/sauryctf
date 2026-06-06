@@ -1071,140 +1071,98 @@ onMounted(async () => {
               <div class="rounded-lg border border-default px-3 py-3">
                 <div class="mb-3 flex items-center justify-between gap-2">
                   <div class="font-medium">
-                    最新公告
+                    赛时摘要
                   </div>
-                  <UButton size="sm" variant="ghost" icon="i-lucide-megaphone" to="/console/admin">
-                    去公告区
+                  <UButton size="sm" variant="ghost" icon="i-lucide-settings-2" to="/console/admin">
+                    打开管理端
                   </UButton>
                 </div>
-                <div v-if="adminLatestAnnouncements.length" class="space-y-2">
-                  <div
-                    v-for="item in adminLatestAnnouncements"
-                    :key="item.id"
-                    class="rounded-md bg-elevated/60 px-3 py-2"
-                  >
-                    <div class="flex items-start justify-between gap-3">
-                      <div class="min-w-0">
+
+                <div class="grid gap-4 xl:grid-cols-3">
+                  <div class="space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-sm font-medium text-highlighted">最新公告</span>
+                      <UBadge color="success" variant="subtle" size="sm">
+                        {{ adminLatestAnnouncements.length }}
+                      </UBadge>
+                    </div>
+                    <div v-if="adminLatestAnnouncements.length" class="space-y-2">
+                      <div
+                        v-for="item in adminLatestAnnouncements.slice(0, 3)"
+                        :key="item.id"
+                        class="rounded-md bg-elevated/60 px-3 py-2"
+                      >
                         <div class="text-sm font-medium">
                           {{ item.game.name }}
                         </div>
-                        <div class="mt-1 text-xs text-muted line-clamp-2">
+                        <div class="mt-1 line-clamp-2 text-xs text-muted">
                           {{ item.content }}
                         </div>
                       </div>
-                      <span class="shrink-0 text-xs text-muted">
-                        {{ new Date(item.created_at).toLocaleString() }}
-                      </span>
                     </div>
+                    <p v-else class="text-sm text-muted">
+                      近期还没有新的比赛公告。
+                    </p>
                   </div>
-                </div>
-                  <UEmpty
-                    v-else
-                    icon="i-lucide-megaphone"
-                    title="还没有比赛公告"
-                    description="最近 5 场比赛里还没有发布公告。发布后，这里会展示最新内容。"
-                    :actions="[{
-                      label: '去公告区',
-                      icon: 'i-lucide-megaphone',
-                    to: '/console/admin',
-                    color: 'neutral',
-                    variant: 'outline',
-                  }]"
-                />
-              </div>
 
-              <div class="grid gap-4 xl:grid-cols-2">
-                <div class="rounded-lg border border-default px-3 py-3">
-                  <div class="mb-3 flex items-center justify-between gap-2">
-                    <div class="font-medium">
-                      最近提交
+                  <div class="space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-sm font-medium text-highlighted">最近提交</span>
+                      <UBadge color="neutral" variant="subtle" size="sm">
+                        {{ adminRecentSubmissions.length }}
+                      </UBadge>
                     </div>
-                    <UButton size="sm" variant="ghost" icon="i-lucide-activity" to="/console/admin">
-                      去查看
-                    </UButton>
-                  </div>
-                  <div v-if="adminRecentSubmissions.length" class="space-y-2">
-                    <div
-                      v-for="item in adminRecentSubmissions"
-                      :key="`${item.game_id}-${item.team_id}-${item.challenge_id}-${item.submitted_at}`"
-                      class="rounded-md bg-elevated/60 px-3 py-2"
-                    >
-                      <div class="flex items-start justify-between gap-3">
-                        <div class="min-w-0">
-                          <div class="text-sm font-medium">
-                            {{ item.team_name }} · {{ item.challenge_title }}
+                    <div v-if="adminRecentSubmissions.length" class="space-y-2">
+                      <div
+                        v-for="item in adminRecentSubmissions.slice(0, 3)"
+                        :key="`${item.game_id}-${item.team_id}-${item.challenge_id}-${item.submitted_at}`"
+                        class="rounded-md bg-elevated/60 px-3 py-2"
+                      >
+                        <div class="flex items-start justify-between gap-2">
+                          <div class="min-w-0">
+                            <div class="text-sm font-medium">
+                              {{ item.team_name }} · {{ item.challenge_title }}
+                            </div>
+                            <div class="text-xs text-muted">
+                              {{ item.game.name }}
+                            </div>
                           </div>
-                          <div class="text-xs text-muted">
-                            {{ item.game.name }} · {{ new Date(item.submitted_at).toLocaleString() }}
-                          </div>
+                          <UBadge :color="getSubmissionResultMeta(item.result).color" variant="soft" size="sm">
+                            {{ getSubmissionResultMeta(item.result).label }}
+                          </UBadge>
                         </div>
-                        <UBadge :color="getSubmissionResultMeta(item.result).color" variant="soft">
-                          {{ getSubmissionResultMeta(item.result).label }}
-                        </UBadge>
                       </div>
                     </div>
+                    <p v-else class="text-sm text-muted">
+                      近期还没有新的提交记录。
+                    </p>
                   </div>
-                  <UEmpty
-                    v-else
-                    icon="i-lucide-activity"
-                    title="还没有新的提交记录"
-                    description="最近 5 场比赛里还没有新的题目提交。比赛开始并产生提交后，这里会同步显示最新动态。"
-                    :actions="[{
-                      label: '查看比赛',
-                      icon: 'i-lucide-trophy',
-                      to: '/games',
-                      color: 'neutral',
-                      variant: 'outline',
-                    }]"
-                  />
-                </div>
 
-                <div class="rounded-lg border border-default px-3 py-3">
-                  <div class="mb-3 flex items-center justify-between gap-2">
-                    <div class="font-medium">
-                      可疑提交线索
+                  <div class="space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-sm font-medium text-highlighted">可疑线索</span>
+                      <UBadge color="error" variant="subtle" size="sm">
+                        {{ adminCheatClues.length }}
+                      </UBadge>
                     </div>
-                    <UButton size="sm" variant="ghost" icon="i-lucide-shield-alert" to="/console/admin">
-                      去排查
-                    </UButton>
-                  </div>
-                  <div v-if="adminCheatClues.length" class="space-y-2">
-                    <div
-                      v-for="item in adminCheatClues"
-                      :key="`${item.game_id}-${item.challenge_id}-${item.submitted_flag}`"
-                      class="rounded-md bg-elevated/60 px-3 py-2"
-                    >
-                      <div class="flex items-start justify-between gap-3">
-                        <div class="min-w-0">
-                          <div class="text-sm font-medium">
-                            {{ item.challenge_title }}
-                          </div>
-                          <div class="text-xs text-muted">
-                            {{ item.game.name }} · {{ item.team_count }} 队重复 · {{ item.submission_count }} 次提交
-                          </div>
+                    <div v-if="adminCheatClues.length" class="space-y-2">
+                      <div
+                        v-for="item in adminCheatClues.slice(0, 3)"
+                        :key="`${item.game_id}-${item.challenge_id}-${item.submitted_flag}`"
+                        class="rounded-md bg-elevated/60 px-3 py-2"
+                      >
+                        <div class="text-sm font-medium">
+                          {{ item.challenge_title }}
                         </div>
-                        <span class="shrink-0 text-xs text-muted">
-                          {{ new Date(item.last_seen_at).toLocaleString() }}
-                        </span>
-                      </div>
-                      <div class="mt-2 truncate rounded bg-default px-2 py-1 font-mono text-xs text-muted">
-                        {{ item.submitted_flag }}
+                        <div class="text-xs text-muted">
+                          {{ item.game.name }} · {{ item.team_count }} 队重复
+                        </div>
                       </div>
                     </div>
+                    <p v-else class="text-sm text-muted">
+                      近期没有明显的异常提交线索。
+                    </p>
                   </div>
-                  <UEmpty
-                    v-else
-                    icon="i-lucide-shield-check"
-                    title="当前没有异常提交线索"
-                    description="最近 5 场比赛里暂时没有明显的重复错误 Flag 聚集情况。出现可疑模式后，这里会自动汇总。"
-                    :actions="[{
-                      label: '查看审计',
-                      icon: 'i-lucide-scroll-text',
-                      to: '/console/admin/audit',
-                      color: 'neutral',
-                      variant: 'outline',
-                    }]"
-                  />
                 </div>
               </div>
             </div>
