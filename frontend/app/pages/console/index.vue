@@ -159,18 +159,23 @@ function getGamePhase(game: GameSummary): PublicGamePhase {
   return 'active'
 }
 
-const activeGames = computed(() => games.value.filter(game => getGamePhase(game) === 'active'))
-const upcomingGames = computed(() => games.value.filter(game => ['draft', 'before_start'].includes(getGamePhase(game))))
-const endedGames = computed(() => games.value.filter(game => getGamePhase(game) === 'ended'))
+function isPubliclyVisibleGame(game: GameSummary) {
+  return !!game.is_public && getGamePhase(game) !== 'draft'
+}
+
+const publicGames = computed(() => games.value.filter(game => isPubliclyVisibleGame(game)))
+const activeGames = computed(() => publicGames.value.filter(game => getGamePhase(game) === 'active'))
+const upcomingGames = computed(() => publicGames.value.filter(game => getGamePhase(game) === 'before_start'))
+const endedGames = computed(() => publicGames.value.filter(game => getGamePhase(game) === 'ended'))
 
 const recentGames = computed(() =>
-  [...games.value]
+  [...publicGames.value]
     .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
     .slice(0, 4),
 )
 
 const nextGame = computed(() => {
-  return [...games.value]
+  return [...publicGames.value]
     .filter(game => getGamePhase(game) !== 'ended')
     .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0] || null
 })
@@ -511,7 +516,7 @@ const myGameEntries = computed(() =>
   games.value
     .filter(game => {
       const participation = participationMap.value[game.id]
-      return Boolean(team.value) && Boolean(participation?.participated || getGamePhase(game) !== 'ended')
+      return Boolean(team.value) && Boolean(participation?.participated || (isPubliclyVisibleGame(game) && getGamePhase(game) !== 'ended'))
     })
     .map(game => ({
       game,
