@@ -47,6 +47,7 @@ const instanceLoading = reactive<Record<number, boolean>>({})
 const instanceStarting = reactive<Record<number, boolean>>({})
 const instanceDestroying = reactive<Record<number, boolean>>({})
 const instanceAutoRefreshing = ref(false)
+const instanceLastAutoRefreshAt = reactive<Record<number, number>>({})
 const flagInputs = reactive<Record<number, string>>({})
 const writeupForm = reactive({
   content: '',
@@ -226,6 +227,7 @@ async function fetchChallengeInstance(challengeId: number) {
         challengeId,
       },
     })
+    instanceLastAutoRefreshAt[challengeId] = Date.now()
   }
   catch (e: any) {
     instanceStates[challengeId] = null
@@ -244,6 +246,7 @@ async function ensureChallengeInstance(challengeId: number) {
         challengeId,
       },
     })
+    instanceLastAutoRefreshAt[challengeId] = Date.now()
     toast.add({ title: '实例已准备', description: instanceStates[challengeId]?.message || '当前队伍实例已启动或续期。', color: 'success' })
   }
   catch (e: any) {
@@ -263,6 +266,7 @@ async function destroyChallengeInstance(challengeId: number) {
         challengeId,
       },
     })
+    instanceLastAutoRefreshAt[challengeId] = Date.now()
     toast.add({ title: '实例已销毁', description: instanceStates[challengeId]?.message || '当前队伍实例已销毁。', color: 'success' })
   }
   catch (e: any) {
@@ -660,13 +664,55 @@ function getInstanceEntryColor(challenge: GameChallengeDetail) {
   return hasChallengeInstanceTemplate(challenge.container_spec) ? 'info' as const : 'neutral' as const
 }
 
+function getInstanceRenewalWindowRemainingSeconds(challengeId: number) {
+  const state = instanceStates[challengeId]
+  const renewalWindow = state?.policy?.renewal_window_minutes
+  if (state?.status !== 'running' || !renewalWindow) {
+    return null
+  }
+
+  return getInstanceSecondsLeft(challengeId) - (renewalWindow * 60)
+}
+
+function canInstanceRenewByClock(challengeId: number) {
+  const remaining = getInstanceRenewalWindowRemainingSeconds(challengeId)
+  return remaining !== null && remaining <= 0 && getInstanceSecondsLeft(challengeId) > 0
+}
+
+function canInstanceRenewNow(challengeId: number) {
+  const state = instanceStates[challengeId]
+  if (state?.status !== 'running') {
+    return false
+  }
+
+  return !!state.can_renew || canInstanceRenewByClock(challengeId)
+}
+
 function getInstancePrimaryActionLabel(challengeId: number) {
   const state = instanceStates[challengeId]
   if (state?.status === 'running') {
-    return state.can_renew ? '续期实例' : '等待续期窗口'
+    return canInstanceRenewNow(challengeId) ? '续期实例' : '等待续期窗口'
   }
 
   return '启动实例'
+}
+
+function getInstanceRenewalHint(challengeId: number) {
+  const state = instanceStates[challengeId]
+  if (state?.status !== 'running') {
+    return '实例启动后，这里会显示续期窗口的开放时机。'
+  }
+
+  if (canInstanceRenewNow(challengeId)) {
+    return '当前已经进入续期窗口，可直接执行续期。'
+  }
+
+  const remaining = getInstanceRenewalWindowRemainingSeconds(challengeId)
+  if (remaining === null) {
+    return '当前还没有读取到续期窗口信息。'
+  }
+
+  return `距离开放续期还有 ${formatSecondsLeft(Math.max(0, remaining))}。`
 }
 
 function getInstancePolicyHint(challengeId: number) {
@@ -679,7 +725,7 @@ function getInstancePolicyHint(challengeId: number) {
 
   if (leaseDuration && extensionDuration && renewalWindow && teamActiveLimit) {
     if (state?.status === 'running') {
-      if (state.can_renew) {
+      if (canInstanceRenewNow(challengeId)) {
         return `当前实例已经进入续期窗口；现在续期会在现有未过期租约后追加 ${extensionDuration} 分钟。当前每支队伍最多同时保留 ${teamActiveLimit} 个运行中实例。`
       }
 
@@ -690,7 +736,7 @@ function getInstancePolicyHint(challengeId: number) {
   }
 
   if (state?.status === 'running') {
-    if (state.can_renew) {
+    if (canInstanceRenewNow(challengeId)) {
       return '当前实例已经进入续期窗口；现在续期会在现有未过期租约后追加新的时长。'
     }
 
@@ -779,7 +825,7 @@ function getManagedInstanceMeta(challenge: GameChallengeDetail) {
   }
 
   if (state?.status === 'running') {
-    if (state.can_renew) {
+    if (canInstanceRenewNow(challenge.id)) {
       return {
         color: 'success' as const,
         icon: 'i-lucide-refresh-cw',
@@ -862,6 +908,33 @@ async function refreshRunningChallengeInstances() {
     instanceAutoRefreshing.value = false
   }
 }
+
+watch(
+  () => challenges.value.map(challenge => `${challenge.id}:${canInstanceRenewByClock(challenge.id)}:${instanceStates[challenge.id]?.can_renew ?? false}`).join('|'),
+  () => {
+    if (!authState.user || instanceAutoRefreshing.value) {
+      return
+    }
+
+    const pendingRefreshIds = challenges.value
+      .filter(challenge =>
+        supportsManagedInstance(challenge)
+        && canInstanceRenewByClock(challenge.id)
+        && !instanceStates[challenge.id]?.can_renew
+        && !instanceLoading[challenge.id]
+        && !instanceStarting[challenge.id]
+        && !instanceDestroying[challenge.id]
+        && (Date.now() - (instanceLastAutoRefreshAt[challenge.id] || 0) >= 15000),
+      )
+      .map(challenge => challenge.id)
+
+    if (pendingRefreshIds.length === 0) {
+      return
+    }
+
+    void Promise.all(pendingRefreshIds.map(challengeId => fetchChallengeInstance(challengeId)))
+  },
+)
 
 const gameStatusMeta = computed(() => {
   if (!game.value) {
@@ -2584,6 +2657,9 @@ onMounted(async () => {
                             <span>{{ instanceLoading[ch.id] ? '同步中' : formatSecondsLeft(getInstanceSecondsLeft(ch.id)) }}</span>
                           </div>
                           <UProgress :model-value="getInstanceLeasePercent(ch.id)" status />
+                          <div class="mt-2 text-xs text-muted">
+                            {{ getInstanceRenewalHint(ch.id) }}
+                          </div>
                         </div>
 
                         <div class="mb-3 rounded-md border border-default px-3 py-3 text-xs text-muted">
@@ -2633,7 +2709,7 @@ onMounted(async () => {
                             size="sm"
                             icon="i-lucide-play"
                             :loading="instanceStarting[ch.id]"
-                            :disabled="instanceStarting[ch.id] || instanceLoading[ch.id] || instanceDestroying[ch.id] || !authState.user || (instanceStates[ch.id]?.status === 'running' && !instanceStates[ch.id]?.can_renew)"
+                            :disabled="instanceStarting[ch.id] || instanceLoading[ch.id] || instanceDestroying[ch.id] || !authState.user || (instanceStates[ch.id]?.status === 'running' && !canInstanceRenewNow(ch.id))"
                             @click="ensureChallengeInstance(ch.id)"
                           >
                             {{ getInstancePrimaryActionLabel(ch.id) }}
