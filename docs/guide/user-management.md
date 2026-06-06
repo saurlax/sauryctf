@@ -14,6 +14,9 @@
 - 当前登录账号不能把自己改成封禁
 - 只有 `super_admin` 可以管理 `super_admin`
 - 非 `super_admin` 不能把其他用户提升为 `super_admin`
+- 前端会提前隐藏这类无效选项：
+  - 当前账号自己的状态下拉里不会出现 `封禁`
+  - 非 `super_admin` 的角色下拉里不会出现 `super_admin`
 
 建议用法：
 

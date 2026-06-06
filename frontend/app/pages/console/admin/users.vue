@@ -36,6 +36,7 @@ const totalUsers = computed(() => users.value.length)
 const adminUsers = computed(() => users.value.filter(user => ['admin', 'super_admin'].includes(user.role)).length)
 const bannedUsers = computed(() => users.value.filter(user => user.status === 'banned').length)
 const currentUserId = computed(() => authState.user?.id || 0)
+const currentUserRole = computed<UserRole | ''>(() => authState.user?.role || '')
 
 function syncDrafts() {
   for (const user of users.value) {
@@ -70,6 +71,38 @@ function canEditUser(user: UserInfo) {
   return true
 }
 
+function getRoleOptions(user: UserInfo) {
+  if (currentUserRole.value === 'super_admin') {
+    return roleOptions
+  }
+
+  return roleOptions.filter(option => option.value !== 'super_admin')
+}
+
+function getStatusOptions(user: UserInfo) {
+  if (user.id === currentUserId.value) {
+    return statusOptions.filter(option => option.value !== 'banned')
+  }
+
+  return statusOptions
+}
+
+function getEditRestrictionReason(user: UserInfo) {
+  if (!authState.user) {
+    return '当前未登录，不能修改该用户。'
+  }
+
+  if (authState.user.role !== 'super_admin' && user.role === 'super_admin') {
+    return '当前账号权限不足，不能修改超级管理员。'
+  }
+
+  if (user.id === currentUserId.value) {
+    return '当前账号不能把自己改为封禁。'
+  }
+
+  return ''
+}
+
 function hasPendingChange(user: UserInfo) {
   return roleDrafts[user.id] !== user.role || statusDrafts[user.id] !== user.status
 }
@@ -79,6 +112,19 @@ async function saveUser(user: UserInfo) {
   try {
     const nextRole: UserRole = roleDrafts[user.id] ?? user.role
     const nextStatus: UserStatus = statusDrafts[user.id] ?? user.status
+
+    if (user.id === currentUserId.value && nextStatus === 'banned') {
+      statusDrafts[user.id] = user.status
+      toast.add({ title: '无法保存', description: '当前登录账号不能把自己改为封禁。', color: 'warning' })
+      return
+    }
+
+    if (currentUserRole.value !== 'super_admin' && nextRole === 'super_admin') {
+      roleDrafts[user.id] = user.role
+      toast.add({ title: '无法保存', description: '只有超级管理员可以授予超级管理员角色。', color: 'warning' })
+      return
+    }
+
     const updated = await $api('put', '/api/admin/users/{userId}', {
       params: {
         userId: user.id,
@@ -187,7 +233,7 @@ onMounted(async () => {
               <UFormField label="角色" :name="`role-${user.id}`">
                 <USelect
                   v-model="roleDrafts[user.id]"
-                  :items="roleOptions"
+                  :items="getRoleOptions(user)"
                   class="w-full"
                   :disabled="!canEditUser(user) || savingUserId === user.id"
                 />
@@ -196,7 +242,7 @@ onMounted(async () => {
               <UFormField label="状态" :name="`status-${user.id}`">
                 <USelect
                   v-model="statusDrafts[user.id]"
-                  :items="statusOptions"
+                  :items="getStatusOptions(user)"
                   class="w-full"
                   :disabled="!canEditUser(user) || savingUserId === user.id"
                 />
@@ -213,8 +259,8 @@ onMounted(async () => {
             </div>
           </div>
 
-          <div v-if="!canEditUser(user)" class="mt-3 text-xs text-muted">
-            当前账号权限不足，不能修改该用户。
+          <div v-if="!canEditUser(user) || getEditRestrictionReason(user)" class="mt-3 text-xs text-muted">
+            {{ getEditRestrictionReason(user) || '当前账号权限不足，不能修改该用户。' }}
           </div>
         </div>
       </div>
