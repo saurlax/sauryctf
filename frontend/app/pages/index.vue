@@ -25,26 +25,67 @@ const features = [
   },
 ]
 
-const firstSteps = [
+const firstSteps = computed(() => [
   {
-    title: '管理入口',
-    description: '当数据库为空时，平台会提供初始管理员入口；已有用户后，请直接使用现有账号登录管理后台。',
+    title: setupStatus.value?.bootstrap_admin_available ? '空库管理入口' : '管理入口',
+    description: setupStatus.value?.bootstrap_admin_available
+      ? `当前仍处于空库首次启动阶段，可直接用 ${setupStatus.value.default_admin_username} / ${setupStatus.value.default_admin_password} 登录后完成建赛。`
+      : '数据库里已经有用户时，请直接使用现有账号登录管理后台，不再依赖默认管理员口令。',
     icon: 'i-lucide-shield-check',
     to: '/login',
   },
   {
     title: '选手入场',
-    description: '注册账号后会先进入队伍页，创建或加入队伍后再回到比赛详情继续报名和提交 Flag。',
+    description: '注册账号后会先进入队伍页，创建或加入队伍后，再继续回到比赛详情完成报名、提交 Flag 或补交 Writeup。',
     icon: 'i-lucide-flag',
     to: '/register',
   },
   {
-    title: '直接看比赛列表',
-    description: '公开比赛支持游客先浏览基础信息、题目标题和排行榜，再决定是否参赛。',
+    title: '先看公开比赛',
+    description: '公开比赛支持游客先浏览基础信息、题目标题和排行榜，再决定是否登录或正式参赛。',
     icon: 'i-lucide-list',
     to: '/games',
   },
-]
+])
+
+const landingGuideMeta = computed(() => {
+  if (isLoggedIn.value) {
+    return {
+      title: '当前下一步：进入控制台继续处理',
+      description: '你已经处于登录状态。现在最值得先进入控制台确认队伍、比赛待办和管理入口，再决定是继续建赛还是去公开比赛页参赛。',
+      color: 'success' as const,
+      icon: 'i-lucide-layout-dashboard',
+      actionLabel: '进入控制台',
+      actionTo: '/console',
+      secondaryLabel: '浏览比赛',
+      secondaryTo: '/games',
+    }
+  }
+
+  if (setupStatus.value?.bootstrap_admin_available) {
+    return {
+      title: '当前下一步：先用初始管理员打通建赛闭环',
+      description: `当前数据库为空，可直接使用 ${setupStatus.value.default_admin_username} / ${setupStatus.value.default_admin_password} 登录。建议先创建一场公开比赛，再用普通账号走一遍报名参赛链路。`,
+      color: 'info' as const,
+      icon: 'i-lucide-shield-check',
+      actionLabel: '去登录',
+      actionTo: '/login',
+      secondaryLabel: '先看公开比赛',
+      secondaryTo: '/games',
+    }
+  }
+
+  return {
+    title: '当前下一步：先挑一场公开比赛，或直接注册选手账号',
+    description: '如果你是普通选手，可以先浏览公开比赛再决定是否参赛；如果已经准备好实际使用，也可以直接注册并进入队伍准备流程。',
+    color: 'neutral' as const,
+    icon: 'i-lucide-rocket',
+    actionLabel: '浏览比赛',
+    actionTo: '/games',
+    secondaryLabel: '去注册',
+    secondaryTo: '/register',
+  }
+})
 
 type HeroLink = {
   label: string
@@ -87,13 +128,30 @@ const heroLinks = computed(() => {
     <UPageSection title="首次使用" description="第一次把项目跑起来时，按这三个入口最省事。">
       <UAlert
         class="mb-6"
-        color="info"
+        :color="landingGuideMeta.color"
         variant="soft"
-        :title="setupStatus?.bootstrap_admin_available ? '当前可使用初始管理员账号' : '初始管理员账号仅在空库阶段提供'"
-        :description="setupStatus?.bootstrap_admin_available
-          ? `当前库为空，可直接使用 ${setupStatus.default_admin_username} / ${setupStatus.default_admin_password} 登录。`
-          : '数据库里已有任意用户，后端不会补建 admin。请使用已有账号登录。'"
-      />
+        :icon="landingGuideMeta.icon"
+        :title="landingGuideMeta.title"
+        :description="landingGuideMeta.description"
+      >
+        <template #actions>
+          <div class="flex flex-wrap gap-2">
+            <UButton
+              size="sm"
+              :to="landingGuideMeta.actionTo"
+              :label="landingGuideMeta.actionLabel"
+              variant="outline"
+            />
+            <UButton
+              v-if="landingGuideMeta.secondaryLabel && landingGuideMeta.secondaryTo"
+              size="sm"
+              :to="landingGuideMeta.secondaryTo"
+              :label="landingGuideMeta.secondaryLabel"
+              variant="ghost"
+            />
+          </div>
+        </template>
+      </UAlert>
 
       <UPageGrid>
         <UPageCard
