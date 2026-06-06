@@ -1791,70 +1791,18 @@ const writeupStatusLabel = computed(() => {
   return '未提交'
 })
 
-const writeupSummaryCards = computed(() => [
-  {
-    label: 'Writeup 状态',
-    value: writeupStatusLabel.value,
-    hint: writeup.value?.status ? `当前后端状态：${writeup.value.status}` : '当前队伍还没有提交 Writeup',
-    icon: 'i-lucide-file-text',
-    color: writeupStatusColor.value,
-  },
-  {
-    label: '提交资格',
-    value: writeup.value?.can_submit ? '当前可提交' : '当前不可提交',
-    hint: writeup.value?.can_submit ? '支持覆盖提交，重新提交后会回到 submitted' : writeupGuide.value.description,
-    icon: 'i-lucide-file-up',
-    color: writeup.value?.can_submit ? 'success' as const : 'warning' as const,
-  },
-  {
-    label: '截止时间',
-    value: game.value?.writeup_deadline ? new Date(game.value.writeup_deadline).toLocaleString() : '未单独设置',
-    hint: !game.value?.writeup_required
-      ? '当前比赛未启用 Writeup 提交'
-      : writeupDeadlinePassed.value
-          ? '当前截止时间已过，不能继续提交或更新'
-          : '当前比赛要求按这个时间前完成 Writeup 处理',
-    icon: 'i-lucide-calendar-clock',
-    color: !game.value?.writeup_deadline
-      ? 'neutral' as const
-      : writeupDeadlinePassed.value
-          ? 'error' as const
-          : 'info' as const,
-  },
-  {
-    label: '最近提交',
-    value: writeup.value?.submitted_at ? new Date(writeup.value.submitted_at).toLocaleString() : '暂无',
-    hint: writeup.value?.reviewed_at
-      ? `最近审核时间 ${new Date(writeup.value.reviewed_at).toLocaleString()}`
-      : '当前还没有审核记录',
-    icon: 'i-lucide-history',
-    color: 'neutral' as const,
-  },
-])
-
-const writeupRuleItems = computed(() => [
-  !authState.user
-    ? '登录后显示当前队伍 Writeup 状态。'
-    : !participation.value?.has_team
-      ? '需先加入队伍。'
-      : '按当前队伍提交。',
-  game.value?.writeup_required
-    ? '当前比赛要求提交 Writeup。'
-    : '当前比赛未启用 Writeup 提交。',
-  game.value?.writeup_deadline
-    ? (writeupDeadlinePassed.value
-        ? `截止时间已过：${new Date(game.value.writeup_deadline).toLocaleString()}。`
-        : `截止时间：${new Date(game.value.writeup_deadline).toLocaleString()}。`)
-    : '当前没有单独截止时间。',
-  writeup.value?.status === 'rejected'
-    ? '已驳回，修改后可重新提交。'
-    : '重新提交会覆盖当前内容。',
-  '审核备注会直接显示在本页。',
-])
 const writeupStatusRows = computed(() => [
   {
     label: '当前状态',
     value: writeupStatusLabel.value,
+  },
+  {
+    label: '提交资格',
+    value: writeup.value?.can_submit ? '当前可提交' : '当前不可提交',
+  },
+  {
+    label: '截止时间',
+    value: game.value?.writeup_deadline ? new Date(game.value.writeup_deadline).toLocaleString() : '未单独设置',
   },
   {
     label: '提交时间',
@@ -2923,25 +2871,6 @@ onMounted(async () => {
 
       <div v-else-if="activeTab === 'writeup'">
         <div class="space-y-6">
-          <UPageGrid :cols="{ default: 1, sm: 2, xl: 4 }">
-            <UPageCard
-              v-for="card in writeupSummaryCards"
-              :key="card.label"
-              :title="card.value"
-              :description="card.label"
-              :icon="card.icon"
-            >
-              <template #footer>
-                <div class="flex items-center justify-between gap-2">
-                  <span class="text-xs text-muted">{{ card.hint }}</span>
-                  <UBadge :color="card.color" variant="subtle" size="sm">
-                    {{ card.label }}
-                  </UBadge>
-                </div>
-              </template>
-            </UPageCard>
-          </UPageGrid>
-
           <div class="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
             <UPageCard title="Writeup" icon="i-lucide-file-text">
               <div class="space-y-4">
@@ -3016,7 +2945,7 @@ onMounted(async () => {
             </UPageCard>
 
             <div class="space-y-6">
-              <UPageCard title="审核状态" icon="i-lucide-file-check">
+              <UPageCard title="审核与提交状态" icon="i-lucide-file-check">
                 <div class="space-y-3 text-sm">
                   <div
                     v-for="row in writeupStatusRows"
@@ -3043,18 +2972,25 @@ onMounted(async () => {
                       {{ writeup.review_remark }}
                     </div>
                   </div>
-                </div>
-              </UPageCard>
-
-              <UPageCard title="提交要求" icon="i-lucide-list-checks">
-                <div class="space-y-3 text-sm">
                   <div
-                    v-for="(item, index) in writeupRuleItems"
-                    :key="`${index}-${item}`"
-                    class="flex items-start justify-between gap-3 rounded-md bg-elevated/60 px-3 py-3 text-muted leading-6"
+                    class="rounded-lg border border-default px-3 py-3 text-muted leading-6"
                   >
-                    <span class="text-xs text-muted">{{ index + 1 }}</span>
-                    <span class="flex-1">{{ item }}</span>
+                    <div class="font-medium text-default">
+                      处理说明
+                    </div>
+                    <div class="mt-2 space-y-2">
+                      <p>
+                        当前页按队伍保存一份 Writeup，重新提交会覆盖已有内容。
+                      </p>
+                      <p v-if="game?.writeup_required">
+                        {{ game.writeup_deadline
+                          ? `如需提交，请在 ${new Date(game.writeup_deadline).toLocaleString()} 前完成。`
+                          : '当前比赛要求提交 Writeup，请按比赛安排完成。' }}
+                      </p>
+                      <p v-else>
+                        当前比赛未开放选手侧 Writeup 提交。
+                      </p>
+                    </div>
                   </div>
                 </div>
               </UPageCard>
