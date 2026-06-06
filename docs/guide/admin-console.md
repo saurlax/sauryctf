@@ -68,6 +68,8 @@
 - 题目表单现在额外支持 `container_spec`
   - 使用 JSON 记录实例 URL、host/port、连接命令、代理入口等“接入信息”
   - 当前版本已经可以承接动态实例链路，也保留了继续扩展不同 provider 的空间
+  - 如果题目类型是 `dynamic`，管理端保存前会先检查 `container_spec` 是否是有效 JSON，以及 `runtime.provider / runtime.image / runtime.expose` 是否完整
+  - 如果仍保留模板镜像名或模板主机地址，管理端会先阻止保存，避免把明显未完成的动态题配置直接发到比赛里
 - 创建题目时现在额外提供三类快速模板：
   - `Web 实例`：用于统一入口的 Web 题
   - `Pwn 服务`：用于 `host / port / nc` 型服务题

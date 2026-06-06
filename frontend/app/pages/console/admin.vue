@@ -1084,6 +1084,70 @@ function formatDivisionList(divisions?: string[]) {
   return (divisions || []).join('\n')
 }
 
+function validateChallengeDraft(payload: {
+  title: string
+  type: string
+  container_spec?: string
+}) {
+  if (!payload.title.trim()) {
+    return '题目名称不能为空。'
+  }
+
+  if (payload.type !== 'dynamic') {
+    return ''
+  }
+
+  const raw = payload.container_spec?.trim() || ''
+  if (!raw) {
+    return '动态题需要填写实例接入信息（container_spec）。'
+  }
+
+  let parsed: any
+  try {
+    parsed = JSON.parse(raw)
+  }
+  catch {
+    return '实例接入信息必须是有效的 JSON。'
+  }
+
+  const runtime = parsed?.runtime || {}
+  const connection = parsed?.connection || {}
+  const provider = typeof runtime.provider === 'string' ? runtime.provider.trim() : ''
+  const image = typeof runtime.image === 'string' ? runtime.image.trim() : ''
+  const expose = Array.isArray(runtime.expose)
+    ? runtime.expose.map((item: unknown) => String(item).trim()).filter(Boolean)
+    : []
+  const launchURL = typeof connection.url === 'string' ? connection.url.trim() : ''
+  const host = typeof connection.host === 'string' ? connection.host.trim() : ''
+  const note = typeof connection.note === 'string' ? connection.note.trim() : ''
+
+  if (!provider) {
+    return '动态题缺少 runtime.provider。'
+  }
+
+  if (!image) {
+    return '动态题缺少 runtime.image。'
+  }
+
+  if (!expose.length) {
+    return '动态题缺少 runtime.expose，至少应声明一个容器端口。'
+  }
+
+  if (image === 'ghcr.io/example/ctf-web:latest' || image === 'ctf/example:latest') {
+    return '请先把模板镜像替换成真实可用的题目镜像。'
+  }
+
+  if (host.includes('example.internal') || host.includes('.instance.local')) {
+    return '请先把模板主机地址替换成真实入口，或改成由平台回填的访问方式。'
+  }
+
+  if (!launchURL && !host && !note) {
+    return '动态题至少应提供入口地址、主机信息或一段实例接入说明。'
+  }
+
+  return ''
+}
+
 function parseChallengeTemplatePurpose(containerSpec?: string, fallbackTitle?: string) {
   if (containerSpec) {
     try {
@@ -2281,6 +2345,12 @@ async function createGame() {
 }
 
 async function createChallenge() {
+  const challengeError = validateChallengeDraft(challengeForm)
+  if (challengeError) {
+    toast.add({ title: '题目配置无效', description: challengeError, color: 'warning' })
+    return
+  }
+
   challengeSubmitting.value = true
   try {
     await $api('post', '/api/challenges', {
@@ -2330,6 +2400,12 @@ async function createChallenge() {
 async function updateChallengeDetails() {
   if (!challengeEditForm.challenge_id) {
     toast.add({ title: '请先选择题目', color: 'warning' })
+    return
+  }
+
+  const challengeError = validateChallengeDraft(challengeEditForm)
+  if (challengeError) {
+    toast.add({ title: '题目配置无效', description: challengeError, color: 'warning' })
     return
   }
 
