@@ -2368,13 +2368,22 @@ onMounted(async () => {
                 </div>
 
                 <div class="space-y-3 mb-4 text-sm">
-                  <UAlert
-                    :color="getChallengeCardMeta(ch).color"
-                    :icon="getChallengeCardMeta(ch).icon"
-                    variant="soft"
-                    :title="getChallengeCardMeta(ch).title"
-                    :description="getChallengeCardMeta(ch).description"
-                  />
+                  <div class="rounded-lg border border-default bg-elevated/60 px-3 py-3">
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-2 font-medium text-highlighted">
+                          <UIcon :name="getChallengeCardMeta(ch).icon" class="size-4" />
+                          <span>{{ getChallengeCardMeta(ch).title }}</span>
+                        </div>
+                        <p class="mt-2 text-muted leading-6">
+                          {{ getChallengeCardMeta(ch).description }}
+                        </p>
+                      </div>
+                      <UBadge :color="getChallengeCardMeta(ch).color" variant="soft" size="sm">
+                        {{ canSubmitFlag ? '已开放' : '受限' }}
+                      </UBadge>
+                    </div>
+                  </div>
 
                   <p class="text-muted leading-6 whitespace-pre-wrap">
                     {{ ch.description || '题面内容开放后会显示在这里。' }}
@@ -2441,17 +2450,10 @@ onMounted(async () => {
                       <span>实例接入信息</span>
                     </div>
                     <div class="space-y-2 text-muted">
-                      <UAlert
-                        :color="getManagedInstanceMeta(ch).color"
-                        :icon="getManagedInstanceMeta(ch).icon"
-                        variant="soft"
-                        :title="getManagedInstanceMeta(ch).title"
-                        :description="getManagedInstanceMeta(ch).description"
-                      />
-                      <p v-if="getChallengeInstanceSpec(ch.container_spec)?.note" class="leading-6 whitespace-pre-wrap">
-                        {{ getChallengeInstanceSpec(ch.container_spec)?.note }}
-                      </p>
                       <div class="flex flex-wrap items-center gap-2">
+                        <UBadge :color="getManagedInstanceMeta(ch).color" variant="soft" size="sm">
+                          {{ getManagedInstanceMeta(ch).title }}
+                        </UBadge>
                         <UBadge :color="getInstanceEntryColor(ch)" variant="soft" size="sm">
                           {{ getInstanceEntryLabel(ch) }}
                         </UBadge>
@@ -2464,6 +2466,12 @@ onMounted(async () => {
                           {{ instanceAutoRefreshing ? '自动同步中' : '15 秒自动同步' }}
                         </UBadge>
                       </div>
+                      <p class="leading-6">
+                        {{ getManagedInstanceMeta(ch).description }}
+                      </p>
+                      <p v-if="getChallengeInstanceSpec(ch.container_spec)?.note" class="leading-6 whitespace-pre-wrap">
+                        {{ getChallengeInstanceSpec(ch.container_spec)?.note }}
+                      </p>
                       <div v-if="getDisplayedInstanceLaunchUrl(ch)" class="flex flex-col gap-2">
                         <div class="flex flex-wrap gap-2">
                           <UButton
