@@ -62,6 +62,44 @@ const onboardingMode = computed(() => {
 })
 const showCreatedOnboarding = computed(() => onboardingMode.value === 'created' && !team.value)
 const contestRedirect = computed(() => resolveRedirect())
+const teamSetupGuideMeta = computed(() => {
+  if (contestRedirect.value) {
+    return {
+      title: '当前下一步：先准备队伍，再回到原比赛',
+      description: '你现在还没有队伍。先创建自己的队伍，或使用邀请码加入现有队伍；完成后系统会自动带你回到刚才的比赛继续报名或参赛。',
+      color: 'info' as const,
+      icon: 'i-lucide-route',
+      actionLabel: '先看原比赛',
+      actionTo: contestRedirect.value,
+      secondaryLabel: '浏览全部比赛',
+      secondaryTo: '/games',
+    }
+  }
+
+  if (showCreatedOnboarding.value) {
+    return {
+      title: '当前下一步：把队伍准备完整',
+      description: '账号已经创建完成，接下来最值得先做的是创建或加入队伍。报名、提交 Flag、排行榜和实例能力都基于队伍进行。',
+      color: 'success' as const,
+      icon: 'i-lucide-users-round',
+      actionLabel: '浏览比赛',
+      actionTo: '/games',
+      secondaryLabel: '回控制台',
+      secondaryTo: '/console',
+    }
+  }
+
+  return {
+    title: '当前下一步：先有一支队伍，再去比赛页',
+    description: '如果你准备正式参赛，建议先完成队伍准备，再去公开比赛页完成报名和后续操作。',
+    color: 'neutral' as const,
+    icon: 'i-lucide-flag',
+    actionLabel: '浏览比赛',
+    actionTo: '/games',
+    secondaryLabel: '回控制台',
+    secondaryTo: '/console',
+  }
+})
 
 const teamNextStepMeta = computed(() => {
   if (!team.value) {
@@ -680,6 +718,33 @@ onMounted(async () => {
             </template>
           </UAlert>
         </div>
+        <div class="xl:col-span-3">
+          <UAlert
+            :color="teamSetupGuideMeta.color"
+            variant="soft"
+            :icon="teamSetupGuideMeta.icon"
+            :title="teamSetupGuideMeta.title"
+            :description="teamSetupGuideMeta.description"
+          >
+            <template #actions>
+              <div class="flex flex-wrap gap-2">
+                <UButton
+                  size="sm"
+                  :to="teamSetupGuideMeta.actionTo"
+                  :label="teamSetupGuideMeta.actionLabel"
+                  variant="outline"
+                />
+                <UButton
+                  v-if="teamSetupGuideMeta.secondaryLabel && teamSetupGuideMeta.secondaryTo"
+                  size="sm"
+                  :to="teamSetupGuideMeta.secondaryTo"
+                  :label="teamSetupGuideMeta.secondaryLabel"
+                  variant="ghost"
+                />
+              </div>
+            </template>
+          </UAlert>
+        </div>
         <UPageCard title="创建队伍">
           <UForm :state="createForm" class="space-y-4" @submit="createTeam">
             <UFormField label="队伍名称" name="name">
@@ -717,16 +782,19 @@ onMounted(async () => {
         </UPageCard>
 
         <UPageCard title="下一步" icon="i-lucide-list-check">
-          <div class="space-y-3 text-sm text-muted">
-            <p>
+          <div class="space-y-3">
+            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
               还没有固定队伍时，最稳妥的流程是先组队，再去比赛页完成报名和提交。
-            </p>
-            <p>
+            </div>
+            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
               如果你是队长，创建成功后会立刻拿到邀请码和邀请链接；如果你是队员，直接粘贴邀请码即可加入。
-            </p>
-            <p v-if="contestRedirect">
+            </div>
+            <div v-if="contestRedirect" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
               当前来自某个比赛详情页，创建或加入成功后会自动回到原比赛继续操作。
-            </p>
+            </div>
+            <div v-else-if="showCreatedOnboarding" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+              当前是首次注册后的队伍准备阶段。先把队伍准备好，再进入公开比赛列表会更顺。
+            </div>
           </div>
 
           <template #footer>
