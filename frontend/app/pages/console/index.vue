@@ -350,14 +350,51 @@ const pendingWriteupGames = computed(() =>
   games.value.filter(game => participationMap.value[game.id]?.missing_writeup),
 )
 
+type AdminSection = '#participants' | '#writeups' | '#announcements' | '#submissions' | '#clues'
+
+function buildAdminSectionLink(section: AdminSection) {
+  return `/console/admin?section=${encodeURIComponent(section)}`
+}
+
+function buildAdminGameSectionLink(gameId: number, section: AdminSection) {
+  return `/console/admin?game_id=${gameId}&section=${encodeURIComponent(section)}`
+}
+
+const adminParticipantSectionLink = computed(() => {
+  const target = adminPendingParticipants.value[0]
+  return target ? buildAdminGameSectionLink(target.game.id, '#participants') : buildAdminSectionLink('#participants')
+})
+
+const adminWriteupSectionLink = computed(() => {
+  const target = adminPendingWriteups.value[0]
+  return target ? buildAdminGameSectionLink(target.game.id, '#writeups') : buildAdminSectionLink('#writeups')
+})
+
+const adminAnnouncementSectionLink = computed(() => {
+  const target = adminLatestAnnouncements.value[0]
+  return target ? buildAdminGameSectionLink(target.game.id, '#announcements') : buildAdminSectionLink('#announcements')
+})
+
+const adminSubmissionSectionLink = computed(() => {
+  const target = adminRecentSubmissions.value[0]
+  return target ? buildAdminGameSectionLink(target.game.id, '#submissions') : buildAdminSectionLink('#submissions')
+})
+
+const adminClueSectionLink = computed(() => {
+  const target = adminCheatClues.value[0]
+  return target ? buildAdminGameSectionLink(target.game.id, '#clues') : buildAdminSectionLink('#clues')
+})
+
 const adminPrioritySummaryRows = computed(() => [
   {
     label: '待审核报名',
     value: `${adminPendingParticipants.value.length} 项`,
+    to: adminParticipantSectionLink.value,
   },
   {
     label: '待审 Writeup',
     value: `${adminPendingWriteups.value.length} 项`,
+    to: adminWriteupSectionLink.value,
   },
 ])
 
@@ -365,14 +402,17 @@ const adminSignalSummaryRows = computed(() => [
   {
     label: '最新公告',
     value: `${adminLatestAnnouncements.value.length} 条`,
+    to: adminAnnouncementSectionLink.value,
   },
   {
     label: '最近提交',
     value: `${adminRecentSubmissions.value.length} 条`,
+    to: adminSubmissionSectionLink.value,
   },
   {
     label: '可疑线索',
     value: `${adminCheatClues.value.length} 条`,
+    to: adminClueSectionLink.value,
   },
 ])
 
@@ -995,7 +1035,7 @@ onBeforeUnmount(() => {
                   <div class="font-medium text-highlighted">
                     当前优先处理
                   </div>
-                  <UButton size="sm" variant="ghost" icon="i-lucide-settings-2" to="/console/admin">
+                  <UButton size="sm" variant="ghost" icon="i-lucide-settings-2" :to="adminParticipantSectionLink">
                     打开管理端
                   </UButton>
                 </div>
@@ -1004,8 +1044,12 @@ onBeforeUnmount(() => {
                   :key="row.label"
                   class="flex items-center justify-between gap-3 py-2"
                 >
-                  <span>{{ row.label }}</span>
-                  <span class="text-right">{{ row.value }}</span>
+                  <ULink :to="row.to" class="font-medium text-highlighted">
+                    {{ row.label }}
+                  </ULink>
+                  <ULink :to="row.to" class="text-right text-muted">
+                    {{ row.value }}
+                  </ULink>
                 </div>
               </div>
 
@@ -1015,14 +1059,15 @@ onBeforeUnmount(() => {
                     <div class="font-medium">
                       最近待审核报名
                     </div>
-                    <UButton size="sm" variant="ghost" icon="i-lucide-settings-2" to="/console/admin">
+                    <UButton size="sm" variant="ghost" icon="i-lucide-settings-2" :to="adminParticipantSectionLink">
                       去管理
                     </UButton>
                   </div>
                   <div v-if="adminPendingParticipants.length" class="space-y-2">
-                    <div
+                    <ULink
                       v-for="item in adminPendingParticipants"
                       :key="`${item.game.id}-${item.team_id}`"
+                      :to="buildAdminGameSectionLink(item.game.id, '#participants')"
                       class="rounded-md bg-elevated/60 px-3 py-2"
                     >
                       <div class="flex items-center justify-between gap-3">
@@ -1038,7 +1083,7 @@ onBeforeUnmount(() => {
                           待审核
                         </UBadge>
                       </div>
-                    </div>
+                    </ULink>
                   </div>
                   <UEmpty
                     v-else
@@ -1048,7 +1093,7 @@ onBeforeUnmount(() => {
                     :actions="[{
                       label: '打开管理端',
                       icon: 'i-lucide-settings-2',
-                      to: '/console/admin',
+                      to: adminParticipantSectionLink,
                       color: 'neutral',
                       variant: 'outline',
                     }]"
@@ -1060,14 +1105,15 @@ onBeforeUnmount(() => {
                     <div class="font-medium">
                       最近待审 Writeup
                     </div>
-                    <UButton size="sm" variant="ghost" icon="i-lucide-file-text" to="/console/admin">
+                    <UButton size="sm" variant="ghost" icon="i-lucide-file-text" :to="adminWriteupSectionLink">
                       去处理
                     </UButton>
                   </div>
                   <div v-if="adminPendingWriteups.length" class="space-y-2">
-                    <div
+                    <ULink
                       v-for="item in adminPendingWriteups"
                       :key="`${item.game.id}-${item.team_id}`"
+                      :to="buildAdminGameSectionLink(item.game.id, '#writeups')"
                       class="rounded-md bg-elevated/60 px-3 py-2"
                     >
                       <div class="flex items-center justify-between gap-3">
@@ -1083,7 +1129,7 @@ onBeforeUnmount(() => {
                           待审
                         </UBadge>
                       </div>
-                    </div>
+                    </ULink>
                   </div>
                   <UEmpty
                     v-else
@@ -1093,7 +1139,7 @@ onBeforeUnmount(() => {
                     :actions="[{
                       label: '查看管理端',
                       icon: 'i-lucide-file-text',
-                      to: '/console/admin',
+                      to: adminWriteupSectionLink,
                       color: 'neutral',
                       variant: 'outline',
                     }]"
@@ -1106,7 +1152,7 @@ onBeforeUnmount(() => {
                   <div class="font-medium">
                     赛时摘要
                   </div>
-                  <UButton size="sm" variant="ghost" icon="i-lucide-settings-2" to="/console/admin">
+                  <UButton size="sm" variant="ghost" icon="i-lucide-settings-2" :to="adminAnnouncementSectionLink">
                     打开管理端
                   </UButton>
                 </div>
@@ -1117,8 +1163,12 @@ onBeforeUnmount(() => {
                     :key="row.label"
                     class="flex items-center justify-between gap-3 py-2"
                   >
-                    <span>{{ row.label }}</span>
-                    <span class="text-right">{{ row.value }}</span>
+                    <ULink :to="row.to" class="font-medium text-highlighted">
+                      {{ row.label }}
+                    </ULink>
+                    <ULink :to="row.to" class="text-right text-muted">
+                      {{ row.value }}
+                    </ULink>
                   </div>
                 </div>
 
@@ -1131,9 +1181,10 @@ onBeforeUnmount(() => {
                       </UBadge>
                     </div>
                     <div v-if="adminLatestAnnouncements.length" class="space-y-2">
-                      <div
+                      <ULink
                         v-for="item in adminLatestAnnouncements.slice(0, 3)"
                         :key="item.id"
+                        :to="buildAdminGameSectionLink(item.game.id, '#announcements')"
                         class="rounded-md bg-elevated/60 px-3 py-2"
                       >
                         <div class="text-sm font-medium">
@@ -1142,7 +1193,7 @@ onBeforeUnmount(() => {
                         <div class="mt-1 line-clamp-2 text-xs text-muted">
                           {{ item.content }}
                         </div>
-                      </div>
+                      </ULink>
                     </div>
                     <p v-else class="text-sm text-muted">
                       近期还没有新的比赛公告。
@@ -1157,9 +1208,10 @@ onBeforeUnmount(() => {
                       </UBadge>
                     </div>
                     <div v-if="adminRecentSubmissions.length" class="space-y-2">
-                      <div
+                      <ULink
                         v-for="item in adminRecentSubmissions.slice(0, 3)"
                         :key="`${item.game_id}-${item.team_id}-${item.challenge_id}-${item.submitted_at}`"
+                        :to="buildAdminGameSectionLink(item.game.id, '#submissions')"
                         class="rounded-md bg-elevated/60 px-3 py-2"
                       >
                         <div class="flex items-start justify-between gap-2">
@@ -1175,7 +1227,7 @@ onBeforeUnmount(() => {
                             {{ getSubmissionResultMeta(item.result).label }}
                           </UBadge>
                         </div>
-                      </div>
+                      </ULink>
                     </div>
                     <p v-else class="text-sm text-muted">
                       近期还没有新的提交记录。
@@ -1190,9 +1242,10 @@ onBeforeUnmount(() => {
                       </UBadge>
                     </div>
                     <div v-if="adminCheatClues.length" class="space-y-2">
-                      <div
+                      <ULink
                         v-for="item in adminCheatClues.slice(0, 3)"
                         :key="`${item.game_id}-${item.challenge_id}-${item.submitted_flag}`"
+                        :to="buildAdminGameSectionLink(item.game.id, '#clues')"
                         class="rounded-md bg-elevated/60 px-3 py-2"
                       >
                         <div class="text-sm font-medium">
@@ -1201,7 +1254,7 @@ onBeforeUnmount(() => {
                         <div class="text-xs text-muted">
                           {{ item.game.name }} · {{ item.team_count }} 队重复
                         </div>
-                      </div>
+                      </ULink>
                     </div>
                     <p v-else class="text-sm text-muted">
                       近期没有明显的异常提交线索。

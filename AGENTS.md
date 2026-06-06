@@ -113,6 +113,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - On the public game overview sidebar, prefer one context card plus one rules/boundary card instead of splitting participant status, restrictions, and division info across too many small cards.
 - At the top of the public game detail page, keep one primary participation status block plus a compact next-step action row. Do not stack multiple large conclusion alerts for the same state.
 - On the console home page, prefer one consolidated workbench card for current summary, pending action, and common entry buttons instead of splitting overview and entry into separate cards with overlapping purpose.
+- Admin todo links from `/console` should deep-link into concrete `/console/admin` context whenever possible. Prefer `game_id + section` links over sending operators to the top of the admin page and making them search again.
 - On the public `/games` list page, prefer one compact entry banner and one combined per-card participation/rules summary. Do not split card-level context into multiple stacked status boxes.
 - In admin-facing checklist sections, prefer a compact section summary header plus the actual checklist cards. Avoid placing a full-width `UAlert` above a list when it only repeats the section title and purpose.
 - On admin entry cards such as `管理入口`, `比赛录入`, `题目维护`, and `维护入口`, prefer one compact summary header instead of stacking a `UAlert` above the actual action row and context cards.

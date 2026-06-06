@@ -46,6 +46,13 @@
   - 控制台首页不再逐场拉取报名 / Writeup / 公告接口
   - 最近提交与可疑线索复用现有提交查询能力做轻量聚合，不额外引入新的监控接口
   - 首页展示也优先改为“紧凑摘要行 + 必要的展开列表”，而不是先铺一整排统计卡再重复展开同一批待办
+  - 摘要行、空态按钮和各条展开项现在都应优先直达具体管理上下文：
+    - 待审核报名 -> `/console/admin?game_id=...&section=%23participants`
+    - 待审 Writeup -> `/console/admin?game_id=...&section=%23writeups`
+    - 公告摘要 -> `/console/admin?game_id=...&section=%23announcements`
+    - 最近提交 -> `/console/admin?game_id=...&section=%23submissions`
+    - 可疑线索 -> `/console/admin?game_id=...&section=%23clues`
+  - 避免把这类首页待办重新退回为只跳 `/console/admin` 顶部的宽泛入口
 - “当前概览”卡片当前继续收敛为状态页：
   - 当前已经进一步合并为“当前工作台”
   - 顶部只保留队伍状态、当前比赛和当前待办三条摘要
