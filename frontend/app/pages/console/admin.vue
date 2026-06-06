@@ -1360,6 +1360,25 @@ const selectedAdminPublicLink = computed(() => {
   return getAdminPublicGameLink(selectedAdminOverview.value.game)
 })
 
+const selectedGameOverviewPublicLink = computed(() => {
+  if (!selectedGame.value) {
+    return '/games'
+  }
+
+  return getAdminPublicGameLink(selectedGame.value, { preferredTab: 'overview' })
+})
+
+const selectedGameChallengesPublicLink = computed(() => {
+  if (!selectedGame.value) {
+    return '/games'
+  }
+
+  return getAdminPublicGameLink(selectedGame.value, {
+    preferredTab: 'challenges',
+    challengeId: highlightedChallengeId.value || undefined,
+  })
+})
+
 const selectedMonitorPublicLink = computed(() => {
   if (!selectedAdminOverview.value) {
     return '/games'
@@ -4128,7 +4147,7 @@ function getGameResourceActionItems(game: AdminGameSummary): DropdownMenuItem[][
     {
       label: '打开公开页',
       icon: 'i-lucide-arrow-up-right',
-      to: `/games/${game.id}`,
+      to: getAdminPublicGameLink(game),
     },
     {
       label: '导出比赛包',
@@ -5832,7 +5851,7 @@ onMounted(async () => {
                 icon="i-lucide-arrow-up-right"
                 variant="outline"
                 :disabled="!selectedGame"
-                :to="selectedGame ? `/games/${selectedGame.id}` : undefined"
+                :to="selectedGame ? selectedGameChallengesPublicLink : undefined"
               >
                 打开公开页
               </UButton>
@@ -5948,7 +5967,7 @@ onMounted(async () => {
                   icon="i-lucide-arrow-up-right"
                   variant="ghost"
                   :disabled="!selectedGame"
-                  :to="selectedGame ? `/games/${selectedGame.id}` : undefined"
+                  :to="selectedGame ? selectedGameOverviewPublicLink : undefined"
                 >
                   打开公开页
                 </UButton>
@@ -6043,7 +6062,7 @@ onMounted(async () => {
               :actions="[{
                 label: '打开公开页',
                 icon: 'i-lucide-arrow-up-right',
-                to: selectedGame ? `/games/${selectedGame.id}` : '/games',
+                to: selectedGame ? selectedGameOverviewPublicLink : '/games',
                 color: 'neutral',
                 variant: 'outline',
               }]"
