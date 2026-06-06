@@ -121,9 +121,9 @@ const attachSubmitting = ref(false)
 const settingsSubmitting = ref(false)
 const gameEditing = ref(false)
 const challengeEditing = ref(false)
-const smokeProvisioning = ref(false)
-const dynamicSmokeProvisioning = ref(false)
-const localDockerSmokeProvisioning = ref(false)
+const starterProvisioning = ref(false)
+const dynamicProvisioning = ref(false)
+const localDockerProvisioning = ref(false)
 const loadingResources = ref(false)
 const loadingGameChallenges = ref(false)
 const loadingParticipants = ref(false)
@@ -936,7 +936,7 @@ const selectedGamePreflightChecks = computed(() => {
   ]
 })
 
-const localDockerSmokeChecklist = computed(() => {
+const localDockerInstanceChecklist = computed(() => {
   const overview = selectedAdminOverview.value
   if (!overview) {
     return []
@@ -1712,7 +1712,7 @@ function handlePreflightAction(check: { actionTo?: string }) {
   }
 }
 
-function fillSmokeGameTemplate() {
+function fillStarterGameTemplate() {
   const now = new Date()
   const start = new Date(now.getTime() + 30 * 60 * 1000)
   const end = new Date(start.getTime() + 2 * 60 * 60 * 1000)
@@ -1736,7 +1736,7 @@ function fillSmokeGameTemplate() {
   toast.add({ title: '已填充比赛模板', description: '已写入一份公开比赛默认值。', color: 'success' })
 }
 
-function fillSmokeChallengeTemplate() {
+function fillStarterChallengeTemplate() {
   challengeForm.title = 'Basic Challenge'
   challengeForm.description = '这是一个基础静态题模板，用于补齐题面、提示、附件和计分配置。'
   challengeForm.hints = JSON.stringify([
@@ -1921,13 +1921,13 @@ function fillTeamScopedDynamicTemplate() {
   toast.add({ title: '已填充每队独立实例模板', description: '已写入带队伍独立入口的动态题默认值。', color: 'success' })
 }
 
-async function createSmokeProvision() {
+async function createStarterProvision() {
   const now = new Date()
   const start = new Date(now.getTime() + 30 * 60 * 1000)
   const end = new Date(start.getTime() + 2 * 60 * 60 * 1000)
   const freeze = new Date(end.getTime() - 30 * 60 * 1000)
 
-  smokeProvisioning.value = true
+  starterProvisioning.value = true
   try {
     const game = await $api('post', '/api/games', {
       body: {
@@ -1980,27 +1980,27 @@ async function createSmokeProvision() {
     selectGameContext(game.id)
     attachForm.challenge_id = challenge.id
     toast.add({
-      title: '快速比赛已创建',
+      title: '基础比赛模板已创建',
       description: `已创建 ${game.name}，并自动挂上一道基础题目。现在可以直接去公开页继续配置或检查流程。`,
       color: 'success',
     })
     jumpToAdminAnchor('#attach-challenge')
   }
   catch (e: any) {
-    toast.add({ title: '创建快速比赛失败', description: e.data?.message || e.message, color: 'error' })
+    toast.add({ title: '创建基础比赛模板失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
-    smokeProvisioning.value = false
+    starterProvisioning.value = false
   }
 }
 
-async function createDynamicSmokeProvision() {
+async function createDynamicProvision() {
   const now = new Date()
   const start = new Date(now.getTime() + 30 * 60 * 1000)
   const end = new Date(start.getTime() + 2 * 60 * 60 * 1000)
   const freeze = new Date(end.getTime() - 30 * 60 * 1000)
 
-  dynamicSmokeProvisioning.value = true
+  dynamicProvisioning.value = true
   try {
     const game = await $api('post', '/api/games', {
       body: {
@@ -2080,20 +2080,20 @@ async function createDynamicSmokeProvision() {
     jumpToAdminAnchor('#attach-challenge')
   }
   catch (e: any) {
-    toast.add({ title: '创建动态实例比赛失败', description: e.data?.message || e.message, color: 'error' })
+    toast.add({ title: '创建动态实例模板失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
-    dynamicSmokeProvisioning.value = false
+    dynamicProvisioning.value = false
   }
 }
 
-async function createLocalDockerSmokeProvision() {
+async function createLocalDockerProvision() {
   const now = new Date()
   const start = new Date(now.getTime() + 30 * 60 * 1000)
   const end = new Date(start.getTime() + 2 * 60 * 60 * 1000)
   const freeze = new Date(end.getTime() - 30 * 60 * 1000)
 
-  localDockerSmokeProvisioning.value = true
+  localDockerProvisioning.value = true
   try {
     const game = await $api('post', '/api/games', {
       body: {
@@ -2174,10 +2174,10 @@ async function createLocalDockerSmokeProvision() {
     jumpToAdminAnchor('#attach-challenge')
   }
   catch (e: any) {
-    toast.add({ title: '创建容器实例比赛失败', description: e.data?.message || e.message, color: 'error' })
+    toast.add({ title: '创建容器实例模板失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
-    localDockerSmokeProvisioning.value = false
+    localDockerProvisioning.value = false
   }
 }
 
@@ -2943,44 +2943,44 @@ onMounted(async () => {
         />
       </div>
 
-      <UPageCard title="预置配置" icon="i-lucide-flask-conical">
+      <UPageCard title="快速模板" icon="i-lucide-layout-template">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div class="space-y-2">
             <p class="text-sm text-muted">
-              可以直接生成一套精简但完整的比赛与题目配置，用于快速建立一条可运行的赛事链路。
+              可以直接生成一套精简但完整的比赛与题目配置，用于快速建立一条可继续扩展的赛事基线。
             </p>
             <UAlert
               color="info"
               variant="soft"
               title="使用建议"
-              description="适合本地联调、功能验收或建立新的管理基线；正式发布前仍应补全题面、入口、镜像、附件与规则配置。"
+              description="适合初始化新比赛、核对管理链路或建立标准模板；正式发布前仍应补全题面、入口、镜像、附件与规则配置。"
             />
           </div>
 
           <div class="flex shrink-0 flex-wrap gap-2">
-            <UButton icon="i-lucide-flask-conical" :loading="smokeProvisioning" @click="createSmokeProvision">
+            <UButton icon="i-lucide-layout-template" :loading="starterProvisioning" @click="createStarterProvision">
               创建基础比赛
             </UButton>
             <UButton
               variant="outline"
               icon="i-lucide-box"
-              :loading="dynamicSmokeProvisioning"
-              @click="createDynamicSmokeProvision"
+              :loading="dynamicProvisioning"
+              @click="createDynamicProvision"
             >
               创建动态实例比赛
             </UButton>
             <UButton
               variant="outline"
               icon="i-lucide-container"
-              :loading="localDockerSmokeProvisioning"
-              @click="createLocalDockerSmokeProvision"
+              :loading="localDockerProvisioning"
+              @click="createLocalDockerProvision"
             >
               创建容器实例比赛
             </UButton>
-            <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeGameTemplate">
+            <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillStarterGameTemplate">
               填充比赛表单
             </UButton>
-            <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeChallengeTemplate">
+            <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillStarterChallengeTemplate">
               填充题目表单
             </UButton>
           </div>
@@ -3169,7 +3169,7 @@ onMounted(async () => {
       </div>
 
       <UPageCard
-        v-if="localDockerSmokeChecklist.length"
+        v-if="localDockerInstanceChecklist.length"
         title="容器实例检查清单"
         icon="i-lucide-container"
         id="local-docker-checklist"
@@ -3183,7 +3183,7 @@ onMounted(async () => {
           />
 
           <div
-            v-for="item in localDockerSmokeChecklist"
+            v-for="item in localDockerInstanceChecklist"
             :key="item.key"
             class="rounded-lg border border-default px-3 py-3"
           >
@@ -3914,7 +3914,7 @@ onMounted(async () => {
               <p class="text-sm text-muted">
                 可以填充一份基础模板，再按需要调整时间、公告和报名规则。
               </p>
-              <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeGameTemplate">
+              <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillStarterGameTemplate">
                 填充基础模板
               </UButton>
             </div>
@@ -4903,7 +4903,7 @@ onMounted(async () => {
   >
     <template #body>
       <div class="flex flex-wrap gap-2">
-        <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeChallengeTemplate">
+        <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillStarterChallengeTemplate">
           基础题
         </UButton>
         <UButton size="sm" variant="outline" icon="i-lucide-globe" @click="fillStaticWebTemplate">

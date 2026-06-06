@@ -56,7 +56,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
   - provisions one `nginx:alpine`-backed dynamic challenge with `runtime.expose = [80]`
   - verifies the returned `launch_url` is a reachable local published port
   - also verifies destroy returns the instance state to `idle`
-- `/console/admin` now also exposes a one-click dynamic smoke provision flow:
+- `/console/admin` now also exposes one-click contest templates for fast baseline provisioning:
   - creates one public auto-accept game
   - creates one `dynamic` challenge with team-scoped instance templates
   - mounts it automatically so operators can jump straight into public-page lease verification
