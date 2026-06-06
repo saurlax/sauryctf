@@ -56,9 +56,9 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
   - provisions one `nginx:alpine`-backed dynamic challenge with `runtime.expose = [80]`
   - verifies the returned `launch_url` is a reachable local published port
   - also verifies destroy returns the instance state to `idle`
-- `/console/admin` now also exposes one-click contest templates for fast baseline provisioning:
+- `/console/admin` now also exposes one-click contest provisioning entries for fast local setup:
   - creates one public auto-accept game
-  - creates one `dynamic` challenge with team-scoped instance templates
+  - creates one `dynamic` challenge with team-scoped instance defaults
   - mounts it automatically so operators can jump straight into public-page lease verification
 - Admin-facing copy has been tightened to stay product-oriented:
   - public pages and admin shortcuts no longer reference external projects in user-facing descriptions
@@ -178,7 +178,7 @@ internal/<module>/
 **Conventions:**
 - Handlers depend only on `ServiceInterface`, never directly on concrete `*Service`.
 - All admin operations write audit logs.
-- Dynamic container management must be idempotent; Kubernetes resources must be uniformly labeled.
+- Dynamic container management must be idempotent; runtime resources must be uniformly labeled.
 - Dynamic scoring is shared across standalone challenge submission and game-scoped submission.
 - Current blood metadata (`first`, `second`, `third`) is retained for display, but does not apply an extra score multiplier.
 - Only when the `users` table is completely empty, backend startup auto-creates a bootstrap admin user: `admin / sauryctf`.
@@ -220,13 +220,13 @@ internal/<module>/
   - this is intentionally a database-backed lease skeleton for now, not a real container orchestrator yet
   - the backend now routes lease creation/renewal through a small provider abstraction so future Docker/K8s integrations can replace the skeleton behavior without rewriting the game service
   - the default skeleton provider also supports simple per-team templating in `container_spec.connection.*` using `{{game_id}}`, `{{challenge_id}}`, `{{team_id}}`, `{{user_id}}`, and `{{team_hash}}`, so local dynamic challenges can expose stable team-specific entry data before real providers land
-  - the admin challenge form now ships a dedicated “team-scoped instance” template and shows the supported placeholder tokens inline, so local operators can create per-team dynamic entry data without hand-writing the whole JSON structure
-  - the public game page now distinguishes between templated connection info and the resolved per-team lease entry, so players see when an instance URL is still a template and when a real team-scoped address has been issued
-  - local verification templates for dynamic challenges now point to a frontend `/local-instance/...` page so the resolved launch URL can be opened directly during local verification
+  - the admin challenge form now ships a dedicated “team-scoped instance” default and shows the supported placeholder tokens inline, so local operators can create per-team dynamic entry data without hand-writing the whole JSON structure
+  - the public game page now distinguishes between placeholder connection info and the resolved per-team lease entry, so players can tell whether an instance URL is still unresolved or already issued to the current team
+  - local verification defaults for dynamic challenges now point to a frontend `/local-instance/...` page so the resolved launch URL can be opened directly during local verification
 - the public game page now presents managed instances with clearer operator-facing signals: lease countdown, progress bar, local-entry hint, and a lightweight auto-refresh for running leases
 - outward-facing product copy now prefers formal platform wording such as "local verification", "local access page", and "base implementation" instead of test-oriented phrasing
 - management pages continue to avoid temporary or development-oriented wording in user-facing headings, alerts, and action labels; prefer operational phrasing such as "环境检查", "入口确认", and "基础流程"
-- admin-side template recognition should prefer stable `container_spec.metadata` markers over challenge titles, so checklist and helper flows do not break when operators rename a challenge
+- admin-side instance-type recognition should prefer stable `container_spec.metadata` markers over challenge titles, so checklist and helper flows do not break when operators rename a challenge
 - the public game page now also summarizes the current lease policy in-place, so players can distinguish "initial lease" from "renewal adds more time" without guessing from backend behavior
 - the managed instance API now also returns an explicit `policy` object with initial lease / extension / renewal-window minutes, so frontend panels can render the real current strategy instead of inferring it from messages
   - the same policy now also includes a per-team active-instance limit, so local verification flows already expose a minimal resource cap for managed instances
@@ -248,7 +248,7 @@ internal/<module>/
   - the current implementation uses deterministic container names plus `docker run -d`, `docker inspect`, and `docker rm -f`
   - `INSTANCE_DOCKER_HOST` controls the host returned to players in `launch_url` / `host`
   - `runtime.expose` is now parsed from `container_spec.runtime.expose` and is used to publish container ports when the real Docker provider is enabled
-  - the admin challenge form's generic `动态容器` template now defaults to `nginx:alpine` with `expose: [80]`, so local operators have one template that is closer to a truly runnable Docker-backed web challenge
+  - the admin challenge form's generic `容器 Web` entry now defaults to `nginx:alpine` with `expose: [80]`, so local operators have one default that is closer to a truly runnable Docker-backed web challenge
   - current scope is intentionally local-machine oriented: one container per team/challenge lease, no compose, no volumes, no network policy, and no registry auth management yet
 - local dynamic instance renewal now uses a clearer `defaultLifetime / extensionDuration / renewalWindow` split instead of reusing the initial lease duration for every renewal
 - Registration withdrawal now follows the current platform rule:
