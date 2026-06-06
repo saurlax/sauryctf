@@ -1299,7 +1299,7 @@ const detailPrimaryAction = computed(() => {
 const detailSecondaryAction = computed(() => {
   if (!authState.user) {
     return {
-      label: '注册账号',
+      label: '创建账号',
       to: registerEntry.value,
       icon: 'i-lucide-user-plus',
     }

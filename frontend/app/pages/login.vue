@@ -80,9 +80,9 @@ const state = reactive<Partial<LoginSchema>>({
         <template #footer>
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="text-sm text-muted">
-              需要新建选手账号？
+              还没有选手账号？
               <ULink :to="registerTo" class="font-medium">
-                前往注册
+                创建账号
               </ULink>
             </div>
             <div class="flex flex-wrap gap-2">
