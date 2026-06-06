@@ -1676,6 +1676,34 @@ const writeupBlockedAction = computed(() => {
   return null
 })
 
+const flagBlockedAction = computed(() => {
+  if (!authState.user) {
+    return {
+      label: '先去登录',
+      to: loginEntry.value,
+      icon: 'i-lucide-log-in',
+    }
+  }
+
+  if (!participation.value?.has_team) {
+    return {
+      label: '去准备队伍',
+      to: teamEntry.value,
+      icon: 'i-lucide-users',
+    }
+  }
+
+  if (!participation.value?.participated || participation.value.status !== 'accepted') {
+    return {
+      label: '回到比赛概览',
+      to: undefined,
+      icon: 'i-lucide-layout-template',
+    }
+  }
+
+  return null
+})
+
 function formatDuration(ms: number) {
   if (ms <= 0) {
     return '0 分钟'
@@ -2493,23 +2521,48 @@ onMounted(async () => {
                     :title="challengeSubmitMeta.title"
                     :description="challengeSubmitMeta.description"
                   />
-                  <div class="flex gap-2">
+                  <div v-if="canSubmitFlag" class="flex gap-2">
                     <UInput
                       v-model="flagInputs[ch.id]"
                       placeholder="flag{...}"
                       size="sm"
                       class="flex-1"
-                      :disabled="!canSubmitFlag"
                       @keyup.enter="submitFlag(ch.id)"
                     />
                     <UButton
                       size="sm"
                       :loading="submitting === ch.id"
                       icon="i-lucide-send"
-                      :disabled="!canSubmitFlag"
                       @click="submitFlag(ch.id)"
                     />
                   </div>
+                  <UEmpty
+                    v-else
+                    icon="i-lucide-flag-off"
+                    title="当前还不能提交 Flag"
+                    :description="challengeSubmitMeta.description"
+                    :actions="flagBlockedAction?.to
+                      ? [{
+                          label: flagBlockedAction.label,
+                          icon: flagBlockedAction.icon,
+                          to: flagBlockedAction.to,
+                          color: 'neutral',
+                          variant: 'outline',
+                        }]
+                      : []"
+                  >
+                    <template #footer>
+                      <div v-if="flagBlockedAction && !flagBlockedAction.to" class="mt-4 flex justify-center">
+                        <UButton
+                          variant="outline"
+                          :icon="flagBlockedAction.icon"
+                          @click="activeTab = 'overview'"
+                        >
+                          {{ flagBlockedAction.label }}
+                        </UButton>
+                      </div>
+                    </template>
+                  </UEmpty>
                 </div>
               </UPageCard>
             </div>
