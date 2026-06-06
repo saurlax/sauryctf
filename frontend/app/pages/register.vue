@@ -102,8 +102,8 @@ const loginTo = computed(() => {
               </ULink>
             </div>
             <div class="flex flex-wrap gap-2">
-            <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="ghost" />
-            <UButton label="返回登录" icon="i-lucide-log-in" :to="loginTo" variant="outline" />
+              <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="ghost" />
+              <UButton label="返回登录" icon="i-lucide-log-in" :to="loginTo" variant="outline" />
             </div>
           </div>
         </template>

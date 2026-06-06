@@ -62,7 +62,7 @@ const state = reactive<Partial<LoginSchema>>({
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.05fr)_360px] xl:items-start">
       <UPageCard
         title="登录"
-        description="使用已有账号登录，继续访问控制台或比赛页面。"
+        description="使用已有账号登录，继续访问控制台或公开比赛页面。"
         icon="i-lucide-lock"
       >
         <UForm :schema="loginSchema" :state="state" class="space-y-4" @submit="onLogin">
@@ -80,14 +80,14 @@ const state = reactive<Partial<LoginSchema>>({
         <template #footer>
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="text-sm text-muted">
-              还没有账号？
+              需要新建选手账号？
               <ULink :to="registerTo" class="font-medium">
-                注册新账号
+                前往注册
               </ULink>
             </div>
             <div class="flex flex-wrap gap-2">
-            <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="ghost" />
-            <UButton label="注册" icon="i-lucide-user-round-plus" :to="registerTo" variant="outline" />
+              <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="ghost" />
+              <UButton label="注册" icon="i-lucide-user-round-plus" :to="registerTo" variant="outline" />
             </div>
           </div>
         </template>
