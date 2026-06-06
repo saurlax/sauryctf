@@ -727,7 +727,7 @@ const monitorFocusItems = computed(() => {
       description: `${overview.pendingParticipantCount} 支队伍仍在等待通过，处理后即可恢复完整参赛链路。`,
       badge: '报名',
       color: 'warning' as const,
-      to: '#attach-challenge',
+      to: '#participants',
     })
   }
 
@@ -738,7 +738,7 @@ const monitorFocusItems = computed(() => {
       description: `${writeups.value.filter(item => item.status === 'submitted').length} 份 Writeup 仍未处理，可在这里继续完成赛后收尾。`,
       badge: 'Writeup',
       color: 'info' as const,
-      to: '#attach-challenge',
+      to: '#writeups',
     })
   }
 
@@ -751,7 +751,7 @@ const monitorFocusItems = computed(() => {
         description: `${firstClue.challenge_title} 当前已有 ${firstClue.team_count} 支队伍重复提交同一错误 Flag，可继续排查线索传播。`,
         badge: '线索',
         color: 'error' as const,
-        to: '#attach-challenge',
+        to: '#submissions',
       })
     }
   }
@@ -777,7 +777,7 @@ const monitorFocusItems = computed(() => {
       description: '如果这场比赛已经对外开放，可以发布一条开赛或维护公告，方便参赛队伍同步状态。',
       badge: '公告',
       color: 'neutral' as const,
-      to: '#attach-challenge',
+      to: '#announcements',
     })
   }
 
