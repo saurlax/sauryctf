@@ -412,7 +412,7 @@ const statusItems = computed(() => {
     key: 'writeup',
     title: '处理当前待办',
     description: writeupGame
-      ? `${writeupGame.name} 当前还需要补交 Writeup，请优先进入比赛详情页处理。`
+      ? `${writeupGame.name} 当前还需要补交 Writeup，请进入比赛详情页处理。`
       : primaryPendingEntry.value
         ? `${primaryPendingEntry.value.meta.label}：${primaryPendingEntry.value.meta.description}`
         : '当比赛进入审核、开赛或 Writeup 阶段后，这里会优先显示当前最需要处理的事项。',
@@ -601,7 +601,7 @@ onMounted(async () => {
         variant="soft"
         icon="i-lucide-key-round"
         title="请尽快更新默认管理员密码"
-        description="当前管理员账号仍在使用首次启动时的默认口令。建议先去账号安全页修改密码，再继续长期使用管理端。"
+        description="当前管理员账号仍在使用首次启动时的默认口令。请先前往账号安全页修改密码，再继续长期使用管理端。"
       >
         <template #actions>
           <UButton
@@ -716,7 +716,7 @@ onMounted(async () => {
                 v-if="!adminManagedGames.length"
                 icon="i-lucide-calendar-plus"
                 title="还没有可管理的比赛"
-                description="当前还没有任何比赛进入最近管理列表。先创建一场比赛，再回来检查状态切换和公开展示。"
+                description="当前还没有任何比赛进入最近管理列表。创建比赛后，这里会显示最近的管理入口。"
                 :actions="[{
                   label: '去创建比赛',
                   icon: 'i-lucide-settings-2',
@@ -814,7 +814,7 @@ onMounted(async () => {
               v-else
               icon="i-lucide-calendar-range"
               title="还没有可浏览的公开比赛"
-              :description="isAdmin ? '先创建并发布一场公开比赛，公开列表才会开始出现内容。' : '当前还没有公开中的比赛，稍后再来查看即可。'"
+              :description="isAdmin ? '创建并发布公开比赛后，这里会开始出现内容。' : '当前还没有公开中的比赛，稍后再来查看即可。'"
               :actions="isAdmin
                 ? [{
                     label: '去管理端建赛',
@@ -868,7 +868,7 @@ onMounted(async () => {
               v-else
               icon="i-lucide-flag"
               title="还没有关联比赛"
-              :description="team ? '你已经有队伍了，现在可以去浏览公开比赛并完成报名。' : '先准备队伍，再进入公开比赛详情页完成报名。'"
+              :description="team ? '你已经有队伍了，现在可以进入公开比赛页完成报名。' : '准备队伍后，再进入公开比赛详情页完成报名。'"
               :actions="[
                 {
                   label: team ? '浏览比赛' : '去队伍页',
@@ -913,7 +913,7 @@ onMounted(async () => {
               v-else
               icon="i-lucide-megaphone"
               title="还没有可跟进的比赛公告"
-              :description="team ? '加入比赛后，这里会汇总你当前已关联比赛的最新公告。' : '先准备队伍并加入比赛，这里才会出现与你相关的公告通知。'"
+              :description="team ? '加入比赛后，这里会汇总你当前已关联比赛的最新公告。' : '准备队伍并加入比赛后，这里才会出现与你相关的公告通知。'"
               :actions="[{
                 label: team ? '查看我的比赛' : '去队伍页',
                 icon: team ? 'i-lucide-flag' : 'i-lucide-users',
@@ -1098,14 +1098,14 @@ onMounted(async () => {
                     </div>
                   </div>
                 </div>
-                <UEmpty
-                  v-else
-                  icon="i-lucide-megaphone"
-                  title="还没有比赛公告"
-                  description="最近 5 场比赛里还没有发布公告。发布后，这里会优先展示最新内容。"
-                  :actions="[{
-                    label: '去公告区',
-                    icon: 'i-lucide-megaphone',
+                  <UEmpty
+                    v-else
+                    icon="i-lucide-megaphone"
+                    title="还没有比赛公告"
+                    description="最近 5 场比赛里还没有发布公告。发布后，这里会展示最新内容。"
+                    :actions="[{
+                      label: '去公告区',
+                      icon: 'i-lucide-megaphone',
                     to: '/console/admin',
                     color: 'neutral',
                     variant: 'outline',

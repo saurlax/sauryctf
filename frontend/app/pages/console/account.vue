@@ -33,8 +33,8 @@ const bootstrapRisk = computed(() => !!setupStatus.value?.password_change_recomm
 const securityNextStepMeta = computed(() => {
   if (bootstrapRisk.value) {
     return {
-      title: '当前状态：建议立即改密',
-      description: '当前管理员账号仍在使用默认口令，建议先完成改密，再继续日常管理操作。',
+      title: '当前状态：需更新登录密码',
+      description: '当前管理员账号仍在使用默认口令。完成改密后再继续日常管理操作会更安全。',
       color: 'warning' as const,
       icon: 'i-lucide-triangle-alert',
       actionLabel: '打开管理端',
@@ -177,7 +177,7 @@ onMounted(async () => {
             variant="soft"
             icon="i-lucide-triangle-alert"
             title="初始管理员账号仍在使用初始密码"
-            description="当前账号仍在使用平台首次启动时的默认口令。为避免长期保留高风险凭据，建议立即更新为新的管理员密码。"
+            description="当前账号仍在使用平台首次启动时的默认口令。为避免长期保留高风险凭据，请尽快更新为新的管理员密码。"
           />
 
           <UForm :schema="securitySchema" :state="state" class="space-y-4" @submit="submitPasswordChange">
