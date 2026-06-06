@@ -916,8 +916,8 @@ const selectedGamePreflightChecks = computed(() => {
       label: '比赛时间已配置',
       done: Boolean(overview.game.start_time && overview.game.end_time),
       description: `${new Date(overview.game.start_time).toLocaleString()} - ${new Date(overview.game.end_time).toLocaleString()}`,
-      actionLabel: '编辑比赛',
-      actionTo: '#edit-game',
+      actionLabel: '去比赛设置',
+      actionTo: '#game-settings',
     },
     {
       key: 'status',
@@ -967,7 +967,7 @@ const selectedGamePreflightChecks = computed(() => {
         ? `当前 ${overview.participantCount} 支队伍，其中 ${overview.acceptedParticipantCount} 支已通过、${overview.pendingParticipantCount} 支待审核、${overview.rejectedParticipantCount} 支已拒绝。`
         : '当前还没有报名队伍，可先使用普通用户完成一轮报名与参赛流程。',
       actionLabel: overview.participantCount > 0 ? '查看报名队伍' : '打开公开页',
-      actionTo: overview.participantCount > 0 ? '#attach-challenge' : `/games/${overview.game.id}`,
+      actionTo: overview.participantCount > 0 ? '#participants' : `/games/${overview.game.id}`,
     },
   ]
 })
