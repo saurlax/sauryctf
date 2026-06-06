@@ -2987,25 +2987,13 @@ onMounted(async () => {
                       {{ writeup.review_remark }}
                     </div>
                   </div>
-                  <div
-                    class="rounded-lg border border-default px-3 py-3 text-muted leading-6"
-                  >
-                    <div class="font-medium text-default">
-                      处理说明
-                    </div>
-                    <div class="mt-2 space-y-2">
-                      <p>
-                        当前页按队伍保存一份 Writeup，重新提交会覆盖已有内容。
-                      </p>
-                      <p v-if="game?.writeup_required">
-                        {{ game.writeup_deadline
-                          ? `如需提交，请在 ${new Date(game.writeup_deadline).toLocaleString()} 前完成。`
-                          : '当前比赛要求提交 Writeup，请按比赛安排完成。' }}
-                      </p>
-                      <p v-else>
-                        当前比赛未开放选手侧 Writeup 提交。
-                      </p>
-                    </div>
+                  <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted leading-6">
+                    当前页按队伍保存一份 Writeup，重新提交会覆盖已有内容；
+                    {{ game?.writeup_required
+                      ? game.writeup_deadline
+                        ? `如需提交，请在 ${new Date(game.writeup_deadline).toLocaleString()} 前完成。`
+                        : '当前比赛要求提交 Writeup，请按比赛安排完成。'
+                      : '当前比赛未开放选手侧 Writeup 提交。' }}
                   </div>
                 </div>
               </UPageCard>
