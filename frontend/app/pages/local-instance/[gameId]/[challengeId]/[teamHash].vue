@@ -88,11 +88,26 @@ const challengeContextDescription = computed(() => {
 
   return challengeId.value > 0 ? `#${challengeId.value}` : '-'
 })
+const gameChallengeReturnLink = computed(() => {
+  if (gameId.value <= 0) {
+    return '/games'
+  }
+
+  const query = new URLSearchParams({
+    tab: 'challenges',
+  })
+
+  if (challengeId.value > 0) {
+    query.set('challenge', String(challengeId.value))
+  }
+
+  return `/games/${gameId.value}?${query.toString()}#challenge-card-${challengeId.value}`
+})
 
 const pageLinks = computed(() => [
   {
     label: '返回比赛页',
-    to: `/games/${gameId.value}`,
+    to: gameChallengeReturnLink.value,
     icon: 'i-lucide-arrow-left',
     variant: 'outline' as const,
   },

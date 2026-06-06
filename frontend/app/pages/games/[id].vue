@@ -48,6 +48,7 @@ const instanceStarting = reactive<Record<number, boolean>>({})
 const instanceDestroying = reactive<Record<number, boolean>>({})
 const instanceAutoRefreshing = ref(false)
 const instanceLastAutoRefreshAt = reactive<Record<number, number>>({})
+const routeFocusedChallengeId = ref<number | null>(null)
 const flagInputs = reactive<Record<number, string>>({})
 const writeupForm = reactive({
   content: '',
@@ -98,6 +99,16 @@ const currentGameRedirect = computed(() => {
 const loginEntry = computed(() => `/login?redirect=${currentGameRedirect.value}`)
 const registerEntry = computed(() => `/register?redirect=${currentGameRedirect.value}`)
 const teamEntry = computed(() => `/console/team?redirect=${currentGameRedirect.value}`)
+const routeRequestedTab = computed(() => typeof route.query.tab === 'string' ? route.query.tab : '')
+const routeRequestedChallengeId = computed(() => {
+  const rawValue = route.query.challenge
+  if (typeof rawValue !== 'string') {
+    return null
+  }
+
+  const parsed = Number(rawValue)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+})
 
 const hasVisibleChallengeContent = computed(() =>
   challenges.value.some(ch => hasChallengeContentEntry(ch)),
@@ -907,6 +918,23 @@ async function refreshRunningChallengeInstances() {
   finally {
     instanceAutoRefreshing.value = false
   }
+}
+
+async function focusChallengeFromRoute() {
+  const challengeId = routeRequestedChallengeId.value
+  if (!challengeId) {
+    routeFocusedChallengeId.value = null
+    return
+  }
+
+  routeFocusedChallengeId.value = challengeId
+  if (activeTab.value !== 'challenges') {
+    activeTab.value = 'challenges'
+  }
+
+  await nextTick()
+  const element = document.getElementById(`challenge-card-${challengeId}`)
+  element?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 watch(
@@ -2017,6 +2045,9 @@ const tabItems = [
 
 watch(activeTab, (v) => {
   if (v === 'scoreboard') fetchScoreboard()
+  if (v === 'challenges' && routeRequestedChallengeId.value) {
+    void focusChallengeFromRoute()
+  }
 })
 
 watch(selectedDivision, () => {
@@ -2025,8 +2056,24 @@ watch(selectedDivision, () => {
   }
 })
 
+watch(
+  () => route.fullPath,
+  () => {
+    if (routeRequestedTab.value === 'challenges' || routeRequestedChallengeId.value) {
+      activeTab.value = 'challenges'
+      void focusChallengeFromRoute()
+      return
+    }
+
+    routeFocusedChallengeId.value = null
+  },
+)
+
 onMounted(async () => {
   await ensureInitialized()
+  if (routeRequestedTab.value === 'overview' || routeRequestedTab.value === 'scoreboard' || routeRequestedTab.value === 'writeup' || routeRequestedTab.value === 'challenges') {
+    activeTab.value = routeRequestedTab.value
+  }
   const timer = window.setInterval(() => {
     now.value = Date.now()
   }, 1000)
@@ -2037,6 +2084,9 @@ onMounted(async () => {
   }, 15_000)
   await fetchAll()
   await syncChallengeInstances()
+  if (routeRequestedTab.value === 'challenges' || routeRequestedChallengeId.value) {
+    await focusChallengeFromRoute()
+  }
 
   onBeforeUnmount(() => {
     window.clearInterval(timer)
@@ -2414,7 +2464,11 @@ onMounted(async () => {
               <UPageCard
                 v-for="ch in group.items"
                 :key="ch.id"
-                :class="ch.solved ? 'ring-1 ring-success' : ''"
+                :id="`challenge-card-${ch.id}`"
+                :class="[
+                  ch.solved ? 'ring-1 ring-success' : '',
+                  routeFocusedChallengeId === ch.id ? 'ring-1 ring-primary scroll-mt-24' : '',
+                ]"
               >
                 <template #header>
                   <div class="flex items-center justify-between gap-2 flex-wrap">
