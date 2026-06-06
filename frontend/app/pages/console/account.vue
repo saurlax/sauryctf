@@ -9,7 +9,7 @@ definePageMeta({
 const { authState, ensureInitialized } = useAuth()
 const toast = useToast()
 
-const { data: authStatus, refresh: refreshAuthStatus } = await useAPI('auth-setup-status', 'get', '/api/auth/setup-status')
+const { data: securityStatus, refresh: refreshSecurityStatus } = await useAPI('auth-security-status', 'get', '/api/auth/security-status')
 
 const securitySchema = z.object({
   current_password: z.string().min(6, '当前密码至少 6 个字符'),
@@ -29,7 +29,7 @@ const state = reactive<Partial<SecuritySchema>>({
 })
 
 const submitting = ref(false)
-const passwordSecurityRisk = computed(() => !!authStatus.value?.password_change_recommended)
+const passwordSecurityRisk = computed(() => !!securityStatus.value?.password_change_recommended)
 const securityNextStepMeta = computed(() => {
   if (passwordSecurityRisk.value) {
     return {
@@ -109,7 +109,7 @@ async function submitPasswordChange(payload: FormSubmitEvent<SecuritySchema>) {
     state.current_password = ''
     state.new_password = ''
     state.confirm_password = ''
-    await refreshAuthStatus()
+    await refreshSecurityStatus()
     toast.add({
       title: '密码已更新',
       description: '新的登录密码已经生效，请妥善保管。',
@@ -126,7 +126,7 @@ async function submitPasswordChange(payload: FormSubmitEvent<SecuritySchema>) {
 
 onMounted(async () => {
   await ensureInitialized()
-  await refreshAuthStatus()
+  await refreshSecurityStatus()
 })
 </script>
 

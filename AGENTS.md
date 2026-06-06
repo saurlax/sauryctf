@@ -187,6 +187,9 @@ internal/<module>/
 - `/console/account` now provides a minimal account-security page:
   - logged-in users can change their own password
   - if the bootstrap admin still uses the initial password, both `/console` and `/console/account` surface a prominent reminder
+  - guest-facing bootstrap state and logged-in password-risk state are now split:
+    - `/api/auth/setup-status` only reports whether an empty database can still use the bootstrap admin
+    - `/api/auth/security-status` reports `password_change_recommended` for the current logged-in session
 - `/console/admin/users` now provides a minimal account-management page for `admin` / `super_admin`:
   - lists current users with role and status
   - supports updating one user's role or status inline

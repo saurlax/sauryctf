@@ -607,10 +607,14 @@ type AuthResponse struct {
 	User  UserInfo `json:"user"`
 }
 
+// AuthSecurityStatusResponse defines model for AuthSecurityStatusResponse.
+type AuthSecurityStatusResponse struct {
+	PasswordChangeRecommended bool `json:"password_change_recommended"`
+}
+
 // AuthSetupStatusResponse defines model for AuthSetupStatusResponse.
 type AuthSetupStatusResponse struct {
-	BootstrapAdminAvailable   bool  `json:"bootstrap_admin_available"`
-	PasswordChangeRecommended *bool `json:"password_change_recommended,omitempty"`
+	BootstrapAdminAvailable bool `json:"bootstrap_admin_available"`
 }
 
 // Challenge defines model for Challenge.
@@ -1235,6 +1239,9 @@ type ServerInterface interface {
 	// Register a new user
 	// (POST /api/auth/register)
 	Register(c *gin.Context)
+	// Get auth security status for current session
+	// (GET /api/auth/security-status)
+	GetAuthSecurityStatus(c *gin.Context)
 	// Get auth bootstrap setup status
 	// (GET /api/auth/setup-status)
 	GetAuthSetupStatus(c *gin.Context)
@@ -1744,6 +1751,21 @@ func (siw *ServerInterfaceWrapper) Register(c *gin.Context) {
 	}
 
 	siw.Handler.Register(c)
+}
+
+// GetAuthSecurityStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetAuthSecurityStatus(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAuthSecurityStatus(c)
 }
 
 // GetAuthSetupStatus operation middleware
@@ -2722,6 +2744,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/api/auth/logout", wrapper.Logout)
 	router.GET(options.BaseURL+"/api/auth/me", wrapper.GetMe)
 	router.POST(options.BaseURL+"/api/auth/register", wrapper.Register)
+	router.GET(options.BaseURL+"/api/auth/security-status", wrapper.GetAuthSecurityStatus)
 	router.GET(options.BaseURL+"/api/auth/setup-status", wrapper.GetAuthSetupStatus)
 	router.GET(options.BaseURL+"/api/challenges", wrapper.ListChallenges)
 	router.POST(options.BaseURL+"/api/challenges", wrapper.CreateChallenge)

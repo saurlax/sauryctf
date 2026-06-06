@@ -51,8 +51,11 @@ type UserInfo struct {
 }
 
 type AuthSetupStatusResponse struct {
-	BootstrapAdminAvailable   bool   `json:"bootstrap_admin_available"`
-	PasswordChangeRecommended bool   `json:"password_change_recommended,omitempty"`
+	BootstrapAdminAvailable bool `json:"bootstrap_admin_available"`
+}
+
+type AuthSecurityStatusResponse struct {
+	PasswordChangeRecommended bool `json:"password_change_recommended"`
 }
 
 type ErrorResponse struct {
@@ -176,18 +179,22 @@ func (h *Handler) SetupStatus(c *gin.Context) {
 	resp := AuthSetupStatusResponse{
 		BootstrapAdminAvailable: available,
 	}
-	if userIDValue, exists := c.Get("user_id"); exists {
-		if userID, ok := userIDValue.(uint); ok {
-			recommended, err := h.svc.IsUsingBootstrapPassword(userID)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
-				return
-			}
-			resp.PasswordChangeRecommended = recommended
-		}
-	}
 
 	c.JSON(http.StatusOK, resp)
+}
+
+func (h *Handler) SecurityStatus(c *gin.Context) {
+	userID := c.MustGet("user_id").(uint)
+
+	recommended, err := h.svc.IsUsingBootstrapPassword(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, AuthSecurityStatusResponse{
+		PasswordChangeRecommended: recommended,
+	})
 }
 
 func (h *Handler) ChangePassword(c *gin.Context) {
@@ -248,6 +255,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 		auth.POST("/login", h.Login)
 		auth.POST("/logout", h.Logout)
 		auth.GET("/me", h.GetMe)
+		auth.GET("/security-status", h.SecurityStatus)
 		auth.POST("/change-password", h.ChangePassword)
 	}
 }

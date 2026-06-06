@@ -78,6 +78,9 @@ func (h *Handler) ListAdminAuditLogs(c *gin.Context, params ListAdminAuditLogsPa
 func (h *Handler) GetAuthSetupStatus(c *gin.Context) {
 	h.auth.SetupStatus(c)
 }
+func (h *Handler) GetAuthSecurityStatus(c *gin.Context) {
+	h.auth.SecurityStatus(c)
+}
 
 func valueOrEmpty(value *string) string {
 	if value == nil {

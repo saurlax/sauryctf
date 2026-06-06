@@ -21,6 +21,10 @@ export interface paths {
     /** Get auth bootstrap setup status */
     get: operations["getAuthSetupStatus"];
   };
+  "/api/auth/security-status": {
+    /** Get auth security status for current session */
+    get: operations["getAuthSecurityStatus"];
+  };
   "/api/auth/logout": {
     /** Invalidate session */
     post: operations["logout"];
@@ -255,7 +259,9 @@ export interface components {
     };
     AuthSetupStatusResponse: {
       bootstrap_admin_available: boolean;
-      password_change_recommended?: boolean;
+    };
+    AuthSecurityStatusResponse: {
+      password_change_recommended: boolean;
     };
     Team: {
       id: number;
@@ -709,6 +715,29 @@ export interface operations {
         };
       };
       /** @description Failed to inspect auth setup status */
+      500: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /** Get auth security status for current session */
+  getAuthSecurityStatus: {
+    responses: {
+      /** @description Current auth security status */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AuthSecurityStatusResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Failed to inspect auth security status */
       500: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];

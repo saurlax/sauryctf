@@ -7,7 +7,7 @@ import type { components } from '~/types/api'
 
 const { authState, ensureInitialized } = useAuth()
 const toast = useToast()
-const { data: authStatus, refresh: refreshAuthStatus } = await useAPI('auth-setup-status', 'get', '/api/auth/setup-status')
+const { data: securityStatus, refresh: refreshSecurityStatus } = await useAPI('auth-security-status', 'get', '/api/auth/security-status')
 const { resolveParticipationMeta } = usePublicGameParticipationState()
 
 interface TeamSummary {
@@ -156,7 +156,7 @@ const nextGame = computed(() => {
     .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0] || null
 })
 
-const showPasswordSecurityNotice = computed(() => !!authStatus.value?.password_change_recommended)
+const showPasswordSecurityNotice = computed(() => !!securityStatus.value?.password_change_recommended)
 const now = ref(Date.now())
 
 const stats = computed(() => [
@@ -190,7 +190,7 @@ async function fetchConsoleData() {
       participationMap.value = await fetchParticipationMap(games.value.map(game => game.id))
       await loadPlayerAnnouncements()
       await loadAdminTodoData()
-      await refreshAuthStatus()
+      await refreshSecurityStatus()
     }
     else {
       games.value = []

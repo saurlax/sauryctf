@@ -209,7 +209,7 @@ func TestServer_BootstrapAdminPasswordRecommendationLifecycle(t *testing.T) {
 
 	tokenCookie := loginBootstrapAdmin(t, server.URL)
 
-	setupReq, err := http.NewRequest(http.MethodGet, server.URL+"/api/auth/setup-status", nil)
+	setupReq, err := http.NewRequest(http.MethodGet, server.URL+"/api/auth/security-status", nil)
 	require.NoError(t, err)
 	setupReq.AddCookie(tokenCookie)
 
@@ -235,7 +235,7 @@ func TestServer_BootstrapAdminPasswordRecommendationLifecycle(t *testing.T) {
 	defer changeResp.Body.Close()
 	require.Equal(t, http.StatusOK, changeResp.StatusCode)
 
-	setupAfterReq, err := http.NewRequest(http.MethodGet, server.URL+"/api/auth/setup-status", nil)
+	setupAfterReq, err := http.NewRequest(http.MethodGet, server.URL+"/api/auth/security-status", nil)
 	require.NoError(t, err)
 	setupAfterReq.AddCookie(tokenCookie)
 
@@ -269,6 +269,27 @@ func TestServer_BootstrapAdminPasswordRecommendationLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	defer newLoginResp.Body.Close()
 	assert.Equal(t, http.StatusOK, newLoginResp.StatusCode)
+}
+
+func TestServer_AuthSetupStatusDoesNotExposePasswordRecommendation(t *testing.T) {
+	server := setupHTTPTestServer(t)
+	defer server.Close()
+
+	tokenCookie := loginBootstrapAdmin(t, server.URL)
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/api/auth/setup-status", nil)
+	require.NoError(t, err)
+	req.AddCookie(tokenCookie)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var payload map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&payload))
+	_, exists := payload["password_change_recommended"]
+	assert.False(t, exists)
 }
 
 func TestServer_BootstrapAdminCanCreateGame(t *testing.T) {

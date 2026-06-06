@@ -52,6 +52,7 @@ func setupAuthRouter(mock *MockService) *gin.Engine {
 	})
 	protected.POST("/auth/logout", h.Logout)
 	protected.GET("/auth/me", h.GetMe)
+	protected.GET("/auth/security-status", h.SecurityStatus)
 	protected.POST("/auth/change-password", h.ChangePassword)
 	protected.GET("/admin/users", h.ListUsers)
 	protected.PUT("/admin/users/:userId", func(c *gin.Context) {
@@ -208,7 +209,7 @@ func TestHandler_SetupStatus(t *testing.T) {
 		assert.NotContains(t, w.Body.String(), `"default_admin_password"`)
 	})
 
-	t.Run("password change recommendation exposed for bootstrap admin session", func(t *testing.T) {
+	t.Run("setup status does not expose password recommendation", func(t *testing.T) {
 		mock := NewMockService()
 		admin := &models.User{ID: 1, Username: "admin", Email: "admin@test.com", Role: models.RoleAdmin, Status: models.StatusActive}
 		mock.Users[admin.Email] = admin
@@ -223,7 +224,38 @@ func TestHandler_SetupStatus(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+		assert.NotContains(t, w.Body.String(), `"password_change_recommended"`)
+	})
+}
+
+func TestHandler_SecurityStatus(t *testing.T) {
+	t.Run("password change recommendation exposed for bootstrap admin session", func(t *testing.T) {
+		mock := NewMockService()
+		admin := &models.User{ID: 1, Username: "admin", Email: "admin@test.com", Role: models.RoleAdmin, Status: models.StatusActive}
+		mock.Users[admin.Email] = admin
+		mock.Passwords[admin.ID] = defaultAdminPassword
+		mock.BootstrapPasswordInUseBy[admin.ID] = true
+		mock.Tokens["bootstrap-admin-token"] = admin
+		r := setupAuthRouter(mock)
+
+		req := httptest.NewRequest("GET", "/api/auth/security-status", nil)
+		req.AddCookie(&http.Cookie{Name: "token", Value: "bootstrap-admin-token"})
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Body.String(), `"password_change_recommended":true`)
+	})
+
+	t.Run("requires login", func(t *testing.T) {
+		mock := NewMockService()
+		r := setupAuthRouter(mock)
+
+		req := httptest.NewRequest("GET", "/api/auth/security-status", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 }
 

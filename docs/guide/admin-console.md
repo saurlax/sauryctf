@@ -68,6 +68,8 @@
 - 即使后端仍保留历史接口路径（例如 `/api/auth/setup-status`）：
   - 控制台页面内部状态名也应优先使用中性表达，如 `authStatus`、`passwordSecurityRisk`
   - 不把 `setup`、初始化或向导式语义继续扩散到页面实现和计算属性命名里
+- 账号安全提醒当前应优先走登录后接口 `/api/auth/security-status`：
+  - 访客态接口 `/api/auth/setup-status` 只保留空库启动检测，不再承载控制台内的改密提醒
 - 当当前比赛使用容器实例模板时，管理端会额外显示一张容器实例检查清单：
   - 当前优先根据题目 `container_spec.metadata.purpose` 识别模板类型，不再依赖题目标题必须保持固定值
   - 如果历史数据还没补 `metadata.purpose`，则只允许退回到 `runtime.provider / runtime.image / runtime.expose` 这类结构级判断

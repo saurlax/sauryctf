@@ -140,6 +140,11 @@ components:
       properties:
         bootstrap_admin_available:
           type: boolean
+
+    AuthSecurityStatusResponse:
+      type: object
+      required: [password_change_recommended]
+      properties:
         password_change_recommended:
           type: boolean
 
@@ -974,6 +979,33 @@ paths:
                 $ref: "#/components/schemas/AuthSetupStatusResponse"
         "500":
           description: Failed to inspect auth setup status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/auth/security-status:
+    get:
+      operationId: getAuthSecurityStatus
+      summary: Get auth security status for current session
+      tags: [auth]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Current auth security status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSecurityStatusResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to inspect auth security status
           content:
             application/json:
               schema:
