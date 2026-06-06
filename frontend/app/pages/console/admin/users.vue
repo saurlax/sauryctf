@@ -4,6 +4,7 @@ definePageMeta({
 })
 
 import type { components } from '~/types/api'
+import type { TableColumn } from '@nuxt/ui'
 
 type UserInfo = components['schemas']['UserInfo']
 type UserRole = NonNullable<UserInfo['role']>
@@ -73,6 +74,21 @@ const activeFilterSummary = computed(() => {
 
   return items.length ? items.join(' / ') : '全部用户'
 })
+const userTableColumns: TableColumn<UserInfo>[] = [
+  { accessorKey: 'username', header: '用户' },
+  { accessorKey: 'email', header: '邮箱' },
+  { id: 'account', header: '账号状态' },
+  { accessorKey: 'created_at', header: '创建时间' },
+  { id: 'actions', header: '角色与状态调整' },
+]
+
+function getRoleLabel(role: UserRole) {
+  return roleOptions.find(option => option.value === role)?.label || role
+}
+
+function getStatusLabel(status: UserStatus) {
+  return statusOptions.find(option => option.value === status)?.label || status
+}
 
 function syncDrafts() {
   for (const user of users.value) {
@@ -275,69 +291,94 @@ onMounted(async () => {
         <UIcon name="i-lucide-loader-2" class="size-6 animate-spin text-muted" />
       </div>
 
-      <div v-else-if="filteredUsers.length" class="space-y-3">
-        <div
-          v-for="user in filteredUsers"
-          :key="user.id"
-          class="rounded-lg border border-default px-4 py-4"
-        >
-          <div class="flex items-start justify-between gap-3 flex-wrap">
-            <div class="min-w-0">
-              <div class="flex items-center gap-2 flex-wrap">
-                <span class="font-medium">{{ user.username }}</span>
-                <UBadge :color="user.status === 'active' ? 'success' : 'error'" variant="soft">
-                  {{ user.status === 'active' ? '正常' : '封禁' }}
-                </UBadge>
-                <UBadge :color="user.role === 'super_admin' ? 'warning' : user.role === 'admin' ? 'info' : 'neutral'" variant="subtle">
-                  {{ user.role }}
-                </UBadge>
-                <UBadge v-if="user.id === currentUserId" color="primary" variant="subtle">
-                  当前账号
-                </UBadge>
-              </div>
-              <div class="mt-2 text-sm text-muted">
-                #{{ user.id }} · {{ user.email }}
-              </div>
-              <div v-if="user.created_at" class="mt-1 text-xs text-muted">
-                创建时间：{{ new Date(user.created_at).toLocaleString() }}
-              </div>
+      <UTable
+        v-else-if="filteredUsers.length"
+        :data="filteredUsers"
+        :columns="userTableColumns"
+        class="overflow-x-auto"
+        :ui="{
+          td: 'align-top',
+        }"
+      >
+        <template #username-cell="{ row }">
+          <div class="min-w-52">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="font-medium">{{ row.original.username }}</span>
+              <UBadge v-if="row.original.id === currentUserId" color="primary" variant="subtle">
+                当前账号
+              </UBadge>
             </div>
+            <div class="mt-1 text-xs text-muted">
+              #{{ row.original.id }}
+            </div>
+          </div>
+        </template>
 
-            <div class="grid gap-3 md:grid-cols-[180px_180px_auto] md:items-end">
-              <UFormField label="角色" :name="`role-${user.id}`">
+        <template #email-cell="{ row }">
+          <div class="min-w-56 break-all text-sm">
+            {{ row.original.email }}
+          </div>
+        </template>
+
+        <template #account-cell="{ row }">
+          <div class="min-w-44 space-y-2">
+            <div class="flex flex-wrap gap-2">
+              <UBadge :color="row.original.status === 'active' ? 'success' : 'error'" variant="soft">
+                {{ getStatusLabel(row.original.status) }}
+              </UBadge>
+              <UBadge :color="row.original.role === 'super_admin' ? 'warning' : row.original.role === 'admin' ? 'info' : 'neutral'" variant="subtle">
+                {{ getRoleLabel(row.original.role) }}
+              </UBadge>
+            </div>
+            <div class="text-xs text-muted">
+              {{ hasPendingChange(row.original) ? '有未保存修改' : '当前状态已保存' }}
+            </div>
+          </div>
+        </template>
+
+        <template #created_at-cell="{ row }">
+          <div class="min-w-40 text-sm text-muted">
+            {{ row.original.created_at ? new Date(row.original.created_at).toLocaleString() : '-' }}
+          </div>
+        </template>
+
+        <template #actions-cell="{ row }">
+          <div class="min-w-[420px] space-y-3">
+            <div class="grid gap-3 md:grid-cols-[160px_160px_auto] md:items-end">
+              <UFormField label="角色" :name="`role-${row.original.id}`">
                 <USelect
-                  v-model="roleDrafts[user.id]"
-                  :items="getRoleOptions(user)"
+                  v-model="roleDrafts[row.original.id]"
+                  :items="getRoleOptions(row.original)"
                   class="w-full"
-                  :disabled="!canEditUser(user) || savingUserId === user.id"
+                  :disabled="!canEditUser(row.original) || savingUserId === row.original.id"
                 />
               </UFormField>
 
-              <UFormField label="状态" :name="`status-${user.id}`">
+              <UFormField label="状态" :name="`status-${row.original.id}`">
                 <USelect
-                  v-model="statusDrafts[user.id]"
-                  :items="getStatusOptions(user)"
+                  v-model="statusDrafts[row.original.id]"
+                  :items="getStatusOptions(row.original)"
                   class="w-full"
-                  :disabled="!canEditUser(user) || savingUserId === user.id"
+                  :disabled="!canEditUser(row.original) || savingUserId === row.original.id"
                 />
               </UFormField>
 
               <UButton
                 icon="i-lucide-save"
-                :loading="savingUserId === user.id"
-                :disabled="!canEditUser(user) || !hasPendingChange(user)"
-                @click="saveUser(user)"
+                :loading="savingUserId === row.original.id"
+                :disabled="!canEditUser(row.original) || !hasPendingChange(row.original)"
+                @click="saveUser(row.original)"
               >
                 保存
               </UButton>
             </div>
-          </div>
 
-          <div v-if="!canEditUser(user) || getEditRestrictionReason(user)" class="mt-3 text-xs text-muted">
-            {{ getEditRestrictionReason(user) || '当前账号权限不足，不能修改该用户。' }}
+            <div v-if="!canEditUser(row.original) || getEditRestrictionReason(row.original)" class="text-xs text-muted">
+              {{ getEditRestrictionReason(row.original) || '当前账号权限不足，不能修改该用户。' }}
+            </div>
           </div>
-        </div>
-      </div>
+        </template>
+      </UTable>
 
       <div v-else class="text-sm text-muted">
         当前筛选下没有匹配的用户记录。
