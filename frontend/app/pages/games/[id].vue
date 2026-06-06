@@ -1646,6 +1646,36 @@ const writeupRuleItems = computed(() => [
   'Writeup 审核结果由管理员在管理端更新，审核备注会直接展示在本页。',
 ])
 
+const canEditWriteup = computed(() => !!writeup.value?.can_submit)
+
+const writeupBlockedAction = computed(() => {
+  if (!authState.user) {
+    return {
+      label: '先去登录',
+      to: loginEntry.value,
+      icon: 'i-lucide-log-in',
+    }
+  }
+
+  if (!participation.value?.has_team) {
+    return {
+      label: '去准备队伍',
+      to: teamEntry.value,
+      icon: 'i-lucide-users',
+    }
+  }
+
+  if (!participation.value?.participated || participation.value.status !== 'accepted') {
+    return {
+      label: '回到比赛概览',
+      to: undefined,
+      icon: 'i-lucide-layout-template',
+    }
+  }
+
+  return null
+})
+
 function formatDuration(ms: number) {
   if (ms <= 0) {
     return '0 分钟'
@@ -2643,7 +2673,7 @@ onMounted(async () => {
                   :description="writeupGuide.description"
                 />
 
-                <UForm :state="writeupForm" class="space-y-4" @submit="submitWriteup">
+                <UForm v-if="canEditWriteup" :state="writeupForm" class="space-y-4" @submit="submitWriteup">
                   <UFormField
                     label="Writeup 内容"
                     name="content"
@@ -2665,6 +2695,34 @@ onMounted(async () => {
                     </UButton>
                   </div>
                 </UForm>
+
+                <UEmpty
+                  v-else
+                  icon="i-lucide-file-lock-2"
+                  title="当前还不能编辑 Writeup"
+                  :description="writeupGuide.description"
+                  :actions="writeupBlockedAction?.to
+                    ? [{
+                        label: writeupBlockedAction.label,
+                        icon: writeupBlockedAction.icon,
+                        to: writeupBlockedAction.to,
+                        color: 'neutral',
+                        variant: 'outline',
+                      }]
+                    : []"
+                >
+                  <template #footer>
+                    <div v-if="writeupBlockedAction && !writeupBlockedAction.to" class="mt-4 flex justify-center">
+                      <UButton
+                        variant="outline"
+                        :icon="writeupBlockedAction.icon"
+                        @click="activeTab = 'overview'"
+                      >
+                        {{ writeupBlockedAction.label }}
+                      </UButton>
+                    </div>
+                  </template>
+                </UEmpty>
               </div>
             </UPageCard>
 
