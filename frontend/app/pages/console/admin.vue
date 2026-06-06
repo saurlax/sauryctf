@@ -319,6 +319,10 @@ type ConfirmActionType =
   | 'remove-game-challenge'
   | 'delete-challenge'
   | 'delete-game'
+  | 'export-game'
+  | 'export-scoreboard'
+  | 'export-writeups'
+  | 'export-submissions'
 
 const confirmActionState = reactive<{
   type: ConfirmActionType | null
@@ -326,12 +330,14 @@ const confirmActionState = reactive<{
   title: string
   description: string
   confirmLabel: string
+  context: string
 }>({
   type: null,
   id: null,
   title: '',
   description: '',
   confirmLabel: '确认',
+  context: '',
 })
 
 const confirmActionBusy = computed(() => {
@@ -352,6 +358,18 @@ const confirmActionBusy = computed(() => {
   }
   if (confirmActionState.type === 'delete-game') {
     return deletingGameId.value === confirmActionState.id
+  }
+  if (confirmActionState.type === 'export-game') {
+    return exportingGameId.value === confirmActionState.id
+  }
+  if (confirmActionState.type === 'export-scoreboard') {
+    return exportingScoreboardGameId.value === confirmActionState.id
+  }
+  if (confirmActionState.type === 'export-writeups') {
+    return exportingWriteupsGameId.value === confirmActionState.id
+  }
+  if (confirmActionState.type === 'export-submissions') {
+    return exportingSubmissionsGameId.value === confirmActionState.id
   }
 
   return false
@@ -3003,6 +3021,17 @@ async function runDeleteGame(gameId: number) {
 }
 
 async function exportGame(gameId: number) {
+  const game = games.value.find(item => item.id === gameId)
+  openConfirmAction({
+    type: 'export-game',
+    id: gameId,
+    title: '确认导出比赛包',
+    description: `比赛「${game?.name || `#${gameId}`}」的基础配置、挂题关系和可打包附件会写入归档 ZIP。`,
+    confirmLabel: '导出比赛包',
+  })
+}
+
+async function runExportGame(gameId: number) {
   exportingGameId.value = gameId
   try {
     await downloadArchive(
@@ -3042,6 +3071,22 @@ async function downloadArchive(url: string, fallbackFilename: string, successTit
 }
 
 async function exportScoreboard(gameId: number, division?: string) {
+  const game = games.value.find(item => item.id === gameId)
+  const divisionLabel = division?.trim()
+    ? `当前会按分组「${division.trim()}」导出榜单视图。`
+    : '当前会按整场比赛的统一榜单口径导出。'
+
+  openConfirmAction({
+    type: 'export-scoreboard',
+    id: gameId,
+    title: '确认导出榜单包',
+    description: `比赛「${game?.name || `#${gameId}`}」的榜单快照、排名 CSV 和分题统计会写入归档 ZIP。\n${divisionLabel}`,
+    confirmLabel: '导出榜单包',
+    context: division?.trim() || '',
+  })
+}
+
+async function runExportScoreboard(gameId: number, division?: string) {
   exportingScoreboardGameId.value = gameId
   try {
     const query = division ? `?division=${encodeURIComponent(division)}` : ''
@@ -3063,6 +3108,17 @@ async function exportScoreboard(gameId: number, division?: string) {
 }
 
 async function exportWriteups(gameId: number) {
+  const game = games.value.find(item => item.id === gameId)
+  openConfirmAction({
+    type: 'export-writeups',
+    id: gameId,
+    title: '确认导出 Writeup',
+    description: `比赛「${game?.name || `#${gameId}`}」的 Writeup JSON、CSV 和逐队 Markdown 会写入归档 ZIP。`,
+    confirmLabel: '导出 Writeup',
+  })
+}
+
+async function runExportWriteups(gameId: number) {
   exportingWriteupsGameId.value = gameId
   try {
     await downloadArchive(
@@ -3080,6 +3136,17 @@ async function exportWriteups(gameId: number) {
 }
 
 async function exportSubmissions(gameId: number) {
+  const game = games.value.find(item => item.id === gameId)
+  openConfirmAction({
+    type: 'export-submissions',
+    id: gameId,
+    title: '确认导出提交记录',
+    description: `比赛「${game?.name || `#${gameId}`}」的提交时间线、结果记录和原始提交内容会写入归档 ZIP。`,
+    confirmLabel: '导出提交记录',
+  })
+}
+
+async function runExportSubmissions(gameId: number) {
   exportingSubmissionsGameId.value = gameId
   try {
     await downloadArchive(
@@ -3219,12 +3286,14 @@ function openConfirmAction(payload: {
   title: string
   description: string
   confirmLabel: string
+  context?: string
 }) {
   confirmActionState.type = payload.type
   confirmActionState.id = payload.id
   confirmActionState.title = payload.title
   confirmActionState.description = payload.description
   confirmActionState.confirmLabel = payload.confirmLabel
+  confirmActionState.context = payload.context || ''
   confirmModalOpen.value = true
 }
 
@@ -3234,6 +3303,7 @@ function resetConfirmAction() {
   confirmActionState.title = ''
   confirmActionState.description = ''
   confirmActionState.confirmLabel = '确认'
+  confirmActionState.context = ''
 }
 
 async function confirmAction() {
@@ -3263,6 +3333,18 @@ async function confirmAction() {
   }
   else if (actionType === 'delete-game') {
     await runDeleteGame(actionId)
+  }
+  else if (actionType === 'export-game') {
+    await runExportGame(actionId)
+  }
+  else if (actionType === 'export-scoreboard') {
+    await runExportScoreboard(actionId, confirmActionState.context || undefined)
+  }
+  else if (actionType === 'export-writeups') {
+    await runExportWriteups(actionId)
+  }
+  else if (actionType === 'export-submissions') {
+    await runExportSubmissions(actionId)
   }
 
   resetConfirmAction()
