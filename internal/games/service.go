@@ -1938,6 +1938,14 @@ func (s *Service) JoinGame(gameID uint, teamID uint, userID uint, invitationCode
 		return errors.New("invalid game invitation code")
 	}
 
+	var member models.TeamMember
+	if err := s.db.Where("team_id = ? AND user_id = ?", teamID, userID).First(&member).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("user is not a member of this team")
+		}
+		return err
+	}
+
 	// Prevent duplicate participation
 	var existing models.Participation
 	err := s.db.Where("game_id = ? AND team_id = ?", gameID, teamID).First(&existing).Error

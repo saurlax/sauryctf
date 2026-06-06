@@ -1570,6 +1570,9 @@ func TestService_JoinGame_CreatesPendingParticipation(t *testing.T) {
 	require.NoError(t, database.Create(&user).Error)
 	team := models.Team{Name: "Blue Team", InviteCode: "blue01", CaptainID: user.ID, Status: models.TeamStatusActive}
 	require.NoError(t, database.Create(&team).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team.ID, UserID: user.ID, Role: models.MemberRoleCaptain,
+	}).Error)
 	game := models.Game{
 		Name:      "Join Game",
 		StartTime: time.Now().Add(time.Hour),
@@ -1599,6 +1602,9 @@ func TestService_JoinGame_AutoAcceptsWhenConfigured(t *testing.T) {
 	require.NoError(t, database.Create(&user).Error)
 	team := models.Team{Name: "Red Team", InviteCode: "red01", CaptainID: user.ID, Status: models.TeamStatusActive}
 	require.NoError(t, database.Create(&team).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team.ID, UserID: user.ID, Role: models.MemberRoleCaptain,
+	}).Error)
 	game := models.Game{
 		Name:             "Auto Accept Game",
 		StartTime:        time.Now().Add(time.Hour),
@@ -1629,6 +1635,9 @@ func TestService_LeaveGame_AllowsPendingWithdrawal(t *testing.T) {
 	require.NoError(t, database.Create(&user).Error)
 	team := models.Team{Name: "Pending Team", InviteCode: "pending01", CaptainID: user.ID, Status: models.TeamStatusActive}
 	require.NoError(t, database.Create(&team).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team.ID, UserID: user.ID, Role: models.MemberRoleCaptain,
+	}).Error)
 	game := models.Game{
 		Name:      "Pending Leave Game",
 		StartTime: time.Now().Add(time.Hour),
@@ -1659,6 +1668,9 @@ func TestService_LeaveGame_RejectsAcceptedWithdrawal(t *testing.T) {
 	require.NoError(t, database.Create(&user).Error)
 	team := models.Team{Name: "Accepted Team", InviteCode: "accepted01", CaptainID: user.ID, Status: models.TeamStatusActive}
 	require.NoError(t, database.Create(&team).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team.ID, UserID: user.ID, Role: models.MemberRoleCaptain,
+	}).Error)
 	game := models.Game{
 		Name:             "Accepted Leave Game",
 		StartTime:        time.Now().Add(time.Hour),
@@ -1828,6 +1840,9 @@ func TestService_JoinGame_RejectsDraftGame(t *testing.T) {
 	require.NoError(t, database.Create(&user).Error)
 	team := models.Team{Name: "Draft Team", InviteCode: "draft01", CaptainID: user.ID, Status: models.TeamStatusActive}
 	require.NoError(t, database.Create(&team).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team.ID, UserID: user.ID, Role: models.MemberRoleCaptain,
+	}).Error)
 	game := models.Game{
 		Name:      "Draft Game",
 		StartTime: time.Now().Add(time.Hour),
@@ -1855,6 +1870,9 @@ func TestService_JoinGame_RequiresInvitationCodeWhenConfigured(t *testing.T) {
 	require.NoError(t, database.Create(&user).Error)
 	team := models.Team{Name: "Invite Team", InviteCode: "invite01", CaptainID: user.ID, Status: models.TeamStatusActive}
 	require.NoError(t, database.Create(&team).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team.ID, UserID: user.ID, Role: models.MemberRoleCaptain,
+	}).Error)
 	game := models.Game{
 		Name:           "Invite Only Game",
 		InvitationCode: "spring-2026",
@@ -1871,6 +1889,42 @@ func TestService_JoinGame_RequiresInvitationCodeWhenConfigured(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid game invitation code")
 
 	require.NoError(t, svc.JoinGame(game.ID, team.ID, user.ID, "spring-2026"))
+}
+
+func TestService_JoinGame_RejectsNonMemberUser(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+
+	captain := models.User{Username: "member-captain", Email: "member-captain@example.com", PasswordHash: "hash"}
+	outsider := models.User{Username: "outsider", Email: "outsider@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&captain).Error)
+	require.NoError(t, database.Create(&outsider).Error)
+
+	team := models.Team{Name: "Member Team", InviteCode: "member01", CaptainID: captain.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team.ID,
+		UserID: captain.ID,
+		Role:   models.MemberRoleCaptain,
+	}).Error)
+
+	game := models.Game{
+		Name:      "Membership Game",
+		StartTime: time.Now().Add(time.Hour),
+		EndTime:   time.Now().Add(2 * time.Hour),
+		Status:    "active",
+		IsPublic:  true,
+		CreatedBy: captain.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+
+	err = svc.JoinGame(game.ID, team.ID, outsider.ID, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not a member of this team")
 }
 
 func TestService_SubmitFlag_RejectsBeforeGameStart(t *testing.T) {
