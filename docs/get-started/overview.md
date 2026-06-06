@@ -116,7 +116,7 @@ pnpm dev:local
 
 - 浏览器入口优先使用 `http://127.0.0.1:3000`，不要在同一轮调试里混用 `localhost:3000`
 - 前端请求保持走同源 `/api/**`
-  - 当前 Nuxt 开发环境已经通过 `nitro.devProxy` 把 `/api` 转发到 `http://localhost:8080/api`
+  - 当前 Nuxt 开发环境已经通过 `nitro.devProxy` 把 `/api/**` 转发到 `http://localhost:8080`
   - `frontend/app/plugins/api.ts` 里的 `$apiFetch` 也固定带上了 `credentials: 'include'`
   - 这样浏览器收到的是来自前端源站的 `token` Cookie，刷新页面后 `/api/auth/me` 才能稳定恢复登录态
 
