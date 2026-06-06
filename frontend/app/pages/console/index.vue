@@ -653,25 +653,31 @@ onBeforeUnmount(() => {
     </template>
 
     <template v-else>
-      <UAlert
+      <div
         v-if="showPasswordSecurityNotice"
-        class="mb-6"
-        color="warning"
-        variant="soft"
-        icon="i-lucide-key-round"
-        title="请尽快更新管理员密码"
-        description="当前管理员账号仍在使用高风险口令。请先前往账号安全页修改密码，再继续长期使用管理端。"
+        class="mb-6 rounded-lg border border-default bg-elevated/50 px-4 py-3"
       >
-        <template #actions>
-          <UButton
-            label="前往修改密码"
-            color="warning"
-            variant="outline"
-            size="sm"
-            to="/console/account"
-          />
-        </template>
-      </UAlert>
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 font-medium text-highlighted">
+              <UIcon name="i-lucide-key-round" class="size-4" />
+              <span>请尽快更新管理员密码</span>
+            </div>
+            <p class="mt-2 text-sm text-muted leading-6">
+              当前管理员账号仍在使用高风险口令。请先前往账号安全页修改密码，再继续长期使用管理端。
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <UButton
+              label="前往修改密码"
+              color="warning"
+              variant="outline"
+              size="sm"
+              to="/console/account"
+            />
+          </div>
+        </div>
+      </div>
 
       <UPageGrid :cols="{ default: 1, sm: 2, lg: 4 }">
         <UPageCard

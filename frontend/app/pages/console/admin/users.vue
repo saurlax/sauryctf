@@ -309,14 +309,22 @@ onMounted(async () => {
       </p>
     </div>
 
-    <UAlert
-      class="mb-6"
-      color="info"
-      variant="soft"
-      icon="i-lucide-shield-check"
-      title="当前页仅处理基础账号权限"
-      description="建议只在确有需要时调整管理员权限。当前登录账号不能在这里修改自己的角色，也不能把自己改为封禁。"
-    />
+    <div class="mb-6 rounded-lg border border-default bg-elevated/50 px-4 py-3">
+      <div class="flex items-start justify-between gap-4 flex-wrap">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 font-medium text-highlighted">
+            <UIcon name="i-lucide-shield-check" class="size-4" />
+            <span>当前页仅处理基础账号权限</span>
+          </div>
+          <p class="mt-2 text-sm text-muted leading-6">
+            建议只在确有需要时调整管理员权限。当前登录账号不能在这里修改自己的角色，也不能把自己改为封禁。
+          </p>
+        </div>
+        <UBadge color="info" variant="soft">
+          账号权限
+        </UBadge>
+      </div>
+    </div>
 
     <UPageGrid :cols="{ default: 1, sm: 3 }" class="mb-6">
       <UPageCard title="总用户数" :description="String(totalUsers)" icon="i-lucide-users" />
