@@ -29,6 +29,7 @@ const state = reactive<Partial<SecuritySchema>>({
 })
 
 const submitting = ref(false)
+const passwordModalOpen = ref(false)
 const passwordSecurityRisk = computed(() => !!securityStatus.value?.password_change_recommended)
 const securityNextStepMeta = computed(() => {
   if (passwordSecurityRisk.value) {
@@ -109,6 +110,7 @@ async function submitPasswordChange(payload: FormSubmitEvent<SecuritySchema>) {
     state.current_password = ''
     state.new_password = ''
     state.confirm_password = ''
+    passwordModalOpen.value = false
     await refreshSecurityStatus()
     toast.add({
       title: '密码已更新',
@@ -170,31 +172,35 @@ onMounted(async () => {
         </UAlert>
 
         <UPageCard title="修改密码" icon="i-lucide-key-round">
-          <UAlert
-            v-if="passwordSecurityRisk"
-            class="mb-4"
-            color="warning"
-            variant="soft"
-            icon="i-lucide-triangle-alert"
-            title="初始管理员账号仍在使用初始密码"
-            description="当前账号仍在使用平台首次启动时的默认口令。为避免长期保留高风险凭据，请尽快更新为新的管理员密码。"
-          />
+          <div class="space-y-4">
+            <UAlert
+              v-if="passwordSecurityRisk"
+              color="warning"
+              variant="soft"
+              icon="i-lucide-triangle-alert"
+              title="初始管理员账号仍在使用初始密码"
+              description="当前账号仍在使用平台首次启动时的默认口令。为避免长期保留高风险凭据，请尽快更新为新的管理员密码。"
+            />
 
-          <UForm :schema="securitySchema" :state="state" class="space-y-4" @submit="submitPasswordChange">
-            <UFormField name="current_password" label="当前密码" required>
-              <UInput v-model="state.current_password" type="password" class="w-full" placeholder="输入当前密码" />
-            </UFormField>
+            <div class="rounded-lg border border-default px-4 py-4">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="space-y-1">
+                  <div class="text-sm font-medium">
+                    登录密码维护
+                  </div>
+                  <p class="text-sm text-muted">
+                    密码修改属于低频敏感操作，提交前请确认当前账号与新密码信息无误。
+                  </p>
+                </div>
 
-            <UFormField name="new_password" label="新密码" required>
-              <UInput v-model="state.new_password" type="password" class="w-full" placeholder="至少 6 个字符" />
-            </UFormField>
-
-            <UFormField name="confirm_password" label="确认新密码" required>
-              <UInput v-model="state.confirm_password" type="password" class="w-full" placeholder="再次输入新密码" />
-            </UFormField>
-
-            <UButton type="submit" label="更新密码" icon="i-lucide-save" :loading="submitting" block />
-          </UForm>
+                <UButton
+                  label="修改密码"
+                  icon="i-lucide-key-round"
+                  @click="passwordModalOpen = true"
+                />
+              </div>
+            </div>
+          </div>
 
           <template #footer>
             <div class="text-sm text-muted">
@@ -240,5 +246,63 @@ onMounted(async () => {
         </UPageCard>
       </div>
     </div>
+
+    <UModal
+      v-model:open="passwordModalOpen"
+      title="修改密码"
+      description="更新当前账号的登录密码。提交前请确认当前密码和新密码输入无误。"
+      :dismissible="!submitting"
+      :ui="{ body: 'space-y-4', footer: 'justify-end' }"
+    >
+      <template #body>
+        <UAlert
+          v-if="passwordSecurityRisk"
+          color="warning"
+          variant="soft"
+          icon="i-lucide-triangle-alert"
+          title="当前账号存在改密风险"
+          description="初始管理员密码不应长期保留，请尽快完成更新。"
+        />
+
+        <UForm
+          id="account-password-form"
+          :schema="securitySchema"
+          :state="state"
+          class="space-y-4"
+          @submit="submitPasswordChange"
+        >
+          <UFormField name="current_password" label="当前密码" required>
+            <UInput v-model="state.current_password" type="password" class="w-full" placeholder="输入当前密码" />
+          </UFormField>
+
+          <UFormField name="new_password" label="新密码" required>
+            <UInput v-model="state.new_password" type="password" class="w-full" placeholder="至少 6 个字符" />
+          </UFormField>
+
+          <UFormField name="confirm_password" label="确认新密码" required>
+            <UInput v-model="state.confirm_password" type="password" class="w-full" placeholder="再次输入新密码" />
+          </UFormField>
+        </UForm>
+      </template>
+
+      <template #footer>
+        <UButton
+          color="neutral"
+          variant="outline"
+          :disabled="submitting"
+          @click="passwordModalOpen = false"
+        >
+          取消
+        </UButton>
+        <UButton
+          icon="i-lucide-save"
+          type="submit"
+          form="account-password-form"
+          :loading="submitting"
+        >
+          更新密码
+        </UButton>
+      </template>
+    </UModal>
   </div>
 </template>
