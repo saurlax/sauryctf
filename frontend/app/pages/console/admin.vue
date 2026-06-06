@@ -4174,13 +4174,14 @@ onMounted(async () => {
         >
           <template v-if="adminContextSelectionMeta" #footer>
             <div class="space-y-3">
-              <UAlert
-                color="info"
-                variant="soft"
-                icon="i-lucide-route"
-                title="已有待维护的比赛"
-                :description="adminContextSelectionMeta.description"
-              />
+              <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted leading-6">
+                <div class="font-medium text-highlighted">
+                  已有待维护的比赛
+                </div>
+                <div class="mt-2">
+                  {{ adminContextSelectionMeta.description }}
+                </div>
+              </div>
               <div class="flex flex-wrap justify-center gap-2">
                 <UButton
                   size="sm"
@@ -5345,22 +5346,10 @@ onMounted(async () => {
                 <div class="mt-2 text-muted">
                   当前分组：{{ participant.division || '未分配' }}
                 </div>
-                <div class="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] md:items-end">
-                  <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3 text-sm text-muted">
-                    <div class="font-medium text-highlighted">
-                      待保存状态
-                    </div>
-                    <div class="mt-2">
-                      {{ getParticipantStatusLabel(participantStatusDrafts[participant.team_id] || participant.status) }}
-                    </div>
-                  </div>
-                  <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3 text-sm text-muted">
-                    <div class="font-medium text-highlighted">
-                      待保存分组
-                    </div>
-                    <div class="mt-2">
-                      {{ participantDivisionDrafts[participant.team_id] || '未分配' }}
-                    </div>
+                <div class="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-end">
+                  <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted leading-6">
+                    审核草稿：{{ getParticipantStatusLabel(participantStatusDrafts[participant.team_id] || participant.status) }}
+                    · {{ participantDivisionDrafts[participant.team_id] || '未分配' }}
                   </div>
                   <UButton
                     size="sm"
@@ -5447,21 +5436,13 @@ onMounted(async () => {
                   <div>审核时间：{{ writeup.reviewed_at ? new Date(writeup.reviewed_at).toLocaleString() : '未审核' }}</div>
                 </div>
 
-                <div class="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_auto] md:items-end">
-                  <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3 text-sm text-muted">
-                    <div class="font-medium text-highlighted">
-                      待保存结果
+                <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                  <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted leading-6">
+                    <div>
+                      审核草稿：{{ getWriteupStatusLabel(writeupReviewDrafts[writeup.team_id] === 'rejected' ? 'rejected' : 'approved') }}
                     </div>
-                    <div class="mt-2">
-                      {{ getWriteupStatusLabel(writeupReviewDrafts[writeup.team_id] === 'rejected' ? 'rejected' : 'approved') }}
-                    </div>
-                  </div>
-                  <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3 text-sm text-muted">
-                    <div class="font-medium text-highlighted">
-                      待保存备注
-                    </div>
-                    <div class="mt-2 whitespace-pre-wrap break-all">
-                      {{ writeupRemarkDrafts[writeup.team_id] || '无' }}
+                    <div class="mt-1 whitespace-pre-wrap break-all">
+                      备注：{{ writeupRemarkDrafts[writeup.team_id] || '无' }}
                     </div>
                   </div>
                   <UButton
