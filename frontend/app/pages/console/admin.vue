@@ -475,6 +475,9 @@ const instanceLeases = ref<Array<{
   seconds_left: number
   is_expired: boolean
 }>>([])
+const instanceLeaseStatusFilter = ref<'all' | 'running' | 'expired'>('all')
+const instanceLeaseSourceFilter = ref<'all' | 'container' | 'team-scoped' | 'other'>('all')
+const instanceLeaseKeyword = ref('')
 const writeups = ref<Array<{
   game_id: number
   team_id: number
@@ -646,6 +649,19 @@ const gameStatusOptions = [
   { label: 'Draft', value: 'draft' },
   { label: 'Active', value: 'active' },
   { label: 'Ended', value: 'ended' },
+]
+
+const instanceLeaseStatusOptions = [
+  { label: '全部状态', value: 'all' },
+  { label: '运行中', value: 'running' },
+  { label: '已过期', value: 'expired' },
+]
+
+const instanceLeaseSourceOptions = [
+  { label: '全部来源', value: 'all' },
+  { label: '容器实例题', value: 'container' },
+  { label: '独立实例题', value: 'team-scoped' },
+  { label: '其他动态题', value: 'other' },
 ]
 
 const registrationModeOptions = [
@@ -2706,6 +2722,53 @@ function syncMonitorTabForAnchor(target: string) {
     activeMonitorTab.value = 'ops'
   }
 }
+
+const filteredInstanceLeases = computed(() => {
+  const keyword = instanceLeaseKeyword.value.trim().toLowerCase()
+
+  return instanceLeases.value.filter((lease) => {
+    if (instanceLeaseStatusFilter.value === 'running' && lease.is_expired) {
+      return false
+    }
+
+    if (instanceLeaseStatusFilter.value === 'expired' && !lease.is_expired) {
+      return false
+    }
+
+    if (instanceLeaseSourceFilter.value === 'container' && !matchesContainerRuntimeLease(lease)) {
+      return false
+    }
+
+    if (instanceLeaseSourceFilter.value === 'team-scoped' && !matchesTeamScopedInstanceLease(lease)) {
+      return false
+    }
+
+    if (instanceLeaseSourceFilter.value === 'other' && (matchesContainerRuntimeLease(lease) || matchesTeamScopedInstanceLease(lease))) {
+      return false
+    }
+
+    if (!keyword) {
+      return true
+    }
+
+    const searchableText = [
+      lease.team_name,
+      lease.challenge_title,
+      lease.provider,
+      lease.image,
+      lease.host,
+      lease.port,
+      lease.launch_url,
+      `${lease.team_id}`,
+      `${lease.challenge_id}`,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+
+    return searchableText.includes(keyword)
+  })
+})
 
 function jumpToAdminAnchor(target: string) {
   if (!target.startsWith('#')) {
@@ -5269,9 +5332,34 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <div v-if="instanceLeases.length" class="space-y-2">
+              <div v-if="instanceLeases.length" class="space-y-3">
+                <div class="rounded-lg border border-default px-3 py-3">
+                  <div class="flex flex-wrap items-center gap-3">
+                    <UInput
+                      v-model="instanceLeaseKeyword"
+                      class="min-w-64 flex-1"
+                      icon="i-lucide-search"
+                      placeholder="搜索队伍、题目、provider、镜像或入口"
+                    />
+                    <USelect
+                      v-model="instanceLeaseStatusFilter"
+                      :items="instanceLeaseStatusOptions"
+                      class="w-36"
+                    />
+                    <USelect
+                      v-model="instanceLeaseSourceFilter"
+                      :items="instanceLeaseSourceOptions"
+                      class="w-40"
+                    />
+                    <UBadge color="neutral" variant="subtle">
+                      当前显示 {{ filteredInstanceLeases.length }} / {{ instanceLeases.length }}
+                    </UBadge>
+                  </div>
+                </div>
+
+                <div v-if="filteredInstanceLeases.length" class="space-y-2">
                 <div
-                  v-for="lease in instanceLeases"
+                  v-for="lease in filteredInstanceLeases"
                   :key="lease.id"
                   :class="[
                     'rounded-md px-3 py-3 transition-colors',
@@ -5355,6 +5443,13 @@ onMounted(async () => {
                     </div>
                   </div>
                 </div>
+                </div>
+                <UEmpty
+                  v-else
+                  icon="i-lucide-search-x"
+                  title="当前筛选条件下没有实例"
+                  description="可放宽状态、来源或关键字条件，继续查看当前比赛下的其他动态实例租约。"
+                />
               </div>
 
               <div v-else-if="loadingInstances" class="text-sm text-muted">
