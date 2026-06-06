@@ -74,7 +74,7 @@ const loginTo = computed(() => {
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.05fr)_360px] xl:items-start">
       <UPageCard
         title="注册"
-        description="创建新的选手账号。注册成功后会自动登录，并进入队伍页面。"
+        description="创建选手账号。注册成功后会自动登录，并进入队伍页面。"
         icon="i-lucide-user-plus"
       >
         <UForm :schema="registerSchema" :state="state" class="space-y-4" @submit="onRegister">
@@ -90,7 +90,7 @@ const loginTo = computed(() => {
             <UInput v-model="state.password" class="w-full" type="password" placeholder="至少 6 个字符" />
           </UFormField>
 
-          <UButton type="submit" block label="创建账号" icon="i-lucide-user-round-plus" />
+          <UButton type="submit" block label="注册账号" icon="i-lucide-user-round-plus" />
         </UForm>
 
         <template #footer>

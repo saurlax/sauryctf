@@ -93,6 +93,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - **Prefer Nuxt UI components** — avoid hand-writing Tailwind/CSS unless layout requires it.
 - Keep UI clean; use component composition.
 - Dialog-like interactions such as create/edit forms, delete confirmations, and destructive secondary actions should be wrapped in `UModal` instead of leaving temporary confirmation blocks in the page body.
+- Page-owned `UModal` declarations may be grouped near the end of a Vue template; that is acceptable as long as the visible page body does not duplicate the modal form or confirmation content.
 - If a page already has modal-based create/edit flows, do not keep a second full inline version of the same form in the main page body unless there is a clear operational reason.
 - User-facing page copy should stay formal and product-oriented; avoid temporary notes, onboarding-style placeholders, and testing slang in visible UI text.
 - Public pages, login/register pages, and console home should not carry setup-wizard or initialization-style panels. Empty-state handling should stay minimal and operational.
@@ -183,7 +184,7 @@ internal/<module>/
 - Dynamic scoring is shared across standalone challenge submission and game-scoped submission.
 - Current blood metadata (`first`, `second`, `third`) is retained for display, but does not apply an extra score multiplier.
 - Only when the `users` table is completely empty, backend startup auto-creates a bootstrap admin user: `admin / sauryctf`.
-- The frontend now exposes separate `/login` and `/register` entries in the top-right navigation for basic account onboarding.
+- The frontend exposes separate `/login` and `/register` entries in the top-right navigation for account access.
 - `/console/account` now provides a minimal account-security page:
   - logged-in users can change their own password
   - if the bootstrap admin still uses the initial password, both `/console` and `/console/account` surface a prominent reminder

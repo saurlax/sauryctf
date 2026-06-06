@@ -27,13 +27,13 @@ const features = [
 const accessCards = computed(() => [
   {
     title: '管理控制台',
-    description: '使用现有管理账号进入控制台，维护比赛、题目与平台运行配置。',
+    description: '进入控制台维护比赛、题目、公告与运行配置。',
     icon: 'i-lucide-shield-check',
     to: '/login',
   },
   {
     title: '选手入口',
-    description: '登录或创建选手账号后，可继续处理组队、报名与参赛操作。',
+    description: '登录或注册账号后，可继续处理组队、报名与参赛操作。',
     icon: 'i-lucide-flag',
     to: '/register',
   },
@@ -74,7 +74,7 @@ const heroLinks = computed(() => {
   <div>
     <UPageHero
       title="SauryCTF"
-      description="基于 Go + Gin + GORM + Nuxt 4 的极简 CTF 平台，覆盖公开浏览、队伍协作、比赛管理与题目交付。"
+      description="面向赛事组织与参赛协作的 CTF 平台，覆盖公开浏览、队伍管理、比赛运行与题目交付。"
       :links="heroLinks"
     >
       <template #top>
