@@ -66,6 +66,7 @@ $registerUrl = "$FrontendBaseUrl/register?redirect=$encodedRedirect"
 $unsafeRedirect = "%2F%2Fevil.example"
 $unsafeLoginUrl = "$FrontendBaseUrl/login?redirect=$unsafeRedirect"
 $unsafeRegisterUrl = "$FrontendBaseUrl/register?redirect=$unsafeRedirect"
+$gamesUrl = "$FrontendBaseUrl/games"
 
 Write-Step "Checking login page redirect rendering"
 $loginPage = Invoke-HtmlRequest -Url $loginUrl
@@ -84,6 +85,11 @@ Assert-NotContains $unsafeLoginPage.Content "//evil.example" "Login page should 
 $unsafeRegisterPage = Invoke-HtmlRequest -Url $unsafeRegisterUrl
 Assert-Contains $unsafeRegisterPage.Content "/login?redirect=%2Fconsole%2Fteam" "Register page did not fall back to the default safe redirect."
 Assert-NotContains $unsafeRegisterPage.Content "//evil.example" "Register page should not expose an unsafe double-slash redirect."
+
+Write-Step "Checking public games entry links"
+$gamesPage = Invoke-HtmlRequest -Url $gamesUrl
+Assert-Contains $gamesPage.Content "/login?redirect=%2Fgames" "Games list did not expose the expected login entry redirect."
+Assert-Contains $gamesPage.Content "/register?redirect=%2Fgames" "Games list did not expose the expected register entry redirect."
 
 Write-Host ""
 Write-Host "Auth redirect check passed." -ForegroundColor Green

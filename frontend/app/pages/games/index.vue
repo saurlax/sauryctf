@@ -342,13 +342,13 @@ const emptyStateMeta = computed(() => {
           {
             label: '去登录',
             icon: 'i-lucide-log-in',
-            to: '/login?redirect=%2Fgames',
+            to: buildAuthEntryPath('/login', gamesListPath),
             color: 'neutral' as const,
           },
           {
             label: '去注册',
             icon: 'i-lucide-user-round-plus',
-            to: '/register?redirect=%2Fgames',
+            to: buildAuthEntryPath('/register', gamesListPath),
             color: 'neutral' as const,
             variant: 'outline' as const,
           },
@@ -495,7 +495,7 @@ onMounted(async () => {
           {
             label: authState.user ? '回控制台' : '去登录',
             icon: authState.user ? 'i-lucide-layout-dashboard' : 'i-lucide-log-in',
-            to: authState.user ? '/console' : '/login?redirect=%2Fgames',
+            to: authState.user ? '/console' : buildAuthEntryPath('/login', gamesListPath),
             color: 'neutral',
             variant: 'ghost',
           },
