@@ -194,6 +194,7 @@ const selectedGameChallenges = ref<Array<{
   category: 'web' | 'pwn' | 'crypto' | 'reverse' | 'misc' | 'forensics' | 'awd'
   type: 'static' | 'dynamic'
   difficulty?: string
+  container_spec?: string
   score: number
   solve_count?: number
   blood_team?: string
@@ -428,6 +429,13 @@ const selectedEditableGame = computed(() => games.value.find(game => game.id ===
 const selectedEditableChallenge = computed(() => challenges.value.find(challenge => challenge.id === challengeEditForm.challenge_id) || null)
 const challengeFormInstanceSpec = computed(() => parseChallengeInstanceSpec(challengeForm.container_spec))
 const challengeEditInstanceSpec = computed(() => parseChallengeInstanceSpec(challengeEditForm.container_spec))
+const selectedChallengeTemplatePurposes = computed(() =>
+  new Set(
+    selectedGameChallenges.value
+      .map(challenge => parseChallengeTemplatePurpose(challenge.container_spec, challenge.title))
+      .filter(Boolean),
+  ),
+)
 const filteredGames = computed(() => {
   const keyword = resourceFilters.gameKeyword.trim().toLowerCase()
 
@@ -942,19 +950,15 @@ const localDockerInstanceChecklist = computed(() => {
     return []
   }
 
-  const hasLocalDockerSmokeChallenge = selectedGameChallenges.value.some(challenge =>
-    challenge.title === 'Web Dynamic Container'
-    && challenge.type === 'dynamic'
-    && challenge.category === 'web',
-  )
+  const hasLocalDockerTemplate = selectedChallengeTemplatePurposes.value.has('local-docker-web')
 
-  if (!hasLocalDockerSmokeChallenge) {
+  if (!hasLocalDockerTemplate) {
     return []
   }
 
   const runningLeaseCount = instanceLeases.value.filter(lease =>
-    lease.challenge_title === 'Web Dynamic Container'
-    && !lease.is_expired,
+    matchesLocalDockerLease(lease)
+      && !lease.is_expired,
   ).length
 
   return [
@@ -1078,6 +1082,44 @@ function parseDivisionList(raw: string) {
 
 function formatDivisionList(divisions?: string[]) {
   return (divisions || []).join('\n')
+}
+
+function parseChallengeTemplatePurpose(containerSpec?: string, fallbackTitle?: string) {
+  if (containerSpec) {
+    try {
+      const parsed = JSON.parse(containerSpec) as {
+        metadata?: {
+          purpose?: string
+        }
+      }
+      const purpose = parsed?.metadata?.purpose?.trim()
+      if (purpose) {
+        return purpose
+      }
+    }
+    catch {
+      // Ignore malformed template metadata and fall back to older title-based detection.
+    }
+  }
+
+  const title = fallbackTitle?.trim()
+  if (title === 'Web Dynamic Container') {
+    return 'local-docker-web'
+  }
+
+  return ''
+}
+
+function matchesLocalDockerLease(lease: {
+  challenge_title?: string
+  image?: string
+  provider?: string
+}) {
+  if (lease.provider === 'docker' && lease.image === 'nginx:alpine') {
+    return true
+  }
+
+  return lease.challenge_title === 'Web Dynamic Container'
 }
 
 async function loadAdminResources() {

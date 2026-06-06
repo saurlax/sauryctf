@@ -216,6 +216,7 @@ internal/<module>/
 - the public game page now presents managed instances with clearer operator-facing signals: lease countdown, progress bar, local-entry hint, and a lightweight auto-refresh for running leases
 - outward-facing product copy now prefers formal platform wording such as "local verification", "local access page", and "base implementation" instead of test-oriented phrasing
 - management pages continue to avoid temporary or development-oriented wording in user-facing headings, alerts, and action labels; prefer operational phrasing such as "环境检查", "入口确认", and "基础流程"
+- admin-side template recognition should prefer stable `container_spec.metadata` markers over challenge titles, so checklist and helper flows do not break when operators rename a challenge
 - the public game page now also summarizes the current lease policy in-place, so players can distinguish "initial lease" from "renewal adds more time" without guessing from backend behavior
 - the managed instance API now also returns an explicit `policy` object with initial lease / extension / renewal-window minutes, so frontend panels can render the real current strategy instead of inferring it from messages
   - the same policy now also includes a per-team active-instance limit, so local verification flows already expose a minimal resource cap for managed instances
