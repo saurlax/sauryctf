@@ -98,6 +98,14 @@ const importForm = reactive({
   file: undefined as File | undefined,
 })
 
+const challengeAttachmentUploadForm = reactive({
+  file: undefined as File | undefined,
+})
+
+const challengeEditAttachmentUploadForm = reactive({
+  file: undefined as File | undefined,
+})
+
 const submissionFilters = reactive({
   type: 'all' as 'all' | 'accepted' | 'wrong_flag' | 'already_solved',
   count: 50,
@@ -117,10 +125,12 @@ const resourceFilters = reactive({
 
 const gameSubmitting = ref(false)
 const challengeSubmitting = ref(false)
+const challengeAttachmentUploading = ref(false)
 const attachSubmitting = ref(false)
 const settingsSubmitting = ref(false)
 const gameEditing = ref(false)
 const challengeEditing = ref(false)
+const challengeEditAttachmentUploading = ref(false)
 const starterProvisioning = ref(false)
 const dynamicProvisioning = ref(false)
 const localDockerProvisioning = ref(false)
@@ -1148,6 +1158,28 @@ function validateChallengeDraft(payload: {
   }
 
   return ''
+}
+
+function appendAttachmentUrl(raw: string, url: string) {
+  let attachments: string[] = []
+
+  try {
+    const parsed = JSON.parse(raw || '[]')
+    if (Array.isArray(parsed)) {
+      attachments = parsed
+        .map(item => typeof item === 'string' ? item.trim() : '')
+        .filter(Boolean)
+    }
+  }
+  catch {
+    throw new Error('附件链接必须是有效的 JSON 数组。')
+  }
+
+  if (!attachments.includes(url)) {
+    attachments.push(url)
+  }
+
+  return JSON.stringify(attachments, null, 2)
 }
 
 function describeChallengeAccessMode(containerSpec?: string) {
@@ -2460,6 +2492,7 @@ async function createChallenge() {
     challengeForm.hints = '[]'
     challengeForm.attachments = '[]'
     challengeForm.container_spec = ''
+    challengeAttachmentUploadForm.file = undefined
     challengeForm.category = 'web'
     challengeForm.type = 'static'
     challengeForm.difficulty = 'easy'
@@ -2476,6 +2509,34 @@ async function createChallenge() {
   }
   finally {
     challengeSubmitting.value = false
+  }
+}
+
+async function uploadChallengeAttachment() {
+  if (!challengeAttachmentUploadForm.file) {
+    toast.add({ title: '请先选择文件', color: 'warning' })
+    return
+  }
+
+  challengeAttachmentUploading.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', challengeAttachmentUploadForm.file)
+
+    const result = await $fetch<{ name: string, url: string }>('/api/admin/challenges/attachments', {
+      method: 'POST',
+      body: formData,
+    })
+
+    challengeForm.attachments = appendAttachmentUrl(challengeForm.attachments, result.url)
+    challengeAttachmentUploadForm.file = undefined
+    toast.add({ title: '附件上传成功', description: `已加入 ${result.url}`, color: 'success' })
+  }
+  catch (e: any) {
+    toast.add({ title: '附件上传失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    challengeAttachmentUploading.value = false
   }
 }
 
@@ -2523,6 +2584,34 @@ async function updateChallengeDetails() {
   }
   finally {
     challengeEditing.value = false
+  }
+}
+
+async function uploadChallengeEditAttachment() {
+  if (!challengeEditAttachmentUploadForm.file) {
+    toast.add({ title: '请先选择文件', color: 'warning' })
+    return
+  }
+
+  challengeEditAttachmentUploading.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', challengeEditAttachmentUploadForm.file)
+
+    const result = await $fetch<{ name: string, url: string }>('/api/admin/challenges/attachments', {
+      method: 'POST',
+      body: formData,
+    })
+
+    challengeEditForm.attachments = appendAttachmentUrl(challengeEditForm.attachments, result.url)
+    challengeEditAttachmentUploadForm.file = undefined
+    toast.add({ title: '附件上传成功', description: `已加入 ${result.url}`, color: 'success' })
+  }
+  catch (e: any) {
+    toast.add({ title: '附件上传失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    challengeEditAttachmentUploading.value = false
   }
 }
 
@@ -2974,6 +3063,7 @@ watch(() => challengeEditForm.challenge_id, () => {
     challengeEditForm.hints = '[]'
     challengeEditForm.attachments = '[]'
     challengeEditForm.container_spec = ''
+    challengeEditAttachmentUploadForm.file = undefined
     challengeEditForm.category = 'web'
     challengeEditForm.type = 'static'
     challengeEditForm.difficulty = 'easy'
@@ -2995,6 +3085,7 @@ watch(() => challengeEditForm.challenge_id, () => {
   challengeEditForm.hints = challenge.hints || '[]'
   challengeEditForm.attachments = challenge.attachments || '[]'
   challengeEditForm.container_spec = challenge.container_spec || ''
+  challengeEditAttachmentUploadForm.file = undefined
   challengeEditForm.category = challenge.category
   challengeEditForm.type = challenge.type || 'static'
   challengeEditForm.difficulty = challenge.difficulty || 'easy'
@@ -5177,7 +5268,26 @@ onMounted(async () => {
         </UFormField>
 
         <UFormField label="附件链接" name="attachments" description='使用 JSON 数组，例如 ["https://example.com/files/web.zip"]'>
-          <UTextarea v-model="challengeForm.attachments" class="w-full" :rows="3" placeholder='["https://example.com/files/challenge.zip"]' />
+          <div class="space-y-3">
+            <UFileUpload
+              v-model="challengeAttachmentUploadForm.file"
+              class="min-h-24"
+              label="上传本地附件"
+              description="上传后会自动把返回的 /attachments 路径写入下方 JSON 数组。"
+            />
+            <div class="flex justify-end">
+              <UButton
+                size="sm"
+                variant="outline"
+                icon="i-lucide-upload"
+                :loading="challengeAttachmentUploading"
+                @click="uploadChallengeAttachment"
+              >
+                上传并插入
+              </UButton>
+            </div>
+            <UTextarea v-model="challengeForm.attachments" class="w-full" :rows="3" placeholder='["https://example.com/files/challenge.zip"]' />
+          </div>
         </UFormField>
 
         <UFormField label="实例接入信息" name="container_spec" description='使用 JSON 记录实例 URL、host/port、连接命令或代理入口'>
@@ -5487,7 +5597,26 @@ onMounted(async () => {
           name="attachments"
           description='使用 JSON 数组，例如 ["https://example.com/files/web.zip"]'
         >
-          <UTextarea v-model="challengeEditForm.attachments" class="w-full" :rows="3" placeholder='["https://example.com/files/challenge.zip"]' />
+          <div class="space-y-3">
+            <UFileUpload
+              v-model="challengeEditAttachmentUploadForm.file"
+              class="min-h-24"
+              label="上传本地附件"
+              description="上传后会自动把返回的 /attachments 路径写入下方 JSON 数组。"
+            />
+            <div class="flex justify-end">
+              <UButton
+                size="sm"
+                variant="outline"
+                icon="i-lucide-upload"
+                :loading="challengeEditAttachmentUploading"
+                @click="uploadChallengeEditAttachment"
+              >
+                上传并插入
+              </UButton>
+            </div>
+            <UTextarea v-model="challengeEditForm.attachments" class="w-full" :rows="3" placeholder='["https://example.com/files/challenge.zip"]' />
+          </div>
         </UFormField>
 
         <UFormField

@@ -9,6 +9,7 @@ type ServiceInterface interface {
 	ListChallenges(category string, showHidden bool) ([]models.Challenge, error)
 	UpdateChallenge(id uint, req UpdateChallengeRequest, updatedBy ...uint) (*models.Challenge, error)
 	DeleteChallenge(id uint, deletedBy ...uint) error
+	SaveAttachment(filename string, content []byte) (*AttachmentUploadResult, error)
 	SubmitFlag(challengeID uint, gameID uint, userID uint, teamID uint, flag string) (*SubmitResult, error)
 }
 
@@ -46,6 +47,11 @@ type UpdateChallengeRequest struct {
 	Attachments   *string  `json:"attachments"`
 	ContainerSpec *string  `json:"container_spec"`
 	IsVisible     *bool    `json:"is_visible"`
+}
+
+type AttachmentUploadResult struct {
+	Name string `json:"name"`
+	Url  string `json:"url"`
 }
 
 type SubmitResult struct {

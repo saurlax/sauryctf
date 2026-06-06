@@ -336,6 +336,15 @@ components:
         is_visible:
           type: boolean
 
+    ChallengeAttachmentUploadResponse:
+      type: object
+      required: [name, url]
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+
     SubmitFlagRequest:
       type: object
       required: [flag, game_id]
@@ -1667,6 +1676,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SubmitResult"
+
+  /api/admin/challenges/attachments:
+    post:
+      operationId: uploadChallengeAttachment
+      summary: Upload a local challenge attachment (admin)
+      tags: [challenges]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChallengeAttachmentUploadResponse"
 
   /api/games/{id}/challenges/{challengeId}/instance:
     get:

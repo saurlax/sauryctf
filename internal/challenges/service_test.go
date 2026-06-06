@@ -1,6 +1,8 @@
 package challenges_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -256,4 +258,35 @@ func TestService_SubmitFlag_BloodBonuses(t *testing.T) {
 	r4, _ := svc.SubmitFlag(ch.ID, 1, 40, 4, "flag{blood}")
 	assert.Equal(t, "", r4.BloodType)
 	assert.Equal(t, 77, r4.Score)
+}
+
+func TestService_SaveAttachment(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	attachmentsDir := filepath.Join(".", "attachments")
+	_ = os.RemoveAll(attachmentsDir)
+	defer os.RemoveAll(attachmentsDir)
+
+	result, err := svc.SaveAttachment("web.zip", []byte("attachment-content"))
+	require.NoError(t, err)
+	assert.Equal(t, "web.zip", result.Name)
+	assert.Contains(t, result.Url, "/attachments/")
+
+	entries, err := os.ReadDir(attachmentsDir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+
+	content, err := os.ReadFile(filepath.Join(attachmentsDir, entries[0].Name()))
+	require.NoError(t, err)
+	assert.Equal(t, "attachment-content", string(content))
+}
+
+func TestService_SaveAttachment_RejectsEmptyFile(t *testing.T) {
+	svc, cleanup := setupService(t)
+	defer cleanup()
+
+	_, err := svc.SaveAttachment("empty.zip", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty")
 }

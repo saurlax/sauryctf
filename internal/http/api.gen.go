@@ -639,6 +639,12 @@ type ChallengeDifficulty string
 // ChallengeType defines model for Challenge.Type.
 type ChallengeType string
 
+// ChallengeAttachmentUploadResponse defines model for ChallengeAttachmentUploadResponse.
+type ChallengeAttachmentUploadResponse struct {
+	Name string `json:"name"`
+	Url  string `json:"url"`
+}
+
 // ChallengeInstance defines model for ChallengeInstance.
 type ChallengeInstance struct {
 	CanRenew      bool                    `json:"can_renew"`
@@ -1086,6 +1092,11 @@ type ListAdminAuditLogsParams struct {
 	Limit       *int    `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// UploadChallengeAttachmentMultipartBody defines parameters for UploadChallengeAttachment.
+type UploadChallengeAttachmentMultipartBody struct {
+	File openapi_types.File `json:"file"`
+}
+
 // ImportAdminGamePackageMultipartBody defines parameters for ImportAdminGamePackage.
 type ImportAdminGamePackageMultipartBody struct {
 	File openapi_types.File `json:"file"`
@@ -1106,6 +1117,9 @@ type ListGamesParams struct {
 type GetScoreboardParams struct {
 	Division *string `form:"division,omitempty" json:"division,omitempty"`
 }
+
+// UploadChallengeAttachmentMultipartRequestBody defines body for UploadChallengeAttachment for multipart/form-data ContentType.
+type UploadChallengeAttachmentMultipartRequestBody UploadChallengeAttachmentMultipartBody
 
 // ImportAdminGamePackageMultipartRequestBody defines body for ImportAdminGamePackage for multipart/form-data ContentType.
 type ImportAdminGamePackageMultipartRequestBody ImportAdminGamePackageMultipartBody
@@ -1172,6 +1186,9 @@ type ServerInterface interface {
 	// List admin audit logs
 	// (GET /api/admin/audit-logs)
 	ListAdminAuditLogs(c *gin.Context, params ListAdminAuditLogsParams)
+	// Upload a local challenge attachment (admin)
+	// (POST /api/admin/challenges/attachments)
+	UploadChallengeAttachment(c *gin.Context)
 	// Import a game package (admin)
 	// (POST /api/admin/games/import)
 	ImportAdminGamePackage(c *gin.Context)
@@ -1376,6 +1393,21 @@ func (siw *ServerInterfaceWrapper) ListAdminAuditLogs(c *gin.Context) {
 	}
 
 	siw.Handler.ListAdminAuditLogs(c, params)
+}
+
+// UploadChallengeAttachment operation middleware
+func (siw *ServerInterfaceWrapper) UploadChallengeAttachment(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UploadChallengeAttachment(c)
 }
 
 // ImportAdminGamePackage operation middleware
@@ -2673,6 +2705,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	}
 
 	router.GET(options.BaseURL+"/api/admin/audit-logs", wrapper.ListAdminAuditLogs)
+	router.POST(options.BaseURL+"/api/admin/challenges/attachments", wrapper.UploadChallengeAttachment)
 	router.POST(options.BaseURL+"/api/admin/games/import", wrapper.ImportAdminGamePackage)
 	router.DELETE(options.BaseURL+"/api/admin/games/:id", wrapper.DeleteAdminGame)
 	router.GET(options.BaseURL+"/api/admin/games/:id/challenges", wrapper.GetAdminGameChallenges)

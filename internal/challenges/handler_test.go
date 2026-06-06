@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -58,6 +59,7 @@ func setupTestRouter(svc challenges.ServiceInterface) *gin.Engine {
 		}
 		h.DeleteChallenge(c, id)
 	})
+	api.POST("/challenges/attachments", h.UploadAttachment)
 	api.POST("/challenges/:id/submit", func(c *gin.Context) {
 		var id int
 		if _, err := fmt.Sscan(c.Param("id"), &id); err != nil {
@@ -209,6 +211,48 @@ func TestDeleteChallenge_Success(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestUploadAttachment_Success(t *testing.T) {
+	svc := challenges.NewMockService()
+	r := setupTestRouter(svc)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("file", "challenge.zip")
+	assert.NoError(t, err)
+	_, err = part.Write([]byte("zip-content"))
+	assert.NoError(t, err)
+	assert.NoError(t, writer.Close())
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/challenges/attachments", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var result map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &result)
+	assert.NoError(t, err)
+	assert.Equal(t, "challenge.zip", result["name"])
+	assert.Equal(t, "/attachments/mock-challenge.zip", result["url"])
+}
+
+func TestUploadAttachment_MissingFile(t *testing.T) {
+	svc := challenges.NewMockService()
+	r := setupTestRouter(svc)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	assert.NoError(t, writer.Close())
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/challenges/attachments", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestSubmitFlag_Correct(t *testing.T) {

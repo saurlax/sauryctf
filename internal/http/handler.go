@@ -130,6 +130,13 @@ func (h *Handler) CreateChallenge(c *gin.Context) {
 	}
 	h.challenges.CreateChallenge(c)
 }
+func (h *Handler) UploadChallengeAttachment(c *gin.Context) {
+	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
+	if c.IsAborted() {
+		return
+	}
+	h.challenges.UploadAttachment(c)
+}
 func (h *Handler) GetChallenge(c *gin.Context, id int) {
 	h.challenges.GetChallenge(c, id)
 }

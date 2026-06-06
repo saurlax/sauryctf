@@ -1,8 +1,13 @@
 package challenges
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -194,6 +199,32 @@ func (s *Service) DeleteChallenge(id uint, deletedBy ...uint) error {
 	return nil
 }
 
+func (s *Service) SaveAttachment(filename string, content []byte) (*AttachmentUploadResult, error) {
+	safeName := sanitizeAttachmentFilename(filename)
+	if safeName == "" {
+		return nil, errors.New("invalid attachment filename")
+	}
+
+	if len(content) == 0 {
+		return nil, errors.New("attachment file is empty")
+	}
+
+	if err := os.MkdirAll("attachments", 0o755); err != nil {
+		return nil, err
+	}
+
+	storedName := fmt.Sprintf("%d-%s", time.Now().UnixNano(), safeName)
+	targetPath := filepath.Join("attachments", storedName)
+	if err := os.WriteFile(targetPath, bytes.Clone(content), fs.FileMode(0o644)); err != nil {
+		return nil, err
+	}
+
+	return &AttachmentUploadResult{
+		Name: safeName,
+		Url:  "/attachments/" + storedName,
+	}, nil
+}
+
 func (s *Service) writeAuditLog(actorUserID uint, action string, targetType string, targetID uint, summary string, detail string) error {
 	var actor models.User
 	if err := s.db.Select("id", "username").First(&actor, actorUserID).Error; err != nil {
@@ -219,6 +250,38 @@ func firstActorID(actorUserIDs ...uint) uint {
 		return 0
 	}
 	return actorUserIDs[0]
+}
+
+func sanitizeAttachmentFilename(filename string) string {
+	base := filepath.Base(strings.TrimSpace(filename))
+	base = strings.ReplaceAll(base, "\\", "")
+	if base == "." || base == "" {
+		return ""
+	}
+
+	replacer := strings.NewReplacer(
+		" ", "-",
+		"..", "",
+		"/", "",
+		":", "-",
+		";", "-",
+		"?", "",
+		"&", "-",
+		"=", "-",
+		"\"", "",
+		"'", "",
+		"<", "",
+		">", "",
+		"|", "",
+		"*", "",
+	)
+	base = replacer.Replace(base)
+	base = strings.Trim(base, ".-_")
+	if base == "" {
+		return ""
+	}
+
+	return base
 }
 
 func (s *Service) SubmitFlag(challengeID uint, gameID uint, userID uint, teamID uint, flag string) (*SubmitResult, error) {

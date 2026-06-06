@@ -11,6 +11,7 @@ type MockService struct {
 	mu         sync.Mutex
 	Challenges map[uint]*models.Challenge
 	Solves     []models.Solve
+	Uploads    []*AttachmentUploadResult
 	nextID     uint
 }
 
@@ -107,6 +108,25 @@ func (m *MockService) DeleteChallenge(id uint, deletedBy ...uint) error {
 	}
 	delete(m.Challenges, id)
 	return nil
+}
+
+func (m *MockService) SaveAttachment(filename string, content []byte) (*AttachmentUploadResult, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if filename == "" {
+		return nil, fmt.Errorf("invalid attachment filename")
+	}
+	if len(content) == 0 {
+		return nil, fmt.Errorf("attachment file is empty")
+	}
+
+	result := &AttachmentUploadResult{
+		Name: filename,
+		Url:  "/attachments/mock-" + filename,
+	}
+	m.Uploads = append(m.Uploads, result)
+	return result, nil
 }
 
 func (m *MockService) SubmitFlag(challengeID uint, gameID uint, userID uint, teamID uint, flag string) (*SubmitResult, error) {

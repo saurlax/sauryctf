@@ -115,6 +115,10 @@ export interface paths {
     /** Submit flag for a challenge in a game */
     post: operations["submitGameFlag"];
   };
+  "/api/admin/challenges/attachments": {
+    /** Upload a local challenge attachment (admin) */
+    post: operations["uploadChallengeAttachment"];
+  };
   "/api/games/{id}/challenges/{challengeId}/instance": {
     /** Get current team challenge instance lease */
     get: operations["getChallengeInstance"];
@@ -345,6 +349,10 @@ export interface components {
       attachments?: string;
       container_spec?: string;
       is_visible?: boolean;
+    };
+    ChallengeAttachmentUploadResponse: {
+      name: string;
+      url: string;
     };
     SubmitFlagRequest: {
       flag: string;
@@ -1249,6 +1257,25 @@ export interface operations {
       403: {
         content: {
           "application/json": components["schemas"]["SubmitResult"];
+        };
+      };
+    };
+  };
+  /** Upload a local challenge attachment (admin) */
+  uploadChallengeAttachment: {
+    requestBody: {
+      content: {
+        "multipart/form-data": {
+          /** Format: binary */
+          file: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Uploaded */
+      201: {
+        content: {
+          "application/json": components["schemas"]["ChallengeAttachmentUploadResponse"];
         };
       };
     };
