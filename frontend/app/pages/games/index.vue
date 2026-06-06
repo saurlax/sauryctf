@@ -31,10 +31,10 @@ const firstJoinableGame = computed(() =>
 const listGuideMeta = computed(() => {
   if (!authState.user) {
     return {
-      title: '游客可先挑一场公开比赛，再决定是否登录',
+      title: '公开比赛可直接浏览',
       description: firstVisibleGame.value
-        ? '当前可以先打开比赛详情页浏览基础信息、题目标题和排行榜；如果准备参赛，登录或注册后会自动带你回到原比赛继续操作。'
-        : '当前还没有公开比赛，但后续一旦有比赛开放，登录或注册后都会保留比赛返回路径。',
+        ? '可先查看比赛信息、题目标题和公开榜单；需要参赛时再登录账号即可。'
+        : '公开比赛开放后，可直接从这里进入对应比赛页面。',
       color: 'info' as const,
       icon: 'i-lucide-log-in',
       actionLabel: '去登录',
@@ -46,8 +46,8 @@ const listGuideMeta = computed(() => {
 
   if (!hasTeam.value) {
     return {
-      title: '需要先准备队伍',
-      description: '比赛报名、提交 Flag 和排行榜都按队伍进行。先创建或加入队伍，再回到这里继续选赛。',
+      title: '需先加入队伍',
+      description: '比赛报名、Flag 提交和排行榜均按队伍处理。',
       color: 'warning' as const,
       icon: 'i-lucide-users',
       actionLabel: '去队伍页',
@@ -59,8 +59,8 @@ const listGuideMeta = computed(() => {
 
   if (firstJoinedGame.value) {
     return {
-      title: '当前已经有可继续处理的比赛',
-      description: `你的队伍已经和 ${firstJoinedGame.value.name} 建立了参赛关系。现在可以返回比赛详情页，继续查看报名状态、题目、排行榜或 Writeup。`,
+      title: '已有参赛记录',
+      description: `你的队伍已关联到 ${firstJoinedGame.value.name}。`,
       color: 'success' as const,
       icon: 'i-lucide-badge-check',
       actionLabel: '打开当前比赛',
@@ -72,10 +72,10 @@ const listGuideMeta = computed(() => {
 
   if (firstJoinableGame.value) {
     return {
-      title: '当前可继续报名',
+      title: '可前往报名',
       description: firstJoinableGame.value.registration_mode === 'auto_accept'
-        ? `${firstJoinableGame.value.name} 当前使用自动通过报名。进入详情页后，确认报名就能直接获得参赛资格。`
-        : `${firstJoinableGame.value.name} 当前使用审核制报名。进入详情页提交报名后，再等待管理员通过即可。`,
+        ? `${firstJoinableGame.value.name} 使用自动通过报名。`
+        : `${firstJoinableGame.value.name} 使用审核制报名。`,
       color: 'info' as const,
       icon: 'i-lucide-flag',
       actionLabel: '前往报名',
@@ -86,8 +86,8 @@ const listGuideMeta = computed(() => {
   }
 
   return {
-    title: '当前可继续浏览比赛',
-    description: '如果暂时没有可直接报名的进行中比赛，可以先看比赛规则、分组和赛后练习配置，等目标比赛开放后再继续参赛。',
+    title: '可继续浏览比赛',
+    description: '可先查看规则、分组和练习配置。',
     color: 'neutral' as const,
     icon: 'i-lucide-compass',
     actionLabel: firstVisibleGame.value ? '打开一场比赛' : '回控制台',
@@ -254,8 +254,8 @@ const statusOptions = [
 const emptyStateMeta = computed(() => {
   if (authState.user && ['admin', 'super_admin'].includes(authState.user.role || '')) {
     return {
-      title: '当前还没有公开比赛',
-      description: '当前还没有对外开放的比赛。你可以先在管理端创建比赛，调整为公开状态后再回到这里查看展示结果。',
+      title: '暂无公开比赛',
+      description: '创建比赛并设为公开后，这里会显示对应内容。',
       icon: 'i-lucide-shield-check',
       actions: [
         {
@@ -276,8 +276,8 @@ const emptyStateMeta = computed(() => {
   }
 
   return {
-    title: '当前还没有公开比赛',
-    description: '当前还没有对外开放的比赛。你可以稍后再来，或先登录查看自己的队伍与控制台入口。',
+    title: '暂无公开比赛',
+    description: '公开比赛上线后会显示在这里。',
     icon: 'i-lucide-trophy',
     actions: authState.user
       ? [
@@ -319,10 +319,10 @@ const filteredEmptyStateMeta = computed(() => {
   ].filter(Boolean).join(' + ')
 
   return {
-    title: '当前筛选条件下没有匹配的比赛',
+    title: '没有匹配的比赛',
     description: filterSummary
-      ? `还没有比赛同时满足 ${filterSummary}。你可以清空筛选，或继续浏览全部公开比赛。`
-      : '当前没有匹配的比赛。你可以清空筛选后继续浏览全部公开比赛。',
+      ? `没有比赛同时满足 ${filterSummary}。`
+      : '请调整筛选条件后重试。',
   }
 })
 

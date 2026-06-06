@@ -386,8 +386,8 @@ const statusItems = computed(() => {
       key: 'team',
       title: '准备队伍',
       description: team.value
-        ? `当前队伍为 ${team.value.name}，已经可以进入比赛报名流程。`
-        : '先创建自己的队伍，或使用邀请码加入队伍，这是后续报名和提交 Flag 的前提。',
+        ? `当前队伍：${team.value.name}`
+        : '创建队伍或通过邀请码加入队伍后，即可报名参赛。',
       done: Boolean(team.value),
       buttonLabel: team.value ? '管理队伍' : '去队伍页',
       buttonTo: '/console/team',
@@ -400,10 +400,10 @@ const statusItems = computed(() => {
     key: 'game',
     title: '选择比赛',
     description: joinedGame
-      ? `你已经和队伍关联到 ${joinedGame.game.name}，现在可以继续查看当前报名状态。`
+      ? `已关联比赛：${joinedGame.game.name}`
       : team.value
-        ? '接下来进入公开比赛详情页完成报名；自动通过比赛会直接获得参赛资格。'
-        : '准备好队伍后，再去公开比赛列表选择目标比赛并完成报名。',
+        ? '可前往公开比赛页处理报名。'
+        : '准备好队伍后，再前往公开比赛页选择目标比赛。',
     done: Boolean(joinedGame),
     buttonLabel: joinedGame ? '查看比赛' : '浏览比赛',
     buttonTo: joinedGame ? `/games/${joinedGame.game.id}` : '/games',
@@ -415,10 +415,10 @@ const statusItems = computed(() => {
     key: 'writeup',
     title: '处理当前待办',
     description: writeupGame
-      ? `${writeupGame.name} 当前还需要补交 Writeup，请进入比赛详情页处理。`
+      ? `${writeupGame.name} 需要补交 Writeup。`
       : primaryPendingEntry.value
         ? `${primaryPendingEntry.value.meta.label}：${primaryPendingEntry.value.meta.description}`
-        : '当比赛进入审核、开赛或 Writeup 阶段后，这里会优先显示当前最需要处理的事项。',
+        : '新的报名、审核或 Writeup 待办会显示在这里。',
     done: !writeupGame && !primaryPendingEntry.value,
     buttonLabel: writeupGame
       ? '去补交'
