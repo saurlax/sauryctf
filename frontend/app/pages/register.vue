@@ -32,18 +32,18 @@ const afterRegisterNotes = computed(() => {
   if (redirectTarget.value.startsWith('/games/')) {
     return [
       {
-        title: '先进入队伍页',
-        description: '注册成功后会先带你去队伍页，而不是直接回比赛，这样你可以先把队伍准备完整。',
+        title: '进入队伍页',
+        description: '注册成功后会先进入队伍页，再继续处理当前比赛。',
         icon: 'i-lucide-users',
       },
       {
-        title: '创建或加入队伍',
-        description: '账号只是第一步，真正参赛前还需要先确定当前使用的队伍。',
+        title: '准备队伍',
+        description: '创建或加入队伍后，才会开放后续报名与提交操作。',
         icon: 'i-lucide-user-round-plus',
       },
       {
-        title: '回到原比赛报名',
-        description: '准备好队伍后，系统会把你带回刚才的比赛详情页，继续报名、提 Flag 或启动实例。',
+        title: '返回原比赛',
+        description: '队伍准备完成后，再回到原比赛继续报名、提 Flag 或启动实例。',
         icon: 'i-lucide-flag',
       },
     ]
@@ -51,18 +51,18 @@ const afterRegisterNotes = computed(() => {
 
     return [
       {
-        title: '自动进入队伍页',
-        description: '注册成功后会直接建立登录态，并进入队伍页，不需要再回头手动登录一次。',
+        title: '自动登录',
+        description: '注册成功后会直接建立登录态，并进入队伍页。',
         icon: 'i-lucide-layout-dashboard',
       },
       {
-        title: '优先准备队伍',
-        description: 'CTF 的报名、排行榜和动态实例都基于队伍进行，所以建议优先创建自己的队伍或加入现有队伍。',
+        title: '准备队伍',
+        description: '比赛报名、排行榜和动态实例都按队伍维度进行。',
         icon: 'i-lucide-users',
       },
       {
-        title: '再去比赛页继续参赛',
-        description: '队伍准备完成后，再去公开比赛列表选择目标比赛并完成报名、提交 Flag 或补交 Writeup。',
+        title: '进入比赛',
+        description: '队伍准备完成后，再去比赛页继续报名、提交或补交 Writeup。',
         icon: 'i-lucide-trophy',
       },
   ]
@@ -151,12 +151,12 @@ const loginTo = computed(() => {
       </UPageCard>
 
       <div class="space-y-6">
-        <UPageCard title="注册说明" icon="i-lucide-list-checks">
+        <UPageCard title="注册后状态" icon="i-lucide-list-checks">
           <div class="space-y-3">
             <UAlert
               color="info"
               variant="soft"
-              title="默认跳转位置"
+              title="默认落点"
               :description="initialRegisterLanding"
             />
 
@@ -180,13 +180,12 @@ const loginTo = computed(() => {
           </div>
         </UPageCard>
 
-        <UAlert
-          color="neutral"
-          variant="soft"
-          icon="i-lucide-route"
-          title="处理顺序"
-          description="建议先完成账号创建和队伍准备，再进入具体比赛完成报名与提交。"
-        />
+        <UPageCard title="常用入口" icon="i-lucide-navigation">
+          <div class="space-y-3">
+            <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="outline" block />
+            <UButton label="返回登录" icon="i-lucide-log-in" :to="loginTo" variant="ghost" block />
+          </div>
+        </UPageCard>
       </div>
     </div>
   </div>

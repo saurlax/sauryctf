@@ -45,8 +45,8 @@ const listGuideMeta = computed(() => {
 
   if (!hasTeam.value) {
     return {
-      title: '当前下一步：先准备队伍',
-      description: '比赛报名、提交 Flag 和排行榜都按队伍进行。先创建或加入队伍，再回到这里选择目标比赛会更顺。',
+      title: '当前状态：需要队伍',
+      description: '比赛报名、提交 Flag 和排行榜都按队伍进行。先创建或加入队伍，再回到这里继续选赛。',
       color: 'warning' as const,
       icon: 'i-lucide-users',
       actionLabel: '去队伍页',
@@ -71,7 +71,7 @@ const listGuideMeta = computed(() => {
 
   if (firstJoinableGame.value) {
     return {
-      title: '当前下一步：打开一场进行中的比赛完成报名',
+      title: '当前状态：可继续报名',
       description: firstJoinableGame.value.registration_mode === 'auto_accept'
         ? `${firstJoinableGame.value.name} 当前使用自动通过报名。进入详情页后，确认报名就能直接获得参赛资格。`
         : `${firstJoinableGame.value.name} 当前使用审核制报名。进入详情页提交报名后，再等待管理员通过即可。`,
@@ -358,14 +358,14 @@ onMounted(async () => {
         </UPageCard>
       </UPageGrid>
 
-      <UPageCard class="mb-6" title="筛选比赛" icon="i-lucide-filter">
+      <UPageCard class="mb-6" title="筛选" icon="i-lucide-filter">
         <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
           <UFormField label="搜索比赛" name="search">
             <UInput
               v-model="searchQuery"
               class="w-full"
               icon="i-lucide-search"
-              placeholder="按比赛名、描述、公告或分组搜索"
+              placeholder="按比赛名、描述或分组搜索"
             />
           </UFormField>
 
