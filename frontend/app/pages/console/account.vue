@@ -261,26 +261,6 @@ onMounted(async () => {
       :ui="{ body: 'space-y-4', footer: 'justify-end' }"
     >
       <template #body>
-        <div
-          v-if="passwordSecurityRisk"
-          class="rounded-lg border border-default bg-elevated/50 px-3 py-3"
-        >
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <div class="flex items-center gap-2 font-medium text-highlighted">
-                <UIcon name="i-lucide-triangle-alert" class="size-4" />
-                <span>当前账号需要立即改密</span>
-              </div>
-              <p class="mt-2 text-sm text-muted leading-6">
-                初始管理员密码不应长期保留，请尽快完成更新。
-              </p>
-            </div>
-            <UBadge color="warning" variant="soft">
-              高风险
-            </UBadge>
-          </div>
-        </div>
-
         <UForm
           id="account-password-form"
           :schema="securitySchema"
