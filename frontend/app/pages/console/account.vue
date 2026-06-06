@@ -9,7 +9,7 @@ definePageMeta({
 const { authState, ensureInitialized } = useAuth()
 const toast = useToast()
 
-const { data: setupStatus, refresh: refreshSetupStatus } = await useAPI('auth-setup-status', 'get', '/api/auth/setup-status')
+const { data: authStatus, refresh: refreshAuthStatus } = await useAPI('auth-setup-status', 'get', '/api/auth/setup-status')
 
 const securitySchema = z.object({
   current_password: z.string().min(6, '当前密码至少 6 个字符'),
@@ -29,9 +29,9 @@ const state = reactive<Partial<SecuritySchema>>({
 })
 
 const submitting = ref(false)
-const bootstrapRisk = computed(() => !!setupStatus.value?.password_change_recommended)
+const passwordSecurityRisk = computed(() => !!authStatus.value?.password_change_recommended)
 const securityNextStepMeta = computed(() => {
-  if (bootstrapRisk.value) {
+  if (passwordSecurityRisk.value) {
     return {
       title: '建议优先更新登录密码',
       description: '当前管理员账号仍在使用默认口令。完成改密后再继续日常管理操作会更安全。',
@@ -82,8 +82,8 @@ const accountFacts = computed(() => [
 const securityFacts = computed(() => [
   {
     label: '风险级别',
-    value: bootstrapRisk.value ? '需要改密' : '正常',
-    icon: bootstrapRisk.value ? 'i-lucide-triangle-alert' : 'i-lucide-shield-check',
+    value: passwordSecurityRisk.value ? '需要改密' : '正常',
+    icon: passwordSecurityRisk.value ? 'i-lucide-triangle-alert' : 'i-lucide-shield-check',
   },
   {
     label: '当前会话',
@@ -92,7 +92,7 @@ const securityFacts = computed(() => [
   },
   {
     label: '推荐操作',
-    value: bootstrapRisk.value ? '改密后返回管理端' : '返回控制台继续使用',
+    value: passwordSecurityRisk.value ? '改密后返回管理端' : '返回控制台继续使用',
     icon: 'i-lucide-navigation',
   },
 ])
@@ -109,7 +109,7 @@ async function submitPasswordChange(payload: FormSubmitEvent<SecuritySchema>) {
     state.current_password = ''
     state.new_password = ''
     state.confirm_password = ''
-    await refreshSetupStatus()
+    await refreshAuthStatus()
     toast.add({
       title: '密码已更新',
       description: '新的登录密码已经生效，请妥善保管。',
@@ -126,7 +126,7 @@ async function submitPasswordChange(payload: FormSubmitEvent<SecuritySchema>) {
 
 onMounted(async () => {
   await ensureInitialized()
-  await refreshSetupStatus()
+  await refreshAuthStatus()
 })
 </script>
 
@@ -171,7 +171,7 @@ onMounted(async () => {
 
         <UPageCard title="修改密码" icon="i-lucide-key-round">
           <UAlert
-            v-if="bootstrapRisk"
+            v-if="passwordSecurityRisk"
             class="mb-4"
             color="warning"
             variant="soft"
