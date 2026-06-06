@@ -72,6 +72,7 @@ type RegistrationSchema = z.output<typeof registrationSchema>
 type WriteupSchema = z.output<typeof writeupSchema>
 const now = ref(Date.now())
 const registrationModalOpen = ref(false)
+const writeupModalOpen = ref(false)
 const confirmModalOpen = ref(false)
 const confirmActionLoading = ref(false)
 const confirmAction = reactive<{
@@ -380,6 +381,10 @@ function openRegistrationModal() {
   registrationModalOpen.value = true
 }
 
+function openWriteupModal() {
+  writeupModalOpen.value = true
+}
+
 async function leaveGame() {
   const teamId = participation.value?.team?.id
   if (!teamId) {
@@ -473,6 +478,7 @@ async function submitWriteup(payload: FormSubmitEvent<WriteupSchema>) {
       },
     })
     writeupForm.content = writeup.value?.content || payload.data.content
+    writeupModalOpen.value = false
     toast.add({ title: 'Writeup 已提交', color: 'success' })
   }
   catch (e: any) {
@@ -2921,38 +2927,29 @@ onMounted(async () => {
                   </div>
                 </div>
 
-                <UForm
+                <div
                   v-if="canEditWriteup"
-                  :state="writeupForm"
-                  :schema="writeupSchema"
-                  class="space-y-4"
-                  @submit="submitWriteup"
+                  class="rounded-lg border border-default px-4 py-4 text-sm"
                 >
-                  <UFormField
-                    label="Writeup 内容"
-                    name="content"
-                    :description="writeup?.can_submit ? '支持重复提交。' : writeupGuide.description"
-                  >
-                    <UTextarea
-                      v-model="writeupForm.content"
-                      class="w-full"
-                      :rows="14"
-                      :disabled="writeupSubmitting || !writeup?.can_submit"
-                      placeholder="记录解题思路、复盘总结、关键截图或附件说明。"
-                    />
-                  </UFormField>
+                  <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div class="space-y-1">
+                      <div class="font-medium text-highlighted">
+                        当前队伍可提交或更新 Writeup
+                      </div>
+                      <p class="text-muted leading-6">
+                        当前记录按队伍保存，重新提交会覆盖已有内容。
+                      </p>
+                    </div>
 
-                  <div class="flex justify-end">
                     <UButton
-                      type="submit"
-                      icon="i-lucide-file-up"
-                      :loading="writeupSubmitting"
+                      icon="i-lucide-file-pen-line"
                       :disabled="!writeup?.can_submit"
+                      @click="openWriteupModal"
                     >
-                      提交 Writeup
+                      {{ writeup?.content ? '编辑 Writeup' : '填写 Writeup' }}
                     </UButton>
                   </div>
-                </UForm>
+                </div>
 
                 <UEmpty
                   v-else
@@ -3120,6 +3117,57 @@ onMounted(async () => {
           :disabled="joining"
         >
           确认报名
+        </UButton>
+      </template>
+    </UModal>
+
+    <UModal
+      v-model:open="writeupModalOpen"
+      title="编辑 Writeup"
+      :description="writeup?.can_submit ? '提交后会覆盖当前队伍已有的 Writeup 内容。' : writeupGuide.description"
+      :dismissible="!writeupSubmitting"
+      :ui="{ body: 'space-y-4', footer: 'justify-end' }"
+    >
+      <template #body>
+        <UForm
+          id="writeup-form"
+          :state="writeupForm"
+          :schema="writeupSchema"
+          class="space-y-4"
+          @submit="submitWriteup"
+        >
+          <UFormField
+            label="Writeup 内容"
+            name="content"
+            :description="writeup?.can_submit ? '支持重复提交。' : writeupGuide.description"
+          >
+            <UTextarea
+              v-model="writeupForm.content"
+              class="w-full"
+              :rows="14"
+              :disabled="writeupSubmitting || !writeup?.can_submit"
+              placeholder="记录解题思路、复盘总结、关键截图或附件说明。"
+            />
+          </UFormField>
+        </UForm>
+      </template>
+
+      <template #footer="{ close }">
+        <UButton
+          variant="ghost"
+          :disabled="writeupSubmitting"
+          @click="close()"
+        >
+          取消
+        </UButton>
+        <UButton
+          type="submit"
+          form="writeup-form"
+          icon="i-lucide-file-up"
+          :loading="writeupSubmitting"
+          :disabled="!writeup?.can_submit"
+        >
+          提交 Writeup
         </UButton>
       </template>
     </UModal>

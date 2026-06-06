@@ -99,6 +99,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - User-facing page copy should stay formal and product-oriented; avoid temporary notes, onboarding-style placeholders, and testing slang in visible UI text.
 - Public pages, login/register pages, and console home should not carry setup-wizard or initialization-style panels. Empty-state handling should stay minimal and operational.
 - Page-owned `UModal` blocks are commonly declared near the end of a page template. Treat that as implementation structure, not as leaving a dialog inline in the visible page body.
+- On public game detail pages such as `/games/[id]`, invitation join forms, instance-destroy confirmations, and Writeup editing should stay inside `UModal`; the visible page body should focus on current status, summaries, and entry actions.
 - The public home page should function as a concise platform entry, not a marketing-style feature showcase; prefer direct access cards and current actions over large capability grids.
 - The no-team view at `/console/team` should keep a single primary entry card plus one concise rules/boundary card; avoid stacking multiple alerts and repeated status summaries for the same create/join flow.
 - On `/console/team`, invite-context, next-step, and no-team entry notices should prefer compact summary cards with actions instead of full-width `UAlert` blocks when they are mainly restating current state and available navigation.
