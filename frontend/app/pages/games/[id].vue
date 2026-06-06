@@ -2170,12 +2170,25 @@ onMounted(async () => {
           :description="challengeVisibilityHint"
         />
 
-        <div v-if="challenges.length === 0" class="text-center py-12">
-          <UIcon name="i-lucide-file-question" class="size-10 text-muted mx-auto mb-2" />
-          <p class="text-muted">
-            暂无题目
-          </p>
-        </div>
+        <UEmpty
+          v-if="challenges.length === 0"
+          icon="i-lucide-file-question"
+          title="当前还没有可浏览的题目"
+          :description="authState.user
+            ? '如果这场比赛已经开赛但仍然没有题目，建议先回到概览区确认比赛状态或联系管理员继续配置。'
+            : '当前可以先浏览比赛说明和排行榜；题目开放后，这里会直接展示对应分类和题目列表。'"
+          :actions="[
+            {
+              label: '返回比赛概览',
+              icon: 'i-lucide-layout-template',
+              color: 'neutral',
+              variant: 'outline',
+              onClick: () => {
+                activeTab = 'overview'
+              },
+            },
+          ]"
+        />
 
         <div v-else class="space-y-6">
           <UPageCard
@@ -2650,9 +2663,14 @@ onMounted(async () => {
               title="分题统计说明"
               description="这里展示的是当前公开榜单口径下的题目分值、解出队伍数和前三血信息。赛后练习解题不会计入这些正式统计。"
             />
-            <div v-if="scoreboardChallenges.length === 0" class="text-sm text-muted">
-              暂无题目统计
-            </div>
+            <UEmpty
+              v-if="scoreboardChallenges.length === 0"
+              icon="i-lucide-chart-column-big"
+              title="当前还没有分题统计"
+              :description="scoreboard.length
+                ? '当前榜单里还没有产生可公开展示的题目统计，通常需要至少有队伍开始解题后才会出现。'
+                : '当前榜单里还没有可公开展示的队伍或解题记录，所以分题统计也暂时不会出现。'"
+            />
             <div v-else class="space-y-6">
               <UPageCard
                 v-for="group in scoreboardChallengeGroups"
