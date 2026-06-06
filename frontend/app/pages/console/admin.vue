@@ -2785,6 +2785,27 @@ function jumpToAdminAnchor(target: string) {
   }
 }
 
+function scrollHighlightedChallengeRecord(options?: { preferMounted?: boolean }) {
+  if (typeof highlightedChallengeId.value !== 'number') {
+    return
+  }
+
+  nextTick(() => {
+    const challengeId = highlightedChallengeId.value
+    if (typeof challengeId !== 'number') {
+      return
+    }
+
+    const mountedId = `admin-mounted-challenge-${challengeId}`
+    const resourceId = `admin-resource-challenge-${challengeId}`
+    const element = options?.preferMounted
+      ? (document.getElementById(mountedId) || document.getElementById(resourceId))
+      : (document.getElementById(resourceId) || document.getElementById(mountedId))
+
+    element?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
 function navigateAdminTarget(target: string, options?: { challengeId?: number }) {
   const challengeId = options?.challengeId
   highlightedChallengeId.value = typeof challengeId === 'number' && Number.isFinite(challengeId)
@@ -2793,6 +2814,9 @@ function navigateAdminTarget(target: string, options?: { challengeId?: number })
 
   if (target.startsWith('#')) {
     jumpToAdminAnchor(target)
+    if (target === '#attach-challenge') {
+      scrollHighlightedChallengeRecord({ preferMounted: true })
+    }
     return
   }
 
@@ -4025,9 +4049,11 @@ function quickEditGame(gameId: number) {
 }
 
 function quickEditChallenge(challengeId: number) {
+  highlightedChallengeId.value = challengeId
   challengeEditForm.challenge_id = challengeId
   attachForm.challenge_id = challengeId
   challengeEditModalOpen.value = true
+  scrollHighlightedChallengeRecord()
   toast.add({ title: '已填充题目管理表单', color: 'info' })
 }
 
@@ -5767,7 +5793,13 @@ onMounted(async () => {
                 <div
                   v-for="challenge in selectedGameChallenges"
                   :key="challenge.id"
-                  class="flex items-start justify-between gap-3 rounded-lg border border-default px-3 py-2"
+                  :id="`admin-mounted-challenge-${challenge.id}`"
+                  :class="[
+                    'flex items-start justify-between gap-3 rounded-lg border px-3 py-2 scroll-mt-24 transition-colors',
+                    isHighlightedChallenge(challenge.id)
+                      ? 'border-primary bg-primary/5'
+                      : 'border-default',
+                  ]"
                 >
                   <div class="min-w-0">
                     <div class="font-medium">
@@ -6376,7 +6408,13 @@ onMounted(async () => {
                 <div
                   v-for="challenge in filteredChallenges"
                   :key="challenge.id"
-                  class="flex items-start justify-between gap-3 rounded-lg border border-default px-3 py-2"
+                  :id="`admin-resource-challenge-${challenge.id}`"
+                  :class="[
+                    'flex items-start justify-between gap-3 rounded-lg border px-3 py-2 scroll-mt-24 transition-colors',
+                    isHighlightedChallenge(challenge.id)
+                      ? 'border-primary bg-primary/5'
+                      : 'border-default',
+                  ]"
                 >
                   <div class="min-w-0">
                     <div class="font-medium">
