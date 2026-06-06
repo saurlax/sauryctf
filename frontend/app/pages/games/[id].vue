@@ -484,6 +484,45 @@ function parseStringList(raw?: string) {
   return raw.split('\n').map(item => item.trim()).filter(Boolean)
 }
 
+function getAttachmentDisplayName(attachment: string, index: number) {
+  const trimmed = attachment.trim()
+  if (!trimmed) {
+    return `附件 ${index + 1}`
+  }
+
+  const normalized = trimmed.split('?')[0]?.split('#')[0] || trimmed
+  const segment = normalized.split('/').filter(Boolean).pop() || ''
+  if (!segment) {
+    return `附件 ${index + 1}`
+  }
+
+  if (segment.startsWith('attachments') || segment === 'attachments') {
+    return `附件 ${index + 1}`
+  }
+
+  const fileName = decodeURIComponent(segment)
+  const dashIndex = fileName.indexOf('-')
+  if (/^\d+$/.test(fileName.slice(0, dashIndex)) && dashIndex > 0) {
+    return fileName.slice(dashIndex + 1) || `附件 ${index + 1}`
+  }
+
+  return fileName
+}
+
+function getAttachmentMeta(attachment: string) {
+  if (attachment.startsWith('/attachments/')) {
+    return {
+      badge: '本地附件',
+      color: 'info' as const,
+    }
+  }
+
+  return {
+    badge: '外部链接',
+    color: 'neutral' as const,
+  }
+}
+
 function getChallengeInstanceSpec(raw?: string) {
   return parseChallengeInstanceSpec(raw)
 }
@@ -2334,18 +2373,34 @@ onMounted(async () => {
                       <span>附件</span>
                     </div>
                     <div class="flex flex-col gap-2">
-                      <UButton
+                      <div
                         v-for="(attachment, attachmentIndex) in parseStringList(ch.attachments)"
                         :key="`${ch.id}-attachment-${attachmentIndex}`"
-                        :to="attachment"
-                        target="_blank"
-                        variant="outline"
-                        size="sm"
-                        icon="i-lucide-download"
-                        class="justify-start"
+                        class="flex items-center justify-between gap-3 rounded-lg border border-default bg-default px-3 py-3"
                       >
-                        附件 {{ attachmentIndex + 1 }}
-                      </UButton>
+                        <div class="min-w-0">
+                          <div class="flex items-center gap-2">
+                            <span class="truncate font-medium text-highlighted">
+                              {{ getAttachmentDisplayName(attachment, attachmentIndex) }}
+                            </span>
+                            <UBadge :color="getAttachmentMeta(attachment).color" variant="subtle" size="sm">
+                              {{ getAttachmentMeta(attachment).badge }}
+                            </UBadge>
+                          </div>
+                          <div class="mt-1 truncate text-xs text-muted">
+                            {{ attachment }}
+                          </div>
+                        </div>
+                        <UButton
+                          :to="attachment"
+                          target="_blank"
+                          variant="outline"
+                          size="sm"
+                          icon="i-lucide-download"
+                        >
+                          下载
+                        </UButton>
+                      </div>
                     </div>
                   </div>
 
