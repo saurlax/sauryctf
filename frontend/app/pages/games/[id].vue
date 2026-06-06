@@ -1083,6 +1083,14 @@ const registrationInputHint = computed(() => {
     : '当前比赛不要求邀请码。点击报名后会进入待审核状态，等待管理员通过。'
 })
 
+const topStatusDescription = computed(() => {
+  if (authState.user && participation.value?.has_team && !participation.value?.participated) {
+    return registrationInputHint.value
+  }
+
+  return participationHint.value.description
+})
+
 const submitHint = computed(() => publicParticipationHints.value.submitHint)
 
 const challengeVisibilityHint = computed(() => publicParticipationHints.value.visibilityHint)
@@ -2007,23 +2015,14 @@ onMounted(async () => {
                   当前队伍：{{ participation.team.name }}
                 </span>
               </div>
-              <p class="mt-2 text-sm text-muted max-w-2xl">
-                {{ participationHint.description }}
-              </p>
               <UAlert
                 class="mt-3 max-w-2xl"
                 :icon="registrationPanelSummary.icon"
                 :color="registrationPanelSummary.color"
                 variant="soft"
                 :title="registrationPanelSummary.title"
-                :description="registrationPanelSummary.description"
+                :description="topStatusDescription"
               />
-              <p
-                v-if="authState.user && participation?.has_team && !participation?.participated"
-                class="mt-3 max-w-2xl text-sm text-muted"
-              >
-                {{ registrationInputHint }}
-              </p>
             </div>
 
             <div class="flex gap-2">
@@ -2059,13 +2058,16 @@ onMounted(async () => {
             </div>
           </div>
 
-          <UAlert
-            :color="nextStepMeta.color"
-            variant="soft"
-            :title="nextStepMeta.title"
-            :description="nextStepMeta.description"
-          >
-            <template #actions>
+          <div class="rounded-lg border border-default bg-elevated/50 px-4 py-3">
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <div class="text-sm font-medium text-highlighted">
+                  {{ nextStepMeta.title }}
+                </div>
+                <p class="mt-1 text-sm text-muted">
+                  {{ nextStepMeta.description }}
+                </p>
+              </div>
               <div class="flex gap-2">
                 <UButton
                   size="sm"
@@ -2084,8 +2086,8 @@ onMounted(async () => {
                   {{ nextStepMeta.secondaryLabel }}
                 </UButton>
               </div>
-            </template>
-          </UAlert>
+            </div>
+          </div>
         </div>
       </UPageCard>
 
