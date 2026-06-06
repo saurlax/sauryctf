@@ -715,6 +715,14 @@ const containerTemplateChallengeIds = computed(() =>
       .map(challenge => challenge.id),
   ),
 )
+
+const teamScopedInstanceChallengeIds = computed(() =>
+  new Set(
+    selectedGameChallenges.value
+      .filter(challenge => parseChallengeTemplatePurpose(challenge.container_spec) === 'team-scoped-instance')
+      .map(challenge => challenge.id),
+  ),
+)
 const filteredGames = computed(() => {
   const keyword = resourceFilters.gameKeyword.trim().toLowerCase()
 
@@ -1416,6 +1424,73 @@ const containerInstanceChecklist = computed(() => {
   ]
 })
 
+const teamScopedInstanceChecklist = computed(() => {
+  const overview = selectedAdminOverview.value
+  if (!overview) {
+    return []
+  }
+
+  const hasTeamScopedTemplate = selectedChallengeTemplatePurposes.value.has('team-scoped-instance')
+
+  if (!hasTeamScopedTemplate) {
+    return []
+  }
+
+  const runningLeaseCount = instanceLeases.value.filter(lease =>
+    matchesTeamScopedInstanceLease(lease)
+      && !lease.is_expired,
+  ).length
+
+  const localEntryLeaseCount = instanceLeases.value.filter(lease =>
+    matchesTeamScopedInstanceLease(lease)
+      && typeof lease.launch_url === 'string'
+      && lease.launch_url.includes('/local-instance/'),
+  ).length
+
+  return [
+    {
+      key: 'team-player-join',
+      label: '1. 先用普通用户报名比赛',
+      done: overview.acceptedParticipantCount > 0,
+      description: overview.acceptedParticipantCount > 0
+        ? `当前已有 ${overview.acceptedParticipantCount} 支队伍通过报名，可以继续检查实例租约与详情入口。`
+        : '先去公开比赛页用普通用户创建或加入队伍，并完成报名，让这场比赛进入真实选手视角。',
+      actionLabel: '打开公开页',
+      actionTo: `/games/${overview.game.id}`,
+    },
+    {
+      key: 'team-instance-start',
+      label: '2. 在题目卡片里启动实例',
+      done: runningLeaseCount > 0,
+      description: runningLeaseCount > 0
+        ? `当前已有 ${runningLeaseCount} 条独立实例租约正在运行，可以继续核对当前队伍的详情入口。`
+        : '报名后到公开比赛页点击启动实例。成功时应看到当前队伍的独立租约状态，而不是只停留在入口模板说明。',
+      actionLabel: '打开公开页',
+      actionTo: `/games/${overview.game.id}`,
+    },
+    {
+      key: 'team-instance-detail',
+      label: '3. 检查实例详情页入口',
+      done: localEntryLeaseCount > 0,
+      description: localEntryLeaseCount > 0
+        ? '当前已经出现平台内实例详情页入口，可以继续核对续期、销毁和复制入口能力是否完整。'
+        : '启动实例后，应能进入 `/local-instance/...` 详情页，并看到当前队伍的租约、入口和策略信息。',
+      actionLabel: '打开公开页',
+      actionTo: `/games/${overview.game.id}`,
+    },
+    {
+      key: 'team-ops-refresh',
+      label: '4. 回到管理端看实例监控',
+      done: runningLeaseCount > 0,
+      description: runningLeaseCount > 0
+        ? '现在可以在下方“赛事监控”里刷新实例租约，确认当前 provider、租约状态与实例入口都已经出现。'
+        : '实例启动后回到管理端刷新“赛事监控”，确认当前租约状态和实例入口是否可见。',
+      actionLabel: '查看赛事监控',
+      actionTo: '#monitoring',
+    },
+  ]
+})
+
 const adminChecklistSteps = computed(() => {
   const hasGames = games.value.length > 0
   const hasChallenges = challenges.value.length > 0
@@ -1710,6 +1785,22 @@ function matchesContainerRuntimeLease(lease: {
   }
 
   if (lease.provider === 'docker' && lease.image === 'nginx:alpine') {
+    return true
+  }
+
+  return false
+}
+
+function matchesTeamScopedInstanceLease(lease: {
+  challenge_id: number
+  launch_url?: string
+  provider?: string
+}) {
+  if (teamScopedInstanceChallengeIds.value.has(lease.challenge_id)) {
+    return true
+  }
+
+  if (typeof lease.launch_url === 'string' && lease.launch_url.includes('/local-instance/')) {
     return true
   }
 
@@ -4413,6 +4504,65 @@ onMounted(async () => {
               <UButton size="sm" variant="outline" :to="item.actionTo">
                 {{ item.actionLabel }}
               </UButton>
+            </div>
+          </div>
+        </div>
+      </UPageCard>
+
+      <UPageCard
+        v-if="teamScopedInstanceChecklist.length"
+        title="独立实例检查清单"
+        icon="i-lucide-waypoints"
+        id="team-scoped-instance-checklist"
+      >
+        <div class="space-y-3">
+          <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="font-medium text-highlighted">
+                  当前比赛包含独立实例题
+                </div>
+                <div class="mt-2 text-sm text-muted">
+                  按这组检查项确认报名、实例租约、详情入口和运维状态是否已经闭环。
+                </div>
+              </div>
+              <UBadge color="info" variant="soft">
+                实例检查
+              </UBadge>
+            </div>
+          </div>
+
+          <div
+            v-for="item in teamScopedInstanceChecklist"
+            :key="item.key"
+            class="rounded-lg border border-default px-3 py-3"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <UIcon
+                    :name="item.done ? 'i-lucide-circle-check-big' : 'i-lucide-arrow-right-circle'"
+                    :class="item.done ? 'text-success' : 'text-primary'"
+                    class="size-4 shrink-0"
+                  />
+                  <div class="font-medium">
+                    {{ item.label }}
+                  </div>
+                </div>
+                <div class="mt-2 text-sm text-muted">
+                  {{ item.description }}
+                </div>
+              </div>
+
+              <div class="shrink-0">
+                <UButton
+                  size="sm"
+                  variant="outline"
+                  @click="navigateAdminTarget(item.actionTo)"
+                >
+                  {{ item.actionLabel }}
+                </UButton>
+              </div>
             </div>
           </div>
         </div>
