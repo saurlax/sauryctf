@@ -429,6 +429,8 @@ const selectedEditableGame = computed(() => games.value.find(game => game.id ===
 const selectedEditableChallenge = computed(() => challenges.value.find(challenge => challenge.id === challengeEditForm.challenge_id) || null)
 const challengeFormInstanceSpec = computed(() => parseChallengeInstanceSpec(challengeForm.container_spec))
 const challengeEditInstanceSpec = computed(() => parseChallengeInstanceSpec(challengeEditForm.container_spec))
+const challengeFormAccessMode = computed(() => describeChallengeAccessMode(challengeForm.container_spec))
+const challengeEditAccessMode = computed(() => describeChallengeAccessMode(challengeEditForm.container_spec))
 const selectedChallengeTemplatePurposes = computed(() =>
   new Set(
     selectedGameChallenges.value
@@ -1146,6 +1148,86 @@ function validateChallengeDraft(payload: {
   }
 
   return ''
+}
+
+function describeChallengeAccessMode(containerSpec?: string) {
+  const raw = containerSpec?.trim() || ''
+  if (!raw) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as {
+      runtime?: {
+        provider?: string
+        image?: string
+        expose?: Array<string | number>
+      }
+      connection?: {
+        url?: string
+        host?: string
+        port?: string | number
+        note?: string
+      }
+      metadata?: {
+        purpose?: string
+      }
+    }
+
+    const runtime = parsed.runtime || {}
+    const connection = parsed.connection || {}
+    const purpose = parsed.metadata?.purpose?.trim() || ''
+    const url = typeof connection.url === 'string' ? connection.url.trim() : ''
+    const host = typeof connection.host === 'string' ? connection.host.trim() : ''
+    const expose = Array.isArray(runtime.expose)
+      ? runtime.expose.map(item => String(item).trim()).filter(Boolean)
+      : []
+
+    if (purpose === 'local-docker-web') {
+      return {
+        title: '平台回填入口',
+        description: '当前配置会在实例启动后由平台回填真实 launch_url 和 host:port，适合托管容器或本地 Docker 实例模式。',
+        color: 'success' as const,
+      }
+    }
+
+    if (url.includes('{{team_hash}}') || host.includes('{{team_hash}}') || host.includes('{{team_id}}')) {
+      return {
+        title: '每队独立入口',
+        description: '当前配置会为不同队伍解析成不同入口，适合队伍级动态环境、独立代理或专属靶机场景。',
+        color: 'info' as const,
+      }
+    }
+
+    if (runtime.provider && runtime.image && expose.length) {
+      return {
+        title: '运行时驱动实例',
+        description: '当前配置声明了 provider、镜像和暴露端口，平台会按实例策略启动、续期或销毁运行环境。',
+        color: 'info' as const,
+      }
+    }
+
+    if (url || host) {
+      return {
+        title: '固定接入入口',
+        description: '当前配置更接近统一域名、固定靶机或已有代理地址，适合静态接入或平台外独立服务。',
+        color: 'neutral' as const,
+      }
+    }
+
+    return {
+      title: '说明型接入',
+      description: '当前配置主要用于沉淀实例说明，适合还未确定最终入口但需要先描述运行约束的场景。',
+      color: 'warning' as const,
+    }
+  }
+  catch {
+    return {
+      title: '实例配置无法解析',
+      description: '当前 container_spec 不是有效 JSON，平台无法判断接入模式。',
+      color: 'error' as const,
+    }
+  }
 }
 
 function parseChallengeTemplatePurpose(containerSpec?: string, fallbackTitle?: string) {
@@ -5067,6 +5149,13 @@ onMounted(async () => {
 
         <UPageCard v-if="challengeFormInstanceSpec" title="实例预览" icon="i-lucide-box" description="这里会按比赛页的展示逻辑预览当前实例接入信息。">
           <div class="space-y-2 text-sm text-muted">
+            <UAlert
+              v-if="challengeFormAccessMode"
+              :color="challengeFormAccessMode.color"
+              variant="soft"
+              :title="challengeFormAccessMode.title"
+              :description="challengeFormAccessMode.description"
+            />
             <p v-if="challengeFormInstanceSpec.note" class="whitespace-pre-wrap">
               {{ challengeFormInstanceSpec.note }}
             </p>
@@ -5388,6 +5477,13 @@ onMounted(async () => {
           description="编辑时也会按比赛页的展示逻辑预览当前实例接入信息。"
         >
           <div class="space-y-2 text-sm text-muted">
+            <UAlert
+              v-if="challengeEditAccessMode"
+              :color="challengeEditAccessMode.color"
+              variant="soft"
+              :title="challengeEditAccessMode.title"
+              :description="challengeEditAccessMode.description"
+            />
             <p v-if="challengeEditInstanceSpec.note" class="whitespace-pre-wrap">
               {{ challengeEditInstanceSpec.note }}
             </p>
