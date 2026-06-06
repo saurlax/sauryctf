@@ -110,6 +110,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - At the top of the public game detail page, keep one primary participation status block plus a compact next-step action row. Do not stack multiple large conclusion alerts for the same state.
 - On the console home page, prefer one consolidated workbench card for current summary, pending action, and common entry buttons instead of splitting overview and entry into separate cards with overlapping purpose.
 - On the public `/games` list page, prefer one compact entry banner and one combined per-card participation/rules summary. Do not split card-level context into multiple stacked status boxes.
+- In admin-facing checklist sections, prefer a compact section summary header plus the actual checklist cards. Avoid placing a full-width `UAlert` above a list when it only repeats the section title and purpose.
 - In console pages, prefer neutral internal names such as `context`, `checklist`, and `entry` over `setup` for maintenance-oriented panels and computed state.
 - Challenge attachments remain a JSON string array. For local files, prefer the admin upload entry so `/attachments/**` paths stay consistent with import/export behavior.
 - If a challenge defines `flag_format`, player-facing pages should reuse it for display and submit placeholders instead of hard-coding `flag{...}`.
@@ -195,6 +196,7 @@ internal/<module>/
 - Only when the `users` table is completely empty, backend startup auto-creates a bootstrap admin user: `admin / sauryctf`.
 - The frontend exposes separate `/login` and `/register` entries in the top-right navigation for account access.
 - `/login` and `/register` should stay as single-card form pages; do not append secondary summary panels, setup notes, or onboarding-style sidebars.
+- On `/login` and `/register`, redirect behavior should be conveyed with one light footer sentence when needed; do not promote it into a top-level `UAlert` or extra guidance card.
 - `/console/account` now provides a minimal account-security page:
   - logged-in users can change their own password
   - if the bootstrap admin still uses the initial password, both `/console` and `/console/account` surface a prominent reminder

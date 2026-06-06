@@ -4038,12 +4038,21 @@ onMounted(async () => {
           </div>
 
           <div class="space-y-3">
-            <UAlert
-              color="info"
-              variant="soft"
-              title="发布前检查"
-              description="这里只保留当前最影响公开运行的检查项，便于判断是否可以继续发布。"
-            />
+            <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="font-medium text-highlighted">
+                    发布前检查
+                  </div>
+                  <div class="mt-2 text-sm text-muted">
+                    这里只保留当前最影响公开运行的检查项，便于判断是否可以继续发布。
+                  </div>
+                </div>
+                <UBadge color="info" variant="soft">
+                  检查项
+                </UBadge>
+              </div>
+            </div>
 
             <div
               v-for="check in selectedGamePreflightChecks"
@@ -4123,12 +4132,21 @@ onMounted(async () => {
         id="local-docker-checklist"
       >
         <div class="space-y-3">
-          <UAlert
-            color="info"
-            variant="soft"
-            title="当前比赛包含容器实例题"
-            description="按这组检查项确认报名、实例启动、入口回填和资源回收状态。"
-          />
+          <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="font-medium text-highlighted">
+                  当前比赛包含容器实例题
+                </div>
+                <div class="mt-2 text-sm text-muted">
+                  按这组检查项确认报名、实例启动、入口回填和资源回收状态。
+                </div>
+              </div>
+              <UBadge color="info" variant="soft">
+                实例检查
+              </UBadge>
+            </div>
+          </div>
 
           <div
             v-for="item in localDockerInstanceChecklist"

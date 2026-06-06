@@ -69,15 +69,6 @@ const state = reactive<Partial<LoginSchema>>({
       description="使用已有账号访问控制台、队伍页和比赛页面。"
       icon="i-lucide-lock"
     >
-      <UAlert
-        color="info"
-        variant="subtle"
-        icon="i-lucide-route"
-        title="登录后跳转"
-        :description="`认证成功后会跳转到 ${redirectTarget}。`"
-        class="mb-4"
-      />
-
       <UForm :schema="loginSchema" :state="state" class="space-y-4" @submit="onLogin">
         <UFormField name="username" label="用户名或邮箱" required>
           <UInput v-model="state.username" class="w-full" placeholder="请输入用户名或邮箱" :disabled="submitting" />
@@ -92,6 +83,9 @@ const state = reactive<Partial<LoginSchema>>({
 
       <template #footer>
         <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="text-sm text-muted">
+            {{ redirectTarget === '/console' ? '登录后默认进入控制台。' : `登录后会返回 ${redirectTarget}。` }}
+          </div>
           <div class="text-sm text-muted">
             还没有账号？
             <ULink :to="registerTo" class="font-medium">

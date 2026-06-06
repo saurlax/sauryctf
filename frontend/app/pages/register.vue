@@ -81,17 +81,6 @@ const loginTo = computed(() => {
       description="创建选手账号。注册成功后会自动登录，并进入队伍页面。"
       icon="i-lucide-user-plus"
     >
-      <UAlert
-        color="info"
-        variant="subtle"
-        icon="i-lucide-route"
-        title="注册后跳转"
-        :description="redirectTarget !== '/console/team'
-          ? `系统会先进入 /console/team，并保留返回目标 ${redirectTarget}。`
-          : '系统会先进入 /console/team，便于继续创建或加入队伍。'"
-        class="mb-4"
-      />
-
       <UForm :schema="registerSchema" :state="state" class="space-y-4" @submit="onRegister">
         <UFormField name="username" label="用户名" required>
           <UInput v-model="state.username" class="w-full" placeholder="请输入用户名" :disabled="submitting" />
@@ -110,6 +99,9 @@ const loginTo = computed(() => {
 
       <template #footer>
         <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="text-sm text-muted">
+            {{ redirectTarget === '/console/team' ? '注册后会先进入队伍页。' : `注册后会先进入队伍页，并保留返回目标 ${redirectTarget}。` }}
+          </div>
           <div class="text-sm text-muted">
             已有账号？
             <ULink :to="loginTo" class="font-medium">
