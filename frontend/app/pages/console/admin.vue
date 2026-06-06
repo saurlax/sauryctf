@@ -540,6 +540,7 @@ const scoreboardChallenges = ref<Array<{
 const scoreboardFrozen = ref(false)
 const scoreboardFreezeTime = ref<string | null>(null)
 const selectedScoreboardDivision = ref('')
+const highlightedChallengeId = ref<number | null>(null)
 type AdminGameSummary = (typeof games.value)[number]
 type ConfirmActionType =
   | 'destroy-instance'
@@ -2503,6 +2504,10 @@ function jumpToAdminAnchor(target: string) {
   }
 }
 
+function isHighlightedChallenge(challengeId: number) {
+  return highlightedChallengeId.value === challengeId
+}
+
 function handleChecklistAction(step: { actionTo: string, contextGameId?: number }) {
   if (step.contextGameId) {
     selectGameContext(step.contextGameId)
@@ -3025,6 +3030,10 @@ async function applyRouteContext() {
   if (Number.isFinite(challengeId) && challenges.value.some(challenge => challenge.id === challengeId)) {
     challengeEditForm.challenge_id = challengeId
     attachForm.challenge_id = challengeId
+    highlightedChallengeId.value = challengeId
+  }
+  else {
+    highlightedChallengeId.value = null
   }
 
   if (modeValue === 'edit-game' && Number.isFinite(gameId) && games.value.some(game => game.id === gameId)) {
@@ -5577,7 +5586,12 @@ onMounted(async () => {
               <div
                 v-for="submission in submissions"
                 :key="submission.id"
-                class="rounded-lg border border-default px-3 py-3 text-sm"
+                :class="[
+                  'rounded-lg border px-3 py-3 text-sm transition-colors',
+                  isHighlightedChallenge(submission.challenge_id)
+                    ? 'border-primary bg-primary/5'
+                    : 'border-default',
+                ]"
               >
                 <div class="flex items-center justify-between gap-3">
                   <div class="font-medium">
@@ -5637,7 +5651,12 @@ onMounted(async () => {
               <div
                 v-for="clue in cheatClues"
                 :key="`${clue.challenge_id}-${clue.submitted_flag}`"
-                class="rounded-lg border border-default px-3 py-3 text-sm"
+                :class="[
+                  'rounded-lg border px-3 py-3 text-sm transition-colors',
+                  isHighlightedChallenge(clue.challenge_id)
+                    ? 'border-primary bg-primary/5'
+                    : 'border-default',
+                ]"
               >
                 <div class="flex items-center justify-between gap-3">
                   <div class="font-medium">

@@ -50,8 +50,8 @@
     - 待审核报名 -> `/console/admin?game_id=...&section=%23participants`
     - 待审 Writeup -> `/console/admin?game_id=...&section=%23writeups`
     - 公告摘要 -> `/console/admin?game_id=...&section=%23announcements`
-    - 最近提交 -> `/console/admin?game_id=...&section=%23submissions`
-    - 可疑线索 -> `/console/admin?game_id=...&section=%23clues`
+    - 最近提交 -> `/console/admin?game_id=...&challenge_id=...&section=%23submissions`
+    - 可疑线索 -> `/console/admin?game_id=...&challenge_id=...&section=%23clues`
   - 避免把这类首页待办重新退回为只跳 `/console/admin` 顶部的宽泛入口
 - “当前概览”卡片当前继续收敛为状态页：
   - 当前已经进一步合并为“当前工作台”

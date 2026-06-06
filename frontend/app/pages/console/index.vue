@@ -356,8 +356,17 @@ function buildAdminSectionLink(section: AdminSection) {
   return `/console/admin?section=${encodeURIComponent(section)}`
 }
 
-function buildAdminGameSectionLink(gameId: number, section: AdminSection) {
-  return `/console/admin?game_id=${gameId}&section=${encodeURIComponent(section)}`
+function buildAdminGameSectionLink(gameId: number, section: AdminSection, challengeId?: number) {
+  const query = new URLSearchParams({
+    game_id: String(gameId),
+    section,
+  })
+
+  if (typeof challengeId === 'number' && Number.isFinite(challengeId) && challengeId > 0) {
+    query.set('challenge_id', String(challengeId))
+  }
+
+  return `/console/admin?${query.toString()}`
 }
 
 const adminParticipantSectionLink = computed(() => {
@@ -377,12 +386,12 @@ const adminAnnouncementSectionLink = computed(() => {
 
 const adminSubmissionSectionLink = computed(() => {
   const target = adminRecentSubmissions.value[0]
-  return target ? buildAdminGameSectionLink(target.game.id, '#submissions') : buildAdminSectionLink('#submissions')
+  return target ? buildAdminGameSectionLink(target.game.id, '#submissions', target.challenge_id) : buildAdminSectionLink('#submissions')
 })
 
 const adminClueSectionLink = computed(() => {
   const target = adminCheatClues.value[0]
-  return target ? buildAdminGameSectionLink(target.game.id, '#clues') : buildAdminSectionLink('#clues')
+  return target ? buildAdminGameSectionLink(target.game.id, '#clues', target.challenge_id) : buildAdminSectionLink('#clues')
 })
 
 const adminPrioritySummaryRows = computed(() => [
@@ -1211,7 +1220,7 @@ onBeforeUnmount(() => {
                       <ULink
                         v-for="item in adminRecentSubmissions.slice(0, 3)"
                         :key="`${item.game_id}-${item.team_id}-${item.challenge_id}-${item.submitted_at}`"
-                        :to="buildAdminGameSectionLink(item.game.id, '#submissions')"
+                        :to="buildAdminGameSectionLink(item.game.id, '#submissions', item.challenge_id)"
                         class="rounded-md bg-elevated/60 px-3 py-2"
                       >
                         <div class="flex items-start justify-between gap-2">
@@ -1245,7 +1254,7 @@ onBeforeUnmount(() => {
                       <ULink
                         v-for="item in adminCheatClues.slice(0, 3)"
                         :key="`${item.game_id}-${item.challenge_id}-${item.submitted_flag}`"
-                        :to="buildAdminGameSectionLink(item.game.id, '#clues')"
+                        :to="buildAdminGameSectionLink(item.game.id, '#clues', item.challenge_id)"
                         class="rounded-md bg-elevated/60 px-3 py-2"
                       >
                         <div class="text-sm font-medium">
