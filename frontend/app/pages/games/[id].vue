@@ -2179,8 +2179,8 @@ onMounted(async () => {
                         v-if="hasChallengeInstanceTemplate(ch.container_spec) && !instanceStates[ch.id]?.launch_url"
                         color="info"
                         variant="soft"
-                        title="当前显示的是预设入口"
-                        description="这道题的接入信息带有每队占位符。启动实例后，这里会优先显示已经为当前队伍解析好的实际入口。"
+                        title="当前显示的是入口模板"
+                        description="这道题的接入信息包含按队伍解析的动态字段。启动实例后，这里会优先显示当前队伍的实际访问入口。"
                       />
                       <p v-if="getChallengeInstanceSpec(ch.container_spec)?.note" class="leading-6 whitespace-pre-wrap">
                         {{ getChallengeInstanceSpec(ch.container_spec)?.note }}
@@ -2296,8 +2296,8 @@ onMounted(async () => {
                           class="mb-3"
                           color="warning"
                           variant="soft"
-                          title="当前使用本地访问页"
-                          description="这说明平台已经完成了队伍维度的入口解析，当前地址落到本地访问页，便于继续核对入口链路。"
+                          title="当前入口已跳转到实例详情页"
+                          description="这说明平台已经完成了队伍维度的入口解析，当前可以继续在实例详情页核对访问入口、租约状态和续期策略。"
                         />
 
                         <div class="grid gap-3 text-xs text-muted md:grid-cols-2">

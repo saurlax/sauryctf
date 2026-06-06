@@ -184,6 +184,32 @@ function getPrimaryActionLabel() {
   return '启动实例'
 }
 
+async function copyValue(value?: string, successTitle = '内容已复制') {
+  if (!value) {
+    toast.add({
+      title: '没有可复制的内容',
+      color: 'warning',
+    })
+    return
+  }
+
+  try {
+    await navigator.clipboard.writeText(value)
+    toast.add({
+      title: successTitle,
+      description: value,
+      color: 'success',
+    })
+  }
+  catch (e: any) {
+    toast.add({
+      title: '复制失败',
+      description: e.data?.message || e.message,
+      color: 'error',
+    })
+  }
+}
+
 async function loadInstanceState(options?: { silent?: boolean }) {
   if (gameId.value <= 0 || challengeId.value <= 0) {
     stateLoadError.value = '当前实例地址缺少有效的比赛或题目编号。'
@@ -469,9 +495,39 @@ onBeforeUnmount(() => {
                 <div class="rounded-md border border-default bg-default px-3 py-3 break-all">
                   {{ currentEntry }}
                 </div>
+                <div class="flex flex-wrap gap-2">
+                  <UButton
+                    size="sm"
+                    variant="outline"
+                    icon="i-lucide-copy"
+                    @click="copyValue(currentEntry, '实例入口已复制')"
+                  >
+                    复制入口
+                  </UButton>
+                  <UButton
+                    v-if="instanceState?.launch_url"
+                    :to="instanceState.launch_url"
+                    target="_blank"
+                    size="sm"
+                    variant="outline"
+                    icon="i-lucide-external-link"
+                  >
+                    打开当前实例
+                  </UButton>
+                </div>
                 <div v-if="instanceState?.host || instanceState?.port">
                   主机：{{ instanceState?.host || 'host' }}<template v-if="instanceState?.port">:{{ instanceState?.port }}</template>
                 </div>
+                <UButton
+                  v-if="instanceState?.host || instanceState?.port"
+                  size="sm"
+                  variant="ghost"
+                  icon="i-lucide-copy"
+                  class="w-fit"
+                  @click="copyValue(`${instanceState?.host || 'host'}${instanceState?.port ? `:${instanceState.port}` : ''}`, '主机地址已复制')"
+                >
+                  复制主机地址
+                </UButton>
                 <div
                   v-if="instanceState?.command"
                   class="rounded-md border border-default bg-default px-3 py-3 font-mono text-xs whitespace-pre-wrap"
@@ -479,14 +535,14 @@ onBeforeUnmount(() => {
                   {{ instanceState?.command }}
                 </div>
                 <UButton
-                  v-if="instanceState?.launch_url"
-                  :to="instanceState.launch_url"
-                  target="_blank"
+                  v-if="instanceState?.command"
                   size="sm"
-                  variant="outline"
-                  icon="i-lucide-external-link"
+                  variant="ghost"
+                  icon="i-lucide-copy"
+                  class="w-fit"
+                  @click="copyValue(instanceState.command, '连接命令已复制')"
                 >
-                  打开当前实例
+                  复制连接命令
                 </UButton>
               </div>
             </UPageCard>
@@ -532,7 +588,7 @@ onBeforeUnmount(() => {
             <UPageCard
               title="当前说明"
               icon="i-lucide-waypoints"
-              description="本地实例页现在作为实例详情页使用，适合在不离开平台的前提下核对队伍入口与租约状态。"
+              description="当前页面用于承接实例详情，适合在不离开平台的前提下核对队伍入口与租约状态。"
             >
               <div class="space-y-2 text-sm text-muted leading-6">
                 <p>如果这里显示的是平台回填后的真实入口，说明当前账号已经拿到了队伍维度的实例地址。</p>

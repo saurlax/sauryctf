@@ -158,7 +158,7 @@ pnpm smoke:local:docker
 - `runtime.expose = [80]`
 - `connection.url = /local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}`
 
-默认这一步不会真的起容器，但比赛页会先显示预设入口，启动实例后再显示已经为当前队伍解析好的租约地址，并能直接跳到本地实例访问页。
+默认这一步不会真的起容器，但比赛页会先显示入口模板，启动实例后再显示已经为当前队伍解析好的租约地址，并能直接跳到实例详情页。
 
 如果你已经开启 `INSTANCE_DOCKER_PROVIDER_ENABLED=true`，也可以把同一结构改成最小真实容器模板，例如：
 
