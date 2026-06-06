@@ -101,6 +101,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - Public game pages should prefer state summaries such as `报名状态`, `队伍状态`, and `提交权限`; avoid numbered participation steps or overly tutorial-style action labels.
 - In console pages, prefer neutral internal names such as `context`, `checklist`, and `entry` over `setup` for maintenance-oriented panels and computed state.
 - Challenge attachments remain a JSON string array. For local files, prefer the admin upload entry so `/attachments/**` paths stay consistent with import/export behavior.
+- If a challenge defines `flag_format`, player-facing pages should reuse it for display and submit placeholders instead of hard-coding `flag{...}`.
 - For player-facing challenge content, prefer shared parsing/display helpers for `hints` and `attachments` instead of duplicating JSON parsing in page files.
 - Error toast descriptions use `e.data?.message || e.message`.
 - API requests go through `/api/**` (dev proxy via `nuxt.config.ts` `devProxy` to `localhost:8080`).

@@ -32,6 +32,7 @@ const challengeForm = reactive({
   hints: '[]',
   attachments: '[]',
   container_spec: '',
+  flag_format: 'flag{...}',
   category: 'web',
   type: 'static',
   difficulty: 'easy',
@@ -84,6 +85,7 @@ const challengeEditForm = reactive({
   hints: '[]',
   attachments: '[]',
   container_spec: '',
+  flag_format: 'flag{...}',
   category: 'web',
   type: 'static',
   difficulty: 'easy',
@@ -189,6 +191,7 @@ const challenges = ref<Array<{
   hints?: string
   attachments?: string
   container_spec?: string
+  flag_format?: string
   category: 'web' | 'pwn' | 'crypto' | 'reverse' | 'misc' | 'forensics' | 'awd'
   type?: 'static' | 'dynamic'
   difficulty?: 'easy' | 'medium' | 'hard'
@@ -205,6 +208,7 @@ const selectedGameChallenges = ref<Array<{
   type: 'static' | 'dynamic'
   difficulty?: string
   container_spec?: string
+  flag_format?: string
   score: number
   solve_count?: number
   blood_team?: string
@@ -1976,6 +1980,7 @@ function fillStarterChallengeTemplate() {
       },
     ],
   }, null, 2)
+  challengeForm.flag_format = 'flag{...}'
   challengeForm.category = 'misc'
   challengeForm.type = 'static'
   challengeForm.difficulty = 'easy'
@@ -2009,6 +2014,7 @@ function fillStaticWebTemplate() {
       },
     ],
   }, null, 2)
+  challengeForm.flag_format = 'flag{...}'
   challengeForm.category = 'web'
   challengeForm.type = 'static'
   challengeForm.difficulty = 'easy'
@@ -2038,6 +2044,7 @@ function fillPwnNetcatTemplate() {
       note: '把这里替换成实际的 tcp 服务地址；如果有公网代理，也可以额外填写 url。',
     },
   }, null, 2)
+  challengeForm.flag_format = 'flag{...}'
   challengeForm.category = 'pwn'
   challengeForm.type = 'static'
   challengeForm.difficulty = 'medium'
@@ -2085,6 +2092,7 @@ function fillDynamicContainerTemplate() {
       expected_port: 80,
     },
   }, null, 2)
+  challengeForm.flag_format = 'flag{...}'
   challengeForm.category = 'web'
   challengeForm.type = 'dynamic'
   challengeForm.difficulty = 'medium'
@@ -2126,6 +2134,7 @@ function fillTeamScopedDynamicTemplate() {
       },
     ],
   }, null, 2)
+  challengeForm.flag_format = 'flag{...}'
   challengeForm.category = 'web'
   challengeForm.type = 'dynamic'
   challengeForm.difficulty = 'hard'
@@ -2174,6 +2183,7 @@ async function createStarterProvision() {
           '保存前请确认 Flag、分值和可见性设置已经完成。',
         ]),
         attachments: '[]',
+        flag_format: 'flag{...}',
         category: 'misc',
         type: 'static',
         difficulty: 'easy',
@@ -2270,6 +2280,7 @@ async function createDynamicProvision() {
         category: 'web',
         type: 'dynamic',
         difficulty: 'hard',
+        flag_format: 'flag{...}',
         flag: 'flag{dynamic-instance-baseline}',
         base_score: 300,
         min_score: 100,
@@ -2364,6 +2375,7 @@ async function createLocalDockerProvision() {
         category: 'web',
         type: 'dynamic',
         difficulty: 'medium',
+        flag_format: 'flag{...}',
         flag: 'flag{docker-instance-baseline}',
         base_score: 300,
         min_score: 100,
@@ -2474,6 +2486,7 @@ async function createChallenge() {
         hints: challengeForm.hints,
         attachments: challengeForm.attachments,
         container_spec: challengeForm.container_spec,
+        flag_format: challengeForm.flag_format,
         category: challengeForm.category as 'web',
         type: challengeForm.type as 'static',
         difficulty: challengeForm.difficulty as 'easy',
@@ -2492,6 +2505,7 @@ async function createChallenge() {
     challengeForm.hints = '[]'
     challengeForm.attachments = '[]'
     challengeForm.container_spec = ''
+    challengeForm.flag_format = 'flag{...}'
     challengeAttachmentUploadForm.file = undefined
     challengeForm.category = 'web'
     challengeForm.type = 'static'
@@ -2564,6 +2578,7 @@ async function updateChallengeDetails() {
         hints: challengeEditForm.hints,
         attachments: challengeEditForm.attachments,
         container_spec: challengeEditForm.container_spec,
+        flag_format: challengeEditForm.flag_format,
         category: challengeEditForm.category,
         type: challengeEditForm.type,
         difficulty: challengeEditForm.difficulty,
@@ -3063,6 +3078,7 @@ watch(() => challengeEditForm.challenge_id, () => {
     challengeEditForm.hints = '[]'
     challengeEditForm.attachments = '[]'
     challengeEditForm.container_spec = ''
+    challengeEditForm.flag_format = 'flag{...}'
     challengeEditAttachmentUploadForm.file = undefined
     challengeEditForm.category = 'web'
     challengeEditForm.type = 'static'
@@ -3085,6 +3101,7 @@ watch(() => challengeEditForm.challenge_id, () => {
   challengeEditForm.hints = challenge.hints || '[]'
   challengeEditForm.attachments = challenge.attachments || '[]'
   challengeEditForm.container_spec = challenge.container_spec || ''
+  challengeEditForm.flag_format = challenge.flag_format || 'flag{...}'
   challengeEditAttachmentUploadForm.file = undefined
   challengeEditForm.category = challenge.category
   challengeEditForm.type = challenge.type || 'static'
@@ -4430,6 +4447,9 @@ onMounted(async () => {
                     <div>
                       {{ challenge.category }} · {{ challenge.score }} 分 · {{ challenge.solve_count || 0 }} 解
                     </div>
+                    <div v-if="challenge.flag_format">
+                      Flag 格式：{{ challenge.flag_format }}
+                    </div>
                     <div
                       v-for="blood in getBloodRows(challenge)"
                       :key="`${challenge.id}-${blood.label}`"
@@ -5351,6 +5371,14 @@ onMounted(async () => {
           <UInput v-model="challengeForm.flag" class="w-full" placeholder="请填写正式 Flag" />
         </UFormField>
 
+        <UFormField
+          label="Flag 格式"
+          name="flag_format"
+          description="用于公开页展示提交示例。留空时建议仍保持平台统一格式示意。"
+        >
+          <UInput v-model="challengeForm.flag_format" class="w-full" placeholder="例如：flag{...}" />
+        </UFormField>
+
         <div class="grid gap-4 md:grid-cols-3">
           <UFormField label="基础分值" name="base_score">
             <UInput v-model.number="challengeForm.base_score" type="number" class="w-full" />
@@ -5696,6 +5724,14 @@ onMounted(async () => {
             <USelect v-model="challengeEditForm.difficulty" :items="difficultyOptions" class="w-full" />
           </UFormField>
         </div>
+
+        <UFormField
+          label="Flag 格式"
+          name="flag_format"
+          description="用于公开页展示提交示例。留空时建议仍保持平台统一格式示意。"
+        >
+          <UInput v-model="challengeEditForm.flag_format" class="w-full" placeholder="例如：flag{...}" />
+        </UFormField>
 
         <div class="grid gap-4 md:grid-cols-3">
           <UFormField label="基础分值" name="base_score">

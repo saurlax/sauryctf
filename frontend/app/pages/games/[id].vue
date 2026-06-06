@@ -483,6 +483,10 @@ function hasChallengeContentEntry(challenge: GameChallengeDetail) {
   })
 }
 
+function getChallengeFlagFormat(challenge: GameChallengeDetail) {
+  return challenge.flag_format?.trim() || 'flag{...}'
+}
+
 function getDisplayedInstanceLaunchUrl(challenge: GameChallengeDetail) {
   return instanceStates[challenge.id]?.launch_url || getChallengeInstanceSpec(challenge.container_spec)?.url || ''
 }
@@ -2284,6 +2288,10 @@ onMounted(async () => {
                   </span>
                 </div>
 
+                <div class="mb-3 text-xs text-muted">
+                  Flag 格式：{{ getChallengeFlagFormat(ch) }}
+                </div>
+
                 <div class="space-y-3 mb-4 text-sm">
                   <UAlert
                     :color="getChallengeCardMeta(ch).color"
@@ -2588,7 +2596,7 @@ onMounted(async () => {
                   <div v-if="canSubmitFlag" class="flex gap-2">
                     <UInput
                       v-model="flagInputs[ch.id]"
-                      placeholder="flag{...}"
+                      :placeholder="getChallengeFlagFormat(ch)"
                       size="sm"
                       class="flex-1"
                       @keyup.enter="submitFlag(ch.id)"

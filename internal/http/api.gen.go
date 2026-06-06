@@ -781,6 +781,7 @@ type GameChallengeDetail struct {
 	ContainerSpec   *string                     `json:"container_spec,omitempty"`
 	Description     *string                     `json:"description,omitempty"`
 	Difficulty      *string                     `json:"difficulty,omitempty"`
+	FlagFormat      *string                     `json:"flag_format,omitempty"`
 	Hints           *string                     `json:"hints,omitempty"`
 	Id              int                         `json:"id"`
 	Score           int                         `json:"score"`

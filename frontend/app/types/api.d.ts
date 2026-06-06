@@ -454,6 +454,7 @@ export interface components {
       hints?: string;
       attachments?: string;
       container_spec?: string;
+      flag_format?: string;
       score: number;
       solved?: boolean;
       solve_count?: number;

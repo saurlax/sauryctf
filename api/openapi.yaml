@@ -544,6 +544,8 @@ components:
           type: string
         container_spec:
           type: string
+        flag_format:
+          type: string
         score:
           type: integer
         solved:
