@@ -112,6 +112,137 @@ function Invoke-TextRequest {
   return Invoke-WebRequest -Method "GET" -Uri $Url
 }
 
+function Invoke-BinaryRequest {
+  param(
+    [Parameter(Mandatory = $true)][string]$Method,
+    [Parameter(Mandatory = $true)][string]$Url,
+    [Parameter(Mandatory = $true)][string]$OutputPath,
+    [Parameter()][Microsoft.PowerShell.Commands.WebRequestSession]$Session
+  )
+
+  $params = @{
+    Method  = $Method
+    Uri     = $Url
+    OutFile = $OutputPath
+  }
+
+  if ($Session) {
+    $params.WebSession = $Session
+  }
+
+  try {
+    return Invoke-WebRequest @params
+  }
+  catch {
+    $responseBody = ""
+    if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+      $responseBody = $_.ErrorDetails.Message
+    }
+    elseif ($_.Exception.Response) {
+      try {
+        $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+        $responseBody = $reader.ReadToEnd()
+      }
+      catch {
+        $responseBody = ""
+      }
+    }
+
+    Fail "Binary request failed: $Method $Url`nResponse: $responseBody`nError: $($_.Exception.Message)"
+  }
+}
+
+function Invoke-MultipartFileUpload {
+  param(
+    [Parameter(Mandatory = $true)][string]$Url,
+    [Parameter(Mandatory = $true)][string]$FilePath,
+    [Parameter()][Microsoft.PowerShell.Commands.WebRequestSession]$Session
+  )
+
+  $resolvedFilePath = (Resolve-Path -LiteralPath $FilePath).Path
+  $cookieHeader = ""
+  if ($Session -and $Session.Cookies) {
+    $requestUri = [System.Uri]::new($Url)
+    $cookies = $Session.Cookies.GetCookies($requestUri)
+    if ($cookies.Count -gt 0) {
+      $cookieHeader = ($cookies | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join "; "
+    }
+  }
+
+  try {
+    $responsePath = Join-Path ([System.IO.Path]::GetTempPath()) ("sauryctf-import-response-" + [System.Guid]::NewGuid().ToString("N") + ".json")
+    $statusPath = Join-Path ([System.IO.Path]::GetTempPath()) ("sauryctf-import-status-" + [System.Guid]::NewGuid().ToString("N") + ".txt")
+    $stderrPath = Join-Path ([System.IO.Path]::GetTempPath()) ("sauryctf-import-stderr-" + [System.Guid]::NewGuid().ToString("N") + ".log")
+    try {
+      $arguments = @(
+        "--silent"
+        "--show-error"
+        "--location"
+        "--output", $responsePath
+        "--write-out", "%{http_code}"
+        "--request", "POST"
+        "--form", "file=@$resolvedFilePath;type=application/zip"
+      )
+
+      if (-not [string]::IsNullOrWhiteSpace($cookieHeader)) {
+        $arguments += @("--header", "Cookie: $cookieHeader")
+      }
+
+      $arguments += $Url
+
+      & curl.exe @arguments 1> $statusPath 2> $stderrPath | Out-Null
+      if ($LASTEXITCODE -ne 0) {
+        $curlError = if (Test-Path $stderrPath) { Get-Content -LiteralPath $stderrPath -Raw } else { "" }
+        Fail "Multipart upload failed: POST $Url`nError: curl exited with code $LASTEXITCODE`nDetails: $curlError"
+      }
+
+      $responseBody = if (Test-Path $responsePath) { Get-Content -LiteralPath $responsePath -Raw } else { "" }
+      $statusCode = if (Test-Path $statusPath) { (Get-Content -LiteralPath $statusPath -Raw).Trim() } else { "" }
+      if ($statusCode -notmatch '^\d{3}$') {
+        Fail "Multipart upload failed: POST $Url`nResponse: $responseBody`nError: unexpected curl status output '$statusCode'"
+      }
+
+      if ([int]$statusCode -lt 200 -or [int]$statusCode -ge 300) {
+        Fail "Multipart upload failed: POST $Url`nResponse: $responseBody`nError: HTTP $statusCode"
+      }
+
+      if ([string]::IsNullOrWhiteSpace($responseBody)) {
+        return $null
+      }
+
+      return $responseBody | ConvertFrom-Json
+    }
+    finally {
+      if ($responsePath -and (Test-Path $responsePath)) {
+        Remove-Item -LiteralPath $responsePath -Force -ErrorAction SilentlyContinue
+      }
+      if ($statusPath -and (Test-Path $statusPath)) {
+        Remove-Item -LiteralPath $statusPath -Force -ErrorAction SilentlyContinue
+      }
+      if ($stderrPath -and (Test-Path $stderrPath)) {
+        Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
+      }
+    }
+  }
+  catch {
+    $responseBody = ""
+    if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+      $responseBody = $_.ErrorDetails.Message
+    }
+    elseif ($_.Exception.Response) {
+      try {
+        $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+        $responseBody = $reader.ReadToEnd()
+      }
+      catch {
+        $responseBody = ""
+      }
+    }
+
+    Fail "Multipart upload failed: POST $Url`nResponse: $responseBody`nError: $($_.Exception.Message)"
+  }
+}
+
 function Get-DockerServerVersion {
   $dockerOutput = & docker version --format '{{.Server.Version}}' 2>&1
   $dockerExitCode = $LASTEXITCODE
@@ -350,6 +481,26 @@ $dynamicAttachResult = Invoke-JsonRequest -Method "POST" -Url "$BaseUrl/api/game
 } -Session $adminSession
 Assert-Equal $dynamicAttachResult.message "added" "Dynamic challenge attach did not succeed."
 
+Write-Step "Exporting contest package"
+$exportZipPath = Join-Path ([System.IO.Path]::GetTempPath()) "sauryctf-smoke-export-$suffix.zip"
+Invoke-BinaryRequest -Method "POST" -Url "$BaseUrl/api/admin/games/$($game.id)/export" -OutputPath $exportZipPath -Session $adminSession | Out-Null
+Assert-True (Test-Path $exportZipPath) "Contest export did not produce a ZIP file."
+
+Write-Step "Importing exported contest package"
+$importedGame = Invoke-MultipartFileUpload -Url "$BaseUrl/api/admin/games/import" -FilePath $exportZipPath -Session $adminSession
+Assert-True ($null -ne $importedGame) "Contest import did not return a response body."
+Assert-Equal $importedGame.name $gameName "Imported contest name does not match the exported contest."
+Assert-Equal $importedGame.status "draft" "Imported contest should return to draft status."
+Assert-Equal $importedGame.registration_mode "auto_accept" "Imported contest should preserve registration mode."
+
+Write-Step "Checking imported contest challenges"
+$importedChallenges = Invoke-JsonRequest -Method "GET" -Url "$BaseUrl/api/admin/games/$($importedGame.id)/challenges" -Session $adminSession
+Assert-Equal $importedChallenges.Count 2 "Imported contest should contain both mounted challenges."
+$importedStatic = $importedChallenges | Where-Object { $_.title -eq $challengeTitle } | Select-Object -First 1
+$importedDynamic = $importedChallenges | Where-Object { $_.title -eq $dynamicChallengeTitle } | Select-Object -First 1
+Assert-True ($null -ne $importedStatic) "Imported contest is missing the exported static challenge."
+Assert-True ($null -ne $importedDynamic) "Imported contest is missing the exported dynamic challenge."
+
 Write-Step "Activating contest"
 $updatedGame = Invoke-JsonRequest -Method "PUT" -Url "$BaseUrl/api/games/$($game.id)" -Body @{
   status = "active"
@@ -450,6 +601,9 @@ Assert-True ($entry.score -ge 1) "Player team scoreboard score was not updated."
   Write-Host "Team: $teamName"
 }
 finally {
+  if ($exportZipPath -and (Test-Path $exportZipPath)) {
+    Remove-Item -LiteralPath $exportZipPath -Force -ErrorAction SilentlyContinue
+  }
   if ($StartBackend) {
     Stop-TemporaryBackend
   }
