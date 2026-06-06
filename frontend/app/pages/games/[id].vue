@@ -98,6 +98,29 @@ const currentGameRedirect = computed(() => {
 const loginEntry = computed(() => buildAuthEntryPath('/login', currentGameRedirect.value))
 const registerEntry = computed(() => buildAuthEntryPath('/register', currentGameRedirect.value))
 const teamEntry = computed(() => buildRedirectedPath('/console/team', currentGameRedirect.value))
+
+type AdminSection = '#game-settings' | '#attach-challenge' | '#submissions' | '#clues' | '#monitoring'
+
+function buildAdminGameSectionLink(section: AdminSection, challengeId?: number) {
+  const query = new URLSearchParams({
+    game_id: String(gameId),
+    section,
+  })
+
+  if (typeof challengeId === 'number' && Number.isFinite(challengeId) && challengeId > 0) {
+    query.set('challenge_id', String(challengeId))
+  }
+
+  return `/console/admin?${query.toString()}`
+}
+
+const adminOverviewEntry = computed(() => buildAdminGameSectionLink('#game-settings'))
+const adminChallengeMountEntry = computed(() => buildAdminGameSectionLink('#attach-challenge'))
+
+function buildAdminChallengeEntry(challengeId: number) {
+  return buildAdminGameSectionLink('#attach-challenge', challengeId)
+}
+
 const routeRequestedTab = computed(() => typeof route.query.tab === 'string' ? route.query.tab : '')
 const routeRequestedChallengeId = computed(() => {
   const rawValue = route.query.challenge
@@ -2443,10 +2466,13 @@ onMounted(async () => {
                   你当前拥有赛事管理权限，可以继续前往管理端更新比赛信息、题目配置和挂题关系。
                 </p>
                 <div class="flex flex-col gap-3">
-                  <UButton icon="i-lucide-settings-2" to="/console/admin" block>
-                    打开赛事管理
+                  <UButton icon="i-lucide-settings-2" :to="adminOverviewEntry" block>
+                    打开比赛设置
                   </UButton>
-                  <UButton icon="i-lucide-layout-dashboard" to="/console" variant="outline" block>
+                  <UButton icon="i-lucide-link" :to="adminChallengeMountEntry" variant="outline" block>
+                    查看挂题关系
+                  </UButton>
+                  <UButton icon="i-lucide-layout-dashboard" to="/console" variant="ghost" block>
                     返回控制台
                   </UButton>
                 </div>
@@ -2537,6 +2563,17 @@ onMounted(async () => {
                     <UIcon name="i-lucide-users" class="size-3" />
                     {{ ch.solve_count }}
                   </span>
+                </div>
+
+                <div v-if="isAdmin" class="mb-3 flex justify-end">
+                  <UButton
+                    size="xs"
+                    variant="ghost"
+                    icon="i-lucide-settings-2"
+                    :to="buildAdminChallengeEntry(ch.id)"
+                  >
+                    处理这道题
+                  </UButton>
                 </div>
 
                 <div class="mb-3 text-xs text-muted">
