@@ -33,7 +33,7 @@ const bootstrapRisk = computed(() => !!setupStatus.value?.password_change_recomm
 const securityNextStepMeta = computed(() => {
   if (bootstrapRisk.value) {
     return {
-      title: '当前状态：需更新登录密码',
+      title: '建议优先更新登录密码',
       description: '当前管理员账号仍在使用默认口令。完成改密后再继续日常管理操作会更安全。',
       color: 'warning' as const,
       icon: 'i-lucide-triangle-alert',
@@ -45,7 +45,7 @@ const securityNextStepMeta = computed(() => {
   }
 
   return {
-    title: '当前状态：账号可继续使用',
+    title: '账号可继续使用',
     description: '当前账号安全状态正常，可以返回控制台继续处理比赛、队伍或其他待办。',
     color: 'success' as const,
     icon: 'i-lucide-shield-check',

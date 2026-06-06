@@ -96,6 +96,8 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - If a page already has modal-based create/edit flows, do not keep a second full inline version of the same form in the main page body unless there is a clear operational reason.
 - User-facing page copy should stay formal and product-oriented; avoid temporary notes, onboarding-style placeholders, and testing slang in visible UI text.
 - Public pages, login/register pages, and console home should not carry setup-wizard or initialization-style panels. Empty-state handling should stay minimal and operational.
+- The top-right guest navigation keeps two distinct actions, `登录` and `注册`; do not collapse them into a merged auth button.
+- Account-related status cards should avoid `当前状态：...`-style headings; prefer direct operational titles.
 - In console pages, prefer neutral internal names such as `context`, `checklist`, and `entry` over `setup` for maintenance-oriented panels and computed state.
 - Challenge attachments remain a JSON string array. For local files, prefer the admin upload entry so `/attachments/**` paths stay consistent with import/export behavior.
 - For player-facing challenge content, prefer shared parsing/display helpers for `hints` and `attachments` instead of duplicating JSON parsing in page files.

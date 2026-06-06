@@ -74,7 +74,7 @@ const loginTo = computed(() => {
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.05fr)_360px] xl:items-start">
       <UPageCard
         title="注册"
-        description="创建一个新的选手账号。注册成功后会直接登录，并进入队伍页面。"
+        description="创建新的选手账号。注册成功后会自动登录，并进入队伍页面。"
         icon="i-lucide-user-plus"
       >
         <UForm :schema="registerSchema" :state="state" class="space-y-4" @submit="onRegister">
@@ -93,16 +93,18 @@ const loginTo = computed(() => {
           <UButton type="submit" block label="创建账号" icon="i-lucide-user-round-plus" />
         </UForm>
 
-        <div class="mt-4 text-sm text-muted">
-          已有账号？
-          <ULink :to="loginTo" class="font-medium">
-            前往登录
-          </ULink>
-        </div>
         <template #footer>
-          <div class="flex flex-wrap gap-2">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="text-sm text-muted">
+              已有账号？
+              <ULink :to="loginTo" class="font-medium">
+                返回登录
+              </ULink>
+            </div>
+            <div class="flex flex-wrap gap-2">
             <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="ghost" />
             <UButton label="返回登录" icon="i-lucide-log-in" :to="loginTo" variant="outline" />
+            </div>
           </div>
         </template>
       </UPageCard>
