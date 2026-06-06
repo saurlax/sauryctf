@@ -369,6 +369,20 @@ function buildAdminGameSectionLink(gameId: number, section: AdminSection, challe
   return `/console/admin?${query.toString()}`
 }
 
+function buildGameDetailLink(gameId: number, options?: {
+  tab?: 'overview' | 'challenges' | 'scoreboard' | 'writeup'
+}) {
+  if (!options?.tab) {
+    return `/games/${gameId}`
+  }
+
+  const query = new URLSearchParams({
+    tab: options.tab,
+  })
+
+  return `/games/${gameId}?${query.toString()}`
+}
+
 const adminParticipantSectionLink = computed(() => {
   const target = adminPendingParticipants.value[0]
   return target ? buildAdminGameSectionLink(target.game.id, '#participants') : buildAdminSectionLink('#participants')
@@ -602,7 +616,7 @@ function getParticipationPriority(game: GameSummary, participation: GameParticip
 
 function getParticipationMeta(game: GameSummary) {
   const participation = participationMap.value[game.id]
-  const gamePath = `/games/${game.id}`
+  const gamePath = buildGameDetailLink(game.id)
   const meta = resolveParticipationMeta({
     gameId: game.id,
     gamePhase: getGamePhase(game),
@@ -615,8 +629,21 @@ function getParticipationMeta(game: GameSummary) {
     teamTo: buildRedirectedPath('/console/team', gamePath),
   })
 
+  const phase = getGamePhase(game)
+  let actionTo = meta.actionTo
+
+  if (participation?.missing_writeup || (participation?.writeup_required && participation?.writeup_submitted && participation?.writeup_status === 'submitted')) {
+    actionTo = buildGameDetailLink(game.id, { tab: 'writeup' })
+  }
+  else if (participation?.participated && participation?.status === 'accepted') {
+    actionTo = buildGameDetailLink(game.id, {
+      tab: phase === 'ended' && !game.practice_mode ? 'scoreboard' : 'challenges',
+    })
+  }
+
   return {
     ...meta,
+    actionTo,
     priority: getParticipationPriority(game, participation),
   }
 }
@@ -784,7 +811,7 @@ onBeforeUnmount(() => {
                       size="sm"
                       variant="ghost"
                       icon="i-lucide-settings-2"
-                      to="/console/admin"
+                      :to="`/console/admin?game_id=${game.id}`"
                     >
                       管理
                     </UButton>
@@ -792,7 +819,7 @@ onBeforeUnmount(() => {
                       size="sm"
                       variant="ghost"
                       icon="i-lucide-arrow-up-right"
-                      :to="`/games/${game.id}`"
+                      :to="buildGameDetailLink(game.id)"
                     >
                       打开
                     </UButton>
@@ -912,7 +939,7 @@ onBeforeUnmount(() => {
                     size="sm"
                     variant="ghost"
                     icon="i-lucide-arrow-up-right"
-                    :to="`/games/${game.id}`"
+                    :to="buildGameDetailLink(game.id)"
                   />
                 </div>
               </div>
@@ -1008,7 +1035,7 @@ onBeforeUnmount(() => {
                     size="sm"
                     variant="ghost"
                     icon="i-lucide-arrow-up-right"
-                    :to="`/games/${announcement.game.id}`"
+                    :to="buildGameDetailLink(announcement.game.id)"
                   />
                 </div>
                 <div class="mt-3 text-sm text-muted whitespace-pre-wrap leading-6">
