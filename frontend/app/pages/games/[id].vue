@@ -877,7 +877,7 @@ const canJoinGame = computed(() =>
   !!authState.user
   && !!participation.value?.has_team
   && participation.value?.status !== 'accepted'
-  && gameStatusMeta.value.label !== '已结束',
+  && publicGamePhase.value !== 'ended',
 )
 
 const canLeaveGame = computed(() =>
@@ -889,7 +889,7 @@ const canLeaveGame = computed(() =>
 const canSubmitFlag = computed(() =>
   !!authState.user
   && participation.value?.status === 'accepted'
-  && (gameStatusMeta.value.label === '进行中' || (gameStatusMeta.value.label === '已结束' && !!game.value?.practice_mode)),
+  && (publicGamePhase.value === 'active' || (publicGamePhase.value === 'ended' && !!game.value?.practice_mode)),
 )
 
 const publicGamePhase = computed<PublicGamePhase>(() => {
@@ -996,9 +996,9 @@ const registrationPanelSummary = computed(() => {
   if (participationStateKey.value === 'accepted' || participationStateKey.value === 'missing_writeup' || participationStateKey.value === 'writeup_submitted') {
     return {
       title: '当前队伍已经具备参赛资格',
-      description: gameStatusMeta.value.label === '未开始'
+      description: publicGamePhase.value === 'before_start'
         ? '报名已经通过，接下来只需要等待开赛。开赛后会自动开放完整题面和提交入口。'
-        : gameStatusMeta.value.label === '已结束'
+        : publicGamePhase.value === 'ended'
             ? '这场比赛的正式报名已经完成。当前可以继续查看比赛信息，并按练习模式规则决定是否还能继续提交。'
             : '报名已经通过，当前可以直接切换到题目标签开始解题、启动实例并提交 Flag。',
       color: 'success' as const,
@@ -1055,8 +1055,8 @@ const challengeVisibilityHint = computed(() => publicParticipationHints.value.vi
 const challengeSubmitMeta = computed(() => {
   if (canSubmitFlag.value) {
     return {
-      title: gameStatusMeta.value.label === '已结束' ? '当前可以继续练习提交' : '当前可以提交 Flag',
-      description: gameStatusMeta.value.label === '已结束'
+      title: publicGamePhase.value === 'ended' ? '当前可以继续练习提交' : '当前可以提交 Flag',
+      description: publicGamePhase.value === 'ended'
         ? '正式比赛已经结束，但当前比赛开启了赛后练习模式。你仍然可以继续补题提交，练习解题不会再计入正式榜单。'
         : '你的队伍已经具备参赛资格，可以直接在下方输入 Flag 并提交。',
       color: 'success' as const,
@@ -1091,8 +1091,8 @@ function getChallengeCardMeta(challenge: GameChallengeDetail) {
       return {
         color: 'success' as const,
         icon: 'i-lucide-rocket',
-        title: gameStatusMeta.value.label === '已结束' ? '当前可继续练习并管理实例' : '当前可解题、提交并管理实例',
-        description: gameStatusMeta.value.label === '已结束'
+        title: publicGamePhase.value === 'ended' ? '当前可继续练习并管理实例' : '当前可解题、提交并管理实例',
+        description: publicGamePhase.value === 'ended'
           ? '当前比赛已进入赛后练习阶段。你可以继续查看题面、提交 Flag，并按练习规则启动或续期当前队伍实例。'
           : '当前题面已开放。你可以直接查看题目内容、提交 Flag，并按当前队伍状态启动或续期实例。',
       }
@@ -1101,8 +1101,8 @@ function getChallengeCardMeta(challenge: GameChallengeDetail) {
     return {
       color: 'success' as const,
       icon: 'i-lucide-flag',
-      title: gameStatusMeta.value.label === '已结束' ? '当前可继续练习提交' : '当前可直接提交 Flag',
-      description: gameStatusMeta.value.label === '已结束'
+      title: publicGamePhase.value === 'ended' ? '当前可继续练习提交' : '当前可直接提交 Flag',
+      description: publicGamePhase.value === 'ended'
         ? '当前比赛开启了赛后练习模式。你可以继续查看题面并提交练习解题记录。'
         : '当前题面已开放，队伍也已具备参赛资格，可以直接在下方输入 Flag 提交。',
     }
@@ -1205,7 +1205,7 @@ const nextStepMeta = computed(() => {
     }
   }
 
-  if (gameStatusMeta.value.label === '未开始') {
+  if (publicGamePhase.value === 'before_start') {
     return {
       title: '等待开赛',
       description: '你的队伍已经具备参赛资格。比赛开始后，题面会自动开放，随后就可以提交 Flag。',
@@ -1216,7 +1216,7 @@ const nextStepMeta = computed(() => {
     }
   }
 
-  if (gameStatusMeta.value.label === '进行中') {
+  if (publicGamePhase.value === 'active') {
     return {
       title: '当前可开始解题',
       description: '当前已经满足参赛条件，可以直接切换到题目标签开始查看题面、附件并提交 Flag。',
