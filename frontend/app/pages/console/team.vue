@@ -43,6 +43,28 @@ const joinLoading = ref(false)
 const removingMemberId = ref<number | null>(null)
 const transferringCaptainId = ref<number | null>(null)
 const resettingInviteCode = ref(false)
+const confirmModalOpen = ref(false)
+const confirmSubmitting = ref(false)
+
+type ConfirmAction =
+  | { type: 'leave' }
+  | { type: 'remove-member', memberUserId: number, username?: string }
+  | { type: 'transfer-captain', memberUserId: number, username?: string }
+  | { type: 'reset-invite-code' }
+
+const confirmAction = ref<{
+  title: string
+  description: string
+  actionLabel: string
+  color: 'error' | 'warning' | 'primary'
+  payload: ConfirmAction | null
+}>({
+  title: '',
+  description: '',
+  actionLabel: '确认',
+  color: 'primary',
+  payload: null,
+})
 
 const currentUserId = computed(() => authState.user?.id)
 const isCaptain = computed(() => team.value?.members?.some(member => member.user_id === currentUserId.value && member.role === 'captain') || false)
@@ -60,8 +82,8 @@ const contestRedirect = computed(() => resolveRedirect())
 const teamSetupGuideMeta = computed(() => {
   if (contestRedirect.value) {
     return {
-      title: '当前下一步：先准备队伍，再回到原比赛',
-      description: '你现在还没有队伍。先创建自己的队伍，或使用邀请码加入现有队伍；完成后系统会自动带你回到刚才的比赛继续报名或参赛。',
+      title: '当前状态：需先完成队伍准备',
+      description: '你当前还没有队伍。可先创建队伍或使用邀请码加入，完成后会自动返回原比赛继续报名或参赛。',
       color: 'info' as const,
       icon: 'i-lucide-route',
       actionLabel: '先看原比赛',
@@ -72,8 +94,8 @@ const teamSetupGuideMeta = computed(() => {
   }
 
   return {
-    title: '当前下一步：先有一支队伍，再去比赛页',
-    description: '如果你准备正式参赛，建议先完成队伍准备，再去公开比赛页完成报名和后续操作。',
+    title: '当前状态：尚未加入队伍',
+    description: '准备参赛前，建议先完成组队，再前往比赛页处理报名和后续操作。',
     color: 'neutral' as const,
     icon: 'i-lucide-flag',
     actionLabel: '浏览比赛',
@@ -105,10 +127,10 @@ const teamNextStepMeta = computed(() => {
 
   if (contestRedirect.value) {
     return {
-      title: '当前下一步：回到原比赛完成报名',
+      title: '当前状态：可返回原比赛继续操作',
       description: isCaptain.value
-        ? '队伍已经准备好了。你可以先回到原比赛直接报名；如果还想等队友加入，也可以先复制邀请链接。'
-        : '你已经加入当前队伍。现在最值得先做的是回到原比赛，继续看报名状态、题目和排行榜。',
+        ? '队伍已准备就绪。你可以直接返回原比赛继续报名，也可以先复制邀请链接补充队员。'
+        : '你已加入当前队伍，现在可以返回原比赛继续查看报名状态、题目和排行榜。',
       color: 'info' as const,
       icon: 'i-lucide-route',
       actionLabel: '返回原比赛',
@@ -120,8 +142,8 @@ const teamNextStepMeta = computed(() => {
 
   if (isCaptain.value && memberCount.value <= 1) {
     return {
-      title: '当前下一步：邀请队友或直接去报名',
-      description: '你现在是这支队伍的队长。可以先把邀请链接发给队友，也可以先去公开比赛页挑一场比赛完成报名。',
+      title: '当前状态：队伍可继续扩充',
+      description: '你当前是队长，可以先邀请队友，也可以直接前往比赛页完成报名。',
       color: 'success' as const,
       icon: 'i-lucide-user-round-plus',
       actionLabel: '浏览比赛',
@@ -132,10 +154,10 @@ const teamNextStepMeta = computed(() => {
   }
 
   return {
-    title: '当前下一步：去比赛页继续参赛',
+    title: '当前状态：可前往比赛页继续参赛',
     description: isCaptain.value
-      ? '队伍已经具备基本参赛条件。接下来进入公开比赛页完成报名，之后再按比赛状态继续提 Flag 或补交 Writeup。'
-      : '你已经在队伍里了。接下来直接去公开比赛页查看当前队伍的报名状态和参赛入口即可。',
+      ? '队伍已具备基本参赛条件，可前往比赛页完成报名，并按比赛状态继续提交 Flag 或补交 Writeup。'
+      : '你当前已在队伍中，可直接前往比赛页查看队伍的报名状态和参赛入口。',
     color: 'success' as const,
     icon: 'i-lucide-trophy',
     actionLabel: '浏览比赛',
@@ -255,6 +277,17 @@ async function leaveTeam() {
   }
 }
 
+function openLeaveTeamConfirm() {
+  confirmAction.value = {
+    title: '确认退出队伍',
+    description: '退出后，你将离开当前队伍，需要重新加入或创建队伍后才能继续以团队身份参赛。',
+    actionLabel: '确认退出',
+    color: 'error',
+    payload: { type: 'leave' },
+  }
+  confirmModalOpen.value = true
+}
+
 async function removeMember(memberUserId: number, username?: string) {
   if (!team.value) {
     return
@@ -281,6 +314,19 @@ async function removeMember(memberUserId: number, username?: string) {
   finally {
     removingMemberId.value = null
   }
+}
+
+function openRemoveMemberConfirm(memberUserId: number, username?: string) {
+  confirmAction.value = {
+    title: '确认移除成员',
+    description: username
+      ? `移除 ${username} 后，对方将立即离开当前队伍。`
+      : '移除后，该成员将立即离开当前队伍。',
+    actionLabel: '确认移除',
+    color: 'error',
+    payload: { type: 'remove-member', memberUserId, username },
+  }
+  confirmModalOpen.value = true
 }
 
 async function transferCaptain(memberUserId: number, username?: string) {
@@ -311,6 +357,19 @@ async function transferCaptain(memberUserId: number, username?: string) {
   finally {
     transferringCaptainId.value = null
   }
+}
+
+function openTransferCaptainConfirm(memberUserId: number, username?: string) {
+  confirmAction.value = {
+    title: '确认移交队长',
+    description: username
+      ? `移交后，${username} 将成为新队长，你将转为普通成员。`
+      : '移交后，对方将成为新队长，你将转为普通成员。',
+    actionLabel: '确认移交',
+    color: 'warning',
+    payload: { type: 'transfer-captain', memberUserId, username },
+  }
+  confirmModalOpen.value = true
 }
 
 async function copyInviteCode() {
@@ -371,6 +430,48 @@ async function resetInviteCode() {
   }
   finally {
     resettingInviteCode.value = false
+  }
+}
+
+function openResetInviteCodeConfirm() {
+  confirmAction.value = {
+    title: '确认重置邀请码',
+    description: '重置后，旧邀请码会立即失效，后续需使用新的邀请码或邀请链接邀请队友。',
+    actionLabel: '确认重置',
+    color: 'warning',
+    payload: { type: 'reset-invite-code' },
+  }
+  confirmModalOpen.value = true
+}
+
+async function submitConfirmAction() {
+  if (!confirmAction.value.payload) {
+    confirmModalOpen.value = false
+    return
+  }
+
+  confirmSubmitting.value = true
+  try {
+    switch (confirmAction.value.payload.type) {
+      case 'leave':
+        await leaveTeam()
+        break
+      case 'remove-member':
+        await removeMember(confirmAction.value.payload.memberUserId, confirmAction.value.payload.username)
+        break
+      case 'transfer-captain':
+        await transferCaptain(confirmAction.value.payload.memberUserId, confirmAction.value.payload.username)
+        break
+      case 'reset-invite-code':
+        await resetInviteCode()
+        break
+    }
+
+    confirmModalOpen.value = false
+    confirmAction.value.payload = null
+  }
+  finally {
+    confirmSubmitting.value = false
   }
 }
 
@@ -514,7 +615,7 @@ onMounted(async () => {
                 variant="ghost"
                 size="xs"
                 :loading="resettingInviteCode"
-                @click="resetInviteCode()"
+                @click="openResetInviteCodeConfirm()"
               />
             </div>
             <p v-if="teamLocked" class="mt-2 text-xs text-muted">
@@ -549,7 +650,7 @@ onMounted(async () => {
                     :disabled="teamLocked"
                     icon="i-lucide-crown"
                     :loading="transferringCaptainId === member.user_id"
-                    @click="transferCaptain(member.user_id, member.username || member.user?.username)"
+                    @click="openTransferCaptainConfirm(member.user_id, member.username || member.user?.username)"
                   />
                   <UButton
                     v-if="isCaptain && member.user_id !== currentUserId"
@@ -559,7 +660,7 @@ onMounted(async () => {
                     :disabled="teamLocked"
                     icon="i-lucide-user-round-minus"
                     :loading="removingMemberId === member.user_id"
-                    @click="removeMember(member.user_id, member.username || member.user?.username)"
+                    @click="openRemoveMemberConfirm(member.user_id, member.username || member.user?.username)"
                   />
                 </div>
               </div>
@@ -612,7 +713,7 @@ onMounted(async () => {
               variant="outline"
               icon="i-lucide-log-out"
               :disabled="isCaptain || teamLocked"
-              @click="leaveTeam"
+              @click="openLeaveTeamConfirm()"
             />
           </div>
         </template>
@@ -677,8 +778,8 @@ onMounted(async () => {
             color="info"
             variant="soft"
             icon="i-lucide-route"
-            title="完成队伍准备后会自动回到原比赛"
-            description="当前页面是从比赛详情跳转过来的。创建或加入队伍成功后，系统会直接带你返回刚才的比赛。"
+            title="当前来自比赛页"
+            description="当前页面由比赛详情跳转而来。创建或加入队伍成功后，系统会自动返回原比赛。"
           >
             <template #actions>
               <UButton
@@ -754,16 +855,16 @@ onMounted(async () => {
           </template>
         </UPageCard>
 
-        <UPageCard title="下一步" icon="i-lucide-list-check">
+        <UPageCard title="队伍说明" icon="i-lucide-list-check">
           <div class="space-y-3">
             <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              还没有固定队伍时，最稳妥的流程是先组队，再去比赛页完成报名和提交。
+              尚未固定队伍时，建议先完成组队，再前往比赛页处理报名和提交。
             </div>
             <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              如果你是队长，创建成功后会立刻拿到邀请码和邀请链接；如果你是队员，直接粘贴邀请码即可加入。
+              队长创建队伍后可立即获取邀请码和邀请链接；队员只需填入邀请码即可加入。
             </div>
             <div v-if="contestRedirect" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              当前来自某个比赛详情页，创建或加入成功后会自动回到原比赛继续操作。
+              当前来自比赛详情页，创建或加入成功后会自动返回原比赛继续操作。
             </div>
           </div>
 
@@ -777,4 +878,28 @@ onMounted(async () => {
       </div>
     </template>
   </div>
+
+  <UModal
+    v-model:open="confirmModalOpen"
+    :title="confirmAction.title"
+    :description="confirmAction.description"
+    :dismissible="!confirmSubmitting"
+    :ui="{ footer: 'justify-end' }"
+  >
+    <template #footer>
+      <UButton
+        label="取消"
+        color="neutral"
+        variant="ghost"
+        :disabled="confirmSubmitting"
+        @click="confirmModalOpen = false"
+      />
+      <UButton
+        :label="confirmAction.actionLabel"
+        :color="confirmAction.color"
+        :loading="confirmSubmitting"
+        @click="submitConfirmAction()"
+      />
+    </template>
+  </UModal>
 </template>
