@@ -3859,6 +3859,30 @@ function resetConfirmAction() {
   confirmActionState.context = ''
 }
 
+watch(confirmModalOpen, (open) => {
+  if (!open && !confirmActionBusy.value) {
+    resetConfirmAction()
+  }
+})
+
+watch(participantReviewConfirmModalOpen, (open) => {
+  if (!open && !updatingParticipantId.value) {
+    pendingParticipantReviewPayload.value = null
+  }
+})
+
+watch(writeupReviewConfirmModalOpen, (open) => {
+  if (!open && !reviewingWriteupId.value) {
+    pendingWriteupReviewPayload.value = null
+  }
+})
+
+watch(gameSettingsConfirmModalOpen, (open) => {
+  if (!open && !settingsSubmitting.value) {
+    pendingGameSettingsPayload.value = null
+  }
+})
+
 async function confirmAction() {
   const actionType = confirmActionState.type
   const actionId = confirmActionState.id

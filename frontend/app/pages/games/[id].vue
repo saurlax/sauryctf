@@ -416,6 +416,12 @@ function resetConfirmAction() {
   confirmAction.run = null
 }
 
+watch(confirmModalOpen, (open) => {
+  if (!open && !confirmActionLoading.value) {
+    resetConfirmAction()
+  }
+})
+
 function openConfirmAction(options: {
   title: string
   description: string

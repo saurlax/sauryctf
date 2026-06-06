@@ -92,6 +92,12 @@ function resetConfirmAction() {
   }
 }
 
+watch(confirmModalOpen, (open) => {
+  if (!open && !confirmSubmitting.value) {
+    resetConfirmAction()
+  }
+})
+
 const currentUserId = computed(() => authState.user?.id)
 const isCaptain = computed(() => team.value?.members?.some(member => member.user_id === currentUserId.value && member.role === 'captain') || false)
 const teamMembers = computed(() => team.value?.members || [])
