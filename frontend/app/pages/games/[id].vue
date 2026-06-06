@@ -2031,6 +2031,34 @@ onMounted(async () => {
                   </UBadge>
                 </div>
               </div>
+              <div class="mt-3 flex items-start justify-between gap-4 rounded-lg border border-default px-3 py-3 text-sm flex-wrap">
+                <div class="min-w-0">
+                  <div class="font-medium text-highlighted">
+                    {{ nextStepMeta.title }}
+                  </div>
+                  <p class="mt-1 text-muted leading-6">
+                    {{ nextStepMeta.description }}
+                  </p>
+                </div>
+                <div class="flex gap-2 flex-wrap">
+                  <UButton
+                    size="sm"
+                    :to="nextStepMeta.actionTo"
+                    :color="nextStepMeta.color === 'neutral' ? 'neutral' : 'primary'"
+                    @click="handleNextStepAction(nextStepMeta)"
+                  >
+                    {{ nextStepMeta.actionLabel }}
+                  </UButton>
+                  <UButton
+                    v-if="nextStepMeta.secondaryLabel && nextStepMeta.secondaryTo"
+                    size="sm"
+                    variant="outline"
+                    :to="nextStepMeta.secondaryTo"
+                  >
+                    {{ nextStepMeta.secondaryLabel }}
+                  </UButton>
+                </div>
+              </div>
             </div>
 
             <div class="flex gap-2">
@@ -2063,37 +2091,6 @@ onMounted(async () => {
               >
                 {{ detailSecondaryAction.label }}
               </UButton>
-            </div>
-          </div>
-
-          <div class="rounded-lg border border-default bg-elevated/50 px-4 py-3">
-            <div class="flex items-start justify-between gap-4 flex-wrap">
-              <div>
-                <div class="text-sm font-medium text-highlighted">
-                  {{ nextStepMeta.title }}
-                </div>
-                <p class="mt-1 text-sm text-muted">
-                  {{ nextStepMeta.description }}
-                </p>
-              </div>
-              <div class="flex gap-2">
-                <UButton
-                  size="sm"
-                  :to="nextStepMeta.actionTo"
-                  :color="nextStepMeta.color === 'neutral' ? 'neutral' : 'primary'"
-                  @click="handleNextStepAction(nextStepMeta)"
-                >
-                  {{ nextStepMeta.actionLabel }}
-                </UButton>
-                <UButton
-                  v-if="nextStepMeta.secondaryLabel && nextStepMeta.secondaryTo"
-                  size="sm"
-                  variant="outline"
-                  :to="nextStepMeta.secondaryTo"
-                >
-                  {{ nextStepMeta.secondaryLabel }}
-                </UButton>
-              </div>
             </div>
           </div>
         </div>
@@ -2181,38 +2178,9 @@ onMounted(async () => {
           </UPageCard>
 
           <div class="space-y-6">
-            <UPageCard title="快捷入口" icon="i-lucide-list-checks">
+            <UPageCard title="页面导航" icon="i-lucide-list-checks">
               <div class="space-y-4">
                 <div class="flex flex-col gap-3">
-                  <UButton
-                    v-if="detailPrimaryAction.mode === 'link'"
-                    :to="detailPrimaryAction.to"
-                    :icon="detailPrimaryAction.icon"
-                    :color="detailPrimaryAction.color"
-                    :variant="detailPrimaryAction.variant"
-                  >
-                    {{ detailPrimaryAction.label }}
-                  </UButton>
-                  <UButton
-                    v-else
-                    :icon="detailPrimaryAction.icon"
-                    :color="detailPrimaryAction.color"
-                    :variant="detailPrimaryAction.variant"
-                    :loading="detailPrimaryAction.loading"
-                    :disabled="detailPrimaryAction.disabled"
-                    :to="detailPrimaryAction.to"
-                    @click="detailPrimaryAction.onClick?.()"
-                  >
-                    {{ detailPrimaryAction.label }}
-                  </UButton>
-                  <UButton
-                    v-if="detailSecondaryAction"
-                    :to="detailSecondaryAction.to"
-                    variant="outline"
-                    :icon="detailSecondaryAction.icon"
-                  >
-                    {{ detailSecondaryAction.label }}
-                  </UButton>
                   <UButton icon="i-lucide-flag" variant="outline" @click="activeTab = 'challenges'">
                     浏览题目
                   </UButton>
@@ -2221,6 +2189,9 @@ onMounted(async () => {
                   </UButton>
                   <UButton icon="i-lucide-users" variant="outline" :to="teamEntry">
                     管理我的队伍
+                  </UButton>
+                  <UButton icon="i-lucide-arrow-left" variant="ghost" to="/games">
+                    返回比赛列表
                   </UButton>
                 </div>
               </div>
