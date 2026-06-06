@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import * as z from 'zod'
+import type { FormSubmitEvent } from '@nuxt/ui'
+
 definePageMeta({
   middleware: 'admin',
 })
@@ -9,7 +12,7 @@ const toast = useToast()
 
 const isAdmin = computed(() => ['admin', 'super_admin'].includes(authState.user?.role || ''))
 
-const gameForm = reactive({
+const gameForm = reactive<z.output<typeof createGameSchema>>({
   name: '',
   description: '',
   notice: '',
@@ -26,7 +29,7 @@ const gameForm = reactive({
   is_public: true,
 })
 
-const challengeForm = reactive({
+const challengeForm = reactive<z.output<typeof createChallengeSchema>>({
   title: '',
   description: '',
   hints: '[]',
@@ -42,6 +45,68 @@ const challengeForm = reactive({
   decay_rate: 0.1,
   max_attempts: 0,
   is_visible: true,
+})
+
+const createChallengeSchema = z.object({
+  title: z.string().trim().min(1, '请输入题目名称'),
+  description: z.string(),
+  hints: z.string(),
+  attachments: z.string(),
+  container_spec: z.string(),
+  flag_format: z.string(),
+  category: z.enum(['web', 'pwn', 'crypto', 'reverse', 'misc', 'forensics', 'awd']),
+  type: z.enum(['static', 'dynamic']),
+  difficulty: z.enum(['easy', 'medium', 'hard']),
+  flag: z.string().trim().min(1, '请输入 Flag'),
+  base_score: z.number().min(0, '基础分值不能小于 0'),
+  min_score: z.number().min(0, '最低分值不能小于 0'),
+  decay_rate: z.number().min(0, '衰减率不能小于 0'),
+  max_attempts: z.number().int().min(0, '错误尝试上限不能小于 0'),
+  is_visible: z.boolean(),
+}).superRefine((value, ctx) => {
+  if (value.min_score > value.base_score) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['min_score'],
+      message: '最低分值不能大于基础分值',
+    })
+  }
+
+  try {
+    const parsedHints = JSON.parse(value.hints || '[]')
+    if (!Array.isArray(parsedHints)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['hints'],
+        message: '提示列表必须是 JSON 数组',
+      })
+    }
+  }
+  catch {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['hints'],
+      message: '提示列表必须是有效的 JSON 数组',
+    })
+  }
+
+  try {
+    const parsedAttachments = JSON.parse(value.attachments || '[]')
+    if (!Array.isArray(parsedAttachments)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['attachments'],
+        message: '附件链接必须是 JSON 数组',
+      })
+    }
+  }
+  catch {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['attachments'],
+      message: '附件链接必须是有效的 JSON 数组',
+    })
+  }
 })
 
 const attachForm = reactive({
@@ -62,6 +127,23 @@ const gameSettingsForm = reactive({
   writeup_required: false,
   writeup_deadline: '',
   is_public: true,
+})
+
+const createGameSchema = z.object({
+  name: z.string().trim().min(1, '请输入比赛名称'),
+  description: z.string(),
+  notice: z.string(),
+  invitation_code: z.string(),
+  divisions_text: z.string(),
+  start_time: z.string().trim().min(1, '请填写开始时间'),
+  end_time: z.string().trim().min(1, '请填写结束时间'),
+  scoreboard_freeze_at: z.string(),
+  registration_mode: z.enum(['review', 'auto_accept']),
+  max_team_members: z.number().int().min(0, '队伍人数上限不能小于 0'),
+  practice_mode: z.boolean(),
+  writeup_required: z.boolean(),
+  writeup_deadline: z.string(),
+  is_public: z.boolean(),
 })
 const gameSettingsConfirmModalOpen = ref(false)
 const pendingGameSettingsPayload = ref<null | {
@@ -2813,7 +2895,7 @@ function syncAdminResourceContext() {
   }
 }
 
-async function createGame() {
+async function createGame(payload: FormSubmitEvent<z.output<typeof createGameSchema>>) {
   const timelineError = validateGameTimeline(gameForm, { requireStartEnd: true })
   if (timelineError) {
     toast.add({ title: '比赛时间配置无效', description: timelineError, color: 'warning' })
@@ -2824,20 +2906,20 @@ async function createGame() {
   try {
     const createdGame = await $api('post', '/api/games', {
       body: {
-        name: gameForm.name,
-        description: gameForm.description,
-        notice: gameForm.notice,
-        invitation_code: gameForm.invitation_code,
-        divisions: parseDivisionList(gameForm.divisions_text),
-        start_time: new Date(gameForm.start_time).toISOString(),
-        end_time: new Date(gameForm.end_time).toISOString(),
-        ...(gameForm.scoreboard_freeze_at ? { scoreboard_freeze_at: new Date(gameForm.scoreboard_freeze_at).toISOString() } : {}),
-        registration_mode: gameForm.registration_mode,
-        max_team_members: gameForm.max_team_members,
-        practice_mode: gameForm.practice_mode,
-        writeup_required: gameForm.writeup_required,
-        writeup_deadline: gameForm.writeup_deadline ? new Date(gameForm.writeup_deadline).toISOString() : null,
-        is_public: gameForm.is_public,
+        name: payload.data.name,
+        description: payload.data.description,
+        notice: payload.data.notice,
+        invitation_code: payload.data.invitation_code,
+        divisions: parseDivisionList(payload.data.divisions_text),
+        start_time: new Date(payload.data.start_time).toISOString(),
+        end_time: new Date(payload.data.end_time).toISOString(),
+        ...(payload.data.scoreboard_freeze_at ? { scoreboard_freeze_at: new Date(payload.data.scoreboard_freeze_at).toISOString() } : {}),
+        registration_mode: payload.data.registration_mode,
+        max_team_members: payload.data.max_team_members,
+        practice_mode: payload.data.practice_mode,
+        writeup_required: payload.data.writeup_required,
+        writeup_deadline: payload.data.writeup_deadline ? new Date(payload.data.writeup_deadline).toISOString() : null,
+        is_public: payload.data.is_public,
       },
     })
     toast.add({ title: '比赛创建成功', color: 'success' })
@@ -2868,7 +2950,7 @@ async function createGame() {
   }
 }
 
-async function createChallenge() {
+async function createChallenge(payload: FormSubmitEvent<z.output<typeof createChallengeSchema>>) {
   const challengeError = validateChallengeDraft(challengeForm)
   if (challengeError) {
     toast.add({ title: '题目配置无效', description: challengeError, color: 'warning' })
@@ -2879,21 +2961,21 @@ async function createChallenge() {
   try {
     const createdChallenge = await $api('post', '/api/challenges', {
       body: {
-        title: challengeForm.title,
-        description: challengeForm.description,
-        hints: challengeForm.hints,
-        attachments: challengeForm.attachments,
-        container_spec: challengeForm.container_spec,
-        flag_format: challengeForm.flag_format,
-        category: challengeForm.category as 'web',
-        type: challengeForm.type as 'static',
-        difficulty: challengeForm.difficulty as 'easy',
-        flag: challengeForm.flag,
-        base_score: challengeForm.base_score,
-        min_score: challengeForm.min_score,
-        decay_rate: challengeForm.decay_rate,
-        max_attempts: challengeForm.max_attempts,
-        is_visible: challengeForm.is_visible,
+        title: payload.data.title,
+        description: payload.data.description,
+        hints: payload.data.hints,
+        attachments: payload.data.attachments,
+        container_spec: payload.data.container_spec,
+        flag_format: payload.data.flag_format,
+        category: payload.data.category,
+        type: payload.data.type,
+        difficulty: payload.data.difficulty,
+        flag: payload.data.flag,
+        base_score: payload.data.base_score,
+        min_score: payload.data.min_score,
+        decay_rate: payload.data.decay_rate,
+        max_attempts: payload.data.max_attempts,
+        is_visible: payload.data.is_visible,
       },
     })
     toast.add({ title: '题目创建成功', color: 'success' })
@@ -5657,69 +5739,76 @@ onMounted(async () => {
     v-model:open="createGameModalOpen"
     title="创建比赛"
     description="录入比赛基础信息，创建后可继续在比赛设置中调整公开性、状态和报名规则。"
+    :dismissible="!gameSubmitting"
     :ui="{ body: 'space-y-4', footer: 'justify-end' }"
   >
     <template #body>
-      <UForm :state="gameForm" class="space-y-4" @submit="createGame">
-        <UFormField label="比赛名称" name="name">
-          <UInput v-model="gameForm.name" class="w-full" placeholder="例如：2026 校内选拔赛" />
+      <UForm
+        id="create-game-form"
+        :schema="createGameSchema"
+        :state="gameForm"
+        class="space-y-4"
+        @submit="createGame"
+      >
+        <UFormField label="比赛名称" name="name" required>
+          <UInput v-model="gameForm.name" class="w-full" placeholder="例如：2026 校内选拔赛" :disabled="gameSubmitting" />
         </UFormField>
 
         <UFormField label="比赛描述" name="description">
-          <UTextarea v-model="gameForm.description" class="w-full" :rows="3" placeholder="面向选手展示的比赛简介" />
+          <UTextarea v-model="gameForm.description" class="w-full" :rows="3" placeholder="面向选手展示的比赛简介" :disabled="gameSubmitting" />
         </UFormField>
 
         <UFormField label="规则补充" name="notice" description="适合填写长期有效的规则说明或补充约束">
-          <UTextarea v-model="gameForm.notice" class="w-full" :rows="3" placeholder="例如：禁止账号共享、禁止队伍间共享 Flag。" />
+          <UTextarea v-model="gameForm.notice" class="w-full" :rows="3" placeholder="例如：禁止账号共享、禁止队伍间共享 Flag。" :disabled="gameSubmitting" />
         </UFormField>
 
         <UFormField label="比赛邀请码" name="invitation_code" description="留空表示任何队伍都可报名">
-          <UInput v-model="gameForm.invitation_code" class="w-full" placeholder="例如：spring-2026" />
+          <UInput v-model="gameForm.invitation_code" class="w-full" placeholder="例如：spring-2026" :disabled="gameSubmitting" />
         </UFormField>
 
         <UFormField label="比赛分组" name="divisions_text" description="按行或逗号分隔，例如：本科组, 公开组">
-          <UTextarea v-model="gameForm.divisions_text" class="w-full" :rows="2" placeholder="本科组, 公开组" />
+          <UTextarea v-model="gameForm.divisions_text" class="w-full" :rows="2" placeholder="本科组, 公开组" :disabled="gameSubmitting" />
         </UFormField>
 
         <div class="grid gap-4 md:grid-cols-2">
-          <UFormField label="开始时间" name="start_time">
-            <UInput v-model="gameForm.start_time" type="datetime-local" class="w-full" />
+          <UFormField label="开始时间" name="start_time" required>
+            <UInput v-model="gameForm.start_time" type="datetime-local" class="w-full" :disabled="gameSubmitting" />
           </UFormField>
 
-          <UFormField label="结束时间" name="end_time">
-            <UInput v-model="gameForm.end_time" type="datetime-local" class="w-full" />
+          <UFormField label="结束时间" name="end_time" required>
+            <UInput v-model="gameForm.end_time" type="datetime-local" class="w-full" :disabled="gameSubmitting" />
           </UFormField>
         </div>
 
         <UFormField label="封榜时间" name="scoreboard_freeze_at" description="留空表示不封榜">
-          <UInput v-model="gameForm.scoreboard_freeze_at" type="datetime-local" class="w-full" />
+          <UInput v-model="gameForm.scoreboard_freeze_at" type="datetime-local" class="w-full" :disabled="gameSubmitting" />
         </UFormField>
 
         <UFormField label="报名模式" name="registration_mode">
-          <USelect v-model="gameForm.registration_mode" :items="registrationModeOptions" class="w-full" />
+          <USelect v-model="gameForm.registration_mode" :items="registrationModeOptions" class="w-full" :disabled="gameSubmitting" />
         </UFormField>
 
         <div class="grid gap-4 md:grid-cols-2">
           <UFormField label="队伍人数上限" name="max_team_members" description="0 表示不限制">
-            <UInput v-model.number="gameForm.max_team_members" type="number" min="0" class="w-full" />
+            <UInput v-model.number="gameForm.max_team_members" type="number" min="0" class="w-full" :disabled="gameSubmitting" />
           </UFormField>
 
           <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不额外设置">
-            <UInput v-model="gameForm.writeup_deadline" type="datetime-local" class="w-full" />
+            <UInput v-model="gameForm.writeup_deadline" type="datetime-local" class="w-full" :disabled="gameSubmitting" />
           </UFormField>
         </div>
 
         <div class="grid gap-4 md:grid-cols-3">
           <UFormField label="公开比赛" name="is_public">
-            <USwitch v-model="gameForm.is_public" />
+            <USwitch v-model="gameForm.is_public" :disabled="gameSubmitting" />
           </UFormField>
 
           <UFormField label="启用赛后练习" name="practice_mode">
-            <USwitch v-model="gameForm.practice_mode" />
+            <USwitch v-model="gameForm.practice_mode" :disabled="gameSubmitting" />
           </UFormField>
 
           <UFormField label="要求 Writeup" name="writeup_required">
-            <USwitch v-model="gameForm.writeup_required" />
+            <USwitch v-model="gameForm.writeup_required" :disabled="gameSubmitting" />
           </UFormField>
         </div>
 
@@ -5740,7 +5829,7 @@ onMounted(async () => {
       <UButton variant="ghost" :disabled="gameSubmitting" @click="close()">
         取消
       </UButton>
-      <UButton :loading="gameSubmitting" @click="createGame">
+      <UButton type="submit" form="create-game-form" :loading="gameSubmitting">
         创建比赛
       </UButton>
     </template>
@@ -5750,6 +5839,7 @@ onMounted(async () => {
     v-model:open="createChallengeModalOpen"
     title="创建题目"
     description="录入题目基础信息、接入说明和计分规则。"
+    :dismissible="!challengeSubmitting"
     :ui="{ body: 'space-y-4', footer: 'justify-end' }"
   >
     <template #body>
@@ -5771,17 +5861,23 @@ onMounted(async () => {
         </UButton>
       </div>
 
-      <UForm :state="challengeForm" class="space-y-4" @submit="createChallenge">
-        <UFormField label="题目名称" name="title">
-          <UInput v-model="challengeForm.title" class="w-full" placeholder="例如：Easy XSS" />
+      <UForm
+        id="create-challenge-form"
+        :schema="createChallengeSchema"
+        :state="challengeForm"
+        class="space-y-4"
+        @submit="createChallenge"
+      >
+        <UFormField label="题目名称" name="title" required>
+          <UInput v-model="challengeForm.title" class="w-full" placeholder="例如：Easy XSS" :disabled="challengeSubmitting" />
         </UFormField>
 
         <UFormField label="题目描述" name="description">
-          <UTextarea v-model="challengeForm.description" class="w-full" :rows="4" placeholder="题目简介、提示或附件说明" />
+          <UTextarea v-model="challengeForm.description" class="w-full" :rows="4" placeholder="题目简介、提示或附件说明" :disabled="challengeSubmitting" />
         </UFormField>
 
         <UFormField label="提示列表" name="hints" description='使用 JSON 数组，例如 ["先看首页","再看接口返回"]'>
-          <UTextarea v-model="challengeForm.hints" class="w-full" :rows="3" placeholder='["提示 1","提示 2"]' />
+          <UTextarea v-model="challengeForm.hints" class="w-full" :rows="3" placeholder='["提示 1","提示 2"]' :disabled="challengeSubmitting" />
         </UFormField>
 
         <UFormField label="附件链接" name="attachments" description='使用 JSON 数组，例如 ["https://example.com/files/web.zip"]'>
@@ -5803,12 +5899,12 @@ onMounted(async () => {
                 上传并插入
               </UButton>
             </div>
-            <UTextarea v-model="challengeForm.attachments" class="w-full" :rows="3" placeholder='["https://example.com/files/challenge.zip"]' />
+            <UTextarea v-model="challengeForm.attachments" class="w-full" :rows="3" placeholder='["https://example.com/files/challenge.zip"]' :disabled="challengeSubmitting" />
           </div>
         </UFormField>
 
         <UFormField label="实例接入信息" name="container_spec" description='使用 JSON 记录实例 URL、host/port、连接命令或代理入口'>
-          <UTextarea v-model="challengeForm.container_spec" class="w-full font-mono" :rows="8" placeholder='{"connection":{"url":"","note":"请填写实际入口或接入说明"}}' />
+          <UTextarea v-model="challengeForm.container_spec" class="w-full font-mono" :rows="8" placeholder='{"connection":{"url":"","note":"请填写实际入口或接入说明"}}' :disabled="challengeSubmitting" />
         </UFormField>
 
         <UPageCard title="模板占位符" icon="i-lucide-braces" description="动态题的 connection 字段可以直接使用这些占位符，为不同队伍生成不同入口。">
@@ -5861,20 +5957,20 @@ onMounted(async () => {
 
         <div class="grid gap-4 md:grid-cols-3">
           <UFormField label="分类" name="category">
-            <USelect v-model="challengeForm.category" :items="categoryOptions" class="w-full" />
+            <USelect v-model="challengeForm.category" :items="categoryOptions" class="w-full" :disabled="challengeSubmitting" />
           </UFormField>
 
           <UFormField label="类型" name="type">
-            <USelect v-model="challengeForm.type" :items="typeOptions" class="w-full" />
+            <USelect v-model="challengeForm.type" :items="typeOptions" class="w-full" :disabled="challengeSubmitting" />
           </UFormField>
 
           <UFormField label="难度" name="difficulty">
-            <USelect v-model="challengeForm.difficulty" :items="difficultyOptions" class="w-full" />
+            <USelect v-model="challengeForm.difficulty" :items="difficultyOptions" class="w-full" :disabled="challengeSubmitting" />
           </UFormField>
         </div>
 
-        <UFormField label="Flag" name="flag">
-          <UInput v-model="challengeForm.flag" class="w-full" placeholder="请填写正式 Flag" />
+        <UFormField label="Flag" name="flag" required>
+          <UInput v-model="challengeForm.flag" class="w-full" placeholder="请填写正式 Flag" :disabled="challengeSubmitting" />
         </UFormField>
 
         <UFormField
@@ -5882,29 +5978,29 @@ onMounted(async () => {
           name="flag_format"
           description="用于公开页展示提交示例。留空时建议仍保持平台统一格式示意。"
         >
-          <UInput v-model="challengeForm.flag_format" class="w-full" placeholder="例如：flag{...}" />
+          <UInput v-model="challengeForm.flag_format" class="w-full" placeholder="例如：flag{...}" :disabled="challengeSubmitting" />
         </UFormField>
 
         <div class="grid gap-4 md:grid-cols-3">
           <UFormField label="基础分值" name="base_score">
-            <UInput v-model.number="challengeForm.base_score" type="number" class="w-full" />
+            <UInput v-model.number="challengeForm.base_score" type="number" class="w-full" :disabled="challengeSubmitting" />
           </UFormField>
 
           <UFormField label="最低分值" name="min_score">
-            <UInput v-model.number="challengeForm.min_score" type="number" class="w-full" />
+            <UInput v-model.number="challengeForm.min_score" type="number" class="w-full" :disabled="challengeSubmitting" />
           </UFormField>
 
           <UFormField label="衰减率" name="decay_rate">
-            <UInput v-model.number="challengeForm.decay_rate" type="number" step="0.1" class="w-full" />
+            <UInput v-model.number="challengeForm.decay_rate" type="number" step="0.1" class="w-full" :disabled="challengeSubmitting" />
           </UFormField>
         </div>
 
         <UFormField label="错误尝试上限" name="max_attempts" description="0 表示不限制；达到上限后该队伍在当前比赛中不能再继续提交这道题。">
-          <UInput v-model.number="challengeForm.max_attempts" type="number" min="0" class="w-full" />
+          <UInput v-model.number="challengeForm.max_attempts" type="number" min="0" class="w-full" :disabled="challengeSubmitting" />
         </UFormField>
 
         <UFormField label="是否可见" name="is_visible">
-          <USwitch v-model="challengeForm.is_visible" />
+          <USwitch v-model="challengeForm.is_visible" :disabled="challengeSubmitting" />
         </UFormField>
       </UForm>
     </template>
@@ -5913,7 +6009,7 @@ onMounted(async () => {
       <UButton variant="ghost" :disabled="challengeSubmitting" @click="close()">
         取消
       </UButton>
-      <UButton :loading="challengeSubmitting" @click="createChallenge">
+      <UButton type="submit" form="create-challenge-form" :loading="challengeSubmitting">
         创建题目
       </UButton>
     </template>
