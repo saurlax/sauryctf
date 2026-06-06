@@ -1534,7 +1534,7 @@ const divisionOptions = computed(() => [
   })),
 ])
 
-const contestRestrictionRows = computed(() => [
+const contestRuleRows = computed(() => [
   {
     label: '报名方式',
     value: game.value?.registration_mode === 'auto_accept' ? '自动通过' : '人工审核',
@@ -1567,7 +1567,7 @@ const contestRestrictionRows = computed(() => [
     : []),
 ])
 
-const contestTeamContextRows = computed(() => [
+const contestContextRows = computed(() => [
   {
     label: '当前队伍',
     value: participation.value?.team?.name || '未加入队伍',
@@ -1583,24 +1583,6 @@ const contestTeamContextRows = computed(() => [
   {
     label: '当前可提交 Flag',
     value: canSubmitFlag.value ? '是' : '否',
-  },
-])
-const currentActionSummaryRows = computed(() => [
-  {
-    label: '状态',
-    value: nextStepMeta.value.title,
-  },
-  {
-    label: '主操作',
-    value: detailPrimaryAction.value.label,
-  },
-  {
-    label: '辅助入口',
-    value: detailSecondaryAction.value?.label || '无',
-  },
-  {
-    label: '当前标签',
-    value: tabItems.find(item => item.value === activeTab.value)?.label || '概览',
   },
 ])
 
@@ -1657,6 +1639,12 @@ const registrationStatusRows = computed(() => [
     value: canSubmitFlag.value ? (publicGamePhase.value === 'ended' ? '练习已开放' : '已开放') : '未开放',
   },
 ])
+
+const overviewContextRows = computed(() => [
+  ...registrationStatusRows.value,
+  ...contestContextRows.value,
+])
+
 const registrationStatusHint = computed(() => {
   if (!authState.user) {
     return '登录后会同步当前账号、队伍和报名状态。'
@@ -1684,6 +1672,14 @@ const registrationStatusHint = computed(() => {
     ? (publicGamePhase.value === 'ended' ? '当前队伍可按练习模式继续提交。' : '当前队伍已具备正式参赛资格。')
     : submitHint.value
 })
+
+const overviewBoundaryRows = computed(() => [
+  ...contestRuleRows.value,
+  {
+    label: '分组规则',
+    value: divisionRuleDescription.value,
+  },
+])
 const contestInfoRows = computed(() => [
   {
     label: '比赛阶段',
@@ -2220,55 +2216,31 @@ onMounted(async () => {
               </div>
             </UPageCard>
 
-            <UPageCard title="参赛状态" icon="i-lucide-route">
+            <UPageCard title="当前参赛上下文" icon="i-lucide-route">
               <div class="space-y-3 text-sm">
                 <div
-                  v-for="row in registrationStatusRows"
+                  v-for="row in overviewContextRows"
                   :key="row.label"
                   class="flex items-center justify-between gap-3 rounded-md bg-elevated/60 px-3 py-2"
                 >
                   <span class="text-muted">{{ row.label }}</span>
                   <span class="text-right">{{ row.value }}</span>
                 </div>
-                <UAlert
-                  color="neutral"
-                  variant="soft"
-                  title="当前说明"
-                  :description="registrationStatusHint"
-                />
-              </div>
-            </UPageCard>
-
-            <UPageCard title="参赛限制" icon="i-lucide-badge-check">
-              <div class="space-y-3 text-sm">
-                <div
-                  v-for="row in contestRestrictionRows"
-                  :key="row.label"
-                  class="flex items-center justify-between gap-3"
-                >
-                  <span class="text-muted">{{ row.label }}</span>
-                  <span class="text-right">{{ row.value }}</span>
+                <div class="rounded-lg border border-default px-3 py-3 text-muted leading-6">
+                  {{ registrationStatusHint }}
                 </div>
               </div>
             </UPageCard>
 
-            <UPageCard title="队伍与分组" icon="i-lucide-users-round">
+            <UPageCard title="规则与分组边界" icon="i-lucide-badge-check">
               <div class="space-y-3 text-sm">
                 <div
-                  v-for="row in contestTeamContextRows"
+                  v-for="row in overviewBoundaryRows"
                   :key="row.label"
-                  class="flex items-center justify-between gap-3"
+                  class="flex items-start justify-between gap-3 rounded-md bg-elevated/60 px-3 py-3"
                 >
                   <span class="text-muted">{{ row.label }}</span>
-                  <span class="text-right">{{ row.value }}</span>
-                </div>
-                <div class="rounded-lg border border-default px-3 py-3">
-                  <div class="text-muted">
-                    分组规则
-                  </div>
-                  <div class="mt-2 leading-6">
-                    {{ divisionRuleDescription }}
-                  </div>
+                  <span class="max-w-[70%] text-right leading-6">{{ row.value }}</span>
                 </div>
               </div>
             </UPageCard>

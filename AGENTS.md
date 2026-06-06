@@ -106,6 +106,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - Public game pages should prefer state summaries such as `报名状态`, `队伍状态`, and `提交权限`; avoid numbered participation steps or overly tutorial-style action labels.
 - In the public game `Writeup` tab, avoid stacking a top summary grid, a side status card, and a separate rules list for the same state. Keep one editor card plus one compact status/review side card.
 - In public challenge cards, prefer one compact status summary block plus structured instance/attachment sections. Avoid stacking multiple `UAlert` components for the same card-level state.
+- On the public game overview sidebar, prefer one context card plus one rules/boundary card instead of splitting participant status, restrictions, and division info across too many small cards.
 - In console pages, prefer neutral internal names such as `context`, `checklist`, and `entry` over `setup` for maintenance-oriented panels and computed state.
 - Challenge attachments remain a JSON string array. For local files, prefer the admin upload entry so `/attachments/**` paths stay consistent with import/export behavior.
 - If a challenge defines `flag_format`, player-facing pages should reuse it for display and submit placeholders instead of hard-coding `flag{...}`.
