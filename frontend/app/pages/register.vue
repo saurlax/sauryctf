@@ -24,6 +24,10 @@ const registerSchema = z.object({
   username: z.string().min(3, '用户名至少 3 个字符'),
   email: z.string().email('请输入有效邮箱'),
   password: z.string().min(6, '密码至少 6 个字符'),
+  confirm_password: z.string().min(6, '确认密码至少 6 个字符'),
+}).refine(value => value.password === value.confirm_password, {
+  message: '两次输入的密码不一致',
+  path: ['confirm_password'],
 })
 
 type RegisterSchema = z.output<typeof registerSchema>
@@ -32,6 +36,7 @@ const state = reactive<Partial<RegisterSchema>>({
   username: '',
   email: '',
   password: '',
+  confirm_password: '',
 })
 
 async function onRegister(payload: FormSubmitEvent<RegisterSchema>) {
@@ -92,6 +97,10 @@ const loginTo = computed(() => {
 
         <UFormField name="password" label="密码" required>
           <UInput v-model="state.password" class="w-full" type="password" placeholder="请输入密码" :disabled="submitting" />
+        </UFormField>
+
+        <UFormField name="confirm_password" label="确认密码" required>
+          <UInput v-model="state.confirm_password" class="w-full" type="password" placeholder="请再次输入密码" :disabled="submitting" />
         </UFormField>
 
         <UButton type="submit" block label="注册账号" icon="i-lucide-user-round-plus" :loading="submitting" />
