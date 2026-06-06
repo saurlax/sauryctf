@@ -222,6 +222,32 @@ async function destroyChallengeInstance(challengeId: number) {
   }
 }
 
+async function copyValue(value?: string, successTitle = '内容已复制') {
+  if (!value) {
+    toast.add({
+      title: '没有可复制的内容',
+      color: 'warning',
+    })
+    return
+  }
+
+  try {
+    await navigator.clipboard.writeText(value)
+    toast.add({
+      title: successTitle,
+      description: value,
+      color: 'success',
+    })
+  }
+  catch (e: any) {
+    toast.add({
+      title: '复制失败',
+      description: e.data?.message || e.message,
+      color: 'error',
+    })
+  }
+}
+
 async function submitFlag(challengeId: number) {
   const flag = flagInputs[challengeId]
   if (!flag) return
@@ -2199,23 +2225,54 @@ onMounted(async () => {
                         </UBadge>
                       </div>
                       <div v-if="getDisplayedInstanceLaunchUrl(ch)" class="flex flex-col gap-2">
-                        <UButton
-                          :to="getDisplayedInstanceLaunchUrl(ch)"
-                          target="_blank"
-                          variant="outline"
-                          size="sm"
-                          icon="i-lucide-external-link"
-                          class="justify-start"
-                        >
-                          {{ instanceStates[ch.id]?.launch_url ? '打开当前队伍实例' : '打开实例入口' }}
-                        </UButton>
+                        <div class="flex flex-wrap gap-2">
+                          <UButton
+                            :to="getDisplayedInstanceLaunchUrl(ch)"
+                            target="_blank"
+                            variant="outline"
+                            size="sm"
+                            icon="i-lucide-external-link"
+                            class="justify-start"
+                          >
+                            {{ instanceStates[ch.id]?.launch_url ? '打开当前队伍实例' : '打开实例入口' }}
+                          </UButton>
+                          <UButton
+                            variant="ghost"
+                            size="sm"
+                            icon="i-lucide-copy"
+                            @click="copyValue(getDisplayedInstanceLaunchUrl(ch), '实例入口已复制')"
+                          >
+                            复制入口
+                          </UButton>
+                        </div>
                       </div>
-                      <div v-if="getDisplayedInstanceHost(ch) || getDisplayedInstancePort(ch)" class="text-sm">
-                        {{ getDisplayedInstanceHost(ch) || 'host' }}<template v-if="getDisplayedInstancePort(ch)">:{{ getDisplayedInstancePort(ch) }}</template>
+                      <div v-if="getDisplayedInstanceHost(ch) || getDisplayedInstancePort(ch)" class="space-y-2">
+                        <div class="text-sm">
+                          {{ getDisplayedInstanceHost(ch) || 'host' }}<template v-if="getDisplayedInstancePort(ch)">:{{ getDisplayedInstancePort(ch) }}</template>
+                        </div>
+                        <UButton
+                          variant="ghost"
+                          size="sm"
+                          icon="i-lucide-copy"
+                          class="w-fit"
+                          @click="copyValue(`${getDisplayedInstanceHost(ch) || 'host'}${getDisplayedInstancePort(ch) ? `:${getDisplayedInstancePort(ch)}` : ''}`, '主机地址已复制')"
+                        >
+                          复制主机地址
+                        </UButton>
                       </div>
                       <div v-if="getDisplayedInstanceCommand(ch)" class="rounded-md border border-default bg-default px-3 py-2 font-mono text-xs whitespace-pre-wrap">
                         {{ getDisplayedInstanceCommand(ch) }}
                       </div>
+                      <UButton
+                        v-if="getDisplayedInstanceCommand(ch)"
+                        variant="ghost"
+                        size="sm"
+                        icon="i-lucide-copy"
+                        class="w-fit"
+                        @click="copyValue(getDisplayedInstanceCommand(ch), '连接命令已复制')"
+                      >
+                        复制连接命令
+                      </UButton>
                       <div v-if="getDisplayedInstanceLinks(ch).length" class="flex flex-col gap-2">
                         <UButton
                           v-for="(link, linkIndex) in getDisplayedInstanceLinks(ch)"
