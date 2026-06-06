@@ -28,7 +28,7 @@
   - `GET /api/admin/games/{id}/submissions`
   - `GET /api/admin/games/{id}/cheat-clues`
   - `GET /api/admin/games/{id}/announcements`
-- 页面保持 Nuxt UI 极简卡片结构，优先强调“先发现，再处理”
+- 页面保持 Nuxt UI 极简卡片结构，强调“先发现，再处理”
 - 榜单页直接复用公开接口：
   - `GET /api/games/{id}/scoreboard`
   - 支持切换总榜 / 分组榜
@@ -44,7 +44,7 @@
   - 正确提交
   - 可疑重复错误 Flag 线索
 
-## 适合的本地检查顺序
+## 本地检查顺序
 
 1. 管理员创建并激活一场比赛
 2. 普通用户创建队伍并报名
