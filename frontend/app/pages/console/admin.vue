@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import * as z from 'zod'
-import type { FormSubmitEvent } from '@nuxt/ui'
+import type { DropdownMenuItem, FormSubmitEvent } from '@nuxt/ui'
 
 definePageMeta({
   middleware: 'admin',
@@ -3676,6 +3676,44 @@ function quickEditChallenge(challengeId: number) {
   toast.add({ title: '已填充题目管理表单', color: 'info' })
 }
 
+function getGameResourceActionItems(game: AdminGameSummary): DropdownMenuItem[][] {
+  return [[
+    {
+      label: '打开公开页',
+      icon: 'i-lucide-arrow-up-right',
+      to: `/games/${game.id}`,
+    },
+    {
+      label: '导出比赛包',
+      icon: 'i-lucide-download',
+      onSelect: () => exportGame(game.id),
+    },
+    {
+      label: '导出榜单',
+      icon: 'i-lucide-table-properties',
+      onSelect: () => exportScoreboard(game.id),
+    },
+  ], [
+    {
+      label: '删除比赛',
+      icon: 'i-lucide-trash-2',
+      color: 'error',
+      onSelect: () => deleteGame(game.id),
+    },
+  ]]
+}
+
+function getChallengeResourceActionItems(challenge: typeof challenges.value[number]): DropdownMenuItem[][] {
+  return [[
+    {
+      label: '删除题目',
+      icon: 'i-lucide-trash-2',
+      color: 'error',
+      onSelect: () => deleteChallenge(challenge.id),
+    },
+  ]]
+}
+
 function openConfirmAction(payload: {
   type: ConfirmActionType
   id: number
@@ -5738,42 +5776,18 @@ onMounted(async () => {
                     >
                       编辑
                     </UButton>
-                    <UButton
-                      size="sm"
-                      variant="ghost"
-                      icon="i-lucide-arrow-up-right"
-                      :to="`/games/${game.id}`"
+                    <UDropdownMenu
+                      :items="getGameResourceActionItems(game)"
+                      :content="{ align: 'end' }"
                     >
-                      打开
-                    </UButton>
-                    <UButton
-                      size="sm"
-                      variant="ghost"
-                      icon="i-lucide-download"
-                      :loading="exportingGameId === game.id"
-                      @click="exportGame(game.id)"
-                    >
-                      导出
-                    </UButton>
-                    <UButton
-                      size="sm"
-                      variant="ghost"
-                      icon="i-lucide-table-properties"
-                      :loading="exportingScoreboardGameId === game.id"
-                      @click="exportScoreboard(game.id)"
-                    >
-                      导出榜单
-                    </UButton>
-                    <UButton
-                      color="error"
-                      variant="soft"
-                      size="sm"
-                      icon="i-lucide-trash-2"
-                      :loading="deletingGameId === game.id"
-                      @click="deleteGame(game.id)"
-                    >
-                      删除
-                    </UButton>
+                      <UButton
+                        size="sm"
+                        variant="ghost"
+                        color="neutral"
+                        icon="i-lucide-ellipsis"
+                        aria-label="比赛操作"
+                      />
+                    </UDropdownMenu>
                   </div>
                 </div>
               </div>
@@ -5850,16 +5864,18 @@ onMounted(async () => {
                     >
                       编辑
                     </UButton>
-                    <UButton
-                      color="error"
-                      variant="soft"
-                      size="sm"
-                      icon="i-lucide-trash-2"
-                      :loading="deletingChallengeId === challenge.id"
-                      @click="deleteChallenge(challenge.id)"
+                    <UDropdownMenu
+                      :items="getChallengeResourceActionItems(challenge)"
+                      :content="{ align: 'end' }"
                     >
-                      删除
-                    </UButton>
+                      <UButton
+                        size="sm"
+                        variant="ghost"
+                        color="neutral"
+                        icon="i-lucide-ellipsis"
+                        aria-label="题目操作"
+                      />
+                    </UDropdownMenu>
                   </div>
                 </div>
               </div>
