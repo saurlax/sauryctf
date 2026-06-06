@@ -128,6 +128,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - In `/console/admin` sections such as `比赛挂题`, keep the page body focused on current contest context and mounted-resource lists; challenge selection, score overrides, and similar low-frequency maintenance input should stay inside `UModal`.
 - On console and admin list pages, page-top reminders such as password-risk notices or account-permission scope should also prefer one compact summary card instead of a standalone full-width `UAlert`.
 - On utility pages such as `/console/account` or `/local-instance/**`, state conclusions like password risk, login requirement, load failure, or current lease status should prefer one compact summary card per area instead of multiple stacked `UAlert` blocks.
+- On modal-confirmed pages such as `/console/team` and public game detail, when a confirm dialog is cancelled or finishes successfully, reset the page-owned confirm draft/payload together with closing the modal so the next destructive action never inherits stale state.
 - In console pages, prefer neutral internal names such as `context`, `checklist`, and `entry` over `setup` for maintenance-oriented panels and computed state.
 - Challenge attachments remain a JSON string array. For local files, prefer the admin upload entry so `/attachments/**` paths stay consistent with import/export behavior.
 - If a challenge defines `flag_format`, player-facing pages should reuse it for display and submit placeholders instead of hard-coding `flag{...}`.

@@ -82,6 +82,16 @@ const confirmAction = ref<{
   payload: null,
 })
 
+function resetConfirmAction() {
+  confirmAction.value = {
+    title: '',
+    description: '',
+    actionLabel: '确认',
+    color: 'primary',
+    payload: null,
+  }
+}
+
 const currentUserId = computed(() => authState.user?.id)
 const isCaptain = computed(() => team.value?.members?.some(member => member.user_id === currentUserId.value && member.role === 'captain') || false)
 const teamMembers = computed(() => team.value?.members || [])
@@ -631,6 +641,7 @@ function openResetInviteCodeConfirm() {
 async function submitConfirmAction() {
   if (!confirmAction.value.payload) {
     confirmModalOpen.value = false
+    resetConfirmAction()
     return
   }
 
@@ -652,7 +663,7 @@ async function submitConfirmAction() {
     }
 
     confirmModalOpen.value = false
-    confirmAction.value.payload = null
+    resetConfirmAction()
   }
   finally {
     confirmSubmitting.value = false
@@ -1091,7 +1102,7 @@ onMounted(async () => {
         color="neutral"
         variant="ghost"
         :disabled="confirmSubmitting"
-        @click="confirmModalOpen = false"
+        @click="confirmModalOpen = false; resetConfirmAction()"
       />
       <UButton
         :label="confirmAction.actionLabel"
