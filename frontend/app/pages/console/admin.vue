@@ -39,6 +39,7 @@ const challengeForm = reactive({
   base_score: 100,
   min_score: 10,
   decay_rate: 0.1,
+  max_attempts: 0,
   is_visible: true,
 })
 
@@ -89,6 +90,7 @@ const challengeEditForm = reactive({
   base_score: 100,
   min_score: 10,
   decay_rate: 0.1,
+  max_attempts: 0,
   is_visible: true,
 })
 
@@ -183,6 +185,7 @@ const challenges = ref<Array<{
   base_score?: number
   min_score?: number
   decay_rate?: number
+  max_attempts?: number
   is_visible?: boolean
 }>>([])
 const selectedGameChallenges = ref<Array<{
@@ -1760,6 +1763,7 @@ function fillSmokeChallengeTemplate() {
   challengeForm.base_score = 100
   challengeForm.min_score = 100
   challengeForm.decay_rate = 0
+  challengeForm.max_attempts = 0
   challengeForm.is_visible = true
 
   toast.add({ title: '已填充题目模板', description: '已写入一份基础题目默认值。', color: 'success' })
@@ -1792,6 +1796,7 @@ function fillStaticWebTemplate() {
   challengeForm.base_score = 100
   challengeForm.min_score = 10
   challengeForm.decay_rate = 0.1
+  challengeForm.max_attempts = 0
   challengeForm.is_visible = true
 
   toast.add({ title: '已填充 Web 实例模板', description: '已写入统一入口型 Web 题默认值。', color: 'success' })
@@ -1822,6 +1827,7 @@ function fillPwnNetcatTemplate() {
   challengeForm.base_score = 300
   challengeForm.min_score = 100
   challengeForm.decay_rate = 0.1
+  challengeForm.max_attempts = 0
   challengeForm.is_visible = true
 
   toast.add({ title: '已填充 Pwn 服务模板', description: '已写入 host / port / nc 连接方式默认值。', color: 'success' })
@@ -1868,6 +1874,7 @@ function fillDynamicContainerTemplate() {
   challengeForm.base_score = 300
   challengeForm.min_score = 100
   challengeForm.decay_rate = 0.1
+  challengeForm.max_attempts = 0
   challengeForm.is_visible = true
 
   toast.add({ title: '已填充动态容器模板', description: '默认使用 nginx:alpine。', color: 'success' })
@@ -1908,6 +1915,7 @@ function fillTeamScopedDynamicTemplate() {
   challengeForm.base_score = 500
   challengeForm.min_score = 200
   challengeForm.decay_rate = 0.1
+  challengeForm.max_attempts = 0
   challengeForm.is_visible = true
 
   toast.add({ title: '已填充每队独立实例模板', description: '已写入带队伍独立入口的动态题默认值。', color: 'success' })
@@ -2249,6 +2257,7 @@ async function createChallenge() {
         base_score: challengeForm.base_score,
         min_score: challengeForm.min_score,
         decay_rate: challengeForm.decay_rate,
+        max_attempts: challengeForm.max_attempts,
         is_visible: challengeForm.is_visible,
       },
     })
@@ -2266,6 +2275,7 @@ async function createChallenge() {
     challengeForm.base_score = 100
     challengeForm.min_score = 10
     challengeForm.decay_rate = 0.1
+    challengeForm.max_attempts = 0
     challengeForm.is_visible = true
     await loadAdminResources()
   }
@@ -2301,6 +2311,7 @@ async function updateChallengeDetails() {
         base_score: challengeEditForm.base_score,
         min_score: challengeEditForm.min_score,
         decay_rate: challengeEditForm.decay_rate,
+        max_attempts: challengeEditForm.max_attempts,
         is_visible: challengeEditForm.is_visible,
       },
     })
@@ -2771,6 +2782,7 @@ watch(() => challengeEditForm.challenge_id, () => {
     challengeEditForm.base_score = 100
     challengeEditForm.min_score = 10
     challengeEditForm.decay_rate = 0.1
+    challengeEditForm.max_attempts = 0
     challengeEditForm.is_visible = true
     return
   }
@@ -2791,6 +2803,7 @@ watch(() => challengeEditForm.challenge_id, () => {
   challengeEditForm.base_score = challenge.base_score || 100
   challengeEditForm.min_score = challenge.min_score || 10
   challengeEditForm.decay_rate = challenge.decay_rate || 0.1
+  challengeEditForm.max_attempts = challenge.max_attempts || 0
   challengeEditForm.is_visible = challenge.is_visible ?? true
 })
 
@@ -5001,6 +5014,10 @@ onMounted(async () => {
           </UFormField>
         </div>
 
+        <UFormField label="错误尝试上限" name="max_attempts" description="0 表示不限制；达到上限后该队伍在当前比赛中不能再继续提交这道题。">
+          <UInput v-model.number="challengeForm.max_attempts" type="number" min="0" class="w-full" />
+        </UFormField>
+
         <UFormField label="是否可见" name="is_visible">
           <USwitch v-model="challengeForm.is_visible" />
         </UFormField>
@@ -5316,6 +5333,10 @@ onMounted(async () => {
             <UInput v-model.number="challengeEditForm.decay_rate" type="number" step="0.1" class="w-full" />
           </UFormField>
         </div>
+
+        <UFormField label="错误尝试上限" name="max_attempts" description="0 表示不限制；达到上限后该队伍在当前比赛中不能再继续提交这道题。">
+          <UInput v-model.number="challengeEditForm.max_attempts" type="number" min="0" class="w-full" />
+        </UFormField>
 
         <UFormField label="是否可见" name="is_visible">
           <USwitch v-model="challengeEditForm.is_visible" />

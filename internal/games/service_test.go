@@ -905,6 +905,106 @@ func TestService_ListSubmissionRecords_FiltersByTypeAndLimit(t *testing.T) {
 	assert.Equal(t, "accepted", limited[1].Result)
 }
 
+func TestService_SubmitFlag_EnforcesMaxAttemptsByWrongSubmissions(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, team1ID, _ := createGameChallengeFixture(t, database)
+	require.NoError(t, database.Model(&models.Challenge{}).Where("id = ?", challengeID).Update("max_attempts", 2).Error)
+
+	first, err := svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{wrong-1}")
+	require.NoError(t, err)
+	assert.False(t, first.Correct)
+	assert.Equal(t, "wrong flag", first.Message)
+
+	second, err := svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{wrong-2}")
+	require.NoError(t, err)
+	assert.False(t, second.Correct)
+	assert.Equal(t, "wrong flag", second.Message)
+
+	third, err := svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
+	require.NoError(t, err)
+	assert.False(t, third.Correct)
+	assert.Equal(t, "submission limit reached", third.Message)
+
+	var solveCount int64
+	require.NoError(t, database.Model(&models.Solve{}).Where("game_id = ? AND challenge_id = ? AND team_id = ?", gameID, challengeID, team1ID).Count(&solveCount).Error)
+	assert.Zero(t, solveCount)
+
+	records, err := svc.ListSubmissionRecords(gameID, "", 10)
+	require.NoError(t, err)
+	require.Len(t, records, 3)
+	assert.Equal(t, "rejected", records[0].Result)
+	assert.Equal(t, "submission limit reached", records[0].Message)
+	assert.Equal(t, "wrong_flag", records[1].Result)
+	assert.Equal(t, "wrong_flag", records[2].Result)
+}
+
+func TestService_SubmitFlag_MaxAttemptsZeroRemainsUnlimited(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, team1ID, _ := createGameChallengeFixture(t, database)
+	require.NoError(t, database.Model(&models.Challenge{}).Where("id = ?", challengeID).Update("max_attempts", 0).Error)
+
+	for _, submittedFlag := range []string{"flag{wrong-1}", "flag{wrong-2}", "flag{wrong-3}"} {
+		result, err := svc.SubmitFlag(gameID, challengeID, 1, team1ID, submittedFlag)
+		require.NoError(t, err)
+		assert.False(t, result.Correct)
+		assert.Equal(t, "wrong flag", result.Message)
+	}
+
+	final, err := svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
+	require.NoError(t, err)
+	assert.True(t, final.Correct)
+	assert.Equal(t, "correct", final.Message)
+}
+
+func TestService_SubmitFlag_MaxAttemptsSeparatedByPracticeMode(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, team1ID, _ := createGameChallengeFixture(t, database)
+	require.NoError(t, database.Model(&models.Challenge{}).Where("id = ?", challengeID).Update("max_attempts", 1).Error)
+	require.NoError(t, database.Model(&models.Game{}).Where("id = ?", gameID).Updates(map[string]any{
+		"end_time":      time.Now().Add(-time.Minute),
+		"practice_mode": true,
+	}).Error)
+
+	practiceWrong, err := svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{wrong-practice}")
+	require.NoError(t, err)
+	assert.False(t, practiceWrong.Correct)
+	assert.True(t, practiceWrong.IsPractice)
+	assert.Equal(t, "wrong flag", practiceWrong.Message)
+
+	practiceBlocked, err := svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
+	require.NoError(t, err)
+	assert.False(t, practiceBlocked.Correct)
+	assert.True(t, practiceBlocked.IsPractice)
+	assert.Equal(t, "submission limit reached", practiceBlocked.Message)
+
+	require.NoError(t, database.Model(&models.Game{}).Where("id = ?", gameID).Updates(map[string]any{
+		"start_time":    time.Now().Add(-time.Hour),
+		"end_time":      time.Now().Add(time.Hour),
+		"practice_mode": false,
+	}).Error)
+
+	officialSolve, err := svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
+	require.NoError(t, err)
+	assert.True(t, officialSolve.Correct)
+	assert.False(t, officialSolve.IsPractice)
+	assert.Equal(t, "correct", officialSolve.Message)
+}
+
 func TestService_ListSubmissionCheatClues_GroupsSharedWrongFlagsAcrossTeams(t *testing.T) {
 	database, err := db.ConnectTest()
 	require.NoError(t, err)

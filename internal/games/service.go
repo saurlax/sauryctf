@@ -2425,6 +2425,14 @@ func (s *Service) CleanupExpiredChallengeInstances(now time.Time) (int, error) {
 	return cleaned, nil
 }
 
+func (s *Service) countWrongSubmissions(gameID uint, challengeID uint, teamID uint, isPractice bool) (int64, error) {
+	var wrongCount int64
+	err := s.db.Model(&models.GameSubmission{}).
+		Where("game_id = ? AND challenge_id = ? AND team_id = ? AND is_practice = ? AND result = ?", gameID, challengeID, teamID, isPractice, models.GameSubmissionWrongFlag).
+		Count(&wrongCount).Error
+	return wrongCount, err
+}
+
 // SubmitFlag handles flag submission scoped to a game.
 // Uses exponential decay scoring identical to the standalone challenges service.
 func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID uint, flag string) (*SubmitResult, error) {
@@ -2467,10 +2475,21 @@ func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID 
 		return nil, errors.New("challenge not found")
 	}
 
+	if ch.MaxAttempts > 0 {
+		wrongCount, err := s.countWrongSubmissions(gameID, challengeID, teamID, isPractice)
+		if err != nil {
+			return nil, err
+		}
+		if wrongCount >= int64(ch.MaxAttempts) {
+			_ = s.recordSubmission(gameID, challengeID, userID, teamID, flag, models.GameSubmissionRejected, "submission limit reached", false, isPractice, 0, "")
+			return &SubmitResult{Correct: false, IsPractice: isPractice, Message: "submission limit reached"}, nil
+		}
+	}
+
 	// Check flag
 	if ch.Flag != flag {
 		_ = s.recordSubmission(gameID, challengeID, userID, teamID, flag, models.GameSubmissionWrongFlag, "wrong flag", false, isPractice, 0, "")
-		return &SubmitResult{Correct: false, Message: "wrong flag"}, nil
+		return &SubmitResult{Correct: false, IsPractice: isPractice, Message: "wrong flag"}, nil
 	}
 
 	// Idempotent: already solved?
