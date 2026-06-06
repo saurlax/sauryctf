@@ -805,9 +805,19 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <div v-if="!adminManagedGames.length" class="text-sm text-muted">
-                当前还没有可管理的比赛，先去管理端创建一场比赛。
-              </div>
+              <UEmpty
+                v-if="!adminManagedGames.length"
+                icon="i-lucide-calendar-plus"
+                title="还没有可管理的比赛"
+                description="当前还没有任何比赛进入最近管理列表。先创建一场比赛，再回来检查状态切换和公开展示。"
+                :actions="[{
+                  label: '去创建比赛',
+                  icon: 'i-lucide-settings-2',
+                  to: '/console/admin',
+                  color: 'neutral',
+                  variant: 'outline',
+                }]"
+              />
             </div>
           </UPageCard>
 
@@ -893,9 +903,21 @@ onMounted(async () => {
                 </div>
               </div>
             </div>
-            <div v-else class="text-sm text-muted">
-              当前还没有可浏览的公开比赛。
-            </div>
+            <UEmpty
+              v-else
+              icon="i-lucide-calendar-range"
+              title="还没有可浏览的公开比赛"
+              :description="isAdmin ? '先创建并发布一场公开比赛，公开列表才会开始出现内容。' : '当前还没有公开中的比赛，稍后再来查看即可。'"
+              :actions="isAdmin
+                ? [{
+                    label: '去管理端建赛',
+                    icon: 'i-lucide-settings-2',
+                    to: '/console/admin',
+                    color: 'neutral',
+                    variant: 'outline',
+                  }]
+                : []"
+            />
           </UPageCard>
 
           <UPageCard title="我的比赛" icon="i-lucide-flag">
@@ -1078,9 +1100,19 @@ onMounted(async () => {
                       </div>
                     </div>
                   </div>
-                  <div v-else class="text-sm text-muted">
-                    最近 5 场比赛当前没有待审核报名。
-                  </div>
+                  <UEmpty
+                    v-else
+                    icon="i-lucide-hourglass"
+                    title="当前没有待审核报名"
+                    description="最近 5 场比赛里没有仍待处理的报名申请。新的报名提交后会自动出现在这里。"
+                    :actions="[{
+                      label: '打开管理端',
+                      icon: 'i-lucide-settings-2',
+                      to: '/console/admin',
+                      color: 'neutral',
+                      variant: 'outline',
+                    }]"
+                  />
                 </div>
 
                 <div class="rounded-lg border border-default px-3 py-3">
@@ -1113,9 +1145,19 @@ onMounted(async () => {
                       </div>
                     </div>
                   </div>
-                  <div v-else class="text-sm text-muted">
-                    最近 5 场比赛当前没有待审核的 Writeup。
-                  </div>
+                  <UEmpty
+                    v-else
+                    icon="i-lucide-file-clock"
+                    title="当前没有待审 Writeup"
+                    description="最近 5 场比赛里没有等待管理员处理的 Writeup。新的提交完成后会自动出现在这里。"
+                    :actions="[{
+                      label: '查看管理端',
+                      icon: 'i-lucide-file-text',
+                      to: '/console/admin',
+                      color: 'neutral',
+                      variant: 'outline',
+                    }]"
+                  />
                 </div>
               </div>
 
@@ -1149,9 +1191,19 @@ onMounted(async () => {
                     </div>
                   </div>
                 </div>
-                <div v-else class="text-sm text-muted">
-                  最近 5 场比赛还没有发布公告。
-                </div>
+                <UEmpty
+                  v-else
+                  icon="i-lucide-megaphone"
+                  title="还没有比赛公告"
+                  description="最近 5 场比赛里还没有发布公告。发布后，这里会优先展示最新内容。"
+                  :actions="[{
+                    label: '去公告区',
+                    icon: 'i-lucide-megaphone',
+                    to: '/console/admin',
+                    color: 'neutral',
+                    variant: 'outline',
+                  }]"
+                />
               </div>
 
               <div class="grid gap-4 xl:grid-cols-2">
@@ -1185,9 +1237,19 @@ onMounted(async () => {
                       </div>
                     </div>
                   </div>
-                  <div v-else class="text-sm text-muted">
-                    最近 5 场比赛当前还没有新的提交记录。
-                  </div>
+                  <UEmpty
+                    v-else
+                    icon="i-lucide-activity"
+                    title="还没有新的提交记录"
+                    description="最近 5 场比赛里还没有新的题目提交。比赛开始并产生提交后，这里会同步显示最新动态。"
+                    :actions="[{
+                      label: '查看比赛',
+                      icon: 'i-lucide-trophy',
+                      to: '/games',
+                      color: 'neutral',
+                      variant: 'outline',
+                    }]"
+                  />
                 </div>
 
                 <div class="rounded-lg border border-default px-3 py-3">
@@ -1223,9 +1285,19 @@ onMounted(async () => {
                       </div>
                     </div>
                   </div>
-                  <div v-else class="text-sm text-muted">
-                    最近 5 场比赛当前没有明显的重复错误 Flag 线索。
-                  </div>
+                  <UEmpty
+                    v-else
+                    icon="i-lucide-shield-check"
+                    title="当前没有异常提交线索"
+                    description="最近 5 场比赛里暂时没有明显的重复错误 Flag 聚集情况。出现可疑模式后，这里会自动汇总。"
+                    :actions="[{
+                      label: '查看审计',
+                      icon: 'i-lucide-scroll-text',
+                      to: '/console/admin/audit',
+                      color: 'neutral',
+                      variant: 'outline',
+                    }]"
+                  />
                 </div>
               </div>
             </div>
@@ -1247,12 +1319,19 @@ onMounted(async () => {
               </div>
               <UButton label="管理队伍" to="/console/team" variant="outline" block />
             </div>
-            <div v-else class="space-y-3">
-              <p class="text-sm text-muted">
-                你还没有加入队伍。创建或加入队伍后，就可以报名比赛并提交题目。
-              </p>
-              <UButton label="去创建或加入队伍" to="/console/team" block />
-            </div>
+            <UEmpty
+              v-else
+              icon="i-lucide-users-round"
+              title="你还没有加入队伍"
+              description="创建或加入队伍后，才可以报名比赛、启动实例并提交题目。"
+              :actions="[{
+                label: '去创建或加入队伍',
+                icon: 'i-lucide-users-round',
+                to: '/console/team',
+                color: 'neutral',
+                variant: 'outline',
+              }]"
+            />
           </UPageCard>
 
           <UPageCard :title="isAdmin ? '管理提示' : '参赛提示'" :icon="isAdmin ? 'i-lucide-shield-check' : 'i-lucide-info'">
