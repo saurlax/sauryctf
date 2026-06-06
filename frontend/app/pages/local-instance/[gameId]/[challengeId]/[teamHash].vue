@@ -43,10 +43,33 @@ const stateEnsuring = ref(false)
 const stateLoadError = ref('')
 const now = ref(Date.now())
 const destroyConfirmModalOpen = ref(false)
+const lastAutoRefreshAt = ref(0)
 
 const currentEntry = computed(() => instanceState.value?.launch_url || route.fullPath)
 const hasRunningInstance = computed(() => instanceState.value?.status === 'running' && getSecondsLeft() > 0)
 const loginLink = computed(() => `/login?redirect=${encodeURIComponent(route.fullPath)}`)
+const renewalWindowRemainingSeconds = computed(() => {
+  const policy = instanceState.value?.policy
+  if (!hasRunningInstance.value || !policy?.renewal_window_minutes) {
+    return null
+  }
+
+  return getSecondsLeft() - (policy.renewal_window_minutes * 60)
+})
+const canRenewByClock = computed(() => {
+  if (!hasRunningInstance.value) {
+    return false
+  }
+
+  return renewalWindowRemainingSeconds.value !== null && renewalWindowRemainingSeconds.value <= 0
+})
+const canRenewNow = computed(() => {
+  if (!hasRunningInstance.value) {
+    return false
+  }
+
+  return !!instanceState.value?.can_renew || canRenewByClock.value
+})
 
 const pageLinks = computed(() => [
   {
@@ -167,7 +190,7 @@ function getPolicyHint() {
   }
 
   if (hasRunningInstance.value) {
-    if (instanceState.value?.can_renew) {
+    if (canRenewNow.value) {
       return `当前已经进入续期窗口；成功续期后会额外追加 ${policy.extension_duration_minutes} 分钟。每支队伍最多同时保留 ${policy.team_active_limit} 个运行中实例。`
     }
 
@@ -179,10 +202,26 @@ function getPolicyHint() {
 
 function getPrimaryActionLabel() {
   if (hasRunningInstance.value) {
-    return instanceState.value?.can_renew ? '续期实例' : '等待续期窗口'
+    return canRenewNow.value ? '续期实例' : '等待续期窗口'
   }
 
   return '启动实例'
+}
+
+function getRenewalWindowHint() {
+  if (!hasRunningInstance.value) {
+    return '实例启动后，这里会显示续期窗口的开放时机。'
+  }
+
+  if (canRenewNow.value) {
+    return '当前已经进入续期窗口，可直接执行续期。'
+  }
+
+  if (renewalWindowRemainingSeconds.value === null) {
+    return '当前还没有读取到续期窗口信息。'
+  }
+
+  return `距离开放续期还有 ${formatSecondsLeft(Math.max(0, renewalWindowRemainingSeconds.value))}。`
 }
 
 async function copyValue(value?: string, successTitle = '内容已复制') {
@@ -259,6 +298,7 @@ async function loadInstanceState(options?: { silent?: boolean }) {
     stateLoadError.value = e.data?.message || e.message
   }
   finally {
+    lastAutoRefreshAt.value = Date.now()
     stateLoading.value = false
     stateRefreshing.value = false
   }
@@ -341,12 +381,38 @@ function openDestroyConfirm() {
 
 let ticker: ReturnType<typeof setInterval> | null = null
 
+watch(canRenewByClock, (current, previous) => {
+  if (!current || previous || instanceState.value?.can_renew || stateLoading.value || stateRefreshing.value || stateEnsuring.value || stateDestroying.value) {
+    return
+  }
+
+  void loadInstanceState({ silent: true })
+})
+
+watch(hasRunningInstance, (current, previous) => {
+  if (current || !previous || stateLoading.value || stateRefreshing.value || stateEnsuring.value || stateDestroying.value) {
+    return
+  }
+
+  void loadInstanceState({ silent: true })
+})
+
 onMounted(async () => {
   await ensureInitialized()
   await loadInstanceState()
 
   ticker = setInterval(() => {
     now.value = Date.now()
+
+    if (!authState.user || !hasRunningInstance.value || stateLoading.value || stateRefreshing.value || stateEnsuring.value || stateDestroying.value) {
+      return
+    }
+
+    if (Date.now() - lastAutoRefreshAt.value < 15000) {
+      return
+    }
+
+    void loadInstanceState({ silent: true })
   }, 1000)
 })
 
@@ -455,6 +521,9 @@ onBeforeUnmount(() => {
                   <span>{{ stateLoading ? '同步中' : formatSecondsLeft(getSecondsLeft()) }}</span>
                 </div>
                 <UProgress :model-value="getLeasePercent()" status />
+                <div class="mt-2 text-xs text-muted">
+                  {{ getRenewalWindowHint() }}
+                </div>
               </div>
 
               <div class="grid gap-3 text-sm md:grid-cols-2">
@@ -489,7 +558,7 @@ onBeforeUnmount(() => {
                   size="sm"
                   icon="i-lucide-play"
                   :loading="stateEnsuring"
-                  :disabled="!authState.user || stateLoading || stateRefreshing || stateDestroying || (hasRunningInstance && !instanceState?.can_renew)"
+                  :disabled="!authState.user || stateLoading || stateRefreshing || stateDestroying || (hasRunningInstance && !canRenewNow)"
                   @click="ensureInstance"
                 >
                   {{ getPrimaryActionLabel() }}
