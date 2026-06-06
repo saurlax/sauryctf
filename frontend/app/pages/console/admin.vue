@@ -3319,8 +3319,8 @@ onMounted(async () => {
             <UAlert
               color="info"
               variant="soft"
-              title="先看这里，再决定是否立即开赛"
-              description="这组检查不替代详细配置，只用于判断当前选中的比赛是否已经具备最小可用的公开比赛形态。"
+              title="开赛前先确认这几项"
+              description="这里只保留当前最影响公开运行的检查项，便于快速判断是否可以继续发布。"
             />
 
             <div
@@ -3376,8 +3376,8 @@ onMounted(async () => {
           <UAlert
             color="info"
             variant="soft"
-            title="这场比赛正在使用容器实例模板"
-            description="下面这组步骤聚焦实例链路中的关键流程：报名、启动实例、确认入口回填，以及最后检查资源回收。"
+            title="当前比赛包含容器实例题"
+            description="按这组检查项确认报名、实例启动、入口回填和资源回收状态。"
           />
 
           <div
@@ -3423,7 +3423,7 @@ onMounted(async () => {
                 {{ selectedAdminOverview.game.name }}
               </div>
               <div class="mt-1 text-sm text-muted">
-                围绕当前选中的比赛，快速查看提交流、可疑线索和赛时运维状态。
+                当前比赛的提交流、待处理项和运行状态。
               </div>
             </div>
 
@@ -3493,6 +3493,100 @@ onMounted(async () => {
           <UTabs v-model="activeMonitorTab" :items="monitorTabItems" />
 
           <div v-if="activeMonitorTab === 'overview'" class="grid gap-4 xl:grid-cols-3">
+            <div class="rounded-lg border border-default px-3 py-3 xl:col-span-2">
+              <div class="mb-3 flex items-center justify-between gap-2">
+                <div class="font-medium">
+                  待处理事项
+                </div>
+                <div class="flex items-center gap-2">
+                  <UBadge color="warning" variant="soft">
+                    报名 {{ participants.filter(item => item.status === 'pending').length }}
+                  </UBadge>
+                  <UBadge color="info" variant="soft">
+                    Writeup {{ writeups.filter(item => item.status === 'submitted').length }}
+                  </UBadge>
+                </div>
+              </div>
+
+              <div class="grid gap-3 xl:grid-cols-2">
+                <div class="rounded-md bg-elevated/60 px-3 py-3">
+                  <div class="mb-2 flex items-center justify-between gap-2">
+                    <div class="text-sm font-medium">
+                      报名审核
+                    </div>
+                    <UBadge color="warning" variant="soft">
+                      {{ participants.filter(item => item.status === 'pending').length }}
+                    </UBadge>
+                  </div>
+                  <div v-if="participants.some(item => item.status === 'pending')" class="space-y-2">
+                    <div
+                      v-for="participant in participants.filter(item => item.status === 'pending').slice(0, 4)"
+                      :key="participant.team_id"
+                      class="rounded-md bg-default px-3 py-2"
+                    >
+                      <div class="text-sm font-medium">
+                        {{ participant.team_name }}
+                      </div>
+                      <div class="text-xs text-muted">
+                        {{ new Date(participant.joined_at).toLocaleString() }}
+                      </div>
+                    </div>
+                  </div>
+                  <UEmpty
+                    v-else
+                    icon="i-lucide-hourglass"
+                    title="没有待审核报名"
+                    description="新的报名提交后，会自动出现在这里。"
+                    :actions="[{
+                      label: '查看参赛队伍',
+                      icon: 'i-lucide-users',
+                      color: 'neutral',
+                      variant: 'outline',
+                      onClick: () => jumpToAdminAnchor('#participants'),
+                    }]"
+                  />
+                </div>
+
+                <div class="rounded-md bg-elevated/60 px-3 py-3">
+                  <div class="mb-2 flex items-center justify-between gap-2">
+                    <div class="text-sm font-medium">
+                      Writeup 审核
+                    </div>
+                    <UBadge color="info" variant="soft">
+                      {{ writeups.filter(item => item.status === 'submitted').length }}
+                    </UBadge>
+                  </div>
+                  <div v-if="writeups.some(item => item.status === 'submitted')" class="space-y-2">
+                    <div
+                      v-for="writeup in writeups.filter(item => item.status === 'submitted').slice(0, 4)"
+                      :key="writeup.team_id"
+                      class="rounded-md bg-default px-3 py-2"
+                    >
+                      <div class="text-sm font-medium">
+                        {{ writeup.team_name }}
+                      </div>
+                      <div class="text-xs text-muted">
+                        {{ new Date(writeup.submitted_at).toLocaleString() }}
+                      </div>
+                    </div>
+                  </div>
+                  <UEmpty
+                    v-else
+                    icon="i-lucide-file-check"
+                    title="没有待审 Writeup"
+                    description="新的 Writeup 提交后，会自动出现在这里。"
+                    :actions="[{
+                      label: '打开 Writeup 审核',
+                      icon: 'i-lucide-file-text',
+                      color: 'neutral',
+                      variant: 'outline',
+                      onClick: () => jumpToAdminAnchor('#writeups'),
+                    }]"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div class="rounded-lg border border-default px-3 py-3">
               <div class="mb-3 flex items-center justify-between gap-2">
                 <div class="font-medium">
@@ -3527,82 +3621,6 @@ onMounted(async () => {
                   color: 'neutral',
                   variant: 'outline',
                   onClick: () => { activeMonitorTab = 'ops' },
-                }]"
-              />
-            </div>
-
-            <div class="rounded-lg border border-default px-3 py-3">
-              <div class="mb-3 flex items-center justify-between gap-2">
-                <div class="font-medium">
-                  待审核报名
-                </div>
-                <UBadge color="warning" variant="soft">
-                  {{ participants.filter(item => item.status === 'pending').length }}
-                </UBadge>
-              </div>
-              <div v-if="participants.some(item => item.status === 'pending')" class="space-y-2">
-                <div
-                  v-for="participant in participants.filter(item => item.status === 'pending').slice(0, 4)"
-                  :key="participant.team_id"
-                  class="rounded-md bg-elevated/60 px-3 py-2"
-                >
-                  <div class="text-sm font-medium">
-                    {{ participant.team_name }}
-                  </div>
-                  <div class="text-xs text-muted">
-                    {{ new Date(participant.joined_at).toLocaleString() }}
-                  </div>
-                </div>
-              </div>
-              <UEmpty
-                v-else
-                icon="i-lucide-hourglass"
-                title="当前没有待审核报名"
-                description="所有报名申请都已经处理完毕。新的报名提交后，会自动出现在这里。"
-                :actions="[{
-                  label: '查看参赛队伍',
-                  icon: 'i-lucide-users',
-                  color: 'neutral',
-                  variant: 'outline',
-                  onClick: () => jumpToAdminAnchor('#participants'),
-                }]"
-              />
-            </div>
-
-            <div class="rounded-lg border border-default px-3 py-3">
-              <div class="mb-3 flex items-center justify-between gap-2">
-                <div class="font-medium">
-                  待审 Writeup
-                </div>
-                <UBadge color="info" variant="soft">
-                  {{ writeups.filter(item => item.status === 'submitted').length }}
-                </UBadge>
-              </div>
-              <div v-if="writeups.some(item => item.status === 'submitted')" class="space-y-2">
-                <div
-                  v-for="writeup in writeups.filter(item => item.status === 'submitted').slice(0, 4)"
-                  :key="writeup.team_id"
-                  class="rounded-md bg-elevated/60 px-3 py-2"
-                >
-                  <div class="text-sm font-medium">
-                    {{ writeup.team_name }}
-                  </div>
-                  <div class="text-xs text-muted">
-                    {{ new Date(writeup.submitted_at).toLocaleString() }}
-                  </div>
-                </div>
-              </div>
-              <UEmpty
-                v-else
-                icon="i-lucide-file-check"
-                title="当前没有待审 Writeup"
-                description="当前没有等待管理员处理的 Writeup。新的提交完成后，会自动出现在这里。"
-                :actions="[{
-                  label: '打开 Writeup 审核',
-                  icon: 'i-lucide-file-text',
-                  color: 'neutral',
-                  variant: 'outline',
-                  onClick: () => jumpToAdminAnchor('#writeups'),
                 }]"
               />
             </div>
@@ -4062,11 +4080,11 @@ onMounted(async () => {
                 </UBadge>
               </div>
               <div class="space-y-2 text-sm text-muted">
-                <p>这里用于发布开赛提醒、规则补充、实例维护通知或 Writeup 截止提醒。</p>
-                <p>如果比赛已经公开但仍无公告，可以补一条开赛说明。</p>
+                <p>用于维护当前比赛的赛时通知、规则补充和维护说明。</p>
+                <p>如果比赛已经公开但仍无公告，建议至少补一条状态说明。</p>
               </div>
               <div class="mt-3 flex justify-end">
-                <UButton size="sm" variant="outline" @click="jumpToAdminAnchor('#attach-challenge')">
+                <UButton size="sm" variant="outline" @click="jumpToAdminAnchor('#announcements')">
                   去公告区
                 </UButton>
               </div>
@@ -4105,119 +4123,59 @@ onMounted(async () => {
         />
       </UPageCard>
 
-      <div class="grid gap-6 xl:grid-cols-2">
-        <UPageCard id="create-game" title="创建比赛" icon="i-lucide-trophy">
-          <template #footer>
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <p class="text-sm text-muted">
-                可以填充一份基础模板，再按需要调整时间、公告和报名规则。
-              </p>
-              <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillStarterGameTemplate">
-                填充基础模板
-              </UButton>
-            </div>
-          </template>
+      <UPageCard id="create-game" title="比赛录入" icon="i-lucide-trophy">
+        <div class="space-y-4">
+          <UAlert
+            color="info"
+            variant="soft"
+            title="比赛基础信息通过弹层录入"
+            description="创建、编辑和导入比赛统一收进弹层处理；页面主体只保留状态、设置和监控视图。"
+          />
 
-          <UForm :state="gameForm" class="space-y-4" @submit="createGame">
-            <UFormField label="比赛名称" name="name">
-              <UInput v-model="gameForm.name" class="w-full" placeholder="例如：Spring CTF 2026" />
-            </UFormField>
+          <div class="flex flex-wrap gap-2">
+            <UButton icon="i-lucide-plus" @click="createGameModalOpen = true">
+              创建比赛
+            </UButton>
+            <UButton
+              icon="i-lucide-wand-sparkles"
+              variant="outline"
+              @click="fillStarterGameTemplate(); createGameModalOpen = true"
+            >
+              使用基础模板
+            </UButton>
+            <UButton icon="i-lucide-pencil-line" variant="outline" @click="gameEditModalOpen = true">
+              编辑比赛信息
+            </UButton>
+            <UButton icon="i-lucide-upload" variant="ghost" @click="importModalOpen = true">
+              导入比赛包
+            </UButton>
+          </div>
 
-            <UFormField label="比赛描述" name="description">
-              <UTextarea v-model="gameForm.description" class="w-full" :rows="4" placeholder="简要介绍比赛规则或主题" />
-            </UFormField>
-
-            <UFormField label="规则补充" name="notice" description="这里用于填写长期有效的补充规则，会展示在公开比赛页的“规则补充”区域">
-              <UTextarea v-model="gameForm.notice" class="w-full" :rows="4" placeholder="例如：禁止共享 Flag；比赛开始前 15 分钟开放平台。" />
-            </UFormField>
-
-            <UFormField label="比赛邀请码" name="invitation_code" description="留空表示任何队伍都能直接报名；填写后需要在公开页输入正确邀请码">
-              <UInput v-model="gameForm.invitation_code" class="w-full" placeholder="例如：spring-2026" />
-            </UFormField>
-
-            <UFormField label="比赛分组" name="divisions_text" description="按行或逗号分隔，例如：本科组, 公开组">
-              <UTextarea v-model="gameForm.divisions_text" class="w-full" :rows="3" placeholder="本科组, 公开组" />
-            </UFormField>
-
-            <div class="grid gap-4 md:grid-cols-2">
-              <UFormField label="开始时间" name="start_time">
-                <UInput v-model="gameForm.start_time" type="datetime-local" class="w-full" />
-              </UFormField>
-
-              <UFormField label="结束时间" name="end_time">
-                <UInput v-model="gameForm.end_time" type="datetime-local" class="w-full" />
-              </UFormField>
-            </div>
-
-            <UFormField label="封榜时间" name="scoreboard_freeze_at" description="留空表示不封榜；到达这个时间后公开榜单冻结，但比赛仍可继续提交">
-              <UInput v-model="gameForm.scoreboard_freeze_at" type="datetime-local" class="w-full" />
-            </UFormField>
-
-            <UFormField label="报名模式" name="registration_mode" description="决定队伍报名后是直接获得参赛资格，还是进入待审核">
-              <USelect v-model="gameForm.registration_mode" :items="registrationModeOptions" class="w-full" />
-            </UFormField>
-
-            <div class="grid gap-4 md:grid-cols-2">
-              <UFormField label="队伍人数上限" name="max_team_members" description="0 表示不限制">
-                <UInput v-model.number="gameForm.max_team_members" type="number" min="0" class="w-full" />
-              </UFormField>
-
-              <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不额外设置截止时间；如果填写，应晚于比赛结束时间">
-                <UInput v-model="gameForm.writeup_deadline" type="datetime-local" class="w-full" />
-              </UFormField>
-            </div>
-
-            <div class="grid gap-4 md:grid-cols-3">
-              <UFormField label="公开比赛" name="is_public">
-                <USwitch v-model="gameForm.is_public" />
-              </UFormField>
-
-              <UFormField label="启用赛后练习" name="practice_mode">
-                <USwitch v-model="gameForm.practice_mode" />
-              </UFormField>
-
-              <UFormField label="要求 Writeup" name="writeup_required">
-                <USwitch v-model="gameForm.writeup_required" />
-              </UFormField>
+          <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+              <div class="mb-2 font-medium text-highlighted">
+                新建比赛默认会进入草稿状态
+              </div>
+              <ul class="space-y-2">
+                <li>建议先完成题目录入、挂题和公开页检查，再切换到 `active`。</li>
+                <li>需要快速起步时，可先载入基础模板，再在弹层里补齐正式时间、规则和公告。</li>
+              </ul>
             </div>
 
             <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
               <div class="mb-2 font-medium text-highlighted">
-                当前规则摘要
+                当前上下文
               </div>
-              <ul class="space-y-2">
-                <li v-for="item in createGameRuleSummary" :key="item">
-                  {{ item }}
-                </li>
-              </ul>
-            </div>
-
-            <UButton type="submit" :loading="gameSubmitting">
-              创建比赛
-            </UButton>
-          </UForm>
-        </UPageCard>
-
-        <UPageCard title="比赛维护" icon="i-lucide-pencil-line">
-          <div class="space-y-4">
-            <div class="flex flex-wrap gap-2">
-              <UButton icon="i-lucide-plus" @click="createGameModalOpen = true">
-                创建比赛
-              </UButton>
-              <UButton icon="i-lucide-pencil-line" variant="outline" @click="gameEditModalOpen = true">
-                编辑比赛信息
-              </UButton>
-              <UButton icon="i-lucide-upload" variant="ghost" @click="importModalOpen = true">
-                导入比赛包
-              </UButton>
-            </div>
-
-            <div v-if="selectedEditableGame" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              当前已选：{{ selectedEditableGame.name }} · {{ selectedEditableGame.status }}
+              <div v-if="selectedEditableGame">
+                {{ selectedEditableGame.name }} · {{ selectedEditableGame.status }}
+              </div>
+              <div v-else>
+                还没有选中比赛。可直接创建新比赛，或从资源列表选择现有比赛进入维护上下文。
+              </div>
             </div>
           </div>
-        </UPageCard>
-      </div>
+        </div>
+      </UPageCard>
 
       <div class="grid gap-6 xl:grid-cols-2">
         <UPageCard id="game-settings" title="比赛设置" icon="i-lucide-sliders-horizontal">
@@ -4590,7 +4548,7 @@ onMounted(async () => {
             />
           </UPageCard>
 
-          <UPageCard title="比赛公告" icon="i-lucide-megaphone">
+          <UPageCard title="比赛公告" icon="i-lucide-megaphone" id="announcements">
             <div v-if="selectedGame" class="mb-3 text-sm text-muted">
               {{ selectedGame.name }} · {{ loadingAnnouncements ? '正在加载公告...' : `${announcements.length} 条公告` }}
             </div>

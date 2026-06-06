@@ -93,6 +93,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - **Prefer Nuxt UI components** — avoid hand-writing Tailwind/CSS unless layout requires it.
 - Keep UI clean; use component composition.
 - Dialog-like interactions such as create/edit forms, delete confirmations, and destructive secondary actions should be wrapped in `UModal` instead of leaving temporary confirmation blocks in the page body.
+- If a page already has modal-based create/edit flows, do not keep a second full inline version of the same form in the main page body unless there is a clear operational reason.
 - User-facing page copy should stay formal and product-oriented; avoid temporary notes, onboarding-style placeholders, and testing slang in visible UI text.
 - Error toast descriptions use `e.data?.message || e.message`.
 - API requests go through `/api/**` (dev proxy via `nuxt.config.ts` `devProxy` to `localhost:8080`).
