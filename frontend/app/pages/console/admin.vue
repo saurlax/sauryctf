@@ -80,6 +80,27 @@ const pendingGameSettingsPayload = ref<null | {
     scoreboard_freeze_at?: string | null
   }
 }>(null)
+const participantReviewConfirmModalOpen = ref(false)
+const pendingParticipantReviewPayload = ref<null | {
+  teamId: number
+  gameId: number
+  teamName: string
+  currentStatus: 'pending' | 'accepted' | 'rejected'
+  nextStatus: 'pending' | 'accepted' | 'rejected'
+  currentDivision: string
+  nextDivision: string
+  score: number
+  solveCount: number
+}>(null)
+const writeupReviewConfirmModalOpen = ref(false)
+const pendingWriteupReviewPayload = ref<null | {
+  teamId: number
+  gameId: number
+  teamName: string
+  currentStatus: 'submitted' | 'approved' | 'rejected'
+  nextStatus: 'approved' | 'rejected'
+  remark: string
+}>(null)
 
 const gameEditForm = reactive({
   game_id: undefined as number | undefined,
@@ -163,6 +184,7 @@ const loadingAnnouncements = ref(false)
 const loadingScoreboard = ref(false)
 const announcementSubmitting = ref(false)
 const updatingParticipantId = ref<number | null>(null)
+const reviewingWriteupId = ref<number | null>(null)
 const removingParticipantId = ref<number | null>(null)
 const deletingAnnouncementId = ref<number | null>(null)
 const deletingInstanceLeaseId = ref<number | null>(null)
@@ -692,6 +714,54 @@ const gameSettingsConfirmDescription = computed(() => {
   }
 
   return '这次保存会更新当前比赛的运行规则。请确认报名、公开性、分组和赛后策略都符合预期。'
+})
+const participantReviewConfirmRows = computed(() => {
+  const target = pendingParticipantReviewPayload.value
+  if (!target) {
+    return []
+  }
+
+  return [
+    { label: '目标队伍', value: target.teamName },
+    { label: '报名状态', value: `${getParticipantStatusLabel(target.currentStatus)} -> ${getParticipantStatusLabel(target.nextStatus)}` },
+    { label: '所属分组', value: `${target.currentDivision || '未分配'} -> ${target.nextDivision || '未分配'}` },
+    { label: '当前得分', value: `${target.score}` },
+    { label: '解题数量', value: `${target.solveCount}` },
+  ]
+})
+const participantReviewConfirmDescription = computed(() => {
+  const target = pendingParticipantReviewPayload.value
+  if (!target) {
+    return ''
+  }
+
+  if (target.currentStatus !== target.nextStatus) {
+    return '这次保存会立即更新当前队伍的报名审核结果。请确认审核结论和所属分组都已经核对。'
+  }
+
+  return '这次保存会更新当前队伍的报名信息。请确认所属分组和当前审核状态都符合预期。'
+})
+const writeupReviewConfirmRows = computed(() => {
+  const target = pendingWriteupReviewPayload.value
+  if (!target) {
+    return []
+  }
+
+  return [
+    { label: '目标队伍', value: target.teamName },
+    { label: '审核结果', value: `${getWriteupStatusLabel(target.currentStatus)} -> ${getWriteupStatusLabel(target.nextStatus)}` },
+    { label: '审核备注', value: target.remark.trim() || '未填写' },
+  ]
+})
+const writeupReviewConfirmDescription = computed(() => {
+  const target = pendingWriteupReviewPayload.value
+  if (!target) {
+    return ''
+  }
+
+  return target.nextStatus === 'approved'
+    ? '这次保存会将当前 Writeup 标记为通过。请确认审核备注和最终结论都已经核对。'
+    : '这次保存会将当前 Writeup 标记为驳回。请确认驳回结论与审核备注可以直接回传给队伍。'
 })
 
 function parseOptionalLocalDateTime(value: string) {
@@ -1862,31 +1932,60 @@ async function updateParticipantStatus(teamId: number) {
     return
   }
 
-  updatingParticipantId.value = teamId
-  try {
-    const status = participantStatusDrafts[teamId]
-    if (!status) {
-      toast.add({ title: '请先选择参赛状态', color: 'warning' })
-      return
-    }
+  const status = participantStatusDrafts[teamId]
+  if (!status) {
+    toast.add({ title: '请先选择参赛状态', color: 'warning' })
+    return
+  }
 
+  const participant = participants.value.find(item => item.team_id === teamId)
+  if (!participant) {
+    toast.add({ title: '未找到参赛队伍记录', color: 'error' })
+    return
+  }
+
+  pendingParticipantReviewPayload.value = {
+    teamId,
+    gameId: attachForm.game_id,
+    teamName: participant.team_name,
+    currentStatus: participant.status,
+    nextStatus: status,
+    currentDivision: participant.division || '',
+    nextDivision: participantDivisionDrafts[teamId] || '',
+    score: participant.score,
+    solveCount: participant.solve_count,
+  }
+  participantReviewConfirmModalOpen.value = true
+}
+
+async function confirmUpdateParticipantStatus() {
+  const target = pendingParticipantReviewPayload.value
+  if (!target) {
+    participantReviewConfirmModalOpen.value = false
+    return
+  }
+
+  updatingParticipantId.value = target.teamId
+  try {
     const updated = await $api('put', '/api/games/{id}/participants/{teamId}', {
       params: {
-        id: attachForm.game_id,
-        teamId,
+        id: target.gameId,
+        teamId: target.teamId,
       },
       body: {
-        status,
-        division: participantDivisionDrafts[teamId] || null,
+        status: target.nextStatus,
+        division: target.nextDivision || null,
       },
     })
 
-    const index = participants.value.findIndex(item => item.team_id === teamId)
+    const index = participants.value.findIndex(item => item.team_id === target.teamId)
     if (index >= 0) {
       participants.value[index] = updated
     }
-    participantStatusDrafts[teamId] = updated.status
-    participantDivisionDrafts[teamId] = updated.division || ''
+    participantStatusDrafts[target.teamId] = updated.status
+    participantDivisionDrafts[target.teamId] = updated.division || ''
+    participantReviewConfirmModalOpen.value = false
+    pendingParticipantReviewPayload.value = null
     toast.add({ title: '参赛状态已更新', color: 'success' })
   }
   catch (e: any) {
@@ -1944,31 +2043,63 @@ async function reviewWriteup(teamId: number) {
     return
   }
 
-  try {
-    const status = writeupReviewDrafts[teamId]
-    if (!status) {
-      toast.add({ title: '请先选择审核结果', color: 'warning' })
-      return
-    }
+  const status = writeupReviewDrafts[teamId]
+  if (!status) {
+    toast.add({ title: '请先选择审核结果', color: 'warning' })
+    return
+  }
 
+  const writeup = writeups.value.find(item => item.team_id === teamId)
+  if (!writeup) {
+    toast.add({ title: '未找到 Writeup 记录', color: 'error' })
+    return
+  }
+
+  pendingWriteupReviewPayload.value = {
+    teamId,
+    gameId: attachForm.game_id,
+    teamName: writeup.team_name,
+    currentStatus: writeup.status,
+    nextStatus: status,
+    remark: writeupRemarkDrafts[teamId] || '',
+  }
+  writeupReviewConfirmModalOpen.value = true
+}
+
+async function confirmReviewWriteup() {
+  const target = pendingWriteupReviewPayload.value
+  if (!target) {
+    writeupReviewConfirmModalOpen.value = false
+    return
+  }
+
+  reviewingWriteupId.value = target.teamId
+  try {
     const updated = await $api('put', '/api/admin/games/{id}/writeups/{teamId}', {
       params: {
-        id: attachForm.game_id,
-        teamId,
+        id: target.gameId,
+        teamId: target.teamId,
       },
       body: {
-        status,
-        remark: writeupRemarkDrafts[teamId] || '',
+        status: target.nextStatus,
+        remark: target.remark,
       },
     })
-    const index = writeups.value.findIndex(item => item.team_id === teamId)
+    const index = writeups.value.findIndex(item => item.team_id === target.teamId)
     if (index >= 0) {
       writeups.value[index] = updated as typeof writeups.value[number]
     }
+    writeupReviewDrafts[target.teamId] = updated.status === 'rejected' ? 'rejected' : 'approved'
+    writeupRemarkDrafts[target.teamId] = updated.review_remark || ''
+    writeupReviewConfirmModalOpen.value = false
+    pendingWriteupReviewPayload.value = null
     toast.add({ title: 'Writeup 审核已更新', color: 'success' })
   }
   catch (e: any) {
     toast.add({ title: 'Writeup 审核失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    reviewingWriteupId.value = null
   }
 }
 
@@ -5086,6 +5217,7 @@ onMounted(async () => {
                   <UButton
                     size="sm"
                     icon="i-lucide-file-check-2"
+                    :loading="reviewingWriteupId === writeup.team_id"
                     @click="reviewWriteup(writeup.team_id)"
                   >
                     保存审核
@@ -6173,6 +6305,84 @@ onMounted(async () => {
       </UButton>
       <UButton icon="i-lucide-file-up" :loading="importingGame" @click="importGamePackage">
         导入比赛
+      </UButton>
+    </template>
+  </UModal>
+
+  <UModal
+    v-model:open="participantReviewConfirmModalOpen"
+    title="确认更新报名状态"
+    :description="participantReviewConfirmDescription"
+    :dismissible="!updatingParticipantId"
+    :ui="{ footer: 'justify-end' }"
+  >
+    <template #body>
+      <div class="rounded-lg border border-default px-3 py-3 text-sm">
+        <div
+          v-for="row in participantReviewConfirmRows"
+          :key="row.label"
+          class="flex items-center justify-between gap-3 py-2"
+        >
+          <span class="text-muted">{{ row.label }}</span>
+          <span class="text-right">{{ row.value }}</span>
+        </div>
+      </div>
+    </template>
+
+    <template #footer>
+      <UButton
+        variant="outline"
+        color="neutral"
+        :disabled="!!updatingParticipantId"
+        @click="participantReviewConfirmModalOpen = false; pendingParticipantReviewPayload = null"
+      >
+        取消
+      </UButton>
+      <UButton
+        icon="i-lucide-check-check"
+        :loading="!!updatingParticipantId"
+        @click="confirmUpdateParticipantStatus"
+      >
+        确认保存
+      </UButton>
+    </template>
+  </UModal>
+
+  <UModal
+    v-model:open="writeupReviewConfirmModalOpen"
+    title="确认保存 Writeup 审核"
+    :description="writeupReviewConfirmDescription"
+    :dismissible="!reviewingWriteupId"
+    :ui="{ footer: 'justify-end' }"
+  >
+    <template #body>
+      <div class="rounded-lg border border-default px-3 py-3 text-sm">
+        <div
+          v-for="row in writeupReviewConfirmRows"
+          :key="row.label"
+          class="flex items-center justify-between gap-3 py-2"
+        >
+          <span class="text-muted">{{ row.label }}</span>
+          <span class="text-right whitespace-pre-wrap break-all">{{ row.value }}</span>
+        </div>
+      </div>
+    </template>
+
+    <template #footer>
+      <UButton
+        variant="outline"
+        color="neutral"
+        :disabled="!!reviewingWriteupId"
+        @click="writeupReviewConfirmModalOpen = false; pendingWriteupReviewPayload = null"
+      >
+        取消
+      </UButton>
+      <UButton
+        icon="i-lucide-file-check-2"
+        :loading="!!reviewingWriteupId"
+        @click="confirmReviewWriteup"
+      >
+        确认保存
       </UButton>
     </template>
   </UModal>
