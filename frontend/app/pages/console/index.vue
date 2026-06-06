@@ -600,8 +600,8 @@ onMounted(async () => {
         color="warning"
         variant="soft"
         icon="i-lucide-key-round"
-        title="请尽快更新默认管理员密码"
-        description="当前管理员账号仍在使用首次启动时的默认口令。请先前往账号安全页修改密码，再继续长期使用管理端。"
+        title="请尽快更新管理员密码"
+        description="当前管理员账号仍在使用高风险口令。请先前往账号安全页修改密码，再继续长期使用管理端。"
       >
         <template #actions>
           <UButton

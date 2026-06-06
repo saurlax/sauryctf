@@ -2228,7 +2228,7 @@ onMounted(async () => {
           icon="i-lucide-file-question"
           title="当前还没有可浏览的题目"
           :description="authState.user
-            ? '如果这场比赛已经开赛但仍然没有题目，建议先回到概览区确认比赛状态或联系管理员继续配置。'
+            ? '如果这场比赛已经开赛但仍然没有题目，建议先回到概览区确认比赛状态，或联系管理员核对题目发布情况。'
             : '当前可以先浏览比赛信息和排行榜；题目开放后，这里会展示对应分类和题目列表。'"
           :actions="[
             {
@@ -2955,25 +2955,29 @@ onMounted(async () => {
       </UEmpty>
     </template>
 
-    <UModal v-model:open="confirmModalOpen" :title="confirmAction.title" :description="confirmAction.description">
+    <UModal
+      v-model:open="confirmModalOpen"
+      :title="confirmAction.title"
+      :description="confirmAction.description"
+      :dismissible="!confirmActionLoading"
+      :ui="{ description: 'whitespace-pre-wrap', footer: 'justify-end' }"
+    >
       <template #footer>
-        <div class="flex w-full justify-end gap-2">
-          <UButton
-            color="neutral"
-            variant="outline"
-            :disabled="confirmActionLoading"
-            @click="confirmModalOpen = false; resetConfirmAction()"
-          >
-            取消
-          </UButton>
-          <UButton
-            :color="confirmAction.color"
-            :loading="confirmActionLoading"
-            @click="executeConfirmAction"
-          >
-            {{ confirmAction.confirmLabel }}
-          </UButton>
-        </div>
+        <UButton
+          color="neutral"
+          variant="outline"
+          :disabled="confirmActionLoading"
+          @click="confirmModalOpen = false; resetConfirmAction()"
+        >
+          取消
+        </UButton>
+        <UButton
+          :color="confirmAction.color"
+          :loading="confirmActionLoading"
+          @click="executeConfirmAction"
+        >
+          {{ confirmAction.confirmLabel }}
+        </UButton>
       </template>
     </UModal>
   </UContainer>
