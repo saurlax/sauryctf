@@ -1831,6 +1831,20 @@ const writeupRuleItems = computed(() => [
     : '重复提交会覆盖当前内容，并重新进入 submitted 状态等待审核。',
   'Writeup 审核结果由管理员在管理端更新，审核备注会直接展示在本页。',
 ])
+const writeupStatusRows = computed(() => [
+  {
+    label: '当前状态',
+    value: writeupStatusLabel.value,
+  },
+  {
+    label: '提交时间',
+    value: writeup?.value?.submitted_at ? new Date(writeup.value.submitted_at).toLocaleString() : '未提交',
+  },
+  {
+    label: '审核时间',
+    value: writeup?.value?.reviewed_at ? new Date(writeup.value.reviewed_at).toLocaleString() : '未审核',
+  },
+])
 
 const canEditWriteup = computed(() => !!writeup.value?.can_submit)
 
@@ -3002,19 +3016,16 @@ onMounted(async () => {
             <div class="space-y-6">
               <UPageCard title="审核状态" icon="i-lucide-file-check">
                 <div class="space-y-3 text-sm">
-                  <div class="flex items-center justify-between gap-3">
-                    <span class="text-muted">当前状态</span>
-                    <UBadge :color="writeupStatusColor" variant="soft">
-                      {{ writeupStatusLabel }}
+                  <div
+                    v-for="row in writeupStatusRows"
+                    :key="row.label"
+                    class="flex items-center justify-between gap-3 rounded-md bg-elevated/60 px-3 py-2"
+                  >
+                    <span class="text-muted">{{ row.label }}</span>
+                    <UBadge v-if="row.label === '当前状态'" :color="writeupStatusColor" variant="soft">
+                      {{ row.value }}
                     </UBadge>
-                  </div>
-                  <div class="flex items-center justify-between gap-3">
-                    <span class="text-muted">提交时间</span>
-                    <span class="text-right">{{ writeup?.submitted_at ? new Date(writeup.submitted_at).toLocaleString() : '未提交' }}</span>
-                  </div>
-                  <div class="flex items-center justify-between gap-3">
-                    <span class="text-muted">审核时间</span>
-                    <span class="text-right">{{ writeup?.reviewed_at ? new Date(writeup.reviewed_at).toLocaleString() : '未审核' }}</span>
+                    <span v-else class="text-right">{{ row.value }}</span>
                   </div>
                   <div class="rounded-lg border border-default px-3 py-3">
                     <div class="text-muted">审核备注</div>
@@ -3034,14 +3045,14 @@ onMounted(async () => {
               </UPageCard>
 
               <UPageCard title="提交要求" icon="i-lucide-list-checks">
-                <div class="space-y-3 text-sm text-muted">
-                  <p
+                <div class="space-y-3 text-sm">
+                  <div
                     v-for="(item, index) in writeupRuleItems"
                     :key="`${index}-${item}`"
-                    class="leading-6"
+                    class="rounded-md bg-elevated/60 px-3 py-3 text-muted leading-6"
                   >
                     {{ index + 1 }}. {{ item }}
-                  </p>
+                  </div>
                 </div>
               </UPageCard>
             </div>
