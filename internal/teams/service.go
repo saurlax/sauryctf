@@ -135,7 +135,15 @@ func (s *Service) LeaveTeam(teamID, userID uint) error {
 		return errors.New("captain cannot leave the team")
 	}
 
-	return s.db.Where("team_id = ? AND user_id = ?", teamID, userID).Delete(&models.TeamMember{}).Error
+	result := s.db.Where("team_id = ? AND user_id = ?", teamID, userID).Delete(&models.TeamMember{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("user is not a member of this team")
+	}
+
+	return nil
 }
 
 func (s *Service) GetUserTeam(userID uint) (*TeamView, error) {
@@ -177,7 +185,15 @@ func (s *Service) RemoveMember(teamID, memberID, requesterID uint) error {
 		return errors.New("captain cannot remove themselves")
 	}
 
-	return s.db.Where("team_id = ? AND user_id = ?", teamID, memberID).Delete(&models.TeamMember{}).Error
+	result := s.db.Where("team_id = ? AND user_id = ?", teamID, memberID).Delete(&models.TeamMember{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("target user is not a team member")
+	}
+
+	return nil
 }
 
 func (s *Service) TransferCaptain(teamID, targetUserID, requesterID uint) error {

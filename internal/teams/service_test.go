@@ -222,6 +222,13 @@ func TestLeaveTeam(t *testing.T) {
 		err = svc.LeaveTeam(finishedTeam.ID, finishedMember.ID)
 		assert.NoError(t, err)
 	})
+
+	t.Run("non-member cannot leave through another team id", func(t *testing.T) {
+		outsider := createTestUser(t, database, "leave-outsider")
+		err := svc.LeaveTeam(team.ID, outsider.ID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not a member of this team")
+	})
 }
 
 func TestGetUserTeam(t *testing.T) {
@@ -341,6 +348,13 @@ func TestRemoveMember(t *testing.T) {
 
 		err = svc.RemoveMember(finishedTeam.ID, finishedMember.ID, finishedCaptain.ID)
 		assert.NoError(t, err)
+	})
+
+	t.Run("captain cannot remove non-member target", func(t *testing.T) {
+		outsider := createTestUser(t, database, "remove-outsider")
+		err := svc.RemoveMember(team.ID, outsider.ID, captain.ID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not a team member")
 	})
 }
 
