@@ -183,24 +183,7 @@ const teamEntryGuideMeta = computed(() => {
     secondaryTo: '/console',
   }
 })
-const teamEntrySummaryRows = computed(() => [
-  {
-    label: '当前目标',
-    value: joinInviteFromRoute.value ? '加入现有队伍' : '创建或加入队伍',
-  },
-  {
-    label: '邀请码状态',
-    value: joinInviteFromRoute.value ? '已自动带入' : '等待输入',
-  },
-  {
-    label: '比赛返回',
-    value: contestRedirect.value ? '完成后自动返回原比赛' : '完成后可继续浏览比赛',
-  },
-  {
-    label: '队伍权限',
-    value: '创建者自动成为队长',
-  },
-])
+const teamEntryNoticeMeta = computed(() => inviteFlowMeta.value || teamEntryGuideMeta.value)
 
 const teamNextStepMeta = computed(() => {
   if (!team.value) {
@@ -914,64 +897,35 @@ onMounted(async () => {
     </template>
 
     <template v-else>
-      <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_320px]">
-        <div v-if="inviteFlowMeta" class="xl:col-span-3">
-          <UAlert
-            :color="inviteFlowMeta.color"
-            variant="soft"
-            :icon="inviteFlowMeta.icon"
-            :title="inviteFlowMeta.title"
-            :description="inviteFlowMeta.description"
-          >
-            <template #actions>
-              <div class="flex flex-wrap gap-2">
-                <UButton
-                  :label="inviteFlowMeta.actionLabel"
-                  :color="inviteFlowMeta.color"
-                  variant="outline"
-                  size="sm"
-                  :to="inviteFlowMeta.actionTo"
-                />
-                <UButton
-                  v-if="inviteFlowMeta.secondaryLabel && inviteFlowMeta.secondaryTo"
-                  :label="inviteFlowMeta.secondaryLabel"
-                  variant="ghost"
-                  size="sm"
-                  :to="inviteFlowMeta.secondaryTo"
-                />
-              </div>
-            </template>
-          </UAlert>
-        </div>
-        <div class="xl:col-span-2">
-          <UAlert
-            :color="teamEntryGuideMeta.color"
-            variant="soft"
-            :icon="teamEntryGuideMeta.icon"
-            :title="teamEntryGuideMeta.title"
-            :description="teamEntryGuideMeta.description"
-          >
-            <template #actions>
-              <div class="flex flex-wrap gap-2">
-                <UButton
-                  size="sm"
-                  :to="teamEntryGuideMeta.actionTo"
-                  :label="teamEntryGuideMeta.actionLabel"
-                  variant="outline"
-                />
-                <UButton
-                  v-if="teamEntryGuideMeta.secondaryLabel && teamEntryGuideMeta.secondaryTo"
-                  size="sm"
-                  :to="teamEntryGuideMeta.secondaryTo"
-                  :label="teamEntryGuideMeta.secondaryLabel"
-                  variant="ghost"
-                />
-              </div>
-            </template>
-          </UAlert>
-        </div>
+      <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
         <UPageCard title="队伍入口" icon="i-lucide-users">
           <div class="space-y-4">
+            <UAlert
+              :color="teamEntryNoticeMeta.color"
+              variant="soft"
+              :icon="teamEntryNoticeMeta.icon"
+              :title="teamEntryNoticeMeta.title"
+              :description="teamEntryNoticeMeta.description"
+            >
+              <template #actions>
+                <div class="flex flex-wrap gap-2">
+                  <UButton
+                    size="sm"
+                    :to="teamEntryNoticeMeta.actionTo"
+                    :label="teamEntryNoticeMeta.actionLabel"
+                    variant="outline"
+                  />
+                  <UButton
+                    v-if="teamEntryNoticeMeta.secondaryLabel && teamEntryNoticeMeta.secondaryTo"
+                    size="sm"
+                    :to="teamEntryNoticeMeta.secondaryTo"
+                    :label="teamEntryNoticeMeta.secondaryLabel"
+                    variant="ghost"
+                  />
+                </div>
+              </template>
+            </UAlert>
+
             <div class="flex flex-wrap gap-2">
               <UButton icon="i-lucide-plus" @click="createTeamModalOpen = true">
                 创建队伍
@@ -980,24 +934,6 @@ onMounted(async () => {
                 加入队伍
               </UButton>
             </div>
-
-            <div class="space-y-3 rounded-lg border border-default px-3 py-3">
-              <div class="font-medium">
-                当前入口状态
-              </div>
-              <div
-                v-for="row in teamEntrySummaryRows"
-                :key="row.label"
-                class="flex items-center justify-between gap-3 rounded-md bg-elevated/60 px-3 py-2 text-sm"
-              >
-                <span class="text-muted">{{ row.label }}</span>
-                <span class="text-right">{{ row.value }}</span>
-              </div>
-            </div>
-
-            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted leading-6">
-              比赛报名、Flag 提交和排行榜都按队伍进行。完成创建或加入后，可直接返回比赛页继续后续操作。
-            </div>
           </div>
           <template #footer>
             <div class="flex flex-wrap items-center gap-2">
@@ -1005,6 +941,12 @@ onMounted(async () => {
               <UButton label="回到控制台" variant="outline" icon="i-lucide-layout-dashboard" to="/console" />
             </div>
           </template>
+        </UPageCard>
+
+        <UPageCard title="队伍规则" icon="i-lucide-shield-check">
+          <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted leading-6">
+            比赛报名、Flag 提交和排行榜都按队伍进行。创建者自动成为队长；完成创建或加入后，可直接返回比赛页继续后续操作。
+          </div>
         </UPageCard>
       </div>
     </template>

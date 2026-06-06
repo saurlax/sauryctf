@@ -98,6 +98,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - If a page already has modal-based create/edit flows, do not keep a second full inline version of the same form in the main page body unless there is a clear operational reason.
 - User-facing page copy should stay formal and product-oriented; avoid temporary notes, onboarding-style placeholders, and testing slang in visible UI text.
 - Public pages, login/register pages, and console home should not carry setup-wizard or initialization-style panels. Empty-state handling should stay minimal and operational.
+- The no-team view at `/console/team` should keep a single primary entry card plus one concise rules/boundary card; avoid stacking multiple alerts and repeated status summaries for the same create/join flow.
 - Admin-visible page copy should also avoid temporary operator phrasing such as `使用说明` or `快速开始`; prefer formal maintenance labels like `录入约定`, `检查项`, and `概览`.
 - The top-right guest navigation keeps two distinct actions, `登录` and `注册`; do not collapse them into a merged auth button.
 - Account-related status cards should avoid `当前状态：...`-style headings; prefer direct operational titles.
