@@ -1616,60 +1616,55 @@ const divisionRuleDescription = computed(() => {
   return `当前比赛配置了 ${availableDivisions.value.length} 个分组。报名后会先建立参赛记录，随后由管理员按需要分配到具体分组。`
 })
 
-const registrationStepCards = computed(() => [
+const registrationStatusRows = computed(() => [
   {
     label: '账号状态',
-    value: authState.user ? '已登录' : '未登录',
-    hint: authState.user ? `当前账号：${authState.user.username}` : '登录后显示你的报名状态',
-    icon: authState.user ? 'i-lucide-check-circle-2' : 'i-lucide-log-in',
-    color: authState.user ? 'success' as const : 'neutral' as const,
+    value: authState.user ? (authState.user.username ? `已登录 · ${authState.user.username}` : '已登录') : '未登录',
   },
   {
     label: '队伍状态',
-    value: participation.value?.has_team ? '已加入' : '未加入',
-    hint: participation.value?.team?.name ? `当前队伍：${participation.value.team.name}` : '当前比赛按队伍参赛',
-    icon: participation.value?.has_team ? 'i-lucide-users-round' : 'i-lucide-users',
-    color: participation.value?.has_team ? 'success' as const : 'warning' as const,
+    value: participation.value?.has_team
+      ? (participation.value?.team?.name ? `已加入 · ${participation.value.team.name}` : '已加入')
+      : '未加入',
   },
   {
     label: '报名状态',
     value: participation.value?.participated
       ? (participation.value.status === 'accepted' ? '已通过' : participation.value.status === 'pending' ? '待审核' : '已拒绝')
       : '待完成',
-    hint: participation.value?.participated
-      ? (
-          participation.value.status === 'accepted'
-            ? '当前队伍已具备参赛资格'
-            : participation.value.status === 'pending'
-              ? '等待管理员审核'
-              : '可撤回后重新提交'
-        )
-      : (game.value?.registration_mode === 'auto_accept' ? '报名后直接通过' : '报名后进入审核'),
-    icon: participation.value?.status === 'accepted'
-      ? 'i-lucide-badge-check'
-      : participation.value?.status === 'pending'
-        ? 'i-lucide-hourglass'
-        : participation.value?.status === 'rejected'
-          ? 'i-lucide-badge-x'
-          : 'i-lucide-clipboard-check',
-    color: participation.value?.status === 'accepted'
-      ? 'success' as const
-      : participation.value?.status === 'pending'
-        ? 'warning' as const
-        : participation.value?.status === 'rejected'
-          ? 'error' as const
-          : 'info' as const,
   },
   {
     label: '提交权限',
-    value: canSubmitFlag.value ? '已开放' : '未开放',
-    hint: canSubmitFlag.value
-      ? (publicGamePhase.value === 'ended' ? '当前为赛后练习提交' : '当前可直接提交 Flag')
-      : submitHint.value,
-    icon: canSubmitFlag.value ? 'i-lucide-flag' : 'i-lucide-lock',
-    color: canSubmitFlag.value ? 'success' as const : 'neutral' as const,
+    value: canSubmitFlag.value ? (publicGamePhase.value === 'ended' ? '练习已开放' : '已开放') : '未开放',
   },
 ])
+const registrationStatusHint = computed(() => {
+  if (!authState.user) {
+    return '登录后会同步当前账号、队伍和报名状态。'
+  }
+
+  if (!participation.value?.has_team) {
+    return '当前比赛按队伍参赛，准备队伍后即可继续处理报名。'
+  }
+
+  if (!participation.value?.participated) {
+    return game.value?.registration_mode === 'auto_accept'
+      ? '当前报名提交后会直接通过。'
+      : '当前报名提交后会进入待审核状态。'
+  }
+
+  if (participation.value.status === 'pending') {
+    return '当前队伍报名记录已建立，等待管理员审核即可。'
+  }
+
+  if (participation.value.status === 'rejected') {
+    return '当前报名未通过，可退出后重新提交。'
+  }
+
+  return canSubmitFlag.value
+    ? (publicGamePhase.value === 'ended' ? '当前队伍可按练习模式继续提交。' : '当前队伍已具备正式参赛资格。')
+    : submitHint.value
+})
 const contestInfoRows = computed(() => [
   {
     label: '比赛阶段',
@@ -2275,27 +2270,19 @@ onMounted(async () => {
             <UPageCard title="参赛状态" icon="i-lucide-route">
               <div class="space-y-3 text-sm">
                 <div
-                  v-for="card in registrationStepCards"
-                  :key="card.label"
-                  class="rounded-lg border border-default px-3 py-3"
+                  v-for="row in registrationStatusRows"
+                  :key="row.label"
+                  class="flex items-center justify-between gap-3 rounded-md bg-elevated/60 px-3 py-2"
                 >
-                  <div class="flex items-start justify-between gap-3">
-                    <div>
-                      <div class="text-muted">
-                        {{ card.label }}
-                      </div>
-                      <div class="mt-1 font-medium">
-                        {{ card.value }}
-                      </div>
-                    </div>
-                    <UBadge :color="card.color" variant="subtle" size="sm">
-                      {{ card.label }}
-                    </UBadge>
-                  </div>
-                  <p class="mt-2 text-xs text-muted leading-6">
-                    {{ card.hint }}
-                  </p>
+                  <span class="text-muted">{{ row.label }}</span>
+                  <span class="text-right">{{ row.value }}</span>
                 </div>
+                <UAlert
+                  color="neutral"
+                  variant="soft"
+                  title="当前说明"
+                  :description="registrationStatusHint"
+                />
               </div>
             </UPageCard>
 
