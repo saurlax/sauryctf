@@ -403,58 +403,73 @@ function getSubmissionResultMeta(result: AdminSubmissionEntry['result']) {
 
 const primaryPendingEntry = computed(() => myGameEntries.value[0] || null)
 
-const statusItems = computed(() => {
-  const items = [
+const consoleSummaryRows = computed(() => {
+  const joinedGame = myGameEntries.value.find(entry => entry.participation?.participated)
+  const writeupGame = pendingWriteupGames.value[0]
+
+  return [
     {
-      key: 'team',
-      title: '准备队伍',
-      description: team.value
-        ? `当前队伍：${team.value.name}`
-        : '创建队伍或通过邀请码加入队伍后，即可报名参赛。',
-      done: Boolean(team.value),
-      buttonLabel: team.value ? '管理队伍' : '去队伍页',
-      buttonTo: '/console/team',
-      buttonVariant: team.value ? 'outline' as const : 'solid' as const,
+      label: '队伍状态',
+      value: team.value ? team.value.name : '未加入队伍',
+    },
+    {
+      label: '当前比赛',
+      value: joinedGame ? joinedGame.game.name : team.value ? '还未关联比赛' : '准备队伍后可继续报名',
+    },
+    {
+      label: '当前待办',
+      value: writeupGame
+        ? `${writeupGame.name} 需要补交 Writeup`
+        : primaryPendingEntry.value
+          ? primaryPendingEntry.value.meta.label
+          : '当前没有紧急待办',
     },
   ]
+})
 
-  const joinedGame = myGameEntries.value.find(entry => entry.participation?.participated)
-  items.push({
-    key: 'game',
-    title: '选择比赛',
-    description: joinedGame
-      ? `已关联比赛：${joinedGame.game.name}`
-      : team.value
-        ? '可前往公开比赛页处理报名。'
-        : '准备好队伍后，再前往公开比赛页选择目标比赛。',
-    done: Boolean(joinedGame),
-    buttonLabel: joinedGame ? '查看比赛' : '浏览比赛',
-    buttonTo: joinedGame ? `/games/${joinedGame.game.id}` : '/games',
-    buttonVariant: joinedGame ? 'outline' as const : 'solid' as const,
-  })
-
+const consoleNextActionMeta = computed(() => {
   const writeupGame = pendingWriteupGames.value[0]
-  items.push({
-    key: 'writeup',
-    title: '处理当前待办',
-    description: writeupGame
-      ? `${writeupGame.name} 需要补交 Writeup。`
-      : primaryPendingEntry.value
-        ? `${primaryPendingEntry.value.meta.label}：${primaryPendingEntry.value.meta.description}`
-        : '新的报名、审核或 Writeup 待办会显示在这里。',
-    done: !writeupGame && !primaryPendingEntry.value,
-    buttonLabel: writeupGame
-      ? '去补交'
-      : primaryPendingEntry.value
-        ? primaryPendingEntry.value.meta.actionLabel
-        : '查看控制台',
-    buttonTo: writeupGame
-      ? `/games/${writeupGame.id}`
-      : primaryPendingEntry.value?.meta.actionTo || '/console',
-    buttonVariant: writeupGame ? 'solid' as const : 'outline' as const,
-  })
+  if (writeupGame) {
+    return {
+      title: '需要补交 Writeup',
+      description: `${writeupGame.name} 当前仍需补交 Writeup，请优先回到比赛详情页继续处理。`,
+      color: 'warning' as const,
+      buttonLabel: '前往补交',
+      buttonTo: `/games/${writeupGame.id}`,
+      buttonVariant: 'solid' as const,
+    }
+  }
 
-  return items
+  if (!team.value) {
+    return {
+      title: '需要先准备队伍',
+      description: '创建队伍或通过邀请码加入队伍后，才能继续报名、启动实例和提交题目。',
+      color: 'warning' as const,
+      buttonLabel: '去队伍页',
+      buttonTo: '/console/team',
+      buttonVariant: 'solid' as const,
+    }
+  }
+
+  if (primaryPendingEntry.value) {
+    return {
+      title: primaryPendingEntry.value.meta.label,
+      description: primaryPendingEntry.value.meta.description,
+      color: primaryPendingEntry.value.meta.color,
+      buttonLabel: primaryPendingEntry.value.meta.actionLabel,
+      buttonTo: primaryPendingEntry.value.meta.actionTo,
+      buttonVariant: 'outline' as const,
+    }
+  }
+
+  return {
+    title: '可继续浏览比赛',
+    description: '当前队伍和公开比赛入口都已就绪，可继续查看比赛详情、公告和榜单。',
+    color: 'success' as const,
+    buttonLabel: '浏览比赛',
+    buttonTo: '/games',
+    buttonVariant: 'outline' as const,
+  }
 })
 
 function getParticipationPriority(game: GameSummary, participation: GameParticipation | undefined) {
@@ -739,43 +754,34 @@ onBeforeUnmount(() => {
             </div>
           </UPageCard>
 
-          <UPageCard title="当前状态" icon="i-lucide-list-checks">
+          <UPageCard title="当前概览" icon="i-lucide-list-checks">
             <div class="space-y-3">
-              <div
-                v-for="item in statusItems"
-                :key="item.key"
-                class="rounded-lg border border-default px-3 py-3"
-              >
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <div class="flex items-center gap-2">
-                      <UIcon
-                        :name="item.done ? 'i-lucide-circle-check-big' : 'i-lucide-arrow-right-circle'"
-                        :class="item.done ? 'text-success' : 'text-primary'"
-                        class="size-4 shrink-0"
-                      />
-                      <div class="font-medium">
-                        {{ item.title }}
-                      </div>
-                    </div>
-                    <div class="mt-2 text-sm text-muted">
-                      {{ item.description }}
-                    </div>
-                  </div>
-                  <UBadge :color="item.done ? 'success' : 'warning'" variant="soft">
-                    {{ item.done ? '已就绪' : '待处理' }}
-                  </UBadge>
-                </div>
-
-                <div class="mt-3 flex justify-end">
-                  <UButton
-                    size="sm"
-                    :variant="item.buttonVariant"
-                    :to="item.buttonTo"
-                    :label="item.buttonLabel"
-                  />
+              <div class="rounded-lg border border-default px-3 py-3 text-sm">
+                <div
+                  v-for="row in consoleSummaryRows"
+                  :key="row.label"
+                  class="flex items-center justify-between gap-3 py-2"
+                >
+                  <span class="text-muted">{{ row.label }}</span>
+                  <span class="text-right">{{ row.value }}</span>
                 </div>
               </div>
+
+              <UAlert
+                :color="consoleNextActionMeta.color"
+                variant="soft"
+                :title="consoleNextActionMeta.title"
+                :description="consoleNextActionMeta.description"
+              >
+                <template #actions>
+                  <UButton
+                    size="sm"
+                    :variant="consoleNextActionMeta.buttonVariant"
+                    :to="consoleNextActionMeta.buttonTo"
+                    :label="consoleNextActionMeta.buttonLabel"
+                  />
+                </template>
+              </UAlert>
             </div>
           </UPageCard>
 
