@@ -3086,9 +3086,19 @@ onMounted(async () => {
                   </div>
                 </div>
               </div>
-              <div v-else class="text-sm text-muted">
-                当前还没有公告。
-              </div>
+              <UEmpty
+                v-else
+                icon="i-lucide-megaphone"
+                title="当前还没有公告"
+                description="这场比赛还没有发布赛时通知。建议至少补一条开赛提醒、规则补充或维护公告，方便参赛队伍同步状态。"
+                :actions="[{
+                  label: '去公告区',
+                  icon: 'i-lucide-send',
+                  color: 'neutral',
+                  variant: 'outline',
+                  onClick: () => { activeMonitorTab = 'ops' },
+                }]"
+              />
             </div>
 
             <div class="rounded-lg border border-default px-3 py-3">
@@ -3114,9 +3124,19 @@ onMounted(async () => {
                   </div>
                 </div>
               </div>
-              <div v-else class="text-sm text-muted">
-                当前没有待审核报名。
-              </div>
+              <UEmpty
+                v-else
+                icon="i-lucide-hourglass"
+                title="当前没有待审核报名"
+                description="所有报名申请都已经处理完毕。新的报名提交后，会自动出现在这里。"
+                :actions="[{
+                  label: '查看参赛队伍',
+                  icon: 'i-lucide-users',
+                  color: 'neutral',
+                  variant: 'outline',
+                  onClick: () => jumpToAdminAnchor('#participants'),
+                }]"
+              />
             </div>
 
             <div class="rounded-lg border border-default px-3 py-3">
@@ -3142,9 +3162,19 @@ onMounted(async () => {
                   </div>
                 </div>
               </div>
-              <div v-else class="text-sm text-muted">
-                当前没有待审 Writeup。
-              </div>
+              <UEmpty
+                v-else
+                icon="i-lucide-file-check"
+                title="当前没有待审 Writeup"
+                description="当前没有等待管理员处理的 Writeup。新的提交完成后，会自动出现在这里。"
+                :actions="[{
+                  label: '打开 Writeup 审核',
+                  icon: 'i-lucide-file-text',
+                  color: 'neutral',
+                  variant: 'outline',
+                  onClick: () => jumpToAdminAnchor('#writeups'),
+                }]"
+              />
             </div>
 
             <div class="rounded-lg border border-default px-3 py-3 xl:col-span-3">
@@ -3242,9 +3272,19 @@ onMounted(async () => {
               <div v-else-if="loadingInstances" class="text-sm text-muted">
                 正在加载实例租约...
               </div>
-              <div v-else class="text-sm text-muted">
-                当前比赛还没有运行中的动态实例租约。
-              </div>
+              <UEmpty
+                v-else
+                icon="i-lucide-box"
+                title="当前还没有实例租约"
+                description="当前比赛下还没有运行中的动态实例。等队伍启动实例后，这里会显示租约状态、入口和到期时间。"
+                :actions="[{
+                  label: '打开公开页',
+                  icon: 'i-lucide-arrow-up-right',
+                  to: selectedAdminOverview ? `/games/${selectedAdminOverview.game.id}` : '/games',
+                  color: 'neutral',
+                  variant: 'outline',
+                }]"
+              />
             </div>
           </div>
 
@@ -4272,9 +4312,19 @@ onMounted(async () => {
               </div>
             </div>
 
-            <div v-else-if="selectedGame && !loadingGameChallenges" class="text-sm text-muted">
-              这个比赛还没有挂载题目。
-            </div>
+            <UEmpty
+              v-else-if="selectedGame && !loadingGameChallenges"
+              icon="i-lucide-link"
+              title="这场比赛还没有挂载题目"
+              description="先把现有题目挂到当前比赛，公开页里才会开始出现可见题目和分题统计。"
+              :actions="[{
+                label: '继续挂题',
+                icon: 'i-lucide-plus',
+                color: 'neutral',
+                variant: 'outline',
+                onClick: () => jumpToAdminAnchor('#attach-challenge'),
+              }]"
+            />
           </div>
         </UPageCard>
 
@@ -4307,7 +4357,7 @@ onMounted(async () => {
             </div>
           </UPageCard>
 
-          <UPageCard title="参赛队伍" icon="i-lucide-users">
+          <UPageCard title="参赛队伍" icon="i-lucide-users" id="participants">
             <div v-if="selectedGame" class="mb-3 text-sm text-muted">
               {{ selectedGame.name }} · {{ loadingParticipants ? '正在加载队伍...' : `${participants.length} 支队伍` }}
             </div>
@@ -4383,12 +4433,22 @@ onMounted(async () => {
               </div>
             </div>
 
-            <div v-else-if="selectedGame && !loadingParticipants" class="text-sm text-muted">
-              这场比赛还没有参赛队伍。
-            </div>
+            <UEmpty
+              v-else-if="selectedGame && !loadingParticipants"
+              icon="i-lucide-users"
+              title="这场比赛还没有参赛队伍"
+              description="当前还没有队伍完成报名或通过审核。可以先用普通账号走一遍建队、报名和审核流程。"
+              :actions="[{
+                label: '打开公开页',
+                icon: 'i-lucide-arrow-up-right',
+                to: selectedGame ? `/games/${selectedGame.id}` : '/games',
+                color: 'neutral',
+                variant: 'outline',
+              }]"
+            />
           </UPageCard>
 
-          <UPageCard title="Writeup 审核" icon="i-lucide-file-check">
+          <UPageCard title="Writeup 审核" icon="i-lucide-file-check" id="writeups">
             <div v-if="selectedGame" class="mb-3 flex items-center justify-between gap-3">
               <div class="text-sm text-muted">
                 {{ selectedGame.name }} · {{ writeups.length }} 份 Writeup
@@ -4464,9 +4524,19 @@ onMounted(async () => {
               </div>
             </div>
 
-            <div v-else-if="selectedGame" class="text-sm text-muted">
-              这场比赛还没有队伍提交 Writeup。
-            </div>
+            <UEmpty
+              v-else-if="selectedGame"
+              icon="i-lucide-file-check"
+              title="这场比赛还没有队伍提交 Writeup"
+              description="当前还没有收到任何 Writeup。开启 Writeup 要求并进入赛后阶段后，这里会开始出现待审核内容。"
+              :actions="[{
+                label: '去比赛设置',
+                icon: 'i-lucide-sliders-horizontal',
+                onClick: () => jumpToAdminAnchor('#game-settings'),
+                color: 'neutral',
+                variant: 'outline',
+              }]"
+            />
           </UPageCard>
 
           <UPageCard title="比赛公告" icon="i-lucide-megaphone">
@@ -4532,13 +4602,16 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <div v-else-if="!loadingAnnouncements" class="text-sm text-muted">
-                当前还没有比赛公告。
-              </div>
+              <UEmpty
+                v-else-if="!loadingAnnouncements"
+                icon="i-lucide-megaphone"
+                title="当前还没有比赛公告"
+                description="这场比赛还没有对外发布通知。你可以在上方直接补充开赛提醒、规则变更或维护说明。"
+              />
             </div>
           </UPageCard>
 
-          <UPageCard title="最近提交" icon="i-lucide-logs">
+          <UPageCard title="最近提交" icon="i-lucide-logs" id="submissions">
             <div v-if="selectedGame" class="mb-3 flex items-center justify-between gap-3">
               <div class="text-sm text-muted">
                 {{ selectedGame.name }} · {{ loadingSubmissions ? '正在加载提交记录...' : `最近 ${submissions.length} 条` }}
@@ -4602,9 +4675,19 @@ onMounted(async () => {
               </div>
             </div>
 
-            <div v-else-if="selectedGame && !loadingSubmissions" class="text-sm text-muted">
-              这场比赛还没有提交记录。
-            </div>
+            <UEmpty
+              v-else-if="selectedGame && !loadingSubmissions"
+              icon="i-lucide-logs"
+              title="这场比赛还没有提交记录"
+              description="当前还没有队伍提交题目。等比赛开始并产生提交后，这里会同步显示最新记录。"
+              :actions="[{
+                label: '查看公开页',
+                icon: 'i-lucide-arrow-up-right',
+                to: selectedGame ? `/games/${selectedGame.id}` : '/games',
+                color: 'neutral',
+                variant: 'outline',
+              }]"
+            />
           </UPageCard>
 
           <UPageCard title="可疑提交线索" icon="i-lucide-shield-alert">
@@ -4653,9 +4736,19 @@ onMounted(async () => {
               </div>
             </div>
 
-            <div v-else-if="selectedGame && !loadingCheatClues" class="text-sm text-muted">
-              当前还没有发现跨队重复错误 Flag 的线索。
-            </div>
+            <UEmpty
+              v-else-if="selectedGame && !loadingCheatClues"
+              icon="i-lucide-shield-check"
+              title="当前还没有异常提交线索"
+              description="还没有发现跨队重复错误 Flag 的聚集模式。出现可疑情况后，这里会自动汇总。"
+              :actions="[{
+                label: '查看最近提交',
+                icon: 'i-lucide-logs',
+                onClick: () => jumpToAdminAnchor('#submissions'),
+                color: 'neutral',
+                variant: 'outline',
+              }]"
+            />
           </UPageCard>
 
           <UPageCard title="已加载资源" icon="i-lucide-list">
@@ -4745,9 +4838,19 @@ onMounted(async () => {
                   </div>
                 </div>
               </div>
-              <div v-else class="text-sm text-muted">
-                暂无比赛
-              </div>
+              <UEmpty
+                v-else
+                icon="i-lucide-trophy"
+                title="当前还没有比赛"
+                description="先创建一场比赛，资源列表、挂题、监控和审核区才会逐步出现内容。"
+                :actions="[{
+                  label: '去创建比赛',
+                  icon: 'i-lucide-plus',
+                  onClick: () => jumpToAdminAnchor('#create-game'),
+                  color: 'neutral',
+                  variant: 'outline',
+                }]"
+              />
             </div>
 
             <div>
@@ -4797,9 +4900,19 @@ onMounted(async () => {
                   </div>
                 </div>
               </div>
-              <div v-else class="text-sm text-muted">
-                暂无题目
-              </div>
+              <UEmpty
+                v-else
+                icon="i-lucide-flag"
+                title="当前还没有题目"
+                description="先创建至少一道题目，再把它挂到比赛中，公开页才会出现真正可参与的内容。"
+                :actions="[{
+                  label: '去创建题目',
+                  icon: 'i-lucide-plus',
+                  onClick: () => jumpToAdminAnchor('#create-challenge'),
+                  color: 'neutral',
+                  variant: 'outline',
+                }]"
+              />
             </div>
           </div>
           </UPageCard>
