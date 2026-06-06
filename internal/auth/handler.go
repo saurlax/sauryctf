@@ -211,7 +211,8 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "password updated"})
+	clearAuthCookie(c)
+	c.JSON(http.StatusOK, gin.H{"message": "password updated, please login again"})
 }
 
 func (h *Handler) ListUsers(c *gin.Context) {

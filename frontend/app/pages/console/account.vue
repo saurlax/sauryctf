@@ -6,7 +6,7 @@ definePageMeta({
   middleware: 'auth',
 })
 
-const { authState, ensureInitialized } = useAuth()
+const { authState, ensureInitialized, redirectToLogin } = useAuth()
 const toast = useToast()
 
 const { data: securityStatus, refresh: refreshSecurityStatus } = await useAPI('auth-security-status', 'get', '/api/auth/security-status')
@@ -88,7 +88,7 @@ const securityFacts = computed(() => [
   },
   {
     label: '当前会话',
-    value: '改密后不立即退出',
+    value: '改密后需要重新登录',
     icon: 'i-lucide-key-round',
   },
   {
@@ -111,12 +111,12 @@ async function submitPasswordChange(payload: FormSubmitEvent<SecuritySchema>) {
     state.new_password = ''
     state.confirm_password = ''
     passwordModalOpen.value = false
-    await refreshSecurityStatus()
     toast.add({
       title: '密码已更新',
-      description: '新的登录密码已经生效，请妥善保管。',
+      description: '当前账号已退出登录，请使用新密码重新登录。',
       color: 'success',
     })
+    await redirectToLogin()
   }
   catch (e: any) {
     toast.add({ title: '修改失败', description: e.data?.message || e.message, color: 'error' })
@@ -204,7 +204,7 @@ onMounted(async () => {
 
           <template #footer>
             <div class="text-sm text-muted">
-              修改密码后，当前登录态不会立刻失效；后续重新登录时请改用新密码。
+              修改密码后，当前账号会立即退出登录；后续请使用新密码重新登录。
             </div>
           </template>
         </UPageCard>

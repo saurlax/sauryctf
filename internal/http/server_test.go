@@ -234,10 +234,39 @@ func TestServer_BootstrapAdminPasswordRecommendationLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	defer changeResp.Body.Close()
 	require.Equal(t, http.StatusOK, changeResp.StatusCode)
+	require.NotEmpty(t, changeResp.Cookies())
+
+	meAfterChangeReq, err := http.NewRequest(http.MethodGet, server.URL+"/api/auth/me", nil)
+	require.NoError(t, err)
+	meAfterChangeReq.AddCookie(tokenCookie)
+
+	meAfterChangeResp, err := http.DefaultClient.Do(meAfterChangeReq)
+	require.NoError(t, err)
+	defer meAfterChangeResp.Body.Close()
+	require.Equal(t, http.StatusUnauthorized, meAfterChangeResp.StatusCode)
+
+	newLoginBody := bytes.NewBufferString(`{"username":"admin","password":"sauryctf-admin-2"}`)
+	newLoginReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/auth/login", newLoginBody)
+	require.NoError(t, err)
+	newLoginReq.Header.Set("Content-Type", "application/json")
+
+	newLoginResp, err := http.DefaultClient.Do(newLoginReq)
+	require.NoError(t, err)
+	defer newLoginResp.Body.Close()
+	assert.Equal(t, http.StatusOK, newLoginResp.StatusCode)
+
+	var refreshedTokenCookie *http.Cookie
+	for _, cookie := range newLoginResp.Cookies() {
+		if cookie.Name == "token" {
+			refreshedTokenCookie = cookie
+			break
+		}
+	}
+	require.NotNil(t, refreshedTokenCookie)
 
 	setupAfterReq, err := http.NewRequest(http.MethodGet, server.URL+"/api/auth/security-status", nil)
 	require.NoError(t, err)
-	setupAfterReq.AddCookie(tokenCookie)
+	setupAfterReq.AddCookie(refreshedTokenCookie)
 
 	setupAfterResp, err := http.DefaultClient.Do(setupAfterReq)
 	require.NoError(t, err)
@@ -259,16 +288,6 @@ func TestServer_BootstrapAdminPasswordRecommendationLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	defer oldLoginResp.Body.Close()
 	assert.Equal(t, http.StatusUnauthorized, oldLoginResp.StatusCode)
-
-	newLoginBody := bytes.NewBufferString(`{"username":"admin","password":"sauryctf-admin-2"}`)
-	newLoginReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/auth/login", newLoginBody)
-	require.NoError(t, err)
-	newLoginReq.Header.Set("Content-Type", "application/json")
-
-	newLoginResp, err := http.DefaultClient.Do(newLoginReq)
-	require.NoError(t, err)
-	defer newLoginResp.Body.Close()
-	assert.Equal(t, http.StatusOK, newLoginResp.StatusCode)
 }
 
 func TestServer_AuthSetupStatusDoesNotExposePasswordRecommendation(t *testing.T) {

@@ -32,6 +32,7 @@
 - 当前已新增 `/console/account`
 - 登录后的任意账号都可以在这里修改自己的登录密码
 - 接口为 `POST /api/auth/change-password`
+- 修改密码成功后，当前账号的既有会话会立即失效，需要使用新密码重新登录
 - 如果当前登录的是仍在使用初始密码的管理员账号：
   - `/api/auth/security-status` 会返回 `password_change_recommended = true`
   - `/console` 会显示一条显式安全提醒
@@ -47,7 +48,8 @@
 
 1. 空库首次启动后先用 `admin / sauryctf` 登录
 2. 进入 `/console/account` 修改默认管理员密码
-3. 再创建比赛、题目和普通选手账号
+3. 使用新密码重新登录
+4. 再创建比赛、题目和普通选手账号
 
 ## 普通用户链路
 

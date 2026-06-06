@@ -191,9 +191,15 @@ func (s *Service) ChangePassword(userID uint, currentPassword, newPassword strin
 		return err
 	}
 
-	return s.db.Model(&models.User{}).
-		Where("id = ?", userID).
-		Update("password_hash", string(hash)).Error
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.User{}).
+			Where("id = ?", userID).
+			Update("password_hash", string(hash)).Error; err != nil {
+			return err
+		}
+
+		return tx.Where("user_id = ?", userID).Delete(&models.Session{}).Error
+	})
 }
 
 func (s *Service) IsUsingBootstrapPassword(userID uint) (bool, error) {

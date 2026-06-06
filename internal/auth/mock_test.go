@@ -147,6 +147,11 @@ func (m *MockService) ChangePassword(userID uint, currentPassword, newPassword s
 	}
 	m.Passwords[userID] = newPassword
 	delete(m.BootstrapPasswordInUseBy, userID)
+	for token, user := range m.Tokens {
+		if user.ID == userID {
+			delete(m.Tokens, token)
+		}
+	}
 	return nil
 }
 

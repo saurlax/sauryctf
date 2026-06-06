@@ -260,14 +260,14 @@ func TestHandler_SecurityStatus(t *testing.T) {
 }
 
 func TestHandler_ChangePassword(t *testing.T) {
-	mock := NewMockService()
-	user := &models.User{ID: 1, Username: "alice", Email: "alice@test.com", Role: models.RoleUser, Status: models.StatusActive}
-	mock.Users[user.Email] = user
-	mock.Passwords[user.ID] = "123456"
-	mock.Tokens["mock-token-alice"] = user
-	r := setupAuthRouter(mock)
-
 	t.Run("success", func(t *testing.T) {
+		mock := NewMockService()
+		user := &models.User{ID: 1, Username: "alice", Email: "alice@test.com", Role: models.RoleUser, Status: models.StatusActive}
+		mock.Users[user.Email] = user
+		mock.Passwords[user.ID] = "123456"
+		mock.Tokens["mock-token-alice"] = user
+		r := setupAuthRouter(mock)
+
 		body := `{"current_password":"123456","new_password":"654321"}`
 		req := httptest.NewRequest("POST", "/api/auth/change-password", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -277,9 +277,18 @@ func TestHandler_ChangePassword(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, "654321", mock.Passwords[user.ID])
+		assert.Contains(t, w.Header().Get("Set-Cookie"), "token=")
+		assert.NotContains(t, w.Header().Get("Set-Cookie"), "mock-token-alice")
 	})
 
 	t.Run("bad request", func(t *testing.T) {
+		mock := NewMockService()
+		user := &models.User{ID: 1, Username: "alice", Email: "alice@test.com", Role: models.RoleUser, Status: models.StatusActive}
+		mock.Users[user.Email] = user
+		mock.Passwords[user.ID] = "123456"
+		mock.Tokens["mock-token-alice"] = user
+		r := setupAuthRouter(mock)
+
 		body := `{}`
 		req := httptest.NewRequest("POST", "/api/auth/change-password", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -291,6 +300,13 @@ func TestHandler_ChangePassword(t *testing.T) {
 	})
 
 	t.Run("wrong password", func(t *testing.T) {
+		mock := NewMockService()
+		user := &models.User{ID: 1, Username: "alice", Email: "alice@test.com", Role: models.RoleUser, Status: models.StatusActive}
+		mock.Users[user.Email] = user
+		mock.Passwords[user.ID] = "123456"
+		mock.Tokens["mock-token-alice"] = user
+		r := setupAuthRouter(mock)
+
 		body := `{"current_password":"wrong123","new_password":"another123"}`
 		req := httptest.NewRequest("POST", "/api/auth/change-password", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")

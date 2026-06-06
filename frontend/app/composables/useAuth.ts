@@ -85,6 +85,12 @@ export function useAuth() {
     router.push('/login')
   }
 
+  async function redirectToLogin() {
+    clearAuth()
+    authState.initialized = true
+    await router.push('/login')
+  }
+
   return {
     authState,
     isLoggedIn,
@@ -94,5 +100,6 @@ export function useAuth() {
     login,
     register,
     logout,
+    redirectToLogin,
   }
 }

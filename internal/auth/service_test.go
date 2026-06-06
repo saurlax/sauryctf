@@ -219,8 +219,14 @@ func TestChangePassword(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
-		err := svc.ChangePassword(user.ID, "password123", "newpassword123")
+		token, _, err := svc.Login("alice@example.com", "password123")
+		require.NoError(t, err)
+
+		err = svc.ChangePassword(user.ID, "password123", "newpassword123")
 		assert.NoError(t, err)
+
+		_, err = svc.ValidateToken(token)
+		assert.Error(t, err)
 
 		_, _, err = svc.Login("alice@example.com", "newpassword123")
 		assert.NoError(t, err)
