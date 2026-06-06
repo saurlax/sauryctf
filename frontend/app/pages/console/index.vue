@@ -600,7 +600,7 @@ onBeforeUnmount(() => {
           控制台
         </h1>
         <p class="text-muted mt-1">
-          欢迎回来，{{ authState.user?.username || '选手' }}
+          {{ authState.user?.username || '选手' }} 的当前工作台
         </p>
       </div>
 
@@ -652,7 +652,7 @@ onBeforeUnmount(() => {
 
       <div class="mt-8 grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-6">
         <div class="space-y-6">
-          <UPageCard v-if="isAdmin" title="管理员快捷操作" icon="i-lucide-shield-check">
+          <UPageCard v-if="isAdmin" title="管理入口" icon="i-lucide-shield-check">
             <div class="space-y-3">
               <div class="flex flex-wrap gap-2">
                 <UButton label="打开管理端" icon="i-lucide-settings-2" to="/console/admin" variant="outline" />
@@ -785,7 +785,7 @@ onBeforeUnmount(() => {
             </div>
           </UPageCard>
 
-          <UPageCard :title="team ? '常用操作' : '下一步入口'" icon="i-lucide-rocket">
+          <UPageCard :title="team ? '当前入口' : '队伍入口'" icon="i-lucide-rocket">
             <div class="flex flex-col gap-3">
               <UButton :label="team ? '管理我的队伍' : '去准备队伍'" icon="i-lucide-users" to="/console/team" variant="outline" block />
               <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="outline" block />
@@ -1216,7 +1216,7 @@ onBeforeUnmount(() => {
             />
           </UPageCard>
 
-          <UPageCard :title="isAdmin ? '账号与导航' : '常用入口'" :icon="isAdmin ? 'i-lucide-shield-check' : 'i-lucide-navigation'">
+          <UPageCard :title="isAdmin ? '账号与导航' : '账号入口'" :icon="isAdmin ? 'i-lucide-shield-check' : 'i-lucide-navigation'">
             <div class="space-y-3 text-sm text-muted">
               <UButton
                 label="账号安全"
