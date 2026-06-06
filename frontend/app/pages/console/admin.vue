@@ -2605,6 +2605,40 @@ function getInstanceLeaseProviderLabel(lease: { provider?: string, launch_url?: 
   return lease.provider || '未标注'
 }
 
+function getInstanceLeaseSourceColor(lease: {
+  challenge_id: number
+  launch_url?: string
+  provider?: string
+  image?: string
+}) {
+  if (matchesTeamScopedInstanceLease(lease)) {
+    return 'info' as const
+  }
+
+  if (matchesContainerRuntimeLease(lease)) {
+    return 'success' as const
+  }
+
+  return 'neutral' as const
+}
+
+function getInstanceLeaseSourceLabel(lease: {
+  challenge_id: number
+  launch_url?: string
+  provider?: string
+  image?: string
+}) {
+  if (matchesTeamScopedInstanceLease(lease)) {
+    return '独立实例题'
+  }
+
+  if (matchesContainerRuntimeLease(lease)) {
+    return '容器实例题'
+  }
+
+  return '其他动态题'
+}
+
 function getInstanceLeaseEntryHint(lease: { launch_url?: string, host?: string, port?: string }) {
   if (lease.host && lease.port) {
     return `${lease.host}:${lease.port}`
@@ -5257,6 +5291,9 @@ onMounted(async () => {
                       <div class="mt-2 flex flex-wrap items-center gap-2">
                         <UBadge :color="getInstanceLeaseProviderColor(lease)" variant="soft">
                           {{ getInstanceLeaseProviderLabel(lease) }}
+                        </UBadge>
+                        <UBadge :color="getInstanceLeaseSourceColor(lease)" variant="subtle">
+                          {{ getInstanceLeaseSourceLabel(lease) }}
                         </UBadge>
                         <UBadge v-if="lease.host && lease.port" color="neutral" variant="subtle">
                           {{ lease.host }}:{{ lease.port }}
