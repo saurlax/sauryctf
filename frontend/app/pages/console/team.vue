@@ -79,7 +79,68 @@ const joinInviteFromRoute = computed(() => {
   return typeof invite === 'string' ? invite.trim() : ''
 })
 const contestRedirect = computed(() => resolveRedirect())
+const inviteFlowMeta = computed(() => {
+  if (!joinInviteFromRoute.value && !contestRedirect.value) {
+    return null
+  }
+
+  if (joinInviteFromRoute.value && contestRedirect.value) {
+    return {
+      title: team.value ? '当前队伍可直接返回原比赛' : '已识别邀请入口与比赛返回地址',
+      description: team.value
+        ? '当前链接同时包含邀请码与比赛返回地址。你现在可以继续维护队伍，或直接回到原比赛查看报名与题目状态。'
+        : '页面已自动填入邀请码。加入队伍成功后，系统会自动回到原比赛页继续处理报名或查看题目。',
+      color: 'info' as const,
+      icon: 'i-lucide-route',
+      actionLabel: team.value ? '返回原比赛' : '先看原比赛',
+      actionTo: contestRedirect.value,
+      secondaryLabel: team.value ? '浏览全部比赛' : undefined,
+      secondaryTo: team.value ? '/games' : undefined,
+    }
+  }
+
+  if (contestRedirect.value) {
+    return {
+      title: team.value ? '当前来自比赛参赛流程' : '当前来自比赛详情',
+      description: team.value
+        ? '你当前可以继续维护队伍，或直接返回原比赛页继续处理报名与参赛操作。'
+        : '当前页面由比赛详情跳转而来。创建或加入队伍成功后，系统会返回原比赛页。',
+      color: 'info' as const,
+      icon: 'i-lucide-route',
+      actionLabel: team.value ? '返回原比赛' : '先看原比赛',
+      actionTo: contestRedirect.value,
+      secondaryLabel: team.value ? '浏览全部比赛' : undefined,
+      secondaryTo: team.value ? '/games' : undefined,
+    }
+  }
+
+  return {
+    title: team.value ? '当前已通过邀请入口加入队伍流程' : '已识别邀请入口',
+    description: team.value
+      ? '当前链接包含邀请码信息。若需要继续邀请其他队友，可直接复制下方邀请码或邀请入口。'
+      : '页面已经自动填入邀请码，确认后即可直接加入队伍。',
+    color: 'info' as const,
+    icon: 'i-lucide-link',
+    actionLabel: '浏览比赛',
+    actionTo: '/games',
+    secondaryLabel: '回控制台',
+    secondaryTo: '/console',
+  }
+})
 const teamEntryGuideMeta = computed(() => {
+  if (joinInviteFromRoute.value && contestRedirect.value) {
+    return {
+      title: '先加入队伍，再回到原比赛继续处理',
+      description: '当前链接同时包含邀请码和比赛返回地址。创建或加入成功后，系统会自动带你回到原比赛页。',
+      color: 'info' as const,
+      icon: 'i-lucide-route',
+      actionLabel: '先看原比赛',
+      actionTo: contestRedirect.value,
+      secondaryLabel: '浏览全部比赛',
+      secondaryTo: '/games',
+    }
+  }
+
   if (contestRedirect.value) {
     return {
       title: '当前尚未加入队伍',
@@ -94,10 +155,12 @@ const teamEntryGuideMeta = computed(() => {
   }
 
   return {
-    title: '当前尚未加入队伍',
-    description: '参赛前请先完成组队，再前往比赛页处理报名和后续操作。',
-    color: 'neutral' as const,
-    icon: 'i-lucide-flag',
+    title: joinInviteFromRoute.value ? '当前尚未加入队伍' : '参赛前请先完成组队',
+    description: joinInviteFromRoute.value
+      ? '当前链接已经带入邀请码。加入成功后即可继续浏览比赛或参与报名流程。'
+      : '比赛报名、提交 Flag 和排行榜都按队伍进行。请先创建或加入队伍，再前往比赛页继续后续操作。',
+    color: joinInviteFromRoute.value ? 'info' as const : 'neutral' as const,
+    icon: joinInviteFromRoute.value ? 'i-lucide-link' : 'i-lucide-flag',
     actionLabel: '浏览比赛',
     actionTo: '/games',
     secondaryLabel: '回控制台',
@@ -549,22 +612,31 @@ onMounted(async () => {
 
     <template v-else-if="team">
       <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
-        <div v-if="contestRedirect" class="xl:col-span-2">
+        <div v-if="inviteFlowMeta" class="xl:col-span-2">
           <UAlert
-            color="info"
+            :color="inviteFlowMeta.color"
             variant="soft"
-            icon="i-lucide-undo-2"
-            title="当前来自比赛报名流程"
-            description="你现在可以先维护队伍；完成后可直接返回原比赛继续报名或查看题目。"
+            :icon="inviteFlowMeta.icon"
+            :title="inviteFlowMeta.title"
+            :description="inviteFlowMeta.description"
           >
             <template #actions>
-              <UButton
-                label="返回原比赛"
-                color="info"
-                variant="outline"
-                size="sm"
-                :to="contestRedirect"
-              />
+              <div class="flex flex-wrap gap-2">
+                <UButton
+                  :label="inviteFlowMeta.actionLabel"
+                  :color="inviteFlowMeta.color"
+                  variant="outline"
+                  size="sm"
+                  :to="inviteFlowMeta.actionTo"
+                />
+                <UButton
+                  v-if="inviteFlowMeta.secondaryLabel && inviteFlowMeta.secondaryTo"
+                  :label="inviteFlowMeta.secondaryLabel"
+                  variant="ghost"
+                  size="sm"
+                  :to="inviteFlowMeta.secondaryTo"
+                />
+              </div>
             </template>
           </UAlert>
         </div>
@@ -796,22 +868,31 @@ onMounted(async () => {
 
     <template v-else>
       <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1.25fr)_320px]">
-        <div v-if="contestRedirect" class="xl:col-span-3">
+        <div v-if="inviteFlowMeta" class="xl:col-span-3">
           <UAlert
-            color="info"
+            :color="inviteFlowMeta.color"
             variant="soft"
-            icon="i-lucide-route"
-            title="当前来自比赛详情"
-            description="当前页面由比赛详情跳转而来。创建或加入队伍成功后，系统会返回原比赛页。"
+            :icon="inviteFlowMeta.icon"
+            :title="inviteFlowMeta.title"
+            :description="inviteFlowMeta.description"
           >
             <template #actions>
-              <UButton
-                label="先看原比赛"
-                color="info"
-                variant="outline"
-                size="sm"
-                :to="contestRedirect"
-              />
+              <div class="flex flex-wrap gap-2">
+                <UButton
+                  :label="inviteFlowMeta.actionLabel"
+                  :color="inviteFlowMeta.color"
+                  variant="outline"
+                  size="sm"
+                  :to="inviteFlowMeta.actionTo"
+                />
+                <UButton
+                  v-if="inviteFlowMeta.secondaryLabel && inviteFlowMeta.secondaryTo"
+                  :label="inviteFlowMeta.secondaryLabel"
+                  variant="ghost"
+                  size="sm"
+                  :to="inviteFlowMeta.secondaryTo"
+                />
+              </div>
             </template>
           </UAlert>
         </div>
@@ -857,14 +938,6 @@ onMounted(async () => {
         </UPageCard>
 
         <UPageCard title="加入队伍">
-          <UAlert
-            v-if="joinInviteFromRoute"
-            class="mb-4"
-            color="info"
-            variant="soft"
-            title="已识别邀请入口"
-            description="页面已经自动填入邀请码，确认后即可直接加入队伍。"
-          />
           <UForm :state="joinForm" class="space-y-4" @submit="joinTeam">
             <UFormField label="邀请码" name="invite_code">
               <UInput v-model="joinForm.invite_code" placeholder="输入队伍邀请码" size="lg" class="w-full" />
@@ -873,7 +946,10 @@ onMounted(async () => {
           </UForm>
           <template #footer>
             <p class="text-sm text-muted">
-              通过队长分享的邀请码即可加入队伍，随后可前往比赛页面继续报名或参赛。
+              {{ joinInviteFromRoute
+                ? '当前已自动带入邀请码。确认加入后，可继续前往公开比赛页或返回原比赛。'
+                : '通过队长分享的邀请码即可加入队伍，随后可前往比赛页面继续报名或参赛。'
+              }}
             </p>
           </template>
         </UPageCard>
@@ -886,9 +962,6 @@ onMounted(async () => {
               title="队伍是比赛参与的基础单元"
               description="比赛报名、Flag 提交和排行榜都按队伍进行。创建者会自动成为队长，其他成员通过邀请码加入。"
             />
-            <div v-if="contestRedirect" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              当前来自比赛详情页。创建或加入成功后，系统会返回原比赛页继续操作。
-            </div>
           </div>
 
           <template #footer>
