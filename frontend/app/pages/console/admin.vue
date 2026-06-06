@@ -2807,31 +2807,33 @@ function fillDynamicContainerTemplate() {
 
 function fillTeamScopedDynamicTemplate() {
   challengeForm.title = '队伍独立实例题'
-  challengeForm.description = '用于录入按队伍分配独立入口的动态题。'
+  challengeForm.description = '用于录入按队伍分配独立实例详情入口的动态题。'
   challengeForm.hints = JSON.stringify([
-    '请根据实际部署方式调整 runtime、connection 和 links 字段。',
+    '当前默认通过平台内实例详情页承接当前队伍的实例状态、入口和续期操作。',
     '如果后端后续接入新的实例 provider，可以继续复用这份结构。',
   ], null, 2)
   challengeForm.attachments = '[]'
   challengeForm.container_spec = JSON.stringify({
     runtime: {
       provider: 'docker',
-      image: 'ghcr.io/example/ctf-web:latest',
-      expose: [8080],
+      image: 'nginx:alpine',
+      expose: [80],
     },
     connection: {
       url: '/local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
-      host: 'team-{{team_hash}}.instance.local',
-      port: 443,
-      command: '访问平台分配的专属入口',
-      note: '每支队伍都会获得独立入口。请在上线前替换为真实的入口分发地址或代理规则。',
+      note: '每支队伍都会获得独立实例状态页。启用真实容器 provider 后，可继续在这里承接当前队伍的入口与续期状态。',
     },
     links: [
       {
-        label: '题目入口',
+        label: '实例详情',
         url: '/local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
       },
     ],
+    metadata: {
+      purpose: 'team-scoped-instance',
+      expected_service: 'nginx default page',
+      expected_port: 80,
+    },
   }, null, 2)
   challengeForm.flag_format = 'flag{...}'
   challengeForm.category = 'web'
@@ -2950,31 +2952,33 @@ async function createDynamicProvision() {
     const challenge = await $api('post', '/api/challenges', {
       body: {
         title: '队伍独立实例题',
-        description: '用于录入按队伍分配独立入口的动态题。',
+        description: '用于录入按队伍分配独立实例详情入口的动态题。',
         hints: JSON.stringify([
-          '请先确认入口模板、分发规则和实例 provider 已经准备完成。',
-          '实例启动后，应优先看到当前队伍的真实入口，而不是占位符原文。',
+          '当前默认通过平台内实例详情页承接当前队伍的实例状态、入口和续期操作。',
+          '启用真实容器 provider 后，应优先看到当前队伍的真实入口与租约状态。',
         ]),
         attachments: '[]',
         container_spec: JSON.stringify({
           runtime: {
             provider: 'docker',
-            image: 'ghcr.io/example/ctf-web:latest',
-            expose: [8080],
+            image: 'nginx:alpine',
+            expose: [80],
           },
           connection: {
             url: '/local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
-            host: 'team-{{team_hash}}.instance.local',
-            port: 443,
-            command: '访问平台分配的专属入口',
-            note: '每支队伍都会获得独立入口。请在上线前替换为真实的入口分发地址或代理规则。',
+            note: '每支队伍都会获得独立实例状态页。启用真实容器 provider 后，可继续在这里承接当前队伍的入口与续期状态。',
           },
           links: [
             {
-              label: '题目入口',
+              label: '实例详情',
               url: '/local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
             },
           ],
+          metadata: {
+            purpose: 'team-scoped-instance',
+            expected_service: 'nginx default page',
+            expected_port: 80,
+          },
         }),
         category: 'web',
         type: 'dynamic',
@@ -3002,7 +3006,7 @@ async function createDynamicProvision() {
     attachForm.challenge_id = challenge.id
     toast.add({
       title: '独立实例比赛已创建',
-      description: `已创建 ${game.name}，并自动挂载一道独立实例题。现在可以继续补全入口与实例配置。`,
+      description: `已创建 ${game.name}，并自动挂载一道独立实例题。现在可以继续检查实例详情入口、运行 provider 与公开页展示。`,
       color: 'success',
     })
     jumpToAdminAnchor('#attach-challenge')
