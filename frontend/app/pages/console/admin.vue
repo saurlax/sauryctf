@@ -3232,90 +3232,90 @@ onMounted(async () => {
         />
       </div>
 
-      <UPageCard title="预置方案" icon="i-lucide-layout-template">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div class="space-y-2">
-            <p class="text-sm text-muted">
-              可直接生成一套精简的比赛与题目配置，用于建立标准化赛事基础结构。
-            </p>
+      <UPageCard title="管理入口" icon="i-lucide-layout-template">
+        <div class="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          <div class="space-y-4">
+            <div class="space-y-2">
+              <p class="text-sm text-muted">
+                这里集中保留比赛创建、预置方案和表单填充入口，便于快速建立一场可继续维护的比赛上下文。
+              </p>
+              <UAlert
+                color="info"
+                variant="soft"
+                title="使用说明"
+                description="预置方案仅写入基础配置。正式发布前仍应补全题面、入口、镜像、附件与规则设置。"
+              />
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <UButton icon="i-lucide-layout-template" :loading="starterProvisioning" @click="createStarterProvision">
+                创建基础比赛
+              </UButton>
+              <UButton
+                variant="outline"
+                icon="i-lucide-box"
+                :loading="dynamicProvisioning"
+                @click="createDynamicProvision"
+              >
+                创建动态实例比赛
+              </UButton>
+              <UButton
+                variant="outline"
+                icon="i-lucide-container"
+                :loading="localDockerProvisioning"
+                @click="createLocalDockerProvision"
+              >
+                创建容器实例比赛
+              </UButton>
+              <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillStarterGameTemplate">
+                填充比赛表单
+              </UButton>
+              <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillStarterChallengeTemplate">
+                填充题目表单
+              </UButton>
+            </div>
+          </div>
+
+          <div class="space-y-3">
             <UAlert
               color="info"
               variant="soft"
-              title="使用说明"
-              description="预置方案仅写入基础配置。正式发布前仍应补全题面、入口、镜像、附件与规则设置。"
+              title="当前维护顺序"
+              description="比赛、题目、挂载、发布确认会集中显示在这里，便于直接判断当前缺口。"
             />
-          </div>
 
-          <div class="flex shrink-0 flex-wrap gap-2">
-            <UButton icon="i-lucide-layout-template" :loading="starterProvisioning" @click="createStarterProvision">
-              创建基础比赛
-            </UButton>
-            <UButton
-              variant="outline"
-              icon="i-lucide-box"
-              :loading="dynamicProvisioning"
-              @click="createDynamicProvision"
-            >
-              创建动态实例比赛
-            </UButton>
-            <UButton
-              variant="outline"
-              icon="i-lucide-container"
-              :loading="localDockerProvisioning"
-              @click="createLocalDockerProvision"
-            >
-              创建容器实例比赛
-            </UButton>
-            <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillStarterGameTemplate">
-              填充比赛表单
-            </UButton>
-            <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillStarterChallengeTemplate">
-              填充题目表单
-            </UButton>
-          </div>
-        </div>
-      </UPageCard>
-
-      <UPageCard title="配置概览" icon="i-lucide-list-checks">
-        <div class="space-y-3">
-          <UAlert
-            color="info"
-            variant="soft"
-            title="建议顺序：比赛、题目、挂载、发布确认"
-            description="用于集中查看当前配置缺口，减少未完成内容提前公开的风险。"
-          />
-
-          <div class="grid gap-3 xl:grid-cols-2">
-            <div
-              v-for="step in adminChecklistSteps"
-              :key="step.key"
-              class="rounded-lg border border-default px-3 py-3"
-            >
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <div class="flex items-center gap-2">
-                    <UIcon
-                      :name="step.done ? 'i-lucide-circle-check-big' : 'i-lucide-arrow-right-circle'"
-                      :class="step.done ? 'text-success' : 'text-primary'"
-                      class="size-4 shrink-0"
-                    />
-                    <div class="font-medium">
-                      {{ step.title }}
+            <div class="grid gap-3 xl:grid-cols-2">
+              <div
+                v-for="step in adminChecklistSteps"
+                :key="step.key"
+                class="rounded-lg border border-default px-3 py-3"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-2">
+                      <UIcon
+                        :name="step.done ? 'i-lucide-circle-check-big' : 'i-lucide-arrow-right-circle'"
+                        :class="step.done ? 'text-success' : 'text-primary'"
+                        class="size-4 shrink-0"
+                      />
+                      <div class="font-medium">
+                        {{ step.title }}
+                      </div>
+                    </div>
+                    <div class="mt-2 text-sm text-muted">
+                      {{ step.description }}
                     </div>
                   </div>
-                  <div class="mt-2 text-sm text-muted">
-                    {{ step.description }}
-                  </div>
+                  <UBadge :color="step.done ? 'success' : 'warning'" variant="soft">
+                    {{ step.done ? '已就绪' : '待处理' }}
+                  </UBadge>
                 </div>
-                <UBadge :color="step.done ? 'success' : 'warning'" variant="soft">
-                  {{ step.done ? '已就绪' : '待处理' }}
-                </UBadge>
-              </div>
 
-              <div class="mt-3 flex justify-end">
-                <UButton size="sm" variant="outline" :to="step.actionTo" @click="handleChecklistAction(step)">
-                  {{ step.actionLabel }}
-                </UButton>
+                <div class="mt-3 flex justify-end">
+                  <UButton size="sm" variant="outline" :to="step.actionTo" @click="handleChecklistAction(step)">
+                    {{ step.actionLabel }}
+                  </UButton>
+                </div>
               </div>
             </div>
           </div>
