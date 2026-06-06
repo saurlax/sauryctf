@@ -424,7 +424,7 @@ onBeforeUnmount(() => {
                 v-else
                 :color="statusBadge.color"
                 variant="soft"
-                title="当前实例状态"
+                :title="hasRunningInstance ? '实例正在运行' : statusBadge.label === '待启动' ? '实例尚未启动' : '实例状态暂不可用'"
                 :description="instanceState?.message || '当前还没有读取到实例状态。'"
               >
                 <template #footer>
@@ -611,7 +611,7 @@ onBeforeUnmount(() => {
             </UPageCard>
 
             <UPageCard
-              title="当前说明"
+              title="操作范围"
               icon="i-lucide-waypoints"
               description="当前页面用于承接实例详情，适合在不离开平台的前提下核对队伍入口与租约状态。"
             >

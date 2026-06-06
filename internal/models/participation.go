@@ -28,8 +28,7 @@ const (
 )
 
 // Participation records a team's registration in a game.
-// Compared to GZCTF, this is a simplified version without division support.
-// One team can only have one participation per game.
+// The current model keeps one registration per team in each game and stores a single optional division.
 type Participation struct {
 	ID        uint                `gorm:"primaryKey" json:"id"`
 	GameID    uint                `gorm:"not null;uniqueIndex:idx_game_team" json:"game_id"`
