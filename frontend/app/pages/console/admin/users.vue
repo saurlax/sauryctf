@@ -18,6 +18,7 @@ const loading = ref(true)
 const savingUserId = ref<number | null>(null)
 const users = ref<UserInfo[]>([])
 const saveConfirmModalOpen = ref(false)
+const appliedHighlightUserId = ref<number | null>(null)
 const filters = reactive({
   keyword: '',
   role: 'all' as 'all' | UserRole,
@@ -112,6 +113,13 @@ function isHighlightedUser(user: UserInfo) {
   return highlightedUserId.value !== null && user.id === highlightedUserId.value
 }
 
+function applyHighlightFilters(userId: number) {
+  filters.keyword = String(userId)
+  filters.role = 'all'
+  filters.status = 'all'
+  appliedHighlightUserId.value = userId
+}
+
 function syncDrafts() {
   for (const user of users.value) {
     roleDrafts[user.id] = user.role
@@ -121,11 +129,12 @@ function syncDrafts() {
 
 async function syncHighlightContext() {
   if (highlightedUserId.value === null) {
+    appliedHighlightUserId.value = null
     return
   }
 
-  if (!filters.keyword.trim()) {
-    filters.keyword = String(highlightedUserId.value)
+  if (appliedHighlightUserId.value !== highlightedUserId.value) {
+    applyHighlightFilters(highlightedUserId.value)
   }
 
   await nextTick()
@@ -333,6 +342,14 @@ onMounted(async () => {
 watch(highlightedUserId, async () => {
   await syncHighlightContext()
 })
+
+watch(() => route.query, async () => {
+  await syncHighlightContext()
+})
+
+watch(users, async () => {
+  await syncHighlightContext()
+})
 </script>
 
 <template>
@@ -385,6 +402,16 @@ watch(highlightedUserId, async () => {
         <UBadge color="primary" variant="soft">
           审计回查
         </UBadge>
+      </div>
+      <div class="mt-3 flex justify-end">
+        <UButton
+          size="sm"
+          variant="ghost"
+          icon="i-lucide-list"
+          to="/console/admin/users"
+        >
+          返回完整列表
+        </UButton>
       </div>
     </div>
 
