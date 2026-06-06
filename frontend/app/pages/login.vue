@@ -10,6 +10,7 @@ const { login } = useAuth()
 const router = useRouter()
 const route = useRoute()
 const toast = useToast()
+const submitting = ref(false)
 
 const redirectTarget = computed(() => {
   const redirect = route.query.redirect
@@ -27,7 +28,23 @@ const loginSchema = z.object({
 
 type LoginSchema = z.output<typeof loginSchema>
 
+const loginSummaryRows = computed(() => [
+  {
+    label: '登录后去向',
+    value: redirectTarget.value,
+  },
+  {
+    label: '认证方式',
+    value: '用户名或邮箱 + 密码',
+  },
+  {
+    label: '公开入口',
+    value: '仍可直接浏览比赛列表与公开详情',
+  },
+])
+
 async function onLogin(payload: FormSubmitEvent<LoginSchema>) {
+  submitting.value = true
   try {
     await login(payload.data.username, payload.data.password)
     toast.add({ title: '登录成功', color: 'success' })
@@ -35,6 +52,9 @@ async function onLogin(payload: FormSubmitEvent<LoginSchema>) {
   }
   catch (e: any) {
     toast.add({ title: '登录失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    submitting.value = false
   }
 }
 
@@ -65,16 +85,25 @@ const state = reactive<Partial<LoginSchema>>({
         description="使用已有账号访问控制台、队伍页和比赛页面。"
         icon="i-lucide-lock"
       >
+        <UAlert
+          color="info"
+          variant="subtle"
+          icon="i-lucide-route"
+          title="当前登录后会保留目标跳转"
+          :description="`认证成功后会跳转到 ${redirectTarget}。`"
+          class="mb-4"
+        />
+
         <UForm :schema="loginSchema" :state="state" class="space-y-4" @submit="onLogin">
           <UFormField name="username" label="用户名或邮箱" required>
-            <UInput v-model="state.username" class="w-full" placeholder="请输入用户名或邮箱" />
+            <UInput v-model="state.username" class="w-full" placeholder="请输入用户名或邮箱" :disabled="submitting" />
           </UFormField>
 
           <UFormField name="password" label="密码" required>
-            <UInput v-model="state.password" class="w-full" type="password" placeholder="请输入密码" />
+            <UInput v-model="state.password" class="w-full" type="password" placeholder="请输入密码" :disabled="submitting" />
           </UFormField>
 
-          <UButton type="submit" block label="登录" icon="i-lucide-log-in" />
+          <UButton type="submit" block label="登录" icon="i-lucide-log-in" :loading="submitting" />
         </UForm>
 
         <template #footer>
@@ -87,10 +116,27 @@ const state = reactive<Partial<LoginSchema>>({
             </div>
             <div class="flex flex-wrap gap-2">
               <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="ghost" />
-              <UButton label="注册" icon="i-lucide-user-round-plus" :to="registerTo" variant="outline" />
+              <UButton label="注册" icon="i-lucide-user-round-plus" :to="registerTo" variant="outline" :disabled="submitting" />
             </div>
           </div>
         </template>
+      </UPageCard>
+
+      <UPageCard
+        title="访问摘要"
+        description="当前认证入口保持最小闭环，只负责登录和跳转。"
+        icon="i-lucide-clipboard-list"
+      >
+        <div class="space-y-3 text-sm">
+          <div
+            v-for="row in loginSummaryRows"
+            :key="row.label"
+            class="flex items-center justify-between gap-3 rounded-md bg-elevated/60 px-3 py-2"
+          >
+            <span class="text-muted">{{ row.label }}</span>
+            <span class="text-right">{{ row.value }}</span>
+          </div>
+        </div>
       </UPageCard>
     </div>
   </div>
