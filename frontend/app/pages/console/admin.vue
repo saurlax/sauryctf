@@ -316,6 +316,7 @@ type ConfirmActionType =
   | 'destroy-instance'
   | 'delete-announcement'
   | 'remove-participant'
+  | 'remove-game-challenge'
   | 'delete-challenge'
   | 'delete-game'
 
@@ -342,6 +343,9 @@ const confirmActionBusy = computed(() => {
   }
   if (confirmActionState.type === 'remove-participant') {
     return removingParticipantId.value === confirmActionState.id
+  }
+  if (confirmActionState.type === 'remove-game-challenge') {
+    return removingChallengeId.value === confirmActionState.id
   }
   if (confirmActionState.type === 'delete-challenge') {
     return deletingChallengeId.value === confirmActionState.id
@@ -3009,6 +3013,21 @@ async function removeChallengeFromGame(challengeId: number) {
     return
   }
 
+  const challenge = selectedGameChallenges.value.find(item => item.id === challengeId)
+  openConfirmAction({
+    type: 'remove-game-challenge',
+    id: challengeId,
+    title: '确认移除比赛题目',
+    description: `题目「${challenge?.title || `#${challengeId}`}」会从当前比赛移除，但题库里的原始题目记录会继续保留。`,
+    confirmLabel: '移除题目',
+  })
+}
+
+async function runRemoveChallengeFromGame(challengeId: number) {
+  if (!attachForm.game_id) {
+    return
+  }
+
   removingChallengeId.value = challengeId
   try {
     await $api('delete', '/api/games/{id}/challenges/{challengeId}', {
@@ -3083,6 +3102,9 @@ async function confirmAction() {
   }
   else if (actionType === 'remove-participant') {
     await runRemoveParticipant(actionId)
+  }
+  else if (actionType === 'remove-game-challenge') {
+    await runRemoveChallengeFromGame(actionId)
   }
   else if (actionType === 'delete-challenge') {
     await runDeleteChallenge(actionId)
