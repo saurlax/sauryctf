@@ -1931,10 +1931,23 @@ function getSubmissionResultLabel(result: 'accepted' | 'wrong_flag' | 'already_s
   return '错误 Flag'
 }
 
+function syncMonitorTabForAnchor(target: string) {
+  if (target === '#submissions') {
+    activeMonitorTab.value = 'submissions'
+    return
+  }
+
+  if (target === '#monitoring') {
+    activeMonitorTab.value = 'ops'
+  }
+}
+
 function jumpToAdminAnchor(target: string) {
   if (!target.startsWith('#')) {
     return
   }
+
+  syncMonitorTabForAnchor(target)
 
   const id = target.slice(1)
   const el = document.getElementById(id)
