@@ -25,61 +25,6 @@ const redirectTarget = computed(() => {
   return '/console'
 })
 
-const quickLinks = computed(() => [
-  {
-    title: '浏览比赛',
-    description: '先查看公开比赛、题目和排行榜，再决定后续操作。',
-    icon: 'i-lucide-trophy',
-    to: '/games',
-  },
-  {
-    title: '注册账号',
-    description: '新用户可先完成注册，再进入队伍与参赛流程。',
-    icon: 'i-lucide-user-round-plus',
-    to: registerTo.value,
-  },
-])
-
-const afterLoginStatus = computed(() => {
-  if (redirectTarget.value.startsWith('/games/')) {
-    return [
-      {
-        title: '返回原比赛',
-        description: '登录成功后会直接返回刚才的比赛详情页，继续查看报名状态、题目和排行榜。',
-        icon: 'i-lucide-undo-2',
-      },
-      {
-        title: '按需准备队伍',
-        description: '比赛报名、提交 Flag 和排行榜都按队伍进行，缺少队伍时可再进入队伍页处理。',
-        icon: 'i-lucide-users',
-      },
-      {
-        title: '继续比赛操作',
-        description: '准备好队伍后，就可以回到比赛里完成报名、提交 Flag，或继续使用动态题实例能力。',
-        icon: 'i-lucide-flag',
-      },
-    ]
-  }
-
-  return [
-    {
-      title: '进入控制台',
-      description: '登录成功后默认会进入控制台，方便先确认当前账号、队伍和比赛待办。',
-      icon: 'i-lucide-layout-dashboard',
-    },
-    {
-      title: '按需准备队伍',
-      description: '如果这是一个普通选手账号，接下来最值得先处理的是创建队伍或使用邀请码加入队伍。',
-      icon: 'i-lucide-users',
-    },
-    {
-      title: '回到比赛页继续操作',
-      description: '准备好队伍后，再去公开比赛页完成报名、提交 Flag，或补交 Writeup。',
-      icon: 'i-lucide-trophy',
-    },
-  ]
-})
-
 const loginSchema = z.object({
   username: z.string().min(1, '请输入用户名'),
   password: z.string().min(1, '请输入密码'),
@@ -112,8 +57,8 @@ const registerTo = computed(() => {
 })
 
 const state = reactive<Partial<LoginSchema>>({
-  username: setupStatus.value?.bootstrap_admin_available ? setupStatus.value.default_admin_username || 'admin' : '',
-  password: setupStatus.value?.bootstrap_admin_available ? setupStatus.value.default_admin_password || 'sauryctf' : '',
+  username: '',
+  password: '',
 })
 </script>
 
@@ -146,65 +91,27 @@ const state = reactive<Partial<LoginSchema>>({
       </UPageCard>
 
       <div class="space-y-6">
-        <UPageCard title="登录后状态" icon="i-lucide-list-checks">
+        <UPageCard title="访问说明" icon="i-lucide-info">
           <div class="space-y-3">
             <UAlert
               color="info"
               variant="soft"
-              title="默认跳转位置"
+              title="登录后跳转"
               :description="redirectTarget"
             />
-
-            <div
-              v-for="item in afterLoginStatus"
-              :key="item.title"
-              class="rounded-lg border border-default px-3 py-3"
-            >
-              <div class="flex items-start gap-3">
-                <UIcon :name="item.icon" class="mt-0.5 size-4 shrink-0 text-primary" />
-                <div class="min-w-0">
-                  <div class="font-medium">
-                    {{ item.title }}
-                  </div>
-                  <div class="mt-2 text-sm text-muted">
-                    {{ item.description }}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <p class="text-sm text-muted">
+              登录支持用户名或邮箱。成功后会优先返回当前请求中的目标页面；没有指定目标时，默认进入控制台。
+            </p>
+            <p v-if="setupStatus?.bootstrap_admin_available" class="text-sm text-muted">
+              当前数据库仍处于空库首次启动阶段，系统已自动创建默认管理员账号；如需使用，请查阅部署文档中的初始账号说明。
+            </p>
           </div>
-        </UPageCard>
-
-        <UPageCard title="快速入口" icon="i-lucide-navigation">
-          <div class="space-y-3">
-            <div
-              v-for="link in quickLinks"
-              :key="link.title"
-              class="rounded-lg border border-default px-3 py-3"
-            >
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <div class="flex items-center gap-2">
-                    <UIcon :name="link.icon" class="size-4 shrink-0" />
-                    <div class="font-medium">
-                      {{ link.title }}
-                    </div>
-                  </div>
-                  <div class="mt-2 text-sm text-muted">
-                    {{ link.description }}
-                  </div>
-                </div>
-                <UButton
-                  size="sm"
-                  variant="outline"
-                  icon="i-lucide-arrow-right"
-                  :to="link.to"
-                >
-                  前往
-                </UButton>
-              </div>
+          <template #footer>
+            <div class="flex flex-wrap gap-2">
+              <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="ghost" />
+              <UButton label="前往注册" icon="i-lucide-user-round-plus" :to="registerTo" variant="outline" />
             </div>
-          </div>
+          </template>
         </UPageCard>
       </div>
     </div>

@@ -19,55 +19,6 @@ const redirectTarget = computed(() => {
   return '/console/team'
 })
 
-const initialRegisterLanding = computed(() => {
-  const redirect = route.query.redirect
-  if (typeof redirect === 'string' && redirect.startsWith('/')) {
-    return `/console/team?redirect=${redirect}`
-  }
-
-  return '/console/team'
-})
-
-const afterRegisterStatus = computed(() => {
-  if (redirectTarget.value.startsWith('/games/')) {
-    return [
-      {
-        title: '进入队伍页',
-        description: '注册成功后会先进入队伍页，再继续处理当前比赛。',
-        icon: 'i-lucide-users',
-      },
-      {
-        title: '准备队伍',
-        description: '创建或加入队伍后，才会开放后续报名与提交操作。',
-        icon: 'i-lucide-user-round-plus',
-      },
-      {
-        title: '返回原比赛',
-        description: '队伍准备完成后，再回到原比赛继续报名、提 Flag 或启动实例。',
-        icon: 'i-lucide-flag',
-      },
-    ]
-  }
-
-  return [
-      {
-        title: '自动登录',
-        description: '注册成功后会直接建立登录态，并进入队伍页。',
-        icon: 'i-lucide-layout-dashboard',
-      },
-      {
-        title: '准备队伍',
-        description: '比赛报名、排行榜和动态实例都按队伍维度进行。',
-        icon: 'i-lucide-users',
-      },
-      {
-        title: '进入比赛',
-        description: '队伍准备完成后，再去比赛页继续报名、提交或补交 Writeup。',
-        icon: 'i-lucide-trophy',
-      },
-  ]
-})
-
 const registerSchema = z.object({
   username: z.string().min(2, '用户名至少 2 个字符'),
   email: z.string().email('请输入有效邮箱'),
@@ -151,40 +102,27 @@ const loginTo = computed(() => {
       </UPageCard>
 
       <div class="space-y-6">
-        <UPageCard title="注册后状态" icon="i-lucide-list-checks">
+        <UPageCard title="访问说明" icon="i-lucide-info">
           <div class="space-y-3">
             <UAlert
               color="info"
               variant="soft"
-              title="默认落点"
-              :description="initialRegisterLanding"
+              title="注册后跳转"
+              :description="redirectTarget.startsWith('/games/') ? `/console/team?redirect=${redirectTarget}` : '/console/team'"
             />
-
-            <div
-              v-for="item in afterRegisterStatus"
-              :key="item.title"
-              class="rounded-lg border border-default px-3 py-3"
-            >
-              <div class="flex items-start gap-3">
-                <UIcon :name="item.icon" class="mt-0.5 size-4 shrink-0 text-primary" />
-                <div class="min-w-0">
-                  <div class="font-medium">
-                    {{ item.title }}
-                  </div>
-                  <div class="mt-2 text-sm text-muted">
-                    {{ item.description }}
-                  </div>
-                </div>
-              </div>
+            <p class="text-sm text-muted">
+              注册成功后会自动登录，并先进入队伍页。比赛报名、题目提交和排行榜都以队伍为单位进行。
+            </p>
+            <p v-if="redirectTarget.startsWith('/games/')" class="text-sm text-muted">
+              如果当前是从比赛详情页进入注册流程，完成组队后系统会继续返回原比赛页面。
+            </p>
+          </div>
+          <template #footer>
+            <div class="flex flex-wrap gap-2">
+              <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="ghost" />
+              <UButton label="返回登录" icon="i-lucide-log-in" :to="loginTo" variant="outline" />
             </div>
-          </div>
-        </UPageCard>
-
-        <UPageCard title="常用入口" icon="i-lucide-navigation">
-          <div class="space-y-3">
-            <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="outline" block />
-            <UButton label="返回登录" icon="i-lucide-log-in" :to="loginTo" variant="ghost" block />
-          </div>
+          </template>
         </UPageCard>
       </div>
     </div>

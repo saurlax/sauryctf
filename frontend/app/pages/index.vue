@@ -1,6 +1,5 @@
 <script setup lang="ts">
 const { isLoggedIn } = useAuth()
-const { data: setupStatus } = await useAPI('landing-auth-setup-status', 'get', '/api/auth/setup-status')
 
 const features = [
   {

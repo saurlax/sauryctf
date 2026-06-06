@@ -68,7 +68,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 
 **Directory structure:**
 - `app/pages/index.vue` — Home / landing page
-- `app/pages/login.vue` — Login entry with bootstrap admin hint
+- `app/pages/login.vue` — Minimal login entry
 - `app/pages/register.vue` — Public registration entry for new players
 - `app/pages/games/index.vue` — Games list
 - `app/pages/games/[id].vue` — Game detail + challenges

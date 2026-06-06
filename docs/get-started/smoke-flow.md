@@ -2,7 +2,7 @@
 
 这份文档面向空库首次启动后的最小检查流程。
 
-目标不是把所有功能都点一遍，而是确认这套项目已经能完成一条最基础的管理员建赛链路，以及一条最基础的选手参赛链路。
+目标是确认项目已经能跑通一条管理员建赛链路，以及一条选手参赛链路。
 
 ## 前置条件
 
@@ -17,7 +17,7 @@ pnpm dev
 - 前端：`http://127.0.0.1:3000`
 - 后端：`http://127.0.0.1:8080`
 
-当前动态题实例的最小容器策略也可以直接通过环境变量调整：
+动态题实例策略可通过以下环境变量调整：
 
 - `INSTANCE_LEASE_DURATION_MINUTES`
 - `INSTANCE_EXTENSION_DURATION_MINUTES`
@@ -33,13 +33,13 @@ pnpm dev
 - 每支队伍同时运行实例上限：`3`
 - 过期实例后台清理间隔：`60` 秒
 
-这组语义现在采用 `defaultLifetime / extensionDuration / renewalWindow` 这一组更清晰的实例生命周期划分，适合本地检查流程。
+这组参数对应 `defaultLifetime / extensionDuration / renewalWindow` 这一套实例生命周期划分。
 
 动态题 provider 目前分两档：
 
 - 默认不额外配置时，`runtime.provider = docker` 仍然走本地 skeleton lease，仅用于检查租约与入口展示
 - 当你显式开启 `INSTANCE_DOCKER_PROVIDER_ENABLED=true` 后，后端会改用本机 `docker` CLI 真正执行 `docker run / inspect / rm -f`
-- 如果使用真实 Docker provider，建议同时设置：
+- 如果使用真实 Docker provider，可同时设置：
   - `INSTANCE_DOCKER_HOST=127.0.0.1`
   - 动态题 `runtime.expose` 为容器内端口列表，例如 `[80]`
   - `runtime.image` 使用本机可拉取的公开镜像，例如 `nginx:alpine`
@@ -59,11 +59,11 @@ pnpm dev
 pnpm smoke:local
 ```
 
-这条命令现在默认会先临时启动一份独立后端：
+这条命令默认会先启动一份独立后端：
 
 - 使用自动挑选的空闲本地端口
 - 使用单独 SQLite 文件，不污染仓库根目录现有 `sauryctf.db`
-- 跑完后自动关闭并清理临时产物
+- 跑完后自动关闭并清理
 
 这条脚本随后会直接调用后端 API，自动完成：
 
@@ -89,7 +89,7 @@ pnpm smoke:local
 ./scripts/smoke-local.ps1 -BaseUrl http://127.0.0.1:8080
 ```
 
-如果你想保留临时后端的数据库和日志做排查，也可以加：
+如果你想保留临时后端的数据库和日志，可加：
 
 ```powershell
 ./scripts/smoke-local.ps1 -StartBackend -KeepArtifacts
@@ -97,13 +97,13 @@ pnpm smoke:local
 
 这条脚本依然刻意要求目标数据库是“无任何用户”的状态；一旦库里已有用户，它会直接退出，而不是尝试补建 `admin`。
 
-如果你本机 Docker Server 可用，也可以直接运行真实 Docker 版本：
+如果本机 Docker Server 可用，也可以直接运行真实 Docker 版本：
 
 ```bash
 pnpm smoke:local:docker
 ```
 
-这条命令和 `pnpm smoke:local` 一样，也会先自启临时隔离后端；区别是它会额外为这份临时后端开启真实 Docker provider。
+这条命令和 `pnpm smoke:local` 一样会先自启临时隔离后端；区别是它会额外为这份后端开启真实 Docker provider。
 
 这条脚本会把动态题切成 `nginx:alpine + runtime.expose = [80]`，并额外验证：
 
@@ -126,7 +126,7 @@ pnpm smoke:local:docker
 2. 用 `admin / sauryctf` 登录
 3. 进入 `/console/admin`
 4. 在“创建比赛”里新建一场比赛
-5. 建议先使用这组最小配置：
+5. 可先使用这组最小配置：
    - 名称：任意，例如 `Local Smoke CTF`
    - 开始时间：当前时间前 5 分钟
    - 结束时间：当前时间后 2 小时
@@ -134,7 +134,7 @@ pnpm smoke:local:docker
    - `registration_mode = auto_accept`
    - 其他配置保持默认
 6. 在“创建题目”里新建一道题目
-7. 建议先使用这组最小配置：
+7. 可先使用这组最小配置：
    - 标题：任意，例如 `Welcome`
    - 分类：`misc`
    - Flag：`flag{smoke-test}`
@@ -143,7 +143,7 @@ pnpm smoke:local:docker
 9. 在“比赛设置”里把比赛状态切到 `active`
 10. 打开公开页 `/games`，确认这场比赛已经可见
 
-如果以上 10 步全部正常，说明最基础的管理闭环已经跑通：
+如果以上 10 步全部正常，说明基础管理闭环已经跑通：
 
 - 管理员登录正常
 - 比赛创建正常
@@ -151,7 +151,7 @@ pnpm smoke:local:docker
 - 挂题正常
 - 比赛公开与激活正常
 
-如果你还想顺手验证当前最小动态题链路，建议把第 6 步题目改成动态题模板，或直接使用管理端里的 `每队独立入口` 模板：
+如果还想验证最小动态题链路，可把第 6 步题目改成动态题模板，或直接使用管理端里的 `每队独立入口` 模板：
 
 - `runtime.provider = docker`
 - `runtime.image = nginx:alpine`
@@ -160,7 +160,7 @@ pnpm smoke:local:docker
 
 默认这一步不会真的起容器，但比赛页会先显示入口模板，启动实例后再显示已经为当前队伍解析好的租约地址，并能直接跳到实例详情页。
 
-如果你已经开启 `INSTANCE_DOCKER_PROVIDER_ENABLED=true`，也可以把同一结构改成最小真实容器模板，例如：
+如果已经开启 `INSTANCE_DOCKER_PROVIDER_ENABLED=true`，也可以把同一结构改成最小真实容器模板，例如：
 
 - `runtime.provider = docker`
 - `runtime.image = nginx:alpine`
@@ -179,7 +179,7 @@ pnpm smoke:local:docker
 1. 打开一个新的无痕窗口
 2. 访问 `http://127.0.0.1:3000/register`
 3. 注册一个普通用户
-4. 如果是直接访问注册页，注册成功后会直接进入 `/console/team?onboarding=created`
+4. 如果是直接访问注册页，注册成功后会直接进入 `/console/team`
 5. 进入 `/console/team`
 6. 创建一支新队伍
 7. 返回 `/games`
@@ -193,7 +193,7 @@ pnpm smoke:local:docker
 13. 确认出现成功提示，并且题目显示为已解决
 14. 打开“排行榜”标签，确认当前队伍已经出现在榜单中
 
-如果以上 14 步全部正常，说明最基础的选手闭环已经跑通：
+如果以上 14 步全部正常，说明基础选手闭环已经跑通：
 
 - 注册与自动登录正常
 - 队伍创建正常
@@ -202,11 +202,11 @@ pnpm smoke:local:docker
 - Flag 提交正常
 - 排行榜记分正常
 
-如果你是从某个比赛详情页里的“注册”入口进入注册页，注册成功后会先跳到 `/console/team?onboarding=created&redirect=原比赛地址`，建队或入队成功后才会自动回到原比赛继续报名。
+如果你是从某个比赛详情页里的“注册”入口进入注册页，注册成功后会先跳到 `/console/team?redirect=原比赛地址`，建队或入队成功后才会自动回到原比赛继续报名。
 
 ## 额外快速检查
 
-如果还想再多确认两件关键行为，可以顺手检查：
+如果还想再确认两件关键行为，可以顺手检查：
 
 1. 用未登录窗口打开同一场比赛详情页
    - 应该只能看到题目基础信息

@@ -1,6 +1,6 @@
 # 本地 Docker Dynamic 题
 
-这份说明面向“想让动态题在本机真的 `docker run` 起来”的最小检查场景。
+这份文档面向本机真实拉起 Docker 动态题的最小检查场景。
 
 ## 开启方式
 
@@ -17,13 +17,13 @@ INSTANCE_DOCKER_HOST=127.0.0.1
 
 ## 最快检查
 
-如果你只是想最快检查真实本地 Docker provider，可以直接运行：
+如果只想最快检查真实本地 Docker provider，可以直接运行：
 
 ```bash
 pnpm smoke:local:docker
 ```
 
-这条命令现在会自动：
+这条命令会自动：
 
 - 启动一份临时隔离后端
 - 为这份后端自动开启 `INSTANCE_DOCKER_PROVIDER_ENABLED=true`
@@ -37,7 +37,7 @@ pnpm smoke:local:docker
 - 入口能返回 nginx 默认页
 - 销毁实例后会重新回到 `idle`
 
-这条链路仍然要求本机 Docker daemon 可用。以当前 Windows 常见环境来说，至少需要：
+这条链路仍然要求本机 Docker daemon 可用。常见环境下至少需要：
 
 - Docker Desktop 已启动
 - 当前 Docker context 对应的 Linux engine 可用
@@ -52,7 +52,7 @@ docker info
 
 根据 Docker CLI 官方文档，`docker version` 会同时输出 `Client` 和 `Server` 信息；如果 daemon 没起来，`Server` 信息就拿不到，脚本也会直接停在前置检查阶段。
 
-如果你更想从管理端直接走一遍最小链路，现在 `/console/admin` 里也提供了“创建本地 Docker 比赛”入口：
+如果你想从管理端直接走一遍最小链路，现在 `/console/admin` 里也提供了“创建本地 Docker 比赛”入口：
 
 - 会自动创建一场公开比赛
 - 会自动创建一道 `Local Docker Web Instance` 动态题
@@ -76,10 +76,10 @@ docker info
 }
 ```
 
-这份模板额外强调两件事：
+这份模板主要强调两点：
 
 - 实例真正启动前，不需要手写固定 `url`，平台会在租约响应里回填真实 `host / port / launch_url`
-- 这份模板优先服务于“先把本地真实 Docker provider 跑通”，而不是一开始就做每队固定入口网关
+- 这份模板优先服务于本地真实 Docker provider 检查，而不是固定入口网关场景
 
 ## 当前行为
 
@@ -99,9 +99,9 @@ docker info
 - 仍然是“每条租约一个本地容器”的最小实现
 - 还没有卷挂载、环境变量注入、自定义网络、registry 登录、资源限制
 - 还没有接到真正的反向代理或平台网关
-- 如果你需要“每队固定入口 URL”而不是随机宿主机端口，当前更适合继续用 `每队独立入口` 模板沉淀交互，再往后补网关层
+- 如果你需要“每队固定入口 URL”而不是随机宿主机端口，当前更适合继续使用 `每队独立入口` 模板，再往后补网关层
 
-## 适合现在做的题
+## 当前适用题型
 
 - 本地 Web 服务题
 - 只需要一个 HTTP 端口的基础动态题
