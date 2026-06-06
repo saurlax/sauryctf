@@ -1101,8 +1101,8 @@ function getChallengeCardMeta(challenge: GameChallengeDetail) {
 const nextStepMeta = computed(() => {
   if (!authState.user) {
     return {
-      title: '当前状态：需要登录',
-      description: '已有账号登录后会直接回到当前比赛；如果还没有账号，也可以先注册，系统会先带你去准备队伍，再回到这里继续报名。',
+      title: '需要先登录',
+      description: '登录后会直接返回当前比赛，并继续读取当前账号对应的队伍与报名状态。',
       color: 'info' as const,
       actionLabel: '去登录',
       actionTo: loginEntry.value,
@@ -1113,8 +1113,8 @@ const nextStepMeta = computed(() => {
 
   if (!participation.value?.has_team) {
     return {
-      title: '当前状态：需要队伍',
-      description: '当前比赛以内队形式参赛。先去控制台创建或加入队伍，再回来完成报名。',
+      title: '需要先关联队伍',
+      description: '当前比赛以内队形式参赛。请先在控制台创建或加入队伍，再返回当前比赛处理报名。',
       color: 'warning' as const,
       actionLabel: '去队伍页',
       actionTo: teamEntry.value,
@@ -1123,7 +1123,7 @@ const nextStepMeta = computed(() => {
 
   if (!participation.value?.participated) {
     return {
-      title: '当前状态：待报名',
+      title: '当前可报名',
       description: game.value?.registration_mode === 'auto_accept'
         ? '当前比赛会自动通过报名。确认后，如果比赛已开始，你的队伍就可以直接提交 Flag。'
         : '当前比赛需要先提交报名申请。提交后等待管理员审核通过，才能正式参赛。',
@@ -1135,7 +1135,7 @@ const nextStepMeta = computed(() => {
 
   if (participation.value.missing_writeup) {
     return {
-      title: '当前状态：待补 Writeup',
+      title: '需要补交 Writeup',
       description: participation.value.writeup_deadline
         ? `当前队伍还没有提交 Writeup，请在 ${new Date(participation.value.writeup_deadline).toLocaleString()} 前切换到 Writeup 标签补交。`
         : '当前队伍还没有提交 Writeup，请切换到 Writeup 标签尽快补交。',
@@ -1148,7 +1148,7 @@ const nextStepMeta = computed(() => {
 
   if (participation.value.status === 'pending') {
     return {
-      title: '当前状态：待审核',
+      title: '报名待审核',
       description: '你的队伍报名已经提交成功。现在无需重复操作，等待管理员审核通过后就能正式参赛。',
       color: 'warning' as const,
       actionLabel: '查看队伍',
@@ -1158,7 +1158,7 @@ const nextStepMeta = computed(() => {
 
   if (participation.value.status === 'rejected') {
     return {
-      title: '当前状态：报名未通过',
+      title: '报名未通过',
       description: '当前报名没有通过。你可以先退出这次报名，调整队伍后再重新提交申请。',
       color: 'error' as const,
       actionLabel: '退出本次报名',
@@ -1168,7 +1168,7 @@ const nextStepMeta = computed(() => {
 
   if (participation.value.writeup_required && participation.value.writeup_submitted && participation.value.writeup_status === 'submitted') {
     return {
-      title: '当前状态：Writeup 待审核',
+      title: 'Writeup 待审核',
       description: 'Writeup 已经提交成功。你可以继续留在比赛页参赛，或返回 Writeup 标签补充更新内容。',
       color: 'info' as const,
       actionLabel: '去 Writeup',
@@ -1179,7 +1179,7 @@ const nextStepMeta = computed(() => {
 
   if (gameStatusMeta.value.label === '未开始') {
     return {
-      title: '当前状态：等待开赛',
+      title: '等待开赛',
       description: '你的队伍已经具备参赛资格。比赛开始后，题面会自动开放，随后就可以提交 Flag。',
       color: 'info' as const,
       actionLabel: '查看题目',
@@ -1190,7 +1190,7 @@ const nextStepMeta = computed(() => {
 
   if (gameStatusMeta.value.label === '进行中') {
     return {
-      title: '当前状态：可开始解题',
+      title: '当前可开始解题',
       description: '当前已经满足参赛条件，可以直接切换到题目标签开始查看题面、附件并提交 Flag。',
       color: 'success' as const,
       actionLabel: '进入题目',
@@ -1200,7 +1200,7 @@ const nextStepMeta = computed(() => {
   }
 
   return {
-    title: '当前状态：比赛已结束',
+    title: '比赛已结束',
     description: '比赛当前已经结束。你仍然可以继续查看题目、排行榜和 Writeup 信息。',
     color: 'neutral' as const,
     actionLabel: '查看排行榜',
@@ -1261,7 +1261,7 @@ const detailPrimaryAction = computed(() => {
 const detailSecondaryAction = computed(() => {
   if (!authState.user) {
     return {
-      label: '注册并准备队伍',
+      label: '注册账号',
       to: registerEntry.value,
       icon: 'i-lucide-user-plus',
     }
@@ -1554,21 +1554,21 @@ const divisionRuleDescription = computed(() => {
 
 const registrationStepCards = computed(() => [
   {
-    label: '1. 登录账号',
+    label: '账号状态',
     value: authState.user ? '已完成' : '待完成',
     hint: authState.user ? `当前账号：${authState.user.username}` : '登录后才能看到你的队伍状态并提交报名',
     icon: authState.user ? 'i-lucide-check-circle-2' : 'i-lucide-log-in',
     color: authState.user ? 'success' as const : 'neutral' as const,
   },
   {
-    label: '2. 准备队伍',
+    label: '队伍状态',
     value: participation.value?.has_team ? '已完成' : '待完成',
     hint: participation.value?.team?.name ? `当前队伍：${participation.value.team.name}` : '比赛以内队形式参赛，请先创建或加入队伍',
     icon: participation.value?.has_team ? 'i-lucide-users-round' : 'i-lucide-users',
     color: participation.value?.has_team ? 'success' as const : 'warning' as const,
   },
   {
-    label: '3. 完成报名',
+    label: '报名状态',
     value: participation.value?.participated
       ? (participation.value.status === 'accepted' ? '已通过' : participation.value.status === 'pending' ? '待审核' : '已拒绝')
       : '待完成',
@@ -1597,7 +1597,7 @@ const registrationStepCards = computed(() => [
           : 'info' as const,
   },
   {
-    label: '4. 开始解题',
+    label: '提交权限',
     value: canSubmitFlag.value ? '当前可提交' : '暂未开放',
     hint: canSubmitFlag.value
       ? (gameStatusMeta.value.label === '已结束' ? '当前为赛后练习提交，不计入正式榜单' : '可以直接切换到题目标签提交 Flag')
@@ -1608,7 +1608,7 @@ const registrationStepCards = computed(() => [
 ])
 
 const contestRuleSummaryItems = computed(() => [
-  '先准备队伍，再完成比赛报名。',
+  '当前比赛以内队形式组织参赛。',
   game.value?.registration_mode === 'auto_accept'
     ? '报名提交后会直接通过。'
     : '报名提交后需要等待管理员审核。',

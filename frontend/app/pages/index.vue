@@ -32,13 +32,13 @@ const accessCards = computed(() => [
     to: '/login',
   },
   {
-    title: '选手入场',
-    description: '创建选手账号后即可进入队伍页，继续完成组队、报名与参赛操作。',
+    title: '选手账号',
+    description: '创建选手账号后即可进入队伍页，继续处理组队、报名与参赛操作。',
     icon: 'i-lucide-flag',
     to: '/register',
   },
   {
-    title: '先看公开比赛',
+    title: '公开比赛',
     description: '公开比赛页可查看基础信息、题目列表与排行榜。',
     icon: 'i-lucide-list',
     to: '/games',
