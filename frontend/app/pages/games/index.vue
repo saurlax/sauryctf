@@ -13,6 +13,7 @@ const participationMap = ref<Record<number, GameParticipation>>({})
 const loading = ref(true)
 const searchQuery = ref('')
 const statusFilter = ref<'all' | 'active' | 'ended'>('all')
+const now = ref(Date.now())
 
 const firstVisibleGame = computed(() => games.value[0] || null)
 const firstVisibleGameRedirect = computed(() => firstVisibleGame.value ? encodeURIComponent(`/games/${firstVisibleGame.value.id}`) : encodeURIComponent('/games'))
@@ -21,7 +22,7 @@ const joinedGames = computed(() => games.value.filter(game => participationMap.v
 const firstJoinedGame = computed(() => joinedGames.value[0] || null)
 const firstJoinableGame = computed(() =>
   games.value.find(game =>
-    game.status === 'active'
+    getGamePhase(game) !== 'ended'
     && participationMap.value[game.id]?.has_team
     && !participationMap.value[game.id]?.participated,
   ) || null,
@@ -45,7 +46,7 @@ const listGuideMeta = computed(() => {
 
   if (!hasTeam.value) {
     return {
-      title: '当前状态：需要队伍',
+      title: '需要先准备队伍',
       description: '比赛报名、提交 Flag 和排行榜都按队伍进行。先创建或加入队伍，再回到这里继续选赛。',
       color: 'warning' as const,
       icon: 'i-lucide-users',
@@ -71,7 +72,7 @@ const listGuideMeta = computed(() => {
 
   if (firstJoinableGame.value) {
     return {
-      title: '当前状态：可继续报名',
+      title: '当前可继续报名',
       description: firstJoinableGame.value.registration_mode === 'auto_accept'
         ? `${firstJoinableGame.value.name} 当前使用自动通过报名。进入详情页后，确认报名就能直接获得参赛资格。`
         : `${firstJoinableGame.value.name} 当前使用审核制报名。进入详情页提交报名后，再等待管理员通过即可。`,
@@ -85,7 +86,7 @@ const listGuideMeta = computed(() => {
   }
 
   return {
-    title: '当前状态：可继续浏览比赛',
+    title: '当前可继续浏览比赛',
     description: '如果暂时没有可直接报名的进行中比赛，可以先看比赛规则、分组和赛后练习配置，等目标比赛开放后再继续参赛。',
     color: 'neutral' as const,
     icon: 'i-lucide-compass',
@@ -133,12 +134,49 @@ function getStatusLabel(status: string) {
   }
 }
 
+function getGamePhase(game: Game) {
+  if (game.status === 'draft') {
+    return 'draft' as const
+  }
+
+  const startAt = new Date(game.start_time).getTime()
+  const endAt = new Date(game.end_time).getTime()
+
+  if (now.value < startAt) {
+    return 'before_start' as const
+  }
+
+  if (now.value > endAt || game.status === 'ended') {
+    return 'ended' as const
+  }
+
+  return 'active' as const
+}
+
+function getDisplayStatusLabel(game: Game) {
+  const phase = getGamePhase(game)
+  if (phase === 'before_start') {
+    return '未开始'
+  }
+
+  return getStatusLabel(phase === 'active' ? game.status : phase)
+}
+
+function getDisplayStatusColor(game: Game) {
+  const phase = getGamePhase(game)
+  if (phase === 'before_start') {
+    return 'warning'
+  }
+
+  return getStatusColor(phase === 'active' ? game.status : phase)
+}
+
 function getParticipationMeta(game: Game) {
   const redirect = encodeURIComponent(`/games/${game.id}`)
 
   return resolveParticipationMeta({
     gameId: game.id,
-    gamePhase: game.status === 'ended' ? 'ended' : game.status === 'draft' ? 'draft' : 'active',
+    gamePhase: getGamePhase(game),
     practiceMode: game.practice_mode,
     isLoggedIn: !!authState.user,
     participation: participationMap.value[game.id],
@@ -154,7 +192,12 @@ const filteredGames = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase()
 
   return games.value.filter((game) => {
-    if (statusFilter.value !== 'all' && game.status !== statusFilter.value) {
+    const phase = getGamePhase(game)
+    if (statusFilter.value === 'active' && phase !== 'active' && phase !== 'before_start') {
+      return false
+    }
+
+    if (statusFilter.value === 'ended' && phase !== 'ended') {
       return false
     }
 
@@ -181,30 +224,30 @@ const listStats = computed(() => [
   },
   {
     label: '进行中',
-    value: String(games.value.filter(game => game.status === 'active').length),
-    hint: '当前仍可继续参赛或查看实时榜单的比赛',
+    value: String(games.value.filter(game => getGamePhase(game) === 'active').length),
+    hint: '当前已经开赛并仍可继续参赛的比赛',
     icon: 'i-lucide-activity',
     color: 'success' as const,
   },
   {
+    label: '未开始',
+    value: String(games.value.filter(game => getGamePhase(game) === 'before_start').length),
+    hint: '当前已开放展示但尚未开赛的比赛',
+    icon: 'i-lucide-clock-3',
+    color: 'warning' as const,
+  },
+  {
     label: '已结束',
-    value: String(games.value.filter(game => game.status === 'ended').length),
+    value: String(games.value.filter(game => getGamePhase(game) === 'ended').length),
     hint: '适合复盘、补题和查看历史榜单的比赛',
     icon: 'i-lucide-archive',
     color: 'neutral' as const,
-  },
-  {
-    label: '我的已报名',
-    value: String(games.value.filter(game => participationMap.value[game.id]?.participated).length),
-    hint: authState.user ? '当前账号已经关联到的比赛数量' : '登录后这里会显示你的已报名比赛数',
-    icon: 'i-lucide-badge-check',
-    color: 'warning' as const,
   },
 ])
 
 const statusOptions = [
   { label: '全部状态', value: 'all' },
-  { label: '进行中', value: 'active' },
+  { label: '进行中 / 未开始', value: 'active' },
   { label: '已结束', value: 'ended' },
 ]
 
@@ -419,8 +462,8 @@ onMounted(async () => {
             <h3 class="text-lg font-semibold">
               {{ game.name }}
             </h3>
-            <UBadge :color="getStatusColor(game.status)" size="sm">
-              {{ getStatusLabel(game.status) }}
+            <UBadge :color="getDisplayStatusColor(game)" size="sm">
+              {{ getDisplayStatusLabel(game) }}
             </UBadge>
           </div>
         </template>
