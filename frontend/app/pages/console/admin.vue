@@ -311,6 +311,13 @@ const challengeEditSchema = z.object({
 const importForm = reactive({
   file: undefined as File | undefined,
 })
+const importGameSchema = z.object({
+  file: z.custom<File>(value => value instanceof File, {
+    message: '请先选择导入文件',
+  }).refine(file => file.name.toLowerCase().endsWith('.zip'), {
+    message: '请选择 ZIP 文件',
+  }),
+})
 
 const challengeAttachmentUploadForm = reactive({
   file: undefined as File | undefined,
@@ -3536,16 +3543,11 @@ async function runExportSubmissions(gameId: number) {
   }
 }
 
-async function importGamePackage() {
-  if (!importForm.file) {
-    toast.add({ title: '请先选择导入文件', color: 'warning' })
-    return
-  }
-
+async function importGamePackage(payload: FormSubmitEvent<z.output<typeof importGameSchema>>) {
   importingGame.value = true
   try {
     const formData = new FormData()
-    formData.append('file', importForm.file)
+    formData.append('file', payload.data.file)
 
     const game = await $fetch<AdminGameSummary>('/api/admin/games/import', {
       method: 'POST',
@@ -6508,6 +6510,7 @@ onMounted(async () => {
     v-model:open="importModalOpen"
     title="导入比赛包"
     description="上传导出的比赛 ZIP 包，系统会创建新的比赛和题目副本。"
+    :dismissible="!importingGame"
     :ui="{ body: 'space-y-4', footer: 'justify-end' }"
   >
     <template #body>
@@ -6515,22 +6518,31 @@ onMounted(async () => {
         支持 `sauryctf.export.v1` / `v2`，其中 `v2` 会额外恢复包内嵌入的本地附件文件。
       </p>
 
-      <UFormField label="ZIP 文件" name="import-file">
-        <UFileUpload
-          v-model="importForm.file"
-          accept=".zip,application/zip"
-          class="min-h-32"
-          label="拖拽比赛包到这里"
-          description="或点击选择一个 ZIP 文件"
-        />
-      </UFormField>
+      <UForm
+        id="import-game-form"
+        :state="importForm"
+        :schema="importGameSchema"
+        class="space-y-4"
+        @submit="importGamePackage"
+      >
+        <UFormField label="ZIP 文件" name="file">
+          <UFileUpload
+            v-model="importForm.file"
+            accept=".zip,application/zip"
+            class="min-h-32"
+            :disabled="importingGame"
+            label="拖拽比赛包到这里"
+            description="或点击选择一个 ZIP 文件"
+          />
+        </UFormField>
+      </UForm>
     </template>
 
     <template #footer="{ close }">
       <UButton variant="ghost" :disabled="importingGame" @click="close()">
         取消
       </UButton>
-      <UButton icon="i-lucide-file-up" :loading="importingGame" @click="importGamePackage">
+      <UButton type="submit" form="import-game-form" icon="i-lucide-file-up" :loading="importingGame" :disabled="importingGame">
         导入比赛
       </UButton>
     </template>
