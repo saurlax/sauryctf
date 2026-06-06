@@ -1,4 +1,4 @@
-# 本地 Docker Dynamic 题
+# 本地容器实例题
 
 这份文档面向本机真实拉起 Docker 动态题的最小检查场景。
 
@@ -17,7 +17,7 @@ INSTANCE_DOCKER_HOST=127.0.0.1
 
 ## 最快检查
 
-如果只想最快检查真实本地 Docker provider，可以直接运行：
+如果只想最快检查真实容器实例 provider，可以直接运行：
 
 ```bash
 pnpm smoke:local:docker
@@ -52,16 +52,16 @@ docker info
 
 根据 Docker CLI 官方文档，`docker version` 会同时输出 `Client` 和 `Server` 信息；如果 daemon 没起来，`Server` 信息就拿不到，脚本也会直接停在前置检查阶段。
 
-如果你想从管理端直接走一遍最小链路，现在 `/console/admin` 里也提供了“创建本地 Docker 比赛”入口：
+如果你想从管理端直接走一遍最小链路，现在 `/console/admin` 里也提供了“新建容器实例赛”入口：
 
 - 会自动创建一场公开比赛
-- 会自动创建一道 `Local Docker Web Instance` 动态题
+- 会自动创建一道基于 `nginx:alpine` 的容器实例题
 - 会自动完成挂题
-- 随后可以直接用普通用户去公开比赛页检查真实本地 Docker Web 实例链路
+- 随后可以直接用普通用户去公开比赛页检查真实容器实例链路
 
 ## 推荐最小题目模板
 
-管理端 `/console/admin` 的“本地 Docker Web”按钮现在会预填一份更接近真实本地运行的模板，核心结构是：
+管理端 `/console/admin` 的“容器 Web 题”模板现在会预填一份更接近真实本地运行的结构，核心内容是：
 
 ```json
 {
@@ -79,8 +79,7 @@ docker info
 这份模板主要强调两点：
 
 - 实例真正启动前，不需要手写固定 `url`，平台会在租约响应里回填真实 `host / port / launch_url`
-- 这份模板优先服务于本地真实 Docker provider 检查，而不是固定入口网关场景
-- 如果题目需要最小运行参数，也可以继续在 `runtime.env` 里声明：
+- 这份模板优先服务于真实容器实例 provider 检查，而不是固定入口网关场景
 - 如果题目需要覆盖镜像默认入口或补充最小启动参数，也可以继续写：
 
 ```json

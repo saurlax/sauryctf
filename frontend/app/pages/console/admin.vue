@@ -360,7 +360,7 @@ const challengeEditing = ref(false)
 const challengeEditAttachmentUploading = ref(false)
 const starterProvisioning = ref(false)
 const dynamicProvisioning = ref(false)
-const localDockerProvisioning = ref(false)
+const containerProvisioning = ref(false)
 const loadingResources = ref(false)
 const loadingGameChallenges = ref(false)
 const loadingParticipants = ref(false)
@@ -708,10 +708,10 @@ const selectedChallengeTemplatePurposes = computed(() =>
   ),
 )
 
-const localDockerChallengeIds = computed(() =>
+const containerTemplateChallengeIds = computed(() =>
   new Set(
     selectedGameChallenges.value
-      .filter(challenge => parseChallengeTemplatePurpose(challenge.container_spec) === 'local-docker-web')
+      .filter(challenge => parseChallengeTemplatePurpose(challenge.container_spec) === 'container-runtime-web')
       .map(challenge => challenge.id),
   ),
 )
@@ -1357,20 +1357,20 @@ const selectedGamePreflightChecks = computed(() => {
   ]
 })
 
-const localDockerInstanceChecklist = computed(() => {
+const containerInstanceChecklist = computed(() => {
   const overview = selectedAdminOverview.value
   if (!overview) {
     return []
   }
 
-  const hasLocalDockerTemplate = selectedChallengeTemplatePurposes.value.has('local-docker-web')
+  const hasContainerRuntimeTemplate = selectedChallengeTemplatePurposes.value.has('container-runtime-web')
 
-  if (!hasLocalDockerTemplate) {
+  if (!hasContainerRuntimeTemplate) {
     return []
   }
 
   const runningLeaseCount = instanceLeases.value.filter(lease =>
-    matchesLocalDockerLease(lease)
+    matchesContainerRuntimeLease(lease)
       && !lease.is_expired,
   ).length
 
@@ -1390,8 +1390,8 @@ const localDockerInstanceChecklist = computed(() => {
       label: '2. 在题目卡片里启动容器实例',
       done: runningLeaseCount > 0,
       description: runningLeaseCount > 0
-        ? `当前已有 ${runningLeaseCount} 条动态 Web 实例正在运行，说明实例至少已经成功启动一次。`
-        : '报名后到公开比赛页点击启动实例。成功时应拿到真实 host / port / launch_url，而不是手写固定入口。',
+        ? `当前已有 ${runningLeaseCount} 条容器实例正在运行，说明实例至少已经成功启动一次。`
+        : '报名后到公开比赛页点击启动实例。成功时应拿到真实 host / port / launch_url，而不是固定占位入口。',
       actionLabel: '打开公开页',
       actionTo: `/games/${overview.game.id}`,
     },
@@ -1616,10 +1616,10 @@ function describeChallengeAccessMode(containerSpec?: string) {
       ? runtime.expose.map(item => String(item).trim()).filter(Boolean)
       : []
 
-    if (purpose === 'local-docker-web') {
+    if (purpose === 'container-runtime-web') {
       return {
         title: '平台回填入口',
-        description: '当前配置会在实例启动后由平台回填真实 launch_url 和 host:port，适合托管容器或本地 Docker 实例模式。',
+        description: '当前配置会在实例启动后由平台回填真实 launch_url 和 host:port，适合托管容器实例场景。',
         color: 'success' as const,
       }
     }
@@ -1688,7 +1688,7 @@ function parseChallengeTemplatePurpose(containerSpec?: string) {
         : []
 
       if (provider === 'docker' && image === 'nginx:alpine' && expose.includes('80')) {
-        return 'local-docker-web'
+        return 'container-runtime-web'
       }
     }
     catch {
@@ -1699,13 +1699,13 @@ function parseChallengeTemplatePurpose(containerSpec?: string) {
   return ''
 }
 
-function matchesLocalDockerLease(lease: {
+function matchesContainerRuntimeLease(lease: {
   challenge_id: number
   challenge_title?: string
   image?: string
   provider?: string
 }) {
-  if (localDockerChallengeIds.value.has(lease.challenge_id)) {
+  if (containerTemplateChallengeIds.value.has(lease.challenge_id)) {
     return true
   }
 
@@ -2500,7 +2500,7 @@ function getInstanceLeaseProviderColor(lease: { provider?: string, launch_url?: 
 
 function getInstanceLeaseProviderLabel(lease: { provider?: string, launch_url?: string, host?: string, port?: string }) {
   if (lease.provider === 'docker' && lease.host === '127.0.0.1' && lease.port) {
-    return '本地 Docker'
+    return 'Docker'
   }
   if (lease.provider === 'docker') {
     return 'Docker'
@@ -2781,12 +2781,12 @@ function fillDynamicContainerTemplate() {
         url: '由平台在实例启动后回填真实 launch_url',
       },
       {
-        label: '本地运行说明',
+        label: '运行说明',
         url: '/docs/get-started/local-docker-provider',
       },
     ],
     metadata: {
-      purpose: 'local-docker-web',
+      purpose: 'container-runtime-web',
       expected_service: 'nginx default page',
       expected_port: 80,
     },
@@ -2802,7 +2802,7 @@ function fillDynamicContainerTemplate() {
   challengeForm.max_attempts = 0
   challengeForm.is_visible = true
 
-  toast.add({ title: '已写入容器题默认值', description: '当前表单已填入基于 nginx:alpine 的容器题配置。', color: 'success' })
+  toast.add({ title: '已写入容器实例默认值', description: '当前表单已填入基于 nginx:alpine 的容器实例题配置。', color: 'success' })
 }
 
 function fillTeamScopedDynamicTemplate() {
@@ -3015,19 +3015,19 @@ async function createDynamicProvision() {
   }
 }
 
-async function createLocalDockerProvision() {
+async function createContainerProvision() {
   const now = new Date()
   const start = new Date(now.getTime() + 30 * 60 * 1000)
   const end = new Date(start.getTime() + 2 * 60 * 60 * 1000)
   const freeze = new Date(end.getTime() - 30 * 60 * 1000)
 
-  localDockerProvisioning.value = true
+  containerProvisioning.value = true
   try {
     const game = await $api('post', '/api/games', {
       body: {
         name: `${start.getFullYear()} 容器实例比赛`,
         description: '用于建立带容器实例能力的公开比赛配置。',
-        notice: '发布前请确认本地 Docker provider、镜像与实例入口配置正确。',
+        notice: '发布前请确认容器运行 provider、镜像与实例入口配置正确。',
         divisions: [],
         start_time: start.toISOString(),
         end_time: end.toISOString(),
@@ -3046,7 +3046,7 @@ async function createLocalDockerProvision() {
         title: '容器 Web 题',
         description: '用于录入依赖容器实例的 Web 题。',
         hints: JSON.stringify([
-          '请先确认运行节点已启用本地 Docker provider，且 Docker daemon 可用。',
+          '请先确认运行节点已启用容器实例 provider，且 Docker daemon 可用。',
           '实例启动后，应优先看到平台回填的真实 host、port 和 launch_url。',
         ]),
         attachments: '[]',
@@ -3066,7 +3066,7 @@ async function createLocalDockerProvision() {
             },
           ],
           metadata: {
-            purpose: 'local-docker-web',
+            purpose: 'container-runtime-web',
             expected_service: 'nginx default page',
             expected_port: 80,
           },
@@ -3106,7 +3106,7 @@ async function createLocalDockerProvision() {
     toast.add({ title: '创建容器实例比赛失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
-    localDockerProvisioning.value = false
+    containerProvisioning.value = false
   }
 }
 
@@ -4175,8 +4175,8 @@ onMounted(async () => {
               <UButton
                 variant="outline"
                 icon="i-lucide-container"
-                :loading="localDockerProvisioning"
-                @click="createLocalDockerProvision"
+                :loading="containerProvisioning"
+                @click="createContainerProvision"
               >
                 新建容器实例赛
               </UButton>
@@ -4357,10 +4357,10 @@ onMounted(async () => {
       </UPageCard>
 
       <UPageCard
-        v-if="localDockerInstanceChecklist.length"
+        v-if="containerInstanceChecklist.length"
         title="容器实例检查清单"
         icon="i-lucide-container"
-        id="local-docker-checklist"
+        id="container-runtime-checklist"
       >
         <div class="space-y-3">
           <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3">
@@ -4380,7 +4380,7 @@ onMounted(async () => {
           </div>
 
           <div
-            v-for="item in localDockerInstanceChecklist"
+            v-for="item in containerInstanceChecklist"
             :key="item.key"
             class="rounded-lg border border-default px-3 py-3"
           >
