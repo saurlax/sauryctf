@@ -713,7 +713,7 @@ const selectedMonitorStats = computed(() => {
     { label: '运行中实例', value: String(runningInstanceCount), icon: 'i-lucide-box', actionTo: '#monitoring' },
     { label: '已过期实例', value: String(expiredInstanceCount), icon: 'i-lucide-box-select', actionTo: '#monitoring' },
     { label: '可疑线索', value: String(cheatClues.value.length), icon: 'i-lucide-shield-alert', actionTo: '#clues' },
-    { label: '比赛公告', value: String(announcements.value.length), icon: 'i-lucide-megaphone', actionTo: '#monitoring' },
+    { label: '比赛公告', value: String(announcements.value.length), icon: 'i-lucide-megaphone', actionTo: '#announcements' },
   ]
 })
 
@@ -3911,7 +3911,7 @@ onMounted(async () => {
                   icon: 'i-lucide-send',
                   color: 'neutral',
                   variant: 'outline',
-                  onClick: () => { activeMonitorTab = 'ops' },
+                  onClick: () => jumpToAdminAnchor('#announcements'),
                 }]"
               />
             </div>
