@@ -3,6 +3,16 @@ import type { components } from '~/types/api'
 type GameParticipation = components['schemas']['GameParticipation']
 
 export type PublicGamePhase = 'draft' | 'before_start' | 'active' | 'ended'
+export type PublicParticipationStateKey =
+  | 'guest'
+  | 'no_team'
+  | 'joinable'
+  | 'ended_unjoined'
+  | 'pending'
+  | 'rejected'
+  | 'accepted'
+  | 'missing_writeup'
+  | 'writeup_submitted'
 
 type PublicParticipationStateInput = {
   gameId: number
@@ -40,20 +50,54 @@ function getPhaseEndedDescription() {
 }
 
 export function usePublicGameParticipationState() {
+  function resolveParticipationStateKey(input: PublicParticipationStateInput): PublicParticipationStateKey {
+    const { gamePhase, isLoggedIn, participation } = input
+
+    if (!isLoggedIn) {
+      return 'guest'
+    }
+
+    if (!participation?.has_team) {
+      return 'no_team'
+    }
+
+    if (!participation.participated) {
+      return gamePhase === 'ended' ? 'ended_unjoined' : 'joinable'
+    }
+
+    if (participation.missing_writeup) {
+      return 'missing_writeup'
+    }
+
+    if (participation.status === 'pending') {
+      return 'pending'
+    }
+
+    if (participation.status === 'rejected') {
+      return 'rejected'
+    }
+
+    if (participation.writeup_required && participation.writeup_submitted && participation.writeup_status === 'submitted') {
+      return 'writeup_submitted'
+    }
+
+    return 'accepted'
+  }
+
   function resolveParticipationMeta(input: PublicParticipationStateInput): PublicParticipationMeta {
     const {
       gameId,
       gamePhase,
       practiceMode = false,
-      isLoggedIn,
       participation,
       registrationMode = 'review',
       loginTo = '/login',
       registerTo = '/register',
       teamTo = '/console/team',
     } = input
+    const stateKey = resolveParticipationStateKey(input)
 
-    if (!isLoggedIn) {
+    if (stateKey === 'guest') {
       return {
         label: '登录后可查看报名状态',
         color: 'neutral',
@@ -65,7 +109,7 @@ export function usePublicGameParticipationState() {
       }
     }
 
-    if (!participation?.has_team) {
+    if (stateKey === 'no_team') {
       return {
         label: '未加入队伍',
         color: 'warning',
@@ -75,57 +119,57 @@ export function usePublicGameParticipationState() {
       }
     }
 
-    if (participation.participated) {
-      if (participation.missing_writeup) {
-        return {
-          label: '待补 Writeup',
-          color: 'warning',
-          description: `当前队伍 ${participation.team?.name || ''} 已通过比赛报名，但在截止时间前还没有提交 Writeup。`,
-          actionLabel: '去补交',
-          actionTo: `/games/${gameId}`,
-        }
+    if (stateKey === 'missing_writeup') {
+      return {
+        label: '待补 Writeup',
+        color: 'warning',
+        description: `当前队伍 ${participation?.team?.name || ''} 已通过比赛报名，但在截止时间前还没有提交 Writeup。`,
+        actionLabel: '去补交',
+        actionTo: `/games/${gameId}`,
       }
+    }
 
-      if (participation.status === 'pending') {
-        return {
-          label: '待审核',
-          color: 'warning',
-          description: `当前队伍 ${participation.team?.name || ''} 已提交报名，等待管理员审核。`,
-          actionLabel: '查看详情',
-          actionTo: `/games/${gameId}`,
-        }
+    if (stateKey === 'pending') {
+      return {
+        label: '待审核',
+        color: 'warning',
+        description: `当前队伍 ${participation?.team?.name || ''} 已提交报名，等待管理员审核。`,
+        actionLabel: '查看详情',
+        actionTo: `/games/${gameId}`,
       }
+    }
 
-      if (participation.status === 'rejected') {
-        return {
-          label: '已拒绝',
-          color: 'error',
-          description: `当前队伍 ${participation.team?.name || ''} 的报名未通过，可进入详情页重新确认。`,
-          actionLabel: '重新报名',
-          actionTo: `/games/${gameId}`,
-        }
+    if (stateKey === 'rejected') {
+      return {
+        label: '已拒绝',
+        color: 'error',
+        description: `当前队伍 ${participation?.team?.name || ''} 的报名未通过，可进入详情页重新确认。`,
+        actionLabel: '重新报名',
+        actionTo: `/games/${gameId}`,
       }
+    }
 
-      if (participation.writeup_required && participation.writeup_submitted && participation.writeup_status === 'submitted') {
-        return {
-          label: 'Writeup 待审',
-          color: 'info',
-          description: `当前队伍 ${participation.team?.name || ''} 已提交 Writeup，等待管理员审核。`,
-          actionLabel: '查看详情',
-          actionTo: `/games/${gameId}`,
-        }
+    if (stateKey === 'writeup_submitted') {
+      return {
+        label: 'Writeup 待审',
+        color: 'info',
+        description: `当前队伍 ${participation?.team?.name || ''} 已提交 Writeup，等待管理员审核。`,
+        actionLabel: '查看详情',
+        actionTo: `/games/${gameId}`,
       }
+    }
 
+    if (stateKey === 'accepted') {
       return {
         label: '已报名',
         color: 'success',
-        description: `当前队伍 ${participation.team?.name || ''} 已进入该比赛。`,
+        description: `当前队伍 ${participation?.team?.name || ''} 已进入该比赛。`,
         actionLabel: gamePhase === 'active' || (gamePhase === 'ended' && practiceMode) ? '进入比赛' : '查看详情',
         actionTo: `/games/${gameId}`,
       }
     }
 
-    if (gamePhase === 'ended') {
+    if (stateKey === 'ended_unjoined') {
       return {
         label: '比赛已结束',
         color: 'error',
@@ -139,8 +183,8 @@ export function usePublicGameParticipationState() {
       label: '可报名',
       color: 'info',
       description: registrationMode === 'auto_accept'
-        ? `当前队伍 ${participation.team?.name || ''} 尚未报名，进入详情页后可直接完成参赛确认。`
-        : `当前队伍 ${participation.team?.name || ''} 尚未报名，可进入详情页完成操作。`,
+        ? `当前队伍 ${participation?.team?.name || ''} 尚未报名，进入详情页后可直接完成参赛确认。`
+        : `当前队伍 ${participation?.team?.name || ''} 尚未报名，可进入详情页完成操作。`,
       actionLabel: '前往报名',
       actionTo: `/games/${gameId}`,
     }
@@ -271,6 +315,7 @@ export function usePublicGameParticipationState() {
   }
 
   return {
+    resolveParticipationStateKey,
     resolveParticipationMeta,
     resolveParticipationHints,
   }

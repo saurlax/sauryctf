@@ -12,7 +12,7 @@ type ChallengeInstanceState = components['schemas']['ChallengeInstance']
 const route = useRoute()
 const toast = useToast()
 const { authState, ensureInitialized } = useAuth()
-const { resolveParticipationHints, resolveParticipationMeta } = usePublicGameParticipationState()
+const { resolveParticipationHints, resolveParticipationMeta, resolveParticipationStateKey } = usePublicGameParticipationState()
 const isAdmin = computed(() => ['admin', 'super_admin'].includes(authState.user?.role || ''))
 
 const game = ref<Game | null>(null)
@@ -927,6 +927,18 @@ const participationMeta = computed(() => resolveParticipationMeta({
   registerTo: registerEntry.value,
   teamTo: teamEntry.value,
 }))
+const participationStateKey = computed(() => resolveParticipationStateKey({
+  gameId: Number(gameId),
+  gamePhase: publicGamePhase.value,
+  practiceMode: game.value?.practice_mode,
+  isLoggedIn: !!authState.user,
+  participation: participation.value,
+  registrationMode: game.value?.registration_mode,
+  maxTeamMembers: game.value?.max_team_members,
+  loginTo: loginEntry.value,
+  registerTo: registerEntry.value,
+  teamTo: teamEntry.value,
+}))
 
 const participationHint = computed(() => {
   if (participation.value?.participated && canLeaveGame.value) {
@@ -945,7 +957,7 @@ const participationHint = computed(() => {
 })
 
 const registrationPanelSummary = computed(() => {
-  if (!authState.user) {
+  if (participationStateKey.value === 'guest') {
     return {
       title: '当前还不能发起报名',
       description: '先登录账号后，比赛页才会识别你自己的队伍与报名状态，并继续显示报名入口。',
@@ -954,7 +966,7 @@ const registrationPanelSummary = computed(() => {
     }
   }
 
-  if (!participation.value?.has_team) {
+  if (participationStateKey.value === 'no_team') {
     return {
       title: '当前需要先准备队伍',
       description: '比赛报名、提 Flag 和排行榜都按队伍进行。先创建或加入队伍，再回来完成报名。',
@@ -963,7 +975,7 @@ const registrationPanelSummary = computed(() => {
     }
   }
 
-  if (participation.value?.status === 'pending') {
+  if (participationStateKey.value === 'pending') {
     return {
       title: '当前报名已提交，正在等待审核',
       description: '这次报名已经进入管理员审核队列。现在不需要重复提交，等待通过后就会开放正式参赛资格。',
@@ -972,7 +984,7 @@ const registrationPanelSummary = computed(() => {
     }
   }
 
-  if (participation.value?.status === 'rejected') {
+  if (participationStateKey.value === 'rejected') {
     return {
       title: '当前报名未通过',
       description: '你可以先撤回这次报名，调整队伍成员或邀请码后，再重新提交新的报名申请。',
@@ -981,7 +993,7 @@ const registrationPanelSummary = computed(() => {
     }
   }
 
-  if (participation.value?.status === 'accepted') {
+  if (participationStateKey.value === 'accepted' || participationStateKey.value === 'missing_writeup' || participationStateKey.value === 'writeup_submitted') {
     return {
       title: '当前队伍已经具备参赛资格',
       description: gameStatusMeta.value.label === '未开始'
@@ -994,7 +1006,7 @@ const registrationPanelSummary = computed(() => {
     }
   }
 
-  if (gameStatusMeta.value.label === '已结束') {
+  if (participationStateKey.value === 'ended_unjoined') {
     return {
       title: '比赛已结束，当前不会再受理新报名',
       description: '你仍然可以查看当前比赛的公开信息、题目标题和排行榜，但不能再新增报名记录。',
@@ -1114,7 +1126,7 @@ function getChallengeCardMeta(challenge: GameChallengeDetail) {
 }
 
 const nextStepMeta = computed(() => {
-  if (!authState.user) {
+  if (participationStateKey.value === 'guest') {
     return {
       title: '需要先登录',
       description: '登录后会直接返回当前比赛，并继续读取当前账号对应的队伍与报名状态。',
@@ -1126,7 +1138,7 @@ const nextStepMeta = computed(() => {
     }
   }
 
-  if (!participation.value?.has_team) {
+  if (participationStateKey.value === 'no_team') {
     return {
       title: '需要先关联队伍',
       description: '当前比赛以内队形式参赛。请先在控制台创建或加入队伍，再返回当前比赛处理报名。',
@@ -1136,7 +1148,7 @@ const nextStepMeta = computed(() => {
     }
   }
 
-  if (!participation.value?.participated) {
+  if (participationStateKey.value === 'joinable') {
     return {
       title: '当前可报名',
       description: game.value?.registration_mode === 'auto_accept'
@@ -1148,11 +1160,12 @@ const nextStepMeta = computed(() => {
     }
   }
 
-  if (participation.value.missing_writeup) {
+  if (participationStateKey.value === 'missing_writeup') {
+    const currentParticipation = participation.value
     return {
       title: '需要补交 Writeup',
-      description: participation.value.writeup_deadline
-        ? `当前队伍在 ${new Date(participation.value.writeup_deadline).toLocaleString()} 前仍未提交 Writeup，请尽快联系管理员确认补交流程。`
+      description: currentParticipation?.writeup_deadline
+        ? `当前队伍在 ${new Date(currentParticipation.writeup_deadline).toLocaleString()} 前仍未提交 Writeup，请尽快联系管理员确认补交流程。`
         : '当前队伍仍有未提交的 Writeup，请尽快联系管理员确认后续处理流程。',
       color: 'warning' as const,
       actionLabel: '去 Writeup',
@@ -1161,7 +1174,7 @@ const nextStepMeta = computed(() => {
     }
   }
 
-  if (participation.value.status === 'pending') {
+  if (participationStateKey.value === 'pending') {
     return {
       title: '报名待审核',
       description: '你的队伍报名已经提交成功。现在无需重复操作，等待管理员审核通过后就能正式参赛。',
@@ -1171,7 +1184,7 @@ const nextStepMeta = computed(() => {
     }
   }
 
-  if (participation.value.status === 'rejected') {
+  if (participationStateKey.value === 'rejected') {
     return {
       title: '报名未通过',
       description: '当前报名没有通过。你可以先退出这次报名，调整队伍后再重新提交申请。',
@@ -1181,7 +1194,7 @@ const nextStepMeta = computed(() => {
     }
   }
 
-  if (participation.value.writeup_required && participation.value.writeup_submitted && participation.value.writeup_status === 'submitted') {
+  if (participationStateKey.value === 'writeup_submitted') {
     return {
       title: 'Writeup 待审核',
       description: 'Writeup 已经提交成功。你可以继续留在比赛页参赛，或返回 Writeup 标签补充更新内容。',
