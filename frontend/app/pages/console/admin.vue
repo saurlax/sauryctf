@@ -4439,8 +4439,18 @@ onMounted(async () => {
           </UPageCard>
 
           <UPageCard title="参赛队伍" icon="i-lucide-users" id="participants">
-            <div v-if="selectedGame" class="mb-3 text-sm text-muted">
-              {{ selectedGame.name }} · {{ loadingParticipants ? '正在加载队伍...' : `${participants.length} 支队伍` }}
+            <div v-if="selectedGame" class="mb-3 flex items-center justify-between gap-3">
+              <div class="text-sm text-muted">
+                {{ selectedGame.name }} · {{ loadingParticipants ? '正在加载队伍...' : `${participants.length} 支队伍` }}
+              </div>
+              <div class="flex items-center gap-2">
+                <UBadge color="warning" variant="soft">
+                  待审核 {{ participants.filter(item => item.status === 'pending').length }}
+                </UBadge>
+                <UBadge color="success" variant="soft">
+                  已通过 {{ participants.filter(item => item.status === 'accepted').length }}
+                </UBadge>
+              </div>
             </div>
             <div v-else class="text-sm text-muted">
               先选择比赛，再查看这场比赛的参赛队伍。
@@ -4535,6 +4545,9 @@ onMounted(async () => {
                 {{ selectedGame.name }} · {{ writeups.length }} 份 Writeup
               </div>
               <div class="flex items-center gap-2">
+                <UBadge color="info" variant="soft">
+                  待审 {{ writeups.filter(item => item.status === 'submitted').length }}
+                </UBadge>
                 <UButton
                   size="sm"
                   variant="ghost"
@@ -4621,24 +4634,26 @@ onMounted(async () => {
           </UPageCard>
 
           <UPageCard title="比赛公告" icon="i-lucide-megaphone" id="announcements">
-            <div v-if="selectedGame" class="mb-3 text-sm text-muted">
-              {{ selectedGame.name }} · {{ loadingAnnouncements ? '正在加载公告...' : `${announcements.length} 条公告` }}
-            </div>
-            <div v-else class="text-sm text-muted">
-              先选择比赛，再为当前比赛发布公告。
-            </div>
-
-            <div v-if="selectedGame" class="space-y-4">
-              <div class="flex justify-end">
+            <div v-if="selectedGame" class="mb-3 flex items-center justify-between gap-3">
+              <div class="text-sm text-muted">
+                {{ selectedGame.name }} · {{ loadingAnnouncements ? '正在加载公告...' : `${announcements.length} 条公告` }}
+              </div>
+              <div class="flex items-center gap-2">
                 <UButton
                   icon="i-lucide-send"
+                  size="sm"
                   variant="outline"
                   @click="announcementModalOpen = true"
                 >
                   发布公告
                 </UButton>
               </div>
+            </div>
+            <div v-else class="text-sm text-muted">
+              先选择比赛，再为当前比赛发布公告。
+            </div>
 
+            <div v-if="selectedGame" class="space-y-4">
               <div v-if="announcements.length" class="space-y-2">
                 <div
                   v-for="announcement in announcements"
