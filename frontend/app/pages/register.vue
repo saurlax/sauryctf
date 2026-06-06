@@ -78,7 +78,7 @@ const loginTo = computed(() => {
   <div class="mx-auto max-w-xl py-8">
     <UPageCard
       title="注册"
-      description="创建选手账号。注册成功后会自动登录，并进入队伍页面。"
+      description="创建平台账号。注册成功后会自动登录。"
       icon="i-lucide-user-plus"
     >
       <UForm :schema="registerSchema" :state="state" class="space-y-4" @submit="onRegister">
@@ -100,7 +100,7 @@ const loginTo = computed(() => {
       <template #footer>
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div class="text-sm text-muted">
-            {{ redirectTarget === '/console/team' ? '注册后会先进入队伍页。' : `注册后会先进入队伍页，并保留返回目标 ${redirectTarget}。` }}
+            {{ redirectTarget === '/console/team' ? '注册后默认进入队伍页。' : `注册后会先进入队伍页，并保留返回目标 ${redirectTarget}。` }}
           </div>
           <div class="text-sm text-muted">
             已有账号？

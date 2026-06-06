@@ -199,6 +199,7 @@ internal/<module>/
 - Dynamic scoring is shared across standalone challenge submission and game-scoped submission.
 - Current blood metadata (`first`, `second`, `third`) is retained for display, but does not apply an extra score multiplier.
 - Only when the `users` table is completely empty, backend startup auto-creates a bootstrap admin user: `admin / sauryctf`.
+- Do not add a dedicated bootstrap, initialization, or first-run guide page for this account. The only required behavior is the backend-side empty-database check above.
 - The frontend exposes separate `/login` and `/register` entries in the top-right navigation for account access.
 - `/login` and `/register` should stay as single-card form pages; do not append secondary summary panels, setup notes, or onboarding-style sidebars.
 - On `/login` and `/register`, redirect behavior should be conveyed with one light footer sentence when needed; do not promote it into a top-level `UAlert` or extra guidance card.

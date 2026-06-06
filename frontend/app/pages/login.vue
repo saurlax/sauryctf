@@ -66,7 +66,7 @@ const state = reactive<Partial<LoginSchema>>({
   <div class="mx-auto max-w-xl py-8">
     <UPageCard
       title="登录"
-      description="使用已有账号访问控制台、队伍页和比赛页面。"
+      description="使用已有账号访问平台。"
       icon="i-lucide-lock"
     >
       <UForm :schema="loginSchema" :state="state" class="space-y-4" @submit="onLogin">
@@ -84,7 +84,7 @@ const state = reactive<Partial<LoginSchema>>({
       <template #footer>
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div class="text-sm text-muted">
-            {{ redirectTarget === '/console' ? '登录后默认进入控制台。' : `登录后会返回 ${redirectTarget}。` }}
+            {{ redirectTarget === '/console' ? '登录后默认进入控制台。' : `登录后将返回 ${redirectTarget}。` }}
           </div>
           <div class="text-sm text-muted">
             还没有账号？
