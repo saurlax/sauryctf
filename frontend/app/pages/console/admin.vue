@@ -1943,9 +1943,9 @@ function fillStarterGameTemplate() {
   const freeze = new Date(end.getTime() - 30 * 60 * 1000)
   const writeupDeadline = new Date(end.getTime() + 24 * 60 * 60 * 1000)
 
-  gameForm.name = `${start.getFullYear()} 平台基础比赛`
-  gameForm.description = '用于快速建立公开比赛基础结构的精简模板。'
-  gameForm.notice = '建议在发布前补全题面、附件、规则补充与开放设置。'
+  gameForm.name = `${start.getFullYear()} 平台公开赛`
+  gameForm.description = '用于建立一场公开比赛的基础配置。'
+  gameForm.notice = '发布前请补全题面、附件、规则补充与开放设置。'
   gameForm.divisions_text = ''
   gameForm.start_time = start.toISOString().slice(0, 16)
   gameForm.end_time = end.toISOString().slice(0, 16)
@@ -1957,15 +1957,15 @@ function fillStarterGameTemplate() {
   gameForm.writeup_deadline = writeupDeadline.toISOString().slice(0, 16)
   gameForm.is_public = true
 
-  toast.add({ title: '已填充比赛模板', description: '已写入一份公开比赛默认值。', color: 'success' })
+  toast.add({ title: '已写入比赛默认值', description: '当前表单已填入一组公开比赛基础配置。', color: 'success' })
 }
 
 function fillStarterChallengeTemplate() {
-  challengeForm.title = '基础静态题'
-  challengeForm.description = '这是一个基础静态题模板，用于补齐题面、提示、附件和计分配置。'
+  challengeForm.title = '静态题目'
+  challengeForm.description = '用于录入静态题的题面、提示、附件和计分配置。'
   challengeForm.hints = JSON.stringify([
     '请在发布前补充正式题面、提示和附件信息。',
-    '保存前请确认 Flag、分值和可见性设置已经完成。',
+    '保存前请确认 Flag、分值与可见性设置已经完成。',
   ])
   challengeForm.attachments = '[]'
   challengeForm.container_spec = JSON.stringify({
@@ -1991,12 +1991,12 @@ function fillStarterChallengeTemplate() {
   challengeForm.max_attempts = 0
   challengeForm.is_visible = true
 
-  toast.add({ title: '已填充题目模板', description: '已写入一份基础题目默认配置。', color: 'success' })
+  toast.add({ title: '已写入题目默认值', description: '当前表单已填入一组静态题基础配置。', color: 'success' })
 }
 
 function fillStaticWebTemplate() {
-  challengeForm.title = 'Web Instance'
-  challengeForm.description = '这是一个带统一访问入口的 Web 题模板，用于记录题面、提示和访问地址。'
+  challengeForm.title = 'Web 题目'
+  challengeForm.description = '用于录入带统一访问入口的 Web 题。'
   challengeForm.hints = JSON.stringify([
     '请确认选手侧访问入口、账号体系和附加依赖已经准备完成。',
     '如果题目依赖额外凭据或访问限制，请写入接入说明。',
@@ -2025,12 +2025,12 @@ function fillStaticWebTemplate() {
   challengeForm.max_attempts = 0
   challengeForm.is_visible = true
 
-  toast.add({ title: '已填充 Web 实例模板', description: '已写入统一入口型 Web 题默认值。', color: 'success' })
+  toast.add({ title: '已写入 Web 题默认值', description: '当前表单已填入统一入口型 Web 题配置。', color: 'success' })
 }
 
 function fillPwnNetcatTemplate() {
-  challengeForm.title = 'Pwn Service'
-  challengeForm.description = '这是一个 nc / tcp 服务题模板，用于记录 host、port、连接命令和附件。'
+  challengeForm.title = 'Pwn 服务题'
+  challengeForm.description = '用于录入 host、port、连接命令和附件信息。'
   challengeForm.hints = JSON.stringify([
     '优先把题目附件放到 attachments 里。',
     '如果服务地址会变化，请保留一个稳定代理入口。',
@@ -2055,16 +2055,16 @@ function fillPwnNetcatTemplate() {
   challengeForm.max_attempts = 0
   challengeForm.is_visible = true
 
-  toast.add({ title: '已填充 Pwn 服务模板', description: '已写入 host / port / nc 连接方式默认值。', color: 'success' })
+  toast.add({ title: '已写入 Pwn 服务默认值', description: '当前表单已填入 host / port / nc 连接配置。', color: 'success' })
 }
 
 function fillDynamicContainerTemplate() {
-  challengeForm.title = '动态容器 Web 题'
-  challengeForm.description = '这是一个动态容器题模板。启用本地 Docker provider 后，平台会按 runtime.image 与 runtime.expose 启动实例。'
+  challengeForm.title = '容器 Web 题'
+  challengeForm.description = '用于录入由平台按容器配置分配实例的 Web 题。'
   challengeForm.hints = JSON.stringify([
     '请先确认运行节点已启用对应 provider，并能拉取题目镜像。',
     '实例启动后，应以平台回填的 host、port 和 launch_url 作为选手入口。',
-    '如需为不同队伍分配独立入口，可改用“每队独立入口”模板。',
+    '如需为不同队伍分配独立入口，可改用“队伍独立入口”方案。',
   ], null, 2)
   challengeForm.attachments = '[]'
   challengeForm.container_spec = JSON.stringify({
@@ -2103,12 +2103,12 @@ function fillDynamicContainerTemplate() {
   challengeForm.max_attempts = 0
   challengeForm.is_visible = true
 
-  toast.add({ title: '已填充动态容器模板', description: '默认使用 nginx:alpine。', color: 'success' })
+  toast.add({ title: '已写入容器题默认值', description: '当前表单已填入基于 nginx:alpine 的容器题配置。', color: 'success' })
 }
 
 function fillTeamScopedDynamicTemplate() {
-  challengeForm.title = '每队独立入口题'
-  challengeForm.description = '这是一个按队伍生成独立入口的动态题模板，用于需要稳定队伍级地址分发的场景。'
+  challengeForm.title = '队伍独立实例题'
+  challengeForm.description = '用于录入按队伍分配独立入口的动态题。'
   challengeForm.hints = JSON.stringify([
     '请根据实际部署方式调整 runtime、connection 和 links 字段。',
     '如果后端后续接入新的实例 provider，可以继续复用这份结构。',
@@ -2145,7 +2145,7 @@ function fillTeamScopedDynamicTemplate() {
   challengeForm.max_attempts = 0
   challengeForm.is_visible = true
 
-  toast.add({ title: '已填充每队独立实例模板', description: '已写入带队伍独立入口的动态题默认值。', color: 'success' })
+  toast.add({ title: '已写入独立实例默认值', description: '当前表单已填入带队伍独立入口的动态题配置。', color: 'success' })
 }
 
 async function createStarterProvision() {
@@ -2158,9 +2158,9 @@ async function createStarterProvision() {
   try {
     const game = await $api('post', '/api/games', {
       body: {
-        name: `${start.getFullYear()} 平台基础比赛`,
-        description: '用于快速建立公开比赛基础结构的精简模板。',
-        notice: '建议在发布前补全题面、附件、规则补充与开放设置。',
+        name: `${start.getFullYear()} 平台公开赛`,
+        description: '用于建立一场公开比赛的基础配置。',
+        notice: '发布前请补全题面、附件、规则补充与开放设置。',
         divisions: [],
         start_time: start.toISOString(),
         end_time: end.toISOString(),
@@ -2176,8 +2176,8 @@ async function createStarterProvision() {
 
     const challenge = await $api('post', '/api/challenges', {
       body: {
-        title: '基础静态题',
-        description: '这是一个基础静态题模板，用于补齐题面、提示、附件和计分配置。',
+        title: '静态题目',
+        description: '用于录入静态题的题面、提示、附件和计分配置。',
         hints: JSON.stringify([
           '请在发布前补充正式题面、提示和附件信息。',
           '保存前请确认 Flag、分值和可见性设置已经完成。',
@@ -2187,7 +2187,7 @@ async function createStarterProvision() {
         category: 'misc',
         type: 'static',
         difficulty: 'easy',
-        flag: 'flag{platform-baseline}',
+        flag: 'flag{platform-mainline}',
         base_score: 100,
         min_score: 100,
         decay_rate: 0,
@@ -2208,14 +2208,14 @@ async function createStarterProvision() {
     selectGameContext(game.id)
     attachForm.challenge_id = challenge.id
     toast.add({
-      title: '基础比赛模板已创建',
-      description: `已创建 ${game.name}，并自动挂载一道基础题目。现在可以继续补全配置并确认公开展示。`,
+      title: '公开比赛方案已创建',
+      description: `已创建 ${game.name}，并自动挂载一道静态题目。现在可以继续补全配置并确认公开展示。`,
       color: 'success',
     })
     jumpToAdminAnchor('#attach-challenge')
   }
   catch (e: any) {
-    toast.add({ title: '创建基础比赛模板失败', description: e.data?.message || e.message, color: 'error' })
+    toast.add({ title: '创建公开比赛方案失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
     starterProvisioning.value = false
@@ -2233,7 +2233,7 @@ async function createDynamicProvision() {
     const game = await $api('post', '/api/games', {
       body: {
         name: `${start.getFullYear()} 动态实例比赛`,
-        description: '用于快速建立动态实例能力的公开比赛模板。',
+        description: '用于建立带队伍独立实例能力的公开比赛配置。',
         notice: '发布前请确认实例入口、镜像与运行状态配置正确。',
         divisions: [],
         start_time: start.toISOString(),
@@ -2250,8 +2250,8 @@ async function createDynamicProvision() {
 
     const challenge = await $api('post', '/api/challenges', {
       body: {
-        title: '每队独立入口题',
-        description: '这是一个按队伍分配独立入口的动态题模板。',
+        title: '队伍独立实例题',
+        description: '用于录入按队伍分配独立入口的动态题。',
         hints: JSON.stringify([
           '请先确认入口模板、分发规则和实例 provider 已经准备完成。',
           '实例启动后，应优先看到当前队伍的真实入口，而不是占位符原文。',
@@ -2281,7 +2281,7 @@ async function createDynamicProvision() {
         type: 'dynamic',
         difficulty: 'hard',
         flag_format: 'flag{...}',
-        flag: 'flag{dynamic-instance-baseline}',
+        flag: 'flag{dynamic-instance-mainline}',
         base_score: 300,
         min_score: 100,
         decay_rate: 0.1,
@@ -2302,14 +2302,14 @@ async function createDynamicProvision() {
     selectGameContext(game.id)
     attachForm.challenge_id = challenge.id
     toast.add({
-      title: '动态实例比赛已创建',
-      description: `已创建 ${game.name}，并自动挂载一道动态实例题。现在可以继续补全入口与实例配置。`,
+      title: '独立实例比赛已创建',
+      description: `已创建 ${game.name}，并自动挂载一道独立实例题。现在可以继续补全入口与实例配置。`,
       color: 'success',
     })
     jumpToAdminAnchor('#attach-challenge')
   }
   catch (e: any) {
-    toast.add({ title: '创建动态实例模板失败', description: e.data?.message || e.message, color: 'error' })
+    toast.add({ title: '创建独立实例比赛失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
     dynamicProvisioning.value = false
@@ -2327,7 +2327,7 @@ async function createLocalDockerProvision() {
     const game = await $api('post', '/api/games', {
       body: {
         name: `${start.getFullYear()} 容器实例比赛`,
-        description: '用于快速建立容器实例能力的公开比赛模板。',
+        description: '用于建立带容器实例能力的公开比赛配置。',
         notice: '发布前请确认本地 Docker provider、镜像与实例入口配置正确。',
         divisions: [],
         start_time: start.toISOString(),
@@ -2344,8 +2344,8 @@ async function createLocalDockerProvision() {
 
     const challenge = await $api('post', '/api/challenges', {
       body: {
-        title: '动态容器 Web 题',
-        description: '这是一个动态容器题模板，用于补齐镜像、端口和入口配置。',
+        title: '容器 Web 题',
+        description: '用于录入依赖容器实例的 Web 题。',
         hints: JSON.stringify([
           '请先确认运行节点已启用本地 Docker provider，且 Docker daemon 可用。',
           '实例启动后，应优先看到平台回填的真实 host、port 和 launch_url。',
@@ -2376,7 +2376,7 @@ async function createLocalDockerProvision() {
         type: 'dynamic',
         difficulty: 'medium',
         flag_format: 'flag{...}',
-        flag: 'flag{docker-instance-baseline}',
+        flag: 'flag{docker-instance-mainline}',
         base_score: 300,
         min_score: 100,
         decay_rate: 0.1,
@@ -2398,13 +2398,13 @@ async function createLocalDockerProvision() {
     attachForm.challenge_id = challenge.id
     toast.add({
       title: '容器实例比赛已创建',
-      description: `已创建 ${game.name}，并自动挂上一道动态 Web 题。现在可以继续前往公开页完成配置并确认实例入口。`,
+      description: `已创建 ${game.name}，并自动挂上一道容器 Web 题。现在可以继续前往公开页完成配置并确认实例入口。`,
       color: 'success',
     })
     jumpToAdminAnchor('#attach-challenge')
   }
   catch (e: any) {
-    toast.add({ title: '创建容器实例模板失败', description: e.data?.message || e.message, color: 'error' })
+    toast.add({ title: '创建容器实例比赛失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
     localDockerProvisioning.value = false
@@ -3254,7 +3254,7 @@ onMounted(async () => {
           <div class="space-y-4">
             <div class="space-y-2">
               <p class="text-sm text-muted">
-                这里集中保留比赛创建、预置方案和表单填充入口，便于快速建立一场可继续维护的比赛上下文。
+                这里集中保留比赛创建、预置方案和默认值填充入口，便于快速建立一场可继续维护的比赛上下文。
               </p>
               <UAlert
                 color="info"
@@ -3266,7 +3266,7 @@ onMounted(async () => {
 
             <div class="flex flex-wrap gap-2">
               <UButton icon="i-lucide-layout-template" :loading="starterProvisioning" @click="createStarterProvision">
-                创建基础比赛
+                创建公开比赛
               </UButton>
               <UButton
                 variant="outline"
@@ -3285,10 +3285,10 @@ onMounted(async () => {
                 创建容器实例比赛
               </UButton>
               <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillStarterGameTemplate">
-                填充比赛表单
+                写入比赛默认值
               </UButton>
               <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillStarterChallengeTemplate">
-                填充题目表单
+                写入题目默认值
               </UButton>
             </div>
           </div>
@@ -4377,7 +4377,7 @@ onMounted(async () => {
                 variant="outline"
                 @click="fillStarterChallengeTemplate(); createChallengeModalOpen = true"
               >
-                使用基础模板
+                写入默认值
               </UButton>
               <UButton icon="i-lucide-file-pen-line" variant="outline" @click="challengeEditModalOpen = true">
                 编辑题目
@@ -5249,7 +5249,7 @@ onMounted(async () => {
     <template #body>
       <div class="flex flex-wrap gap-2">
         <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillStarterChallengeTemplate">
-          基础题
+          静态题
         </UButton>
         <UButton size="sm" variant="outline" icon="i-lucide-globe" @click="fillStaticWebTemplate">
           Web 实例
@@ -5258,10 +5258,10 @@ onMounted(async () => {
           Pwn 服务
         </UButton>
         <UButton size="sm" variant="outline" icon="i-lucide-box" @click="fillDynamicContainerTemplate">
-          动态 Web
+          容器 Web
         </UButton>
         <UButton size="sm" variant="outline" icon="i-lucide-waypoints" @click="fillTeamScopedDynamicTemplate">
-          每队独立入口
+          队伍独立入口
         </UButton>
       </div>
 
