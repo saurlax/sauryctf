@@ -1313,6 +1313,70 @@ const scoreboardCategoryGroups = computed(() => {
   }))
 })
 
+function buildPublicGameLink(gameId: number, options?: {
+  tab?: 'overview' | 'challenges' | 'scoreboard' | 'writeup'
+  challengeId?: number
+}) {
+  const query = new URLSearchParams()
+
+  if (options?.tab) {
+    query.set('tab', options.tab)
+  }
+
+  if (typeof options?.challengeId === 'number' && Number.isFinite(options.challengeId) && options.challengeId > 0) {
+    query.set('challenge', String(options.challengeId))
+  }
+
+  const queryString = query.toString()
+  return queryString ? `/games/${gameId}?${queryString}` : `/games/${gameId}`
+}
+
+function getAdminPublicGameLink(game: {
+  id: number
+  status: 'draft' | 'active' | 'ended'
+}, options?: {
+  preferredTab?: 'overview' | 'challenges' | 'scoreboard' | 'writeup'
+  challengeId?: number
+}) {
+  const tab = options?.preferredTab || (
+    game.status === 'ended'
+      ? 'scoreboard'
+      : game.status === 'active'
+        ? 'challenges'
+        : 'overview'
+  )
+
+  return buildPublicGameLink(game.id, {
+    tab,
+    challengeId: options?.challengeId,
+  })
+}
+
+const selectedAdminPublicLink = computed(() => {
+  if (!selectedAdminOverview.value) {
+    return '/games'
+  }
+
+  return getAdminPublicGameLink(selectedAdminOverview.value.game)
+})
+
+const selectedMonitorPublicLink = computed(() => {
+  if (!selectedAdminOverview.value) {
+    return '/games'
+  }
+
+  const preferredTab = activeMonitorTab.value === 'scoreboard'
+    ? 'scoreboard'
+    : activeMonitorTab.value === 'ops' || activeMonitorTab.value === 'submissions' || activeMonitorTab.value === 'clues'
+      ? 'challenges'
+      : 'overview'
+
+  return getAdminPublicGameLink(selectedAdminOverview.value.game, {
+    preferredTab,
+    challengeId: highlightedChallengeId.value || undefined,
+  })
+})
+
 const selectedGamePreflightChecks = computed(() => {
   const overview = selectedAdminOverview.value
   if (!overview) {
@@ -1338,7 +1402,9 @@ const selectedGamePreflightChecks = computed(() => {
           ? '当前已经开赛，公开页应同步开放报名与题目可见性。'
           : '当前已结束，可继续复核榜单、Writeup 和赛后练习状态。',
       actionLabel: overview.game.status === 'active' ? '打开公开页' : '去比赛设置',
-      actionTo: overview.game.status === 'active' ? `/games/${overview.game.id}` : '#game-settings',
+      actionTo: overview.game.status === 'active'
+        ? getAdminPublicGameLink(overview.game, { preferredTab: 'challenges' })
+        : '#game-settings',
     },
     {
       key: 'challenge',
@@ -1376,7 +1442,7 @@ const selectedGamePreflightChecks = computed(() => {
         ? `当前 ${overview.participantCount} 支队伍，其中 ${overview.acceptedParticipantCount} 支已通过、${overview.pendingParticipantCount} 支待审核、${overview.rejectedParticipantCount} 支已拒绝。`
         : '当前还没有报名队伍，可先使用普通用户完成一轮报名与参赛流程。',
       actionLabel: overview.participantCount > 0 ? '查看报名队伍' : '打开公开页',
-      actionTo: overview.participantCount > 0 ? '#participants' : `/games/${overview.game.id}`,
+      actionTo: overview.participantCount > 0 ? '#participants' : getAdminPublicGameLink(overview.game, { preferredTab: 'overview' }),
     },
   ]
 })
@@ -1407,7 +1473,7 @@ const containerInstanceChecklist = computed(() => {
         ? `当前已有 ${overview.acceptedParticipantCount} 支队伍通过报名，可以继续检查实例启动与访问状态。`
         : '先去公开比赛页用普通用户创建或加入队伍，并完成报名，让这场比赛真正进入选手视角。',
       actionLabel: '打开公开页',
-      actionTo: `/games/${overview.game.id}`,
+      actionTo: getAdminPublicGameLink(overview.game, { preferredTab: 'overview' }),
     },
     {
       key: 'instance-start',
@@ -1417,7 +1483,7 @@ const containerInstanceChecklist = computed(() => {
         ? `当前已有 ${runningLeaseCount} 条容器实例正在运行，说明实例至少已经成功启动一次。`
         : '报名后到公开比赛页点击启动实例。成功时应拿到真实 host / port / launch_url，而不是仍停留在模板接入信息。',
       actionLabel: '打开公开页',
-      actionTo: `/games/${overview.game.id}`,
+      actionTo: getAdminPublicGameLink(overview.game, { preferredTab: 'challenges' }),
     },
     {
       key: 'ops-refresh',
@@ -1472,7 +1538,7 @@ const teamScopedInstanceChecklist = computed(() => {
         ? `当前已有 ${overview.acceptedParticipantCount} 支队伍通过报名，可以继续检查实例租约与详情入口。`
         : '先去公开比赛页用普通用户创建或加入队伍，并完成报名，让这场比赛进入真实选手视角。',
       actionLabel: '打开公开页',
-      actionTo: `/games/${overview.game.id}`,
+      actionTo: getAdminPublicGameLink(overview.game, { preferredTab: 'overview' }),
     },
     {
       key: 'team-instance-start',
@@ -1482,7 +1548,7 @@ const teamScopedInstanceChecklist = computed(() => {
         ? `当前已有 ${runningLeaseCount} 条独立实例租约正在运行，可以继续核对当前队伍的详情入口。`
         : '报名后到公开比赛页点击启动实例。成功时应看到当前队伍的独立租约状态，而不是只停留在入口模板说明。',
       actionLabel: '打开公开页',
-      actionTo: `/games/${overview.game.id}`,
+      actionTo: getAdminPublicGameLink(overview.game, { preferredTab: 'challenges' }),
     },
     {
       key: 'team-instance-detail',
@@ -1492,7 +1558,7 @@ const teamScopedInstanceChecklist = computed(() => {
         ? '当前已经出现平台内实例详情页入口，可以继续核对续期、销毁和复制入口能力是否完整。'
         : '启动实例后，应能进入 `/local-instance/...` 详情页，并看到当前队伍的租约、入口和策略信息。',
       actionLabel: '打开公开页',
-      actionTo: `/games/${overview.game.id}`,
+      actionTo: getAdminPublicGameLink(overview.game, { preferredTab: 'challenges' }),
     },
     {
       key: 'team-ops-refresh',
@@ -1557,7 +1623,7 @@ const adminChecklistSteps = computed(() => {
         : '确认比赛时间、公开性和挂题都无误后，再把状态从 draft 切到 active。',
       done: Boolean(activeGame),
       actionLabel: activeGame ? '打开公开页' : '去比赛设置',
-      actionTo: activeGame ? `/games/${activeGame.id}` : '#game-settings',
+      actionTo: activeGame ? getAdminPublicGameLink(activeGame, { preferredTab: 'overview' }) : '#game-settings',
       contextGameId: (activeGame || preferredContextGame.value)?.id,
     },
   ]
@@ -4491,7 +4557,7 @@ onMounted(async () => {
               <UButton size="sm" variant="outline" icon="i-lucide-link" to="#attach-challenge">
                 去挂题
               </UButton>
-              <UButton size="sm" variant="outline" icon="i-lucide-arrow-up-right" :to="`/games/${selectedAdminOverview.game.id}`">
+              <UButton size="sm" variant="outline" icon="i-lucide-arrow-up-right" :to="selectedAdminPublicLink">
                 打开公开页
               </UButton>
             </div>
@@ -4717,7 +4783,7 @@ onMounted(async () => {
                 size="sm"
                 variant="outline"
                 icon="i-lucide-arrow-up-right"
-                :to="`/games/${selectedAdminOverview.game.id}`"
+                :to="selectedMonitorPublicLink"
               >
                 打开公开页
               </UButton>
@@ -5489,7 +5555,7 @@ onMounted(async () => {
                 :actions="[{
                   label: '打开公开页',
                   icon: 'i-lucide-arrow-up-right',
-                  to: selectedAdminOverview ? `/games/${selectedAdminOverview.game.id}` : '/games',
+                  to: selectedMonitorPublicLink,
                   color: 'neutral',
                   variant: 'outline',
                 }]"
@@ -5590,7 +5656,7 @@ onMounted(async () => {
                 <UButton size="sm" variant="outline" @click="jumpToAdminAnchor('#game-settings')">
                   比赛设置
                 </UButton>
-                <UButton size="sm" variant="outline" :to="`/games/${selectedAdminOverview.game.id}`">
+                <UButton size="sm" variant="outline" :to="selectedAdminPublicLink">
                   打开公开页
                 </UButton>
               </div>
