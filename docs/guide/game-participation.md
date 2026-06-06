@@ -159,6 +159,7 @@
   - 达到上限后，这支队伍在这场比赛里不能再继续提交这道题
 - 只有 `accepted` 状态的队伍可以提交要求中的比赛 Writeup
 - 如果比赛设置了 `writeup_deadline`，超过截止时间后将不能再更新 Writeup
+- 超过 `writeup_deadline` 后，Writeup 状态接口也会同步返回 `can_submit = false`
 - `pending` / `rejected` 队伍不会获得正式参赛资格
 - 为避免提前泄题，未满足参赛条件的用户只会拿到题目标题、分类、分值和解题统计
 - `pending` / `rejected` 报名可以主动撤回

@@ -3140,6 +3140,20 @@ func normalizeWriteupStatus(status string) (models.WriteupStatus, error) {
 	}
 }
 
+func canTeamSubmitWriteup(game models.Game, participationStatus string) bool {
+	if !game.WriteupRequired {
+		return false
+	}
+	if participationStatus != string(models.ParticipationAccepted) {
+		return false
+	}
+	if game.WriteupDeadline != nil && time.Now().After(*game.WriteupDeadline) {
+		return false
+	}
+
+	return true
+}
+
 func (s *Service) GetWriteup(gameID uint, userID uint) (*GameWriteupResponse, error) {
 	var game models.Game
 	if err := s.db.First(&game, gameID).Error; err != nil {
@@ -3164,13 +3178,13 @@ func (s *Service) GetWriteup(gameID uint, userID uint) (*GameWriteupResponse, er
 				GameID:    gameID,
 				TeamID:    participation.Team.ID,
 				TeamName:  participation.Team.Name,
-				CanSubmit: game.WriteupRequired && participation.Status == string(models.ParticipationAccepted),
+				CanSubmit: canTeamSubmitWriteup(game, participation.Status),
 			}, nil
 		}
 		return nil, err
 	}
 
-	return toWriteupResponse(&writeup, participation.Team.Name, game.WriteupRequired && participation.Status == string(models.ParticipationAccepted)), nil
+	return toWriteupResponse(&writeup, participation.Team.Name, canTeamSubmitWriteup(game, participation.Status)), nil
 }
 
 func (s *Service) SubmitWriteup(gameID uint, userID uint, req SubmitGameWriteupRequest) (*GameWriteupResponse, error) {
