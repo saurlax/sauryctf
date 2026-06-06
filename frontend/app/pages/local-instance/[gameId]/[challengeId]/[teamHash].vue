@@ -54,7 +54,7 @@ const lastAutoRefreshAt = ref(0)
 
 const currentEntry = computed(() => instanceState.value?.launch_url || route.fullPath)
 const hasRunningInstance = computed(() => instanceState.value?.status === 'running' && getSecondsLeft() > 0)
-const loginLink = computed(() => `/login?redirect=${encodeURIComponent(route.fullPath)}`)
+const loginLink = computed(() => buildAuthEntryPath('/login', route.fullPath))
 const renewalWindowRemainingSeconds = computed(() => {
   const policy = instanceState.value?.policy
   if (!hasRunningInstance.value || !policy?.renewal_window_minutes) {

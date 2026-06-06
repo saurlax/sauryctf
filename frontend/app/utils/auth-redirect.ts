@@ -10,6 +10,10 @@ export function resolveOptionalAuthRedirect(input: unknown): string {
   return isSafeAuthRedirect(input) ? input : ''
 }
 
-export function buildAuthEntryPath(basePath: '/login' | '/register', redirect: string): string {
+export function buildRedirectedPath(basePath: string, redirect: string): string {
   return `${basePath}?redirect=${encodeURIComponent(redirect)}`
+}
+
+export function buildAuthEntryPath(basePath: '/login' | '/register', redirect: string): string {
+  return buildRedirectedPath(basePath, redirect)
 }

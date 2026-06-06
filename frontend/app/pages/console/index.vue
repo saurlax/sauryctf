@@ -602,7 +602,7 @@ function getParticipationPriority(game: GameSummary, participation: GameParticip
 
 function getParticipationMeta(game: GameSummary) {
   const participation = participationMap.value[game.id]
-  const redirect = encodeURIComponent(`/games/${game.id}`)
+  const gamePath = `/games/${game.id}`
   const meta = resolveParticipationMeta({
     gameId: game.id,
     gamePhase: getGamePhase(game),
@@ -610,9 +610,9 @@ function getParticipationMeta(game: GameSummary) {
     isLoggedIn: !!authState.user,
     participation,
     registrationMode: game.registration_mode,
-    loginTo: `/login?redirect=${redirect}`,
-    registerTo: `/register?redirect=${redirect}`,
-    teamTo: `/console/team?redirect=${redirect}`,
+    loginTo: buildAuthEntryPath('/login', gamePath),
+    registerTo: buildAuthEntryPath('/register', gamePath),
+    teamTo: buildRedirectedPath('/console/team', gamePath),
   })
 
   return {

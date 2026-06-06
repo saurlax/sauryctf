@@ -93,12 +93,11 @@ const confirmAction = reactive<{
 
 const gameId = route.params.id as string
 const currentGameRedirect = computed(() => {
-  const target = route.fullPath || `/games/${gameId}`
-  return encodeURIComponent(target)
+  return route.fullPath || `/games/${gameId}`
 })
-const loginEntry = computed(() => `/login?redirect=${currentGameRedirect.value}`)
-const registerEntry = computed(() => `/register?redirect=${currentGameRedirect.value}`)
-const teamEntry = computed(() => `/console/team?redirect=${currentGameRedirect.value}`)
+const loginEntry = computed(() => buildAuthEntryPath('/login', currentGameRedirect.value))
+const registerEntry = computed(() => buildAuthEntryPath('/register', currentGameRedirect.value))
+const teamEntry = computed(() => buildRedirectedPath('/console/team', currentGameRedirect.value))
 const routeRequestedTab = computed(() => typeof route.query.tab === 'string' ? route.query.tab : '')
 const routeRequestedChallengeId = computed(() => {
   const rawValue = route.query.challenge

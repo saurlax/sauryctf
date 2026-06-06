@@ -14,9 +14,10 @@ const loading = ref(true)
 const searchQuery = ref('')
 const statusFilter = ref<'all' | 'active' | 'ended'>('all')
 const now = ref(Date.now())
+const gamesListPath = '/games'
 
 const firstVisibleGame = computed(() => games.value[0] || null)
-const firstVisibleGameRedirect = computed(() => firstVisibleGame.value ? encodeURIComponent(`/games/${firstVisibleGame.value.id}`) : encodeURIComponent('/games'))
+const firstVisibleGamePath = computed(() => firstVisibleGame.value ? `/games/${firstVisibleGame.value.id}` : gamesListPath)
 const hasTeam = computed(() => Object.values(participationMap.value).some(participation => !!participation?.has_team))
 const joinedGames = computed(() => games.value.filter(game => participationMap.value[game.id]?.participated))
 const firstJoinedGame = computed(() => joinedGames.value[0] || null)
@@ -38,9 +39,9 @@ const listGuideMeta = computed(() => {
       color: 'info' as const,
       icon: 'i-lucide-log-in',
       actionLabel: '去登录',
-      actionTo: `/login?redirect=${firstVisibleGameRedirect.value}`,
+      actionTo: buildAuthEntryPath('/login', firstVisibleGamePath.value),
       secondaryLabel: '去注册',
-      secondaryTo: `/register?redirect=${firstVisibleGameRedirect.value}`,
+      secondaryTo: buildAuthEntryPath('/register', firstVisibleGamePath.value),
     }
   }
 
@@ -51,7 +52,7 @@ const listGuideMeta = computed(() => {
       color: 'warning' as const,
       icon: 'i-lucide-users',
       actionLabel: '去队伍页',
-      actionTo: `/console/team?redirect=${firstVisibleGameRedirect.value}`,
+      actionTo: buildRedirectedPath('/console/team', firstVisibleGamePath.value),
       secondaryLabel: firstVisibleGame.value ? '先看比赛详情' : '回控制台',
       secondaryTo: firstVisibleGame.value ? `/games/${firstVisibleGame.value.id}` : '/console',
     }
@@ -172,7 +173,7 @@ function getDisplayStatusColor(game: Game) {
 }
 
 function getParticipationMeta(game: Game) {
-  const redirect = encodeURIComponent(`/games/${game.id}`)
+  const gamePath = `/games/${game.id}`
 
   return resolveParticipationMeta({
     gameId: game.id,
@@ -182,9 +183,9 @@ function getParticipationMeta(game: Game) {
     participation: participationMap.value[game.id],
     registrationMode: game.registration_mode,
     maxTeamMembers: game.max_team_members,
-    loginTo: `/login?redirect=${redirect}`,
-    registerTo: `/register?redirect=${redirect}`,
-    teamTo: `/console/team?redirect=${redirect}`,
+    loginTo: buildAuthEntryPath('/login', gamePath),
+    registerTo: buildAuthEntryPath('/register', gamePath),
+    teamTo: buildRedirectedPath('/console/team', gamePath),
   })
 }
 
