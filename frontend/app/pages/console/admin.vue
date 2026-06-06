@@ -687,6 +687,11 @@ const monitorTabItems = [
   { label: '时间线', value: 'timeline', icon: 'i-lucide-timeline' },
   { label: '运维', value: 'ops', icon: 'i-lucide-megaphone' },
 ]
+let selectedGameContextVersion = 0
+
+function isStaleSelectedGameContext(gameId: number, contextVersion: number) {
+  return attachForm.game_id !== gameId || selectedGameContextVersion !== contextVersion
+}
 
 const selectedMonitorStats = computed(() => {
   const overview = selectedAdminOverview.value
@@ -1360,75 +1365,108 @@ async function loadAdminResources() {
 }
 
 async function loadSelectedGameChallenges() {
-  if (!attachForm.game_id) {
+  const gameId = attachForm.game_id
+  const contextVersion = selectedGameContextVersion
+  if (!gameId) {
     selectedGameChallenges.value = []
     return
   }
 
   loadingGameChallenges.value = true
   try {
-    selectedGameChallenges.value = await $api('get', '/api/admin/games/{id}/challenges', {
+    const challengeList = await $api('get', '/api/admin/games/{id}/challenges', {
       params: {
-        id: attachForm.game_id,
+        id: gameId,
       },
     })
+    if (isStaleSelectedGameContext(gameId, contextVersion)) {
+      return
+    }
+    selectedGameChallenges.value = challengeList
   }
   catch (e: any) {
+    if (isStaleSelectedGameContext(gameId, contextVersion)) {
+      return
+    }
     selectedGameChallenges.value = []
     toast.add({ title: '比赛题目加载失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
-    loadingGameChallenges.value = false
+    if (!isStaleSelectedGameContext(gameId, contextVersion)) {
+      loadingGameChallenges.value = false
+    }
   }
 }
 
 async function loadParticipants() {
-  if (!attachForm.game_id) {
+  const gameId = attachForm.game_id
+  const contextVersion = selectedGameContextVersion
+  if (!gameId) {
     participants.value = []
     return
   }
 
   loadingParticipants.value = true
   try {
-    participants.value = await $api('get', '/api/games/{id}/participants', {
+    const participantList = await $api('get', '/api/games/{id}/participants', {
       params: {
-        id: attachForm.game_id,
+        id: gameId,
       },
     })
-    for (const participant of participants.value) {
+    if (isStaleSelectedGameContext(gameId, contextVersion)) {
+      return
+    }
+    participants.value = participantList
+    for (const participant of participantList) {
       participantStatusDrafts[participant.team_id] = participant.status
       participantDivisionDrafts[participant.team_id] = participant.division || ''
     }
   }
   catch (e: any) {
+    if (isStaleSelectedGameContext(gameId, contextVersion)) {
+      return
+    }
     participants.value = []
     toast.add({ title: '参赛队伍加载失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
-    loadingParticipants.value = false
+    if (!isStaleSelectedGameContext(gameId, contextVersion)) {
+      loadingParticipants.value = false
+    }
   }
 }
 
 async function loadInstanceLeases() {
-  if (!attachForm.game_id) {
+  const gameId = attachForm.game_id
+  const contextVersion = selectedGameContextVersion
+  if (!gameId) {
     instanceLeases.value = []
     return
   }
 
   loadingInstances.value = true
   try {
-    instanceLeases.value = await $api('get', '/api/admin/games/{id}/instances', {
+    const leaseList = await $api('get', '/api/admin/games/{id}/instances', {
       params: {
-        id: attachForm.game_id,
+        id: gameId,
       },
     })
+    if (isStaleSelectedGameContext(gameId, contextVersion)) {
+      return
+    }
+    instanceLeases.value = leaseList
   }
   catch (e: any) {
+    if (isStaleSelectedGameContext(gameId, contextVersion)) {
+      return
+    }
     instanceLeases.value = []
     toast.add({ title: '实例监控加载失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
-    loadingInstances.value = false
+    if (!isStaleSelectedGameContext(gameId, contextVersion)) {
+      loadingInstances.value = false
+    }
   }
 }
 
@@ -1473,96 +1511,140 @@ async function runDestroyInstanceLease(leaseId: number) {
 }
 
 async function loadWriteups() {
-  if (!attachForm.game_id) {
+  const gameId = attachForm.game_id
+  const contextVersion = selectedGameContextVersion
+  if (!gameId) {
     writeups.value = []
     return
   }
 
   try {
-    writeups.value = await $api('get', '/api/admin/games/{id}/writeups', {
+    const writeupList = await $api('get', '/api/admin/games/{id}/writeups', {
       params: {
-        id: attachForm.game_id,
+        id: gameId,
       },
     })
-    for (const writeup of writeups.value) {
+    if (isStaleSelectedGameContext(gameId, contextVersion)) {
+      return
+    }
+    writeups.value = writeupList
+    for (const writeup of writeupList) {
       writeupReviewDrafts[writeup.team_id] = writeup.status === 'rejected' ? 'rejected' : 'approved'
       writeupRemarkDrafts[writeup.team_id] = writeup.review_remark || ''
     }
   }
   catch (e: any) {
+    if (isStaleSelectedGameContext(gameId, contextVersion)) {
+      return
+    }
     writeups.value = []
     toast.add({ title: 'Writeup 列表加载失败', description: e.data?.message || e.message, color: 'error' })
   }
 }
 
 async function loadSubmissions() {
-  if (!attachForm.game_id) {
+  const gameId = attachForm.game_id
+  const contextVersion = selectedGameContextVersion
+  if (!gameId) {
     submissions.value = []
     return
   }
 
   loadingSubmissions.value = true
   try {
-    submissions.value = await $fetch(`/api/admin/games/${attachForm.game_id}/submissions`, {
+    const submissionList = await $fetch<typeof submissions.value>(`/api/admin/games/${gameId}/submissions`, {
       query: {
         type: submissionFilters.type,
         count: submissionFilters.count,
       },
     })
+    if (isStaleSelectedGameContext(gameId, contextVersion)) {
+      return
+    }
+    submissions.value = submissionList
   }
   catch (e: any) {
+    if (isStaleSelectedGameContext(gameId, contextVersion)) {
+      return
+    }
     submissions.value = []
     toast.add({ title: '提交记录加载失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
-    loadingSubmissions.value = false
+    if (!isStaleSelectedGameContext(gameId, contextVersion)) {
+      loadingSubmissions.value = false
+    }
   }
 }
 
 async function loadCheatClues() {
-  if (!attachForm.game_id) {
+  const gameId = attachForm.game_id
+  const contextVersion = selectedGameContextVersion
+  if (!gameId) {
     cheatClues.value = []
     return
   }
 
   loadingCheatClues.value = true
   try {
-    cheatClues.value = await $fetch(`/api/admin/games/${attachForm.game_id}/cheat-clues`, {
+    const clueList = await $fetch<typeof cheatClues.value>(`/api/admin/games/${gameId}/cheat-clues`, {
       query: {
         count: 20,
       },
     })
+    if (isStaleSelectedGameContext(gameId, contextVersion)) {
+      return
+    }
+    cheatClues.value = clueList
   }
   catch (e: any) {
+    if (isStaleSelectedGameContext(gameId, contextVersion)) {
+      return
+    }
     cheatClues.value = []
     toast.add({ title: '可疑线索加载失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
-    loadingCheatClues.value = false
+    if (!isStaleSelectedGameContext(gameId, contextVersion)) {
+      loadingCheatClues.value = false
+    }
   }
 }
 
 async function loadAnnouncements() {
-  if (!attachForm.game_id) {
+  const gameId = attachForm.game_id
+  const contextVersion = selectedGameContextVersion
+  if (!gameId) {
     announcements.value = []
     return
   }
 
   loadingAnnouncements.value = true
   try {
-    announcements.value = await $fetch<typeof announcements.value>(`/api/admin/games/${attachForm.game_id}/announcements`)
+    const announcementList = await $fetch<typeof announcements.value>(`/api/admin/games/${gameId}/announcements`)
+    if (isStaleSelectedGameContext(gameId, contextVersion)) {
+      return
+    }
+    announcements.value = announcementList
   }
   catch (e: any) {
+    if (isStaleSelectedGameContext(gameId, contextVersion)) {
+      return
+    }
     announcements.value = []
     toast.add({ title: '比赛公告加载失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
-    loadingAnnouncements.value = false
+    if (!isStaleSelectedGameContext(gameId, contextVersion)) {
+      loadingAnnouncements.value = false
+    }
   }
 }
 
 async function loadScoreboard() {
-  if (!attachForm.game_id) {
+  const gameId = attachForm.game_id
+  const contextVersion = selectedGameContextVersion
+  if (!gameId) {
     scoreboardEntries.value = []
     scoreboardChallenges.value = []
     scoreboardFrozen.value = false
@@ -1574,10 +1656,13 @@ async function loadScoreboard() {
   try {
     const scoreboard = await $api('get', '/api/games/{id}/scoreboard', {
       params: {
-        id: attachForm.game_id,
+        id: gameId,
       },
       query: selectedScoreboardDivision.value ? { division: selectedScoreboardDivision.value } : {},
     })
+    if (isStaleSelectedGameContext(gameId, contextVersion)) {
+      return
+    }
     scoreboardEntries.value = scoreboard.entries || []
     scoreboardChallenges.value = scoreboard.challenges || []
     scoreboardFrozen.value = !!scoreboard.is_frozen
@@ -1589,6 +1674,9 @@ async function loadScoreboard() {
     }
   }
   catch (e: any) {
+    if (isStaleSelectedGameContext(gameId, contextVersion)) {
+      return
+    }
     scoreboardEntries.value = []
     scoreboardChallenges.value = []
     scoreboardFrozen.value = false
@@ -1596,7 +1684,9 @@ async function loadScoreboard() {
     toast.add({ title: '排行榜加载失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
-    loadingScoreboard.value = false
+    if (!isStaleSelectedGameContext(gameId, contextVersion)) {
+      loadingScoreboard.value = false
+    }
   }
 }
 
@@ -3265,6 +3355,8 @@ watch(() => gameSettingsForm.game_id, () => {
 })
 
 watch(() => attachForm.game_id, async () => {
+  selectedGameContextVersion += 1
+  resetSelectedGameContext()
   await loadSelectedGameChallenges()
   await loadParticipants()
   await loadInstanceLeases()
