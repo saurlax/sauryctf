@@ -43,6 +43,8 @@ const joinLoading = ref(false)
 const removingMemberId = ref<number | null>(null)
 const transferringCaptainId = ref<number | null>(null)
 const resettingInviteCode = ref(false)
+const createTeamModalOpen = ref(false)
+const joinTeamModalOpen = ref(false)
 const confirmModalOpen = ref(false)
 const confirmSubmitting = ref(false)
 
@@ -345,6 +347,7 @@ async function createTeam() {
       body: { name: createForm.name },
     })
     team.value = res.team
+    createTeamModalOpen.value = false
     toast.add({ title: '队伍创建成功', color: 'success' })
     createForm.name = ''
     await navigateBackToContestIfNeeded()
@@ -368,6 +371,7 @@ async function joinTeam() {
       body: { invite_code: joinForm.invite_code },
     })
     await fetchTeam()
+    joinTeamModalOpen.value = false
     toast.add({ title: '加入成功', color: 'success' })
     joinForm.invite_code = ''
     await navigateBackToContestIfNeeded()
@@ -867,7 +871,7 @@ onMounted(async () => {
     </template>
 
     <template v-else>
-      <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1.25fr)_320px]">
+      <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_320px]">
         <div v-if="inviteFlowMeta" class="xl:col-span-3">
           <UAlert
             :color="inviteFlowMeta.color"
@@ -896,7 +900,7 @@ onMounted(async () => {
             </template>
           </UAlert>
         </div>
-        <div class="xl:col-span-3">
+        <div class="xl:col-span-2">
           <UAlert
             :color="teamEntryGuideMeta.color"
             variant="soft"
@@ -923,47 +927,46 @@ onMounted(async () => {
             </template>
           </UAlert>
         </div>
-        <UPageCard title="创建队伍">
-          <UForm :state="createForm" class="space-y-4" @submit="createTeam">
-            <UFormField label="队伍名称" name="name">
-              <UInput v-model="createForm.name" placeholder="输入队伍名称" size="lg" class="w-full" />
-            </UFormField>
-            <UButton type="submit" label="创建" :loading="createLoading" block />
-          </UForm>
-          <template #footer>
-            <p class="text-sm text-muted">
-              创建者会自动成为队长，并获得邀请其他队员的权限。
-            </p>
-          </template>
-        </UPageCard>
-
-        <UPageCard title="加入队伍">
-          <UForm :state="joinForm" class="space-y-4" @submit="joinTeam">
-            <UFormField label="邀请码" name="invite_code">
-              <UInput v-model="joinForm.invite_code" placeholder="输入队伍邀请码" size="lg" class="w-full" />
-            </UFormField>
-            <UButton type="submit" label="加入" :loading="joinLoading" block />
-          </UForm>
-          <template #footer>
-            <p class="text-sm text-muted">
-              {{ joinInviteFromRoute
-                ? '当前已自动带入邀请码。确认加入后，可继续前往公开比赛页或返回原比赛。'
-                : '通过队长分享的邀请码即可加入队伍，随后可前往比赛页面继续报名或参赛。'
-              }}
-            </p>
-          </template>
-        </UPageCard>
-
-        <UPageCard title="队伍说明" icon="i-lucide-list-check">
-          <div class="space-y-3">
+        <UPageCard title="队伍入口" icon="i-lucide-users">
+          <div class="space-y-4">
             <UAlert
               color="info"
               variant="soft"
-              title="队伍是比赛参与的基础单元"
-              description="比赛报名、Flag 提交和排行榜都按队伍进行。创建者会自动成为队长，其他成员通过邀请码加入。"
+              title="队伍按入口动作处理"
+              description="创建和加入都通过弹层完成，页面主体仅保留返回比赛、队伍规则和当前入口说明。"
             />
-          </div>
 
+            <div class="flex flex-wrap gap-2">
+              <UButton icon="i-lucide-plus" @click="createTeamModalOpen = true">
+                创建队伍
+              </UButton>
+              <UButton icon="i-lucide-log-in" variant="outline" @click="joinTeamModalOpen = true">
+                加入队伍
+              </UButton>
+            </div>
+
+            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+              <div class="mb-2 font-medium text-highlighted">
+                当前入口说明
+              </div>
+              <ul class="space-y-2">
+                <li>创建者会自动成为队长，并获得邀请其他成员的权限。</li>
+                <li>{{ joinInviteFromRoute
+                  ? '当前已自动带入邀请码。确认加入后，可继续前往公开比赛页或返回原比赛。'
+                  : '通过队长分享的邀请码即可加入队伍，随后可前往比赛页面继续报名或参赛。'
+                }}</li>
+              </ul>
+            </div>
+          </div>
+        </UPageCard>
+
+        <UPageCard title="队伍说明" icon="i-lucide-list-check">
+          <UAlert
+            color="info"
+            variant="soft"
+            title="队伍是比赛参与的基础单元"
+            description="比赛报名、Flag 提交和排行榜都按队伍进行。创建者会自动成为队长，其他成员通过邀请码加入。"
+          />
           <template #footer>
             <div class="flex flex-wrap items-center gap-2">
               <UButton label="浏览比赛" variant="ghost" icon="i-lucide-trophy" to="/games" />
@@ -974,6 +977,56 @@ onMounted(async () => {
       </div>
     </template>
   </div>
+
+  <UModal
+    v-model:open="createTeamModalOpen"
+    title="创建队伍"
+    description="录入队伍名称后立即创建，创建者会自动成为队长。"
+    :ui="{ body: 'space-y-4', footer: 'justify-end' }"
+  >
+    <template #body>
+      <UForm :state="createForm" class="space-y-4" @submit="createTeam">
+        <UFormField label="队伍名称" name="name">
+          <UInput v-model="createForm.name" placeholder="输入队伍名称" size="lg" class="w-full" />
+        </UFormField>
+      </UForm>
+    </template>
+
+    <template #footer="{ close }">
+      <UButton variant="ghost" :disabled="createLoading" @click="close()">
+        取消
+      </UButton>
+      <UButton :loading="createLoading" @click="createTeam">
+        创建队伍
+      </UButton>
+    </template>
+  </UModal>
+
+  <UModal
+    v-model:open="joinTeamModalOpen"
+    title="加入队伍"
+    :description="joinInviteFromRoute
+      ? '当前已自动带入邀请码，确认后即可加入队伍。'
+      : '输入邀请码后即可加入现有队伍。'"
+    :ui="{ body: 'space-y-4', footer: 'justify-end' }"
+  >
+    <template #body>
+      <UForm :state="joinForm" class="space-y-4" @submit="joinTeam">
+        <UFormField label="邀请码" name="invite_code">
+          <UInput v-model="joinForm.invite_code" placeholder="输入队伍邀请码" size="lg" class="w-full" />
+        </UFormField>
+      </UForm>
+    </template>
+
+    <template #footer="{ close }">
+      <UButton variant="ghost" :disabled="joinLoading" @click="close()">
+        取消
+      </UButton>
+      <UButton :loading="joinLoading" @click="joinTeam">
+        加入队伍
+      </UButton>
+    </template>
+  </UModal>
 
   <UModal
     v-model:open="confirmModalOpen"
