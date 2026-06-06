@@ -1415,7 +1415,7 @@ const containerInstanceChecklist = computed(() => {
       done: runningLeaseCount > 0,
       description: runningLeaseCount > 0
         ? `当前已有 ${runningLeaseCount} 条容器实例正在运行，说明实例至少已经成功启动一次。`
-        : '报名后到公开比赛页点击启动实例。成功时应拿到真实 host / port / launch_url，而不是固定占位入口。',
+        : '报名后到公开比赛页点击启动实例。成功时应拿到真实 host / port / launch_url，而不是仍停留在模板接入信息。',
       actionLabel: '打开公开页',
       actionTo: `/games/${overview.game.id}`,
     },

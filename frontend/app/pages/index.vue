@@ -32,7 +32,7 @@ type HeroLink = {
 
 const heroLinks = computed(() => {
   const links: HeroLink[] = [
-    { label: '开始比赛', to: '/games', icon: 'i-lucide-rocket' },
+    { label: '浏览比赛', to: '/games', icon: 'i-lucide-rocket' },
   ]
 
   if (isLoggedIn.value) {
@@ -74,7 +74,7 @@ const heroLinks = computed(() => {
       </UPageGrid>
     </UPageSection>
 
-    <UPageSection v-if="isLoggedIn" title="当前入口" description="继续进入控制台或公开比赛页。">
+    <UPageSection v-if="isLoggedIn" title="当前入口" description="集中进入控制台或公开比赛页。">
       <div class="flex flex-wrap gap-3">
         <UButton label="进入控制台" icon="i-lucide-layout-dashboard" to="/console" />
         <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="outline" />

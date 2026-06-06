@@ -454,7 +454,7 @@ const consoleSummaryRows = computed(() => {
       value: joinedGame ? joinedGame.game.name : team.value ? '还未关联比赛' : '准备队伍后可继续报名',
     },
     {
-      label: '当前待办',
+      label: '当前重点',
       value: writeupGame
         ? `${writeupGame.name} 需要补交 Writeup`
         : primaryPendingEntry.value
@@ -747,7 +747,7 @@ onBeforeUnmount(() => {
           <UPageCard v-if="isAdmin" title="管理入口" icon="i-lucide-shield-check">
             <div class="space-y-3">
               <div class="flex flex-wrap gap-2">
-                <UButton label="打开管理端" icon="i-lucide-settings-2" to="/console/admin" variant="outline" />
+                <UButton label="进入管理端" icon="i-lucide-settings-2" to="/console/admin" variant="outline" />
                 <UButton label="用户管理" icon="i-lucide-users-round" to="/console/admin/users" variant="outline" />
                 <UButton label="审计日志" icon="i-lucide-scroll-text" to="/console/admin/audit" variant="outline" />
                 <UButton label="浏览公开页" icon="i-lucide-arrow-up-right" to="/games" variant="outline" />
@@ -833,8 +833,8 @@ onBeforeUnmount(() => {
               <UEmpty
                 v-if="!adminManagedGames.length"
                 icon="i-lucide-calendar-plus"
-                title="还没有可管理的比赛"
-                description="当前还没有比赛进入最近管理列表。完成建赛后，这里会汇总最近使用的管理入口。"
+                title="当前没有可管理的比赛"
+                description="创建比赛后，这里会汇总最近使用的管理入口。"
                 :actions="[{
                   label: '去创建比赛',
                   icon: 'i-lucide-settings-2',
@@ -870,7 +870,7 @@ onBeforeUnmount(() => {
                     </p>
                   </div>
                   <UBadge :color="consoleNextActionMeta.color" variant="soft" size="sm">
-                    当前待办
+                    当前重点
                   </UBadge>
                 </div>
 
@@ -920,7 +920,7 @@ onBeforeUnmount(() => {
             <UEmpty
               v-else
               icon="i-lucide-calendar-range"
-              title="还没有可浏览的公开比赛"
+              title="当前没有可浏览的公开比赛"
               :description="isAdmin ? '比赛公开后，这里会显示当前可浏览的公开比赛。' : '当前还没有公开中的比赛，稍后再来查看即可。'"
               :actions="isAdmin
                 ? [{
@@ -974,7 +974,7 @@ onBeforeUnmount(() => {
             <UEmpty
               v-else
               icon="i-lucide-flag"
-              title="还没有关联比赛"
+              title="当前没有关联比赛"
               :description="team ? '你已经有队伍了，现在可以进入公开比赛页完成报名。' : '准备队伍后，再进入公开比赛详情页完成报名。'"
               :actions="[
                 {
@@ -1019,7 +1019,7 @@ onBeforeUnmount(() => {
             <UEmpty
               v-else
               icon="i-lucide-megaphone"
-              title="还没有可跟进的比赛公告"
+              title="当前没有可跟进的比赛公告"
               :description="team ? '加入比赛后，这里会汇总你当前已关联比赛的最新公告。' : '准备队伍并加入比赛后，这里才会出现与你相关的公告通知。'"
               :actions="[{
                 label: team ? '查看我的比赛' : '去队伍页',
@@ -1045,7 +1045,7 @@ onBeforeUnmount(() => {
                     当前优先处理
                   </div>
                   <UButton size="sm" variant="ghost" icon="i-lucide-settings-2" :to="adminParticipantSectionLink">
-                    打开管理端
+                    进入管理端
                   </UButton>
                 </div>
                 <div
@@ -1066,7 +1066,7 @@ onBeforeUnmount(() => {
                 <div class="rounded-lg border border-default px-3 py-3">
                   <div class="mb-3 flex items-center justify-between gap-2">
                     <div class="font-medium">
-                      最近待审核报名
+                      待审核报名
                     </div>
                     <UButton size="sm" variant="ghost" icon="i-lucide-settings-2" :to="adminParticipantSectionLink">
                       去管理
@@ -1100,7 +1100,7 @@ onBeforeUnmount(() => {
                     title="当前没有待审核报名"
                     description="最近 5 场比赛里没有仍待处理的报名申请。新的报名提交后会自动出现在这里。"
                     :actions="[{
-                      label: '打开管理端',
+                      label: '进入管理端',
                       icon: 'i-lucide-settings-2',
                       to: adminParticipantSectionLink,
                       color: 'neutral',
@@ -1112,7 +1112,7 @@ onBeforeUnmount(() => {
                 <div class="rounded-lg border border-default px-3 py-3">
                   <div class="mb-3 flex items-center justify-between gap-2">
                     <div class="font-medium">
-                      最近待审 Writeup
+                      待审 Writeup
                     </div>
                     <UButton size="sm" variant="ghost" icon="i-lucide-file-text" :to="adminWriteupSectionLink">
                       去处理
@@ -1146,7 +1146,7 @@ onBeforeUnmount(() => {
                     title="当前没有待审 Writeup"
                     description="最近 5 场比赛里没有等待管理员处理的 Writeup。新的提交完成后会自动出现在这里。"
                     :actions="[{
-                      label: '查看管理端',
+                      label: '进入管理端',
                       icon: 'i-lucide-file-text',
                       to: adminWriteupSectionLink,
                       color: 'neutral',
