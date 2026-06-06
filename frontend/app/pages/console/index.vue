@@ -114,6 +114,15 @@ interface AdminDashboardSummaryResponse {
   cheat_clues: AdminCheatClueEntry[]
 }
 
+interface PlayerAnnouncementEntry {
+  id: number
+  game_id: number
+  content: string
+  created_by: number
+  created_at: string
+  game: GameSummary
+}
+
 const isAdmin = computed(() => ['admin', 'super_admin'].includes(authState.user?.role || ''))
 const { fetchParticipationMap } = useGameParticipationMap()
 const loading = ref(true)
@@ -127,6 +136,7 @@ const adminPendingWriteups = ref<Array<AdminWriteupEntry & { game: GameSummary }
 const adminLatestAnnouncements = ref<Array<AdminAnnouncementEntry & { game: GameSummary }>>([])
 const adminRecentSubmissions = ref<Array<AdminSubmissionEntry & { game: GameSummary }>>([])
 const adminCheatClues = ref<Array<AdminCheatClueEntry & { game: GameSummary }>>([])
+const playerAnnouncements = ref<PlayerAnnouncementEntry[]>([])
 
 const activeGames = computed(() => games.value.filter(game => game.status === 'active'))
 const upcomingGames = computed(() => games.value.filter(game => game.status === 'draft'))
@@ -207,12 +217,14 @@ async function fetchConsoleData() {
     if (gamesRes.status === 'fulfilled') {
       games.value = gamesRes.value
       participationMap.value = await fetchParticipationMap(games.value.map(game => game.id))
+      await loadPlayerAnnouncements()
       await loadAdminTodoData()
       await refreshSetupStatus()
     }
     else {
       games.value = []
       participationMap.value = {}
+      playerAnnouncements.value = []
       resetAdminTodoData()
       const e = gamesRes.reason as any
       toast.add({ title: '比赛列表加载失败', description: e.data?.message || e.message, color: 'error' })
@@ -220,6 +232,41 @@ async function fetchConsoleData() {
   }
   finally {
     loading.value = false
+  }
+}
+
+async function loadPlayerAnnouncements() {
+  const joinedGames = games.value.filter((game) => {
+    const item = participationMap.value[game.id]
+    return item?.participated
+  })
+
+  if (!joinedGames.length) {
+    playerAnnouncements.value = []
+    return
+  }
+
+  try {
+    const results = await Promise.allSettled(
+      joinedGames.map(async game => ({
+        game,
+        announcements: await $fetch<Array<Omit<PlayerAnnouncementEntry, 'game'>>>(`/api/games/${game.id}/announcements`),
+      })),
+    )
+
+    playerAnnouncements.value = results
+      .filter((result): result is PromiseFulfilledResult<{ game: GameSummary, announcements: Array<Omit<PlayerAnnouncementEntry, 'game'>> }> => result.status === 'fulfilled')
+      .flatMap(result =>
+        result.value.announcements.map(item => ({
+          ...item,
+          game: result.value.game,
+        })),
+      )
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 6)
+  }
+  catch {
+    playerAnnouncements.value = []
   }
 }
 
@@ -902,6 +949,49 @@ onMounted(async () => {
                   variant: 'outline',
                 },
               ]"
+            />
+          </UPageCard>
+
+          <UPageCard title="我的比赛公告" icon="i-lucide-megaphone">
+            <div v-if="playerAnnouncements.length" class="space-y-3">
+              <div
+                v-for="announcement in playerAnnouncements"
+                :key="`${announcement.game.id}-${announcement.id}`"
+                class="rounded-lg border border-default px-3 py-3"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="font-medium">
+                      {{ announcement.game.name }}
+                    </div>
+                    <div class="mt-1 text-xs text-muted">
+                      {{ new Date(announcement.created_at).toLocaleString() }}
+                    </div>
+                  </div>
+                  <UButton
+                    size="sm"
+                    variant="ghost"
+                    icon="i-lucide-arrow-up-right"
+                    :to="`/games/${announcement.game.id}`"
+                  />
+                </div>
+                <div class="mt-3 text-sm text-muted whitespace-pre-wrap leading-6">
+                  {{ announcement.content }}
+                </div>
+              </div>
+            </div>
+            <UEmpty
+              v-else
+              icon="i-lucide-megaphone"
+              title="还没有可跟进的比赛公告"
+              :description="team ? '加入比赛后，这里会汇总你当前已关联比赛的最新公告。' : '先准备队伍并加入比赛，这里才会出现与你相关的公告通知。'"
+              :actions="[{
+                label: team ? '查看我的比赛' : '去队伍页',
+                icon: team ? 'i-lucide-flag' : 'i-lucide-users',
+                to: team ? '/games' : '/console/team',
+                color: 'neutral',
+                variant: 'outline',
+              }]"
             />
           </UPageCard>
 
