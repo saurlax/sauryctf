@@ -3967,20 +3967,8 @@ onMounted(async () => {
       <UPageCard title="管理入口" icon="i-lucide-layout-template">
         <div class="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
           <div class="space-y-4">
-            <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3">
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <div class="font-medium text-highlighted">
-                    录入约定
-                  </div>
-                  <div class="mt-2 text-sm text-muted">
-                    这里集中提供比赛创建与常用维护入口，用于建立和维护正式赛事内容。快捷创建仅写入基础结构，正式发布前仍应补全题面、入口、镜像、附件与规则设置。
-                  </div>
-                </div>
-                <UBadge color="info" variant="soft">
-                  维护入口
-                </UBadge>
-              </div>
+            <div class="text-sm text-muted leading-6">
+              这里集中提供比赛创建与常用维护入口；快捷创建仅写入基础结构，正式发布前仍应补全题面、入口、镜像、附件与规则设置。
             </div>
 
             <div class="flex flex-wrap gap-2">
@@ -4013,20 +4001,8 @@ onMounted(async () => {
           </div>
 
           <div class="space-y-3">
-            <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3">
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <div class="font-medium text-highlighted">
-                    当前检查项
-                  </div>
-                  <div class="mt-2 text-sm text-muted">
-                    比赛、题目、挂载与发布检查会集中显示在这里，便于判断当前缺口。
-                  </div>
-                </div>
-                <UBadge color="info" variant="soft">
-                  检查概览
-                </UBadge>
-              </div>
+            <div class="text-sm text-muted leading-6">
+              比赛、题目、挂载与发布检查会集中显示在这里，便于判断当前缺口。
             </div>
 
             <div class="grid gap-3 xl:grid-cols-2">
@@ -4115,20 +4091,8 @@ onMounted(async () => {
           </div>
 
           <div class="space-y-3">
-            <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3">
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <div class="font-medium text-highlighted">
-                    发布前检查
-                  </div>
-                  <div class="mt-2 text-sm text-muted">
-                    这里只保留当前最影响公开运行的检查项，便于判断是否可以继续发布。
-                  </div>
-                </div>
-                <UBadge color="info" variant="soft">
-                  检查项
-                </UBadge>
-              </div>
+            <div class="text-sm text-muted leading-6">
+              这里只保留当前最影响公开运行的检查项，便于判断是否可以继续发布。
             </div>
 
             <div
