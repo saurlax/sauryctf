@@ -137,10 +137,12 @@ pnpm dev:local
 
 ## 阅读顺序
 
+- `docs/README.md`
 - `docs/get-started/overview.md`
 - `docs/get-started/smoke-flow.md`
 - `docs/guide/authentication.md`
 - `docs/guide/console-home.md`
 - `docs/guide/team-management.md`
 - `docs/guide/game-participation.md`
+- `docs/guide/writeup-workflow.md`
 - `AGENTS.md`
