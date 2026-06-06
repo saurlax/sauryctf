@@ -5321,15 +5321,7 @@ onMounted(async () => {
                     icon="i-lucide-square-pen"
                     @click="openParticipantReviewModal(participant.team_id)"
                   >
-                    审核设置
-                  </UButton>
-                  <UButton
-                    size="sm"
-                    icon="i-lucide-check-check"
-                    :loading="updatingParticipantId === participant.team_id"
-                    @click="updateParticipantStatus(participant.team_id)"
-                  >
-                    保存状态
+                    打开审核
                   </UButton>
                   <UButton
                     color="error"
@@ -5408,7 +5400,7 @@ onMounted(async () => {
                   <div>审核时间：{{ writeup.reviewed_at ? new Date(writeup.reviewed_at).toLocaleString() : '未审核' }}</div>
                 </div>
 
-                <div class="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_auto_auto] md:items-end">
+                <div class="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_auto] md:items-end">
                   <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3 text-sm text-muted">
                     <div class="font-medium text-highlighted">
                       待保存结果
@@ -5431,16 +5423,7 @@ onMounted(async () => {
                     icon="i-lucide-square-pen"
                     @click="openWriteupReviewModal(writeup.team_id)"
                   >
-                    审核设置
-                  </UButton>
-
-                  <UButton
-                    size="sm"
-                    icon="i-lucide-file-check-2"
-                    :loading="reviewingWriteupId === writeup.team_id"
-                    @click="reviewWriteup(writeup.team_id)"
-                  >
-                    保存审核
+                    打开审核
                   </UButton>
                 </div>
               </div>
