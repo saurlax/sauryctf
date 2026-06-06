@@ -2223,6 +2223,7 @@ async function updateChallengeDetails() {
       },
     })
 
+    challengeEditModalOpen.value = false
     toast.add({ title: '题目信息已更新', color: 'success' })
     await loadAdminResources()
   }
@@ -2373,6 +2374,7 @@ async function updateGameDetails() {
       },
     })
 
+    gameEditModalOpen.value = false
     toast.add({ title: '比赛信息已更新', color: 'success' })
     await loadAdminResources()
   }
@@ -2536,6 +2538,7 @@ async function importGamePackage() {
       body: formData,
     })
 
+    importModalOpen.value = false
     importForm.file = undefined
     await loadAdminResources()
     attachForm.game_id = game.id
@@ -3901,82 +3904,25 @@ onMounted(async () => {
           </UForm>
         </UPageCard>
 
-        <UPageCard title="编辑比赛信息" icon="i-lucide-pencil-line">
-          <UForm :state="gameEditForm" class="space-y-4" @submit="updateGameDetails">
-            <UFormField label="选择比赛" name="game_id">
-              <USelect
-                v-model="gameEditForm.game_id"
-                :items="gameOptions"
-                class="w-full"
-                placeholder="选择一个比赛"
-              />
-            </UFormField>
-
-            <UFormField label="比赛名称" name="name">
-              <UInput v-model="gameEditForm.name" class="w-full" placeholder="例如：Spring CTF 2026" />
-            </UFormField>
-
-            <UFormField label="比赛描述" name="description">
-              <UTextarea v-model="gameEditForm.description" class="w-full" :rows="4" placeholder="简要介绍比赛规则或主题" />
-            </UFormField>
-
-            <UFormField label="规则补充" name="notice" description="这里适合填写长期有效的补充规则，会展示在公开比赛页的“规则补充”区域">
-              <UTextarea v-model="gameEditForm.notice" class="w-full" :rows="4" placeholder="例如：禁止共享 Flag；比赛开始前 15 分钟开放平台。" />
-            </UFormField>
-
-            <UFormField label="比赛邀请码" name="invitation_code" description="留空表示关闭邀请码门槛">
-              <UInput v-model="gameEditForm.invitation_code" class="w-full" placeholder="例如：spring-2026" />
-            </UFormField>
-
-            <UFormField label="比赛分组" name="divisions_text" description="按行或逗号分隔，留空表示不分组">
-              <UTextarea v-model="gameEditForm.divisions_text" class="w-full" :rows="3" placeholder="本科组, 公开组" />
-            </UFormField>
-
-            <div class="grid gap-4 md:grid-cols-2">
-              <UFormField label="开始时间" name="start_time">
-                <UInput v-model="gameEditForm.start_time" type="datetime-local" class="w-full" />
-              </UFormField>
-
-              <UFormField label="结束时间" name="end_time">
-                <UInput v-model="gameEditForm.end_time" type="datetime-local" class="w-full" />
-              </UFormField>
+        <UPageCard title="比赛维护" icon="i-lucide-pencil-line">
+          <div class="space-y-4">
+            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+              比赛基础信息和比赛包导入改为独立弹层处理，避免长期占用主页面空间。
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
-              <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不额外设置截止时间；如果填写，建议晚于比赛结束时间">
-                <UInput v-model="gameEditForm.writeup_deadline" type="datetime-local" class="w-full" />
-              </UFormField>
-
-              <div class="grid gap-4 md:grid-cols-2">
-                <UFormField label="启用赛后练习" name="practice_mode">
-                  <USwitch v-model="gameEditForm.practice_mode" />
-                </UFormField>
-
-                <UFormField label="要求 Writeup" name="writeup_required">
-                  <USwitch v-model="gameEditForm.writeup_required" />
-                </UFormField>
-              </div>
+            <div class="flex flex-wrap gap-2">
+              <UButton icon="i-lucide-pencil-line" variant="outline" @click="gameEditModalOpen = true">
+                编辑比赛信息
+              </UButton>
+              <UButton icon="i-lucide-upload" variant="ghost" @click="importModalOpen = true">
+                导入比赛包
+              </UButton>
             </div>
 
             <div v-if="selectedEditableGame" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              正在编辑：{{ selectedEditableGame.name }} · 当前状态 {{ selectedEditableGame.status }} · {{ getPracticeModeLabel(selectedEditableGame.practice_mode) }} · {{ selectedEditableGame.writeup_required ? '需要 Writeup' : '不要求 Writeup' }}
+              当前已选：{{ selectedEditableGame.name }} · {{ selectedEditableGame.status }}
             </div>
-
-            <div v-if="editGameRuleSummary.length" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              <div class="mb-2 font-medium text-highlighted">
-                编辑后规则摘要
-              </div>
-              <ul class="space-y-2">
-                <li v-for="item in editGameRuleSummary" :key="item">
-                  {{ item }}
-                </li>
-              </ul>
-            </div>
-
-            <UButton type="submit" :loading="gameEditing">
-              保存比赛信息
-            </UButton>
-          </UForm>
+          </div>
         </UPageCard>
       </div>
 
@@ -4222,147 +4168,22 @@ onMounted(async () => {
           </UForm>
         </UPageCard>
 
-        <UPageCard title="编辑题目" icon="i-lucide-file-pen-line">
-          <UForm :state="challengeEditForm" class="space-y-4" @submit="updateChallengeDetails">
-            <UFormField label="选择题目" name="challenge_id">
-              <USelect
-                v-model="challengeEditForm.challenge_id"
-                :items="challengeOptions"
-                class="w-full"
-                placeholder="选择一个题目"
-              />
-            </UFormField>
-
-            <UFormField label="题目名称" name="title">
-              <UInput v-model="challengeEditForm.title" class="w-full" placeholder="例如：Easy XSS" />
-            </UFormField>
-
-            <UFormField label="题目描述" name="description">
-              <UTextarea v-model="challengeEditForm.description" class="w-full" :rows="4" placeholder="题目简介、提示或附件说明" />
-            </UFormField>
-
-            <UFormField
-              label="提示列表"
-              name="hints"
-              description='使用 JSON 数组，例如 ["先看首页","再看接口返回"]'
-            >
-              <UTextarea v-model="challengeEditForm.hints" class="w-full" :rows="3" placeholder='["提示 1","提示 2"]' />
-            </UFormField>
-
-            <UFormField
-              label="附件链接"
-              name="attachments"
-              description='使用 JSON 数组，例如 ["https://example.com/files/web.zip"]'
-            >
-              <UTextarea v-model="challengeEditForm.attachments" class="w-full" :rows="3" placeholder='["https://example.com/files/challenge.zip"]' />
-            </UFormField>
-
-            <UFormField
-              label="实例接入信息"
-              name="container_spec"
-              description='使用 JSON 记录实例 URL、host/port、连接命令或代理入口'
-            >
-              <UTextarea v-model="challengeEditForm.container_spec" class="w-full font-mono" :rows="8" placeholder='{"connection":{"url":"","note":"请填写实际入口或接入说明"}}' />
-            </UFormField>
-
-            <UPageCard
-              title="模板占位符"
-              icon="i-lucide-braces"
-              description="编辑动态题时同样可以在 connection 字段里使用这些占位符。"
-            >
-              <div class="flex flex-wrap gap-2">
-                <UBadge
-                  v-for="token in instanceTemplateTokens"
-                  :key="`edit-${token}`"
-                  color="neutral"
-                  variant="subtle"
-                >
-                  {{ token }}
-                </UBadge>
-              </div>
-            </UPageCard>
-
-            <UPageCard
-              v-if="challengeEditInstanceSpec"
-              title="实例预览"
-              icon="i-lucide-box"
-              description="编辑时也会按比赛页的展示逻辑预览当前实例接入信息。"
-            >
-              <div class="space-y-2 text-sm text-muted">
-                <p v-if="challengeEditInstanceSpec.note" class="whitespace-pre-wrap">
-                  {{ challengeEditInstanceSpec.note }}
-                </p>
-                <div v-if="challengeEditInstanceSpec.url">
-                  入口：{{ challengeEditInstanceSpec.url }}
-                </div>
-                <div v-if="challengeEditInstanceSpec.host || challengeEditInstanceSpec.port">
-                  主机：{{ challengeEditInstanceSpec.host || 'host' }}<template v-if="challengeEditInstanceSpec.port">:{{ challengeEditInstanceSpec.port }}</template>
-                </div>
-                <div v-if="challengeEditInstanceSpec.command" class="rounded-md border border-default bg-default px-3 py-2 font-mono text-xs whitespace-pre-wrap">
-                  {{ challengeEditInstanceSpec.command }}
-                </div>
-                <div v-if="challengeEditInstanceSpec.links.length" class="space-y-1">
-                  <div
-                    v-for="(link, index) in challengeEditInstanceSpec.links"
-                    :key="`${link.url}-${index}`"
-                  >
-                    附加入口：{{ link.label }} -> {{ link.url }}
-                  </div>
-                </div>
-                <div v-if="challengeEditInstanceSpec.runtimeProvider || challengeEditInstanceSpec.runtimeImage || challengeEditInstanceSpec.runtimeExpose.length" class="rounded-md border border-default bg-default px-3 py-2 text-xs">
-                  <div v-if="challengeEditInstanceSpec.runtimeProvider">
-                    运行环境：{{ challengeEditInstanceSpec.runtimeProvider }}
-                  </div>
-                  <div v-if="challengeEditInstanceSpec.runtimeImage">
-                    镜像：{{ challengeEditInstanceSpec.runtimeImage }}
-                  </div>
-                  <div v-if="challengeEditInstanceSpec.runtimeExpose.length">
-                    暴露端口：{{ challengeEditInstanceSpec.runtimeExpose.join(' / ') }}
-                  </div>
-                </div>
-              </div>
-            </UPageCard>
-
-            <div class="grid gap-4 md:grid-cols-3">
-              <UFormField label="分类" name="category">
-                <USelect v-model="challengeEditForm.category" :items="categoryOptions" class="w-full" />
-              </UFormField>
-
-              <UFormField label="类型" name="type">
-                <USelect v-model="challengeEditForm.type" :items="typeOptions" class="w-full" />
-              </UFormField>
-
-              <UFormField label="难度" name="difficulty">
-                <USelect v-model="challengeEditForm.difficulty" :items="difficultyOptions" class="w-full" />
-              </UFormField>
+        <UPageCard title="题目维护" icon="i-lucide-file-pen-line">
+          <div class="space-y-4">
+            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+              题目编辑改为弹层处理，保留当前创建区用于录入新题目。
             </div>
 
-            <div class="grid gap-4 md:grid-cols-3">
-              <UFormField label="基础分值" name="base_score">
-                <UInput v-model.number="challengeEditForm.base_score" type="number" class="w-full" />
-              </UFormField>
-
-              <UFormField label="最低分值" name="min_score">
-                <UInput v-model.number="challengeEditForm.min_score" type="number" class="w-full" />
-              </UFormField>
-
-              <UFormField label="衰减率" name="decay_rate">
-                <UInput v-model.number="challengeEditForm.decay_rate" type="number" step="0.1" class="w-full" />
-              </UFormField>
+            <div class="flex flex-wrap gap-2">
+              <UButton icon="i-lucide-file-pen-line" variant="outline" @click="challengeEditModalOpen = true">
+                编辑题目
+              </UButton>
             </div>
-
-            <UFormField label="是否可见" name="is_visible">
-              <USwitch v-model="challengeEditForm.is_visible" />
-            </UFormField>
 
             <div v-if="selectedEditableChallenge" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              正在编辑：{{ selectedEditableChallenge.title }} · {{ selectedEditableChallenge.category }}
+              当前已选：{{ selectedEditableChallenge.title }} · {{ selectedEditableChallenge.category }}
             </div>
-
-            <UButton type="submit" :loading="challengeEditing">
-              保存题目信息
-            </UButton>
-          </UForm>
+          </div>
         </UPageCard>
       </div>
 
@@ -4465,26 +4286,16 @@ onMounted(async () => {
           <UPageCard title="导入比赛包" icon="i-lucide-upload">
             <div class="space-y-4">
               <p class="text-sm text-muted">
-                上传由后台导出的比赛 ZIP 包，系统会创建一场新的比赛和一组新的题目副本。
+                导入动作改为弹层处理，避免文件上传控件长期占据页面。
               </p>
-
-              <UFormField label="ZIP 文件" name="import-file" description="支持 `sauryctf.export.v1` / `v2`，其中 `v2` 会额外恢复包内嵌入的本地附件文件。">
-                <UFileUpload
-                  v-model="importForm.file"
-                  accept=".zip,application/zip"
-                  class="min-h-32"
-                  label="拖拽比赛包到这里"
-                  description="或点击选择一个 ZIP 文件"
-                />
-              </UFormField>
 
               <div class="flex justify-end">
                 <UButton
                   icon="i-lucide-file-up"
-                  :loading="importingGame"
-                  @click="importGamePackage"
+                  variant="outline"
+                  @click="importModalOpen = true"
                 >
-                  导入比赛
+                  打开导入弹层
                 </UButton>
               </div>
             </div>
@@ -5053,6 +4864,283 @@ onMounted(async () => {
       </div>
     </div>
   </div>
+
+  <UModal
+    v-model:open="gameEditModalOpen"
+    title="编辑比赛信息"
+    description="修改比赛的基础信息、时间和补充规则。"
+    :ui="{ body: 'space-y-4', footer: 'justify-end' }"
+  >
+    <template #body>
+      <UForm :state="gameEditForm" class="space-y-4" @submit="updateGameDetails">
+        <UFormField label="选择比赛" name="game_id">
+          <USelect
+            v-model="gameEditForm.game_id"
+            :items="gameOptions"
+            class="w-full"
+            placeholder="选择一个比赛"
+          />
+        </UFormField>
+
+        <UFormField label="比赛名称" name="name">
+          <UInput v-model="gameEditForm.name" class="w-full" placeholder="例如：Spring CTF 2026" />
+        </UFormField>
+
+        <UFormField label="比赛描述" name="description">
+          <UTextarea v-model="gameEditForm.description" class="w-full" :rows="4" placeholder="简要介绍比赛规则或主题" />
+        </UFormField>
+
+        <UFormField label="规则补充" name="notice" description="这里适合填写长期有效的补充规则，会展示在公开比赛页的“规则补充”区域">
+          <UTextarea v-model="gameEditForm.notice" class="w-full" :rows="4" placeholder="例如：禁止共享 Flag；比赛开始前 15 分钟开放平台。" />
+        </UFormField>
+
+        <UFormField label="比赛邀请码" name="invitation_code" description="留空表示关闭邀请码门槛">
+          <UInput v-model="gameEditForm.invitation_code" class="w-full" placeholder="例如：spring-2026" />
+        </UFormField>
+
+        <UFormField label="比赛分组" name="divisions_text" description="按行或逗号分隔，留空表示不分组">
+          <UTextarea v-model="gameEditForm.divisions_text" class="w-full" :rows="3" placeholder="本科组, 公开组" />
+        </UFormField>
+
+        <div class="grid gap-4 md:grid-cols-2">
+          <UFormField label="开始时间" name="start_time">
+            <UInput v-model="gameEditForm.start_time" type="datetime-local" class="w-full" />
+          </UFormField>
+
+          <UFormField label="结束时间" name="end_time">
+            <UInput v-model="gameEditForm.end_time" type="datetime-local" class="w-full" />
+          </UFormField>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-2">
+          <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不额外设置截止时间；如果填写，建议晚于比赛结束时间">
+            <UInput v-model="gameEditForm.writeup_deadline" type="datetime-local" class="w-full" />
+          </UFormField>
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <UFormField label="启用赛后练习" name="practice_mode">
+              <USwitch v-model="gameEditForm.practice_mode" />
+            </UFormField>
+
+            <UFormField label="要求 Writeup" name="writeup_required">
+              <USwitch v-model="gameEditForm.writeup_required" />
+            </UFormField>
+          </div>
+        </div>
+
+        <div v-if="selectedEditableGame" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+          正在编辑：{{ selectedEditableGame.name }} · 当前状态 {{ selectedEditableGame.status }} · {{ getPracticeModeLabel(selectedEditableGame.practice_mode) }} · {{ selectedEditableGame.writeup_required ? '需要 Writeup' : '不要求 Writeup' }}
+        </div>
+
+        <div v-if="editGameRuleSummary.length" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+          <div class="mb-2 font-medium text-highlighted">
+            编辑后规则摘要
+          </div>
+          <ul class="space-y-2">
+            <li v-for="item in editGameRuleSummary" :key="item">
+              {{ item }}
+            </li>
+          </ul>
+        </div>
+      </UForm>
+    </template>
+
+    <template #footer="{ close }">
+      <UButton variant="ghost" :disabled="gameEditing" @click="close()">
+        取消
+      </UButton>
+      <UButton :loading="gameEditing" @click="updateGameDetails">
+        保存比赛信息
+      </UButton>
+    </template>
+  </UModal>
+
+  <UModal
+    v-model:open="challengeEditModalOpen"
+    title="编辑题目"
+    description="修改题面、接入信息和计分参数。"
+    :ui="{ body: 'space-y-4', footer: 'justify-end' }"
+  >
+    <template #body>
+      <UForm :state="challengeEditForm" class="space-y-4" @submit="updateChallengeDetails">
+        <UFormField label="选择题目" name="challenge_id">
+          <USelect
+            v-model="challengeEditForm.challenge_id"
+            :items="challengeOptions"
+            class="w-full"
+            placeholder="选择一个题目"
+          />
+        </UFormField>
+
+        <UFormField label="题目名称" name="title">
+          <UInput v-model="challengeEditForm.title" class="w-full" placeholder="例如：Easy XSS" />
+        </UFormField>
+
+        <UFormField label="题目描述" name="description">
+          <UTextarea v-model="challengeEditForm.description" class="w-full" :rows="4" placeholder="题目简介、提示或附件说明" />
+        </UFormField>
+
+        <UFormField
+          label="提示列表"
+          name="hints"
+          description='使用 JSON 数组，例如 ["先看首页","再看接口返回"]'
+        >
+          <UTextarea v-model="challengeEditForm.hints" class="w-full" :rows="3" placeholder='["提示 1","提示 2"]' />
+        </UFormField>
+
+        <UFormField
+          label="附件链接"
+          name="attachments"
+          description='使用 JSON 数组，例如 ["https://example.com/files/web.zip"]'
+        >
+          <UTextarea v-model="challengeEditForm.attachments" class="w-full" :rows="3" placeholder='["https://example.com/files/challenge.zip"]' />
+        </UFormField>
+
+        <UFormField
+          label="实例接入信息"
+          name="container_spec"
+          description='使用 JSON 记录实例 URL、host/port、连接命令或代理入口'
+        >
+          <UTextarea v-model="challengeEditForm.container_spec" class="w-full font-mono" :rows="8" placeholder='{"connection":{"url":"","note":"请填写实际入口或接入说明"}}' />
+        </UFormField>
+
+        <UPageCard
+          title="模板占位符"
+          icon="i-lucide-braces"
+          description="编辑动态题时同样可以在 connection 字段里使用这些占位符。"
+        >
+          <div class="flex flex-wrap gap-2">
+            <UBadge
+              v-for="token in instanceTemplateTokens"
+              :key="`edit-${token}`"
+              color="neutral"
+              variant="subtle"
+            >
+              {{ token }}
+            </UBadge>
+          </div>
+        </UPageCard>
+
+        <UPageCard
+          v-if="challengeEditInstanceSpec"
+          title="实例预览"
+          icon="i-lucide-box"
+          description="编辑时也会按比赛页的展示逻辑预览当前实例接入信息。"
+        >
+          <div class="space-y-2 text-sm text-muted">
+            <p v-if="challengeEditInstanceSpec.note" class="whitespace-pre-wrap">
+              {{ challengeEditInstanceSpec.note }}
+            </p>
+            <div v-if="challengeEditInstanceSpec.url">
+              入口：{{ challengeEditInstanceSpec.url }}
+            </div>
+            <div v-if="challengeEditInstanceSpec.host || challengeEditInstanceSpec.port">
+              主机：{{ challengeEditInstanceSpec.host || 'host' }}<template v-if="challengeEditInstanceSpec.port">:{{ challengeEditInstanceSpec.port }}</template>
+            </div>
+            <div v-if="challengeEditInstanceSpec.command" class="rounded-md border border-default bg-default px-3 py-2 font-mono text-xs whitespace-pre-wrap">
+              {{ challengeEditInstanceSpec.command }}
+            </div>
+            <div v-if="challengeEditInstanceSpec.links.length" class="space-y-1">
+              <div
+                v-for="(link, index) in challengeEditInstanceSpec.links"
+                :key="`${link.url}-${index}`"
+              >
+                附加入口：{{ link.label }} -> {{ link.url }}
+              </div>
+            </div>
+            <div v-if="challengeEditInstanceSpec.runtimeProvider || challengeEditInstanceSpec.runtimeImage || challengeEditInstanceSpec.runtimeExpose.length" class="rounded-md border border-default bg-default px-3 py-2 text-xs">
+              <div v-if="challengeEditInstanceSpec.runtimeProvider">
+                运行环境：{{ challengeEditInstanceSpec.runtimeProvider }}
+              </div>
+              <div v-if="challengeEditInstanceSpec.runtimeImage">
+                镜像：{{ challengeEditInstanceSpec.runtimeImage }}
+              </div>
+              <div v-if="challengeEditInstanceSpec.runtimeExpose.length">
+                暴露端口：{{ challengeEditInstanceSpec.runtimeExpose.join(' / ') }}
+              </div>
+            </div>
+          </div>
+        </UPageCard>
+
+        <div class="grid gap-4 md:grid-cols-3">
+          <UFormField label="分类" name="category">
+            <USelect v-model="challengeEditForm.category" :items="categoryOptions" class="w-full" />
+          </UFormField>
+
+          <UFormField label="类型" name="type">
+            <USelect v-model="challengeEditForm.type" :items="typeOptions" class="w-full" />
+          </UFormField>
+
+          <UFormField label="难度" name="difficulty">
+            <USelect v-model="challengeEditForm.difficulty" :items="difficultyOptions" class="w-full" />
+          </UFormField>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-3">
+          <UFormField label="基础分值" name="base_score">
+            <UInput v-model.number="challengeEditForm.base_score" type="number" class="w-full" />
+          </UFormField>
+
+          <UFormField label="最低分值" name="min_score">
+            <UInput v-model.number="challengeEditForm.min_score" type="number" class="w-full" />
+          </UFormField>
+
+          <UFormField label="衰减率" name="decay_rate">
+            <UInput v-model.number="challengeEditForm.decay_rate" type="number" step="0.1" class="w-full" />
+          </UFormField>
+        </div>
+
+        <UFormField label="是否可见" name="is_visible">
+          <USwitch v-model="challengeEditForm.is_visible" />
+        </UFormField>
+
+        <div v-if="selectedEditableChallenge" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+          正在编辑：{{ selectedEditableChallenge.title }} · {{ selectedEditableChallenge.category }}
+        </div>
+      </UForm>
+    </template>
+
+    <template #footer="{ close }">
+      <UButton variant="ghost" :disabled="challengeEditing" @click="close()">
+        取消
+      </UButton>
+      <UButton :loading="challengeEditing" @click="updateChallengeDetails">
+        保存题目信息
+      </UButton>
+    </template>
+  </UModal>
+
+  <UModal
+    v-model:open="importModalOpen"
+    title="导入比赛包"
+    description="上传导出的比赛 ZIP 包，系统会创建新的比赛和题目副本。"
+    :ui="{ body: 'space-y-4', footer: 'justify-end' }"
+  >
+    <template #body>
+      <p class="text-sm text-muted">
+        支持 `sauryctf.export.v1` / `v2`，其中 `v2` 会额外恢复包内嵌入的本地附件文件。
+      </p>
+
+      <UFormField label="ZIP 文件" name="import-file">
+        <UFileUpload
+          v-model="importForm.file"
+          accept=".zip,application/zip"
+          class="min-h-32"
+          label="拖拽比赛包到这里"
+          description="或点击选择一个 ZIP 文件"
+        />
+      </UFormField>
+    </template>
+
+    <template #footer="{ close }">
+      <UButton variant="ghost" :disabled="importingGame" @click="close()">
+        取消
+      </UButton>
+      <UButton icon="i-lucide-file-up" :loading="importingGame" @click="importGamePackage">
+        导入比赛
+      </UButton>
+    </template>
+  </UModal>
 
   <UModal v-model:open="confirmModalOpen">
     <template #content>
