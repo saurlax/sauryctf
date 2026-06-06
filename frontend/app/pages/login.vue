@@ -25,33 +25,20 @@ const redirectTarget = computed(() => {
   return '/console'
 })
 
-const quickLinks = computed(() => {
-  const links = [
-    {
-      title: '先看比赛列表',
-      description: '游客也可以先浏览公开比赛和排行榜，再决定是否登录。',
-      icon: 'i-lucide-trophy',
-      to: '/games',
-    },
-    {
-      title: '没有账号去注册',
-      description: '普通选手注册后会自动登录，并进入队伍准备流程。',
-      icon: 'i-lucide-user-round-plus',
-      to: registerTo.value,
-    },
-  ]
-
-  if (setupStatus.value?.bootstrap_admin_available) {
-    links.unshift({
-      title: '后台管理入口',
-      description: `当前系统尚无用户，可直接使用 ${setupStatus.value.default_admin_username} / ${setupStatus.value.default_admin_password} 登录后台。`,
-      icon: 'i-lucide-shield-check',
-      to: '/console/admin',
-    })
-  }
-
-  return links
-})
+const quickLinks = computed(() => [
+  {
+    title: '浏览比赛',
+    description: '先查看公开比赛、题目和排行榜，再决定后续操作。',
+    icon: 'i-lucide-trophy',
+    to: '/games',
+  },
+  {
+    title: '注册账号',
+    description: '新用户可先完成注册，再进入队伍与参赛流程。',
+    icon: 'i-lucide-user-round-plus',
+    to: registerTo.value,
+  },
+])
 
 const afterLoginNotes = computed(() => {
   if (redirectTarget.value.startsWith('/games/')) {
@@ -70,26 +57,6 @@ const afterLoginNotes = computed(() => {
         title: '继续比赛操作',
         description: '准备好队伍后，就可以回到比赛里完成报名、提交 Flag，或继续使用动态题实例能力。',
         icon: 'i-lucide-flag',
-      },
-    ]
-  }
-
-  if (setupStatus.value?.bootstrap_admin_available) {
-    return [
-      {
-        title: '进入管理端',
-        description: '登录成功后会直接进入管理端，便于先完成比赛、题目和公开入口配置。',
-        icon: 'i-lucide-layout-dashboard',
-      },
-      {
-        title: '完成基础配置',
-        description: '建议先创建一场公开比赛，再补充题目、挂题并切换到可用状态。',
-        icon: 'i-lucide-settings-2',
-      },
-      {
-        title: '再验证选手流程',
-        description: '管理配置完成后，再使用普通账号继续准备队伍、报名参赛和查看排行榜。',
-        icon: 'i-lucide-user-round-plus',
       },
     ]
   }
@@ -158,24 +125,6 @@ const state = reactive<Partial<LoginSchema>>({
         description="使用已有账号登录，进入控制台或比赛页面。"
         icon="i-lucide-lock"
       >
-        <UAlert
-          v-if="setupStatus?.bootstrap_admin_available"
-          class="mb-4"
-          color="info"
-          variant="soft"
-          title="默认管理员账号"
-          :description="`当前系统尚无用户，可直接使用 ${setupStatus.default_admin_username} / ${setupStatus.default_admin_password} 登录。`"
-        />
-
-        <UAlert
-          v-else
-          class="mb-4"
-          color="neutral"
-          variant="soft"
-          title="默认管理员入口已关闭"
-          description="当前数据库里已经存在用户，系统不会再补建默认管理员账号。请使用现有账号登录。"
-        />
-
         <UForm :schema="loginSchema" :state="state" class="space-y-4" @submit="onLogin">
           <UFormField name="username" label="用户名或邮箱" required>
             <UInput v-model="state.username" class="w-full" placeholder="请输入用户名或邮箱" />

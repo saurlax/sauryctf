@@ -28,9 +28,7 @@ const features = [
 const accessCards = computed(() => [
   {
     title: '管理入口',
-    description: setupStatus.value?.bootstrap_admin_available
-      ? `当前系统尚无用户，可使用 ${setupStatus.value.default_admin_username} / ${setupStatus.value.default_admin_password} 登录后台。`
-      : '使用现有管理账号登录控制台，继续维护比赛、题目和参赛流程。',
+    description: '使用现有管理账号登录控制台，继续维护比赛、题目和参赛流程。',
     icon: 'i-lucide-shield-check',
     to: '/login',
   },
@@ -58,19 +56,6 @@ const landingGuideMeta = computed(() => {
       actionLabel: '进入控制台',
       actionTo: '/console',
       secondaryLabel: '浏览比赛',
-      secondaryTo: '/games',
-    }
-  }
-
-  if (setupStatus.value?.bootstrap_admin_available) {
-    return {
-      title: '当前状态：可直接进入后台配置',
-      description: `当前系统尚无用户，可直接使用 ${setupStatus.value.default_admin_username} / ${setupStatus.value.default_admin_password} 登录后台。`,
-      color: 'info' as const,
-      icon: 'i-lucide-shield-check',
-      actionLabel: '去登录',
-      actionTo: '/login',
-      secondaryLabel: '先看公开比赛',
       secondaryTo: '/games',
     }
   }
@@ -181,7 +166,7 @@ const heroLinks = computed(() => {
       <UPageGrid>
         <UPageCard
           title="1. 管理员建赛"
-          description="登录管理员账号，创建公开比赛、创建题目、挂载题目并激活比赛。"
+          description="登录管理账号，创建公开比赛、创建题目、挂载题目并激活比赛。"
           icon="i-lucide-settings-2"
           to="/console/admin"
         />
