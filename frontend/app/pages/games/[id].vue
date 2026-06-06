@@ -714,7 +714,7 @@ function getManagedInstanceMeta(challenge: GameChallengeDetail) {
     }
   }
 
-  if (gameStatusMeta.value.label === '未开始') {
+  if (publicGamePhase.value === 'before_start') {
     return {
       color: 'info' as const,
       icon: 'i-lucide-clock-3',
@@ -723,7 +723,7 @@ function getManagedInstanceMeta(challenge: GameChallengeDetail) {
     }
   }
 
-  if (gameStatusMeta.value.label === '已结束' && !game.value?.practice_mode) {
+  if (publicGamePhase.value === 'ended' && !game.value?.practice_mode) {
     return {
       color: 'neutral' as const,
       icon: 'i-lucide-flag-off',
@@ -893,15 +893,25 @@ const canSubmitFlag = computed(() =>
 )
 
 const publicGamePhase = computed<PublicGamePhase>(() => {
-  if (gameStatusMeta.value.label === '草稿') {
+  if (!game.value) {
     return 'draft'
   }
-  if (gameStatusMeta.value.label === '未开始') {
-    return 'before_start'
+
+  if (game.value.status === 'draft') {
+    return 'draft'
   }
-  if (gameStatusMeta.value.label === '已结束') {
+
+  const start = new Date(game.value.start_time).getTime()
+  const end = new Date(game.value.end_time).getTime()
+
+  if (game.value.status === 'ended' || now.value > end) {
     return 'ended'
   }
+
+  if (now.value < start) {
+    return 'before_start'
+  }
+
   return 'active'
 })
 
@@ -1630,7 +1640,7 @@ const registrationStepCards = computed(() => [
     label: '提交权限',
     value: canSubmitFlag.value ? '当前可提交' : '暂未开放',
     hint: canSubmitFlag.value
-      ? (gameStatusMeta.value.label === '已结束' ? '当前为赛后练习提交，不计入正式榜单' : '可以直接切换到题目标签提交 Flag')
+      ? (publicGamePhase.value === 'ended' ? '当前为赛后练习提交，不计入正式榜单' : '可以直接切换到题目标签提交 Flag')
       : submitHint.value,
     icon: canSubmitFlag.value ? 'i-lucide-flag' : 'i-lucide-lock',
     color: canSubmitFlag.value ? 'success' as const : 'neutral' as const,
