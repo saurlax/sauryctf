@@ -78,12 +78,8 @@ const loginEntry = computed(() => `/login?redirect=${currentGameRedirect.value}`
 const registerEntry = computed(() => `/register?redirect=${currentGameRedirect.value}`)
 const teamEntry = computed(() => `/console/team?redirect=${currentGameRedirect.value}`)
 
-const hasChallengeContent = computed(() =>
-  challenges.value.some(ch =>
-    Boolean(ch.description)
-    || parseStringList(ch.hints).length > 0
-    || parseStringList(ch.attachments).length > 0,
-  ),
+const hasVisibleChallengeContent = computed(() =>
+  challenges.value.some(ch => hasChallengeContentEntry(ch)),
 )
 
 const hasManagedInstanceChallenges = computed(() =>
@@ -466,63 +462,6 @@ function getDifficultyColor(d: string): 'success' | 'warning' | 'error' | 'neutr
   return map[d] || 'neutral'
 }
 
-function parseStringList(raw?: string) {
-  if (!raw) {
-    return []
-  }
-
-  try {
-    const parsed = JSON.parse(raw)
-    if (Array.isArray(parsed)) {
-      return parsed.filter(item => typeof item === 'string' && item.trim().length > 0)
-    }
-  }
-  catch {
-    // Fall back to plain text when the field is not valid JSON yet.
-  }
-
-  return raw.split('\n').map(item => item.trim()).filter(Boolean)
-}
-
-function getAttachmentDisplayName(attachment: string, index: number) {
-  const trimmed = attachment.trim()
-  if (!trimmed) {
-    return `附件 ${index + 1}`
-  }
-
-  const normalized = trimmed.split('?')[0]?.split('#')[0] || trimmed
-  const segment = normalized.split('/').filter(Boolean).pop() || ''
-  if (!segment) {
-    return `附件 ${index + 1}`
-  }
-
-  if (segment.startsWith('attachments') || segment === 'attachments') {
-    return `附件 ${index + 1}`
-  }
-
-  const fileName = decodeURIComponent(segment)
-  const dashIndex = fileName.indexOf('-')
-  if (/^\d+$/.test(fileName.slice(0, dashIndex)) && dashIndex > 0) {
-    return fileName.slice(dashIndex + 1) || `附件 ${index + 1}`
-  }
-
-  return fileName
-}
-
-function getAttachmentMeta(attachment: string) {
-  if (attachment.startsWith('/attachments/')) {
-    return {
-      badge: '本地附件',
-      color: 'info' as const,
-    }
-  }
-
-  return {
-    badge: '外部链接',
-    color: 'neutral' as const,
-  }
-}
-
 function getChallengeInstanceSpec(raw?: string) {
   return parseChallengeInstanceSpec(raw)
 }
@@ -534,6 +473,14 @@ function hasChallengeInstanceTemplate(raw?: string) {
 function supportsManagedInstance(challenge: GameChallengeDetail) {
   const spec = getChallengeInstanceSpec(challenge.container_spec)
   return challenge.type === 'dynamic' && !!spec && (!!spec.runtimeProvider || !!spec.runtimeImage)
+}
+
+function hasChallengeContentEntry(challenge: GameChallengeDetail) {
+  return hasChallengeContent({
+    description: challenge.description,
+    hints: challenge.hints,
+    attachments: challenge.attachments,
+  })
 }
 
 function getDisplayedInstanceLaunchUrl(challenge: GameChallengeDetail) {
@@ -1097,9 +1044,7 @@ const challengeSubmitMeta = computed(() => {
 })
 
 function getChallengeCardMeta(challenge: GameChallengeDetail) {
-  const hasVisibleContent = Boolean(challenge.description)
-    || parseStringList(challenge.hints).length > 0
-    || parseStringList(challenge.attachments).length > 0
+  const hasVisibleContent = hasChallengeContentEntry(challenge)
   const hasInstanceSpec = !!getChallengeInstanceSpec(challenge.container_spec)
   const hasManagedInstance = supportsManagedInstance(challenge)
 
@@ -2272,9 +2217,9 @@ onMounted(async () => {
       <div v-else-if="activeTab === 'challenges'">
         <UAlert
           class="mb-6"
-          :color="hasChallengeContent ? 'success' : 'warning'"
+          :color="hasVisibleChallengeContent ? 'success' : 'warning'"
           variant="soft"
-          :title="hasChallengeContent ? '题目内容已开放' : '题目内容暂未完全开放'"
+          :title="hasVisibleChallengeContent ? '题目内容已开放' : '题目内容暂未完全开放'"
           :description="challengeVisibilityHint"
         />
 
@@ -2352,14 +2297,14 @@ onMounted(async () => {
                     {{ ch.description || '当前题面内容暂未开放，待报名通过并开赛后会自动显示。' }}
                   </p>
 
-                  <div v-if="parseStringList(ch.hints).length" class="rounded-lg border border-default bg-muted/40 px-3 py-3">
+                  <div v-if="getChallengeHints(ch.hints).length" class="rounded-lg border border-default bg-muted/40 px-3 py-3">
                     <div class="mb-2 flex items-center gap-2 text-sm font-medium">
                       <UIcon name="i-lucide-lightbulb" class="size-4 text-warning" />
                       <span>提示</span>
                     </div>
                     <ul class="space-y-2 text-muted">
                       <li
-                        v-for="(hint, hintIndex) in parseStringList(ch.hints)"
+                        v-for="(hint, hintIndex) in getChallengeHints(ch.hints)"
                         :key="`${ch.id}-hint-${hintIndex}`"
                       >
                         {{ hintIndex + 1 }}. {{ hint }}
@@ -2367,24 +2312,24 @@ onMounted(async () => {
                     </ul>
                   </div>
 
-                  <div v-if="parseStringList(ch.attachments).length" class="rounded-lg border border-default bg-muted/40 px-3 py-3">
+                  <div v-if="getChallengeAttachments(ch.attachments).length" class="rounded-lg border border-default bg-muted/40 px-3 py-3">
                     <div class="mb-2 flex items-center gap-2 text-sm font-medium">
                       <UIcon name="i-lucide-paperclip" class="size-4 text-info" />
                       <span>附件</span>
                     </div>
                     <div class="flex flex-col gap-2">
                       <div
-                        v-for="(attachment, attachmentIndex) in parseStringList(ch.attachments)"
+                        v-for="(attachment, attachmentIndex) in getChallengeAttachments(ch.attachments)"
                         :key="`${ch.id}-attachment-${attachmentIndex}`"
                         class="flex items-center justify-between gap-3 rounded-lg border border-default bg-default px-3 py-3"
                       >
                         <div class="min-w-0">
                           <div class="flex items-center gap-2">
                             <span class="truncate font-medium text-highlighted">
-                              {{ getAttachmentDisplayName(attachment, attachmentIndex) }}
+                              {{ getChallengeAttachmentDisplayName(attachment, attachmentIndex) }}
                             </span>
-                            <UBadge :color="getAttachmentMeta(attachment).color" variant="subtle" size="sm">
-                              {{ getAttachmentMeta(attachment).badge }}
+                            <UBadge :color="getChallengeAttachmentMeta(attachment).color" variant="subtle" size="sm">
+                              {{ getChallengeAttachmentMeta(attachment).badge }}
                             </UBadge>
                           </div>
                           <div class="mt-1 truncate text-xs text-muted">
