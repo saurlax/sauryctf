@@ -970,7 +970,7 @@ const registrationPanelSummary = computed(() => {
   if (participationStateKey.value === 'guest') {
     return {
       title: '登录后可报名',
-      description: '登录后会识别你的队伍与报名状态。',
+      description: '登录后同步队伍与报名状态。',
       color: 'info' as const,
       icon: 'i-lucide-log-in',
     }
@@ -979,7 +979,7 @@ const registrationPanelSummary = computed(() => {
   if (participationStateKey.value === 'no_team') {
     return {
       title: '需先加入队伍',
-      description: '比赛报名、Flag 提交和排行榜均按队伍处理。',
+      description: '比赛按队伍参赛。',
       color: 'warning' as const,
       icon: 'i-lucide-users',
     }
@@ -997,7 +997,7 @@ const registrationPanelSummary = computed(() => {
   if (participationStateKey.value === 'rejected') {
     return {
       title: '报名未通过',
-      description: '可撤回后重新提交报名申请。',
+      description: '可撤回后重新报名。',
       color: 'error' as const,
       icon: 'i-lucide-badge-x',
     }
@@ -1009,8 +1009,8 @@ const registrationPanelSummary = computed(() => {
       description: publicGamePhase.value === 'before_start'
         ? '报名已通过，等待开赛。'
         : publicGamePhase.value === 'ended'
-            ? '报名已完成，可按练习模式查看后续开放范围。'
-            : '当前可进入题目区解题、提交 Flag 和使用实例。',
+            ? '报名已完成，可继续按当前开放范围查看内容。'
+            : '可查看题目、提交 Flag，并按规则使用实例。',
       color: 'success' as const,
       icon: 'i-lucide-badge-check',
     }
@@ -1027,20 +1027,20 @@ const registrationPanelSummary = computed(() => {
 
   if (game.value?.registration_mode === 'auto_accept') {
     return {
-      title: game.value?.invitation_required ? '当前报名会校验邀请码并直接通过' : '当前报名会直接通过',
+      title: game.value?.invitation_required ? '报名需校验邀请码并直接通过' : '报名会直接通过',
       description: game.value?.invitation_required
-        ? '提交正确的邀请码后，这次报名会立刻进入已通过状态；如果比赛已经开始，你的队伍随后就能直接提交 Flag。'
-        : '这场比赛使用自动通过模式。点击报名后不会进入人工审核，系统会立刻授予当前队伍参赛资格。',
+        ? '邀请码校验通过后立即生效。'
+        : '提交后立即获得参赛资格。',
       color: 'success' as const,
       icon: 'i-lucide-badge-check',
     }
   }
 
   return {
-    title: game.value?.invitation_required ? '当前报名会先校验邀请码，再进入审核' : '当前报名需要等待管理员审核',
+    title: game.value?.invitation_required ? '报名需校验邀请码后等待审核' : '报名需等待管理员审核',
     description: game.value?.invitation_required
-      ? '这场比赛设置了邀请码门槛。邀请码正确后，报名会先记录下来，再等待管理员审核通过。'
-      : '这场比赛使用审核制报名。提交后会先进入待审核状态，管理员通过后当前队伍才能正式参赛。',
+      ? '邀请码正确后进入待审核状态。'
+      : '提交后进入待审核状态。',
     color: 'info' as const,
     icon: 'i-lucide-clipboard-check',
   }
@@ -1067,8 +1067,8 @@ const challengeSubmitMeta = computed(() => {
     return {
       title: publicGamePhase.value === 'ended' ? '当前可以继续练习提交' : '当前可以提交 Flag',
       description: publicGamePhase.value === 'ended'
-        ? '正式比赛已经结束，但当前比赛开启了赛后练习模式。你仍然可以继续补题提交，练习解题不会再计入正式榜单。'
-        : '你的队伍已经具备参赛资格，可以直接在下方输入 Flag 并提交。',
+        ? '当前提交按练习记录处理，不计入正式榜单。'
+        : '当前队伍已具备提交条件。',
       color: 'success' as const,
     }
   }
@@ -1091,8 +1091,8 @@ function getChallengeCardMeta(challenge: GameChallengeDetail) {
       icon: 'i-lucide-eye-off',
       title: '题面内容暂未开放',
       description: hasInstanceSpec
-        ? '当前只能查看题目基础信息。题面、提示、附件和实例细节会在具备参赛资格后自动开放。'
-        : '当前只能查看题目基础信息。题面、提示和附件会在具备参赛资格后自动开放。',
+        ? '当前仅开放基础信息，题面与实例细节稍后开放。'
+        : '当前仅开放基础信息，题面内容稍后开放。',
     }
   }
 
@@ -1103,8 +1103,8 @@ function getChallengeCardMeta(challenge: GameChallengeDetail) {
         icon: 'i-lucide-rocket',
         title: publicGamePhase.value === 'ended' ? '当前可继续练习并管理实例' : '当前可解题、提交并管理实例',
         description: publicGamePhase.value === 'ended'
-          ? '当前比赛已进入赛后练习阶段。你可以继续查看题面、提交 Flag，并按练习规则启动或续期当前队伍实例。'
-          : '当前题面已开放。你可以直接查看题目内容、提交 Flag，并按当前队伍状态启动或续期实例。',
+          ? '题面与实例入口继续开放，提交按练习记录处理。'
+          : '题面、提交与实例入口均已开放。',
       }
     }
 
@@ -1113,8 +1113,8 @@ function getChallengeCardMeta(challenge: GameChallengeDetail) {
       icon: 'i-lucide-flag',
       title: publicGamePhase.value === 'ended' ? '当前可继续练习提交' : '当前可直接提交 Flag',
       description: publicGamePhase.value === 'ended'
-        ? '当前比赛开启了赛后练习模式。你可以继续查看题面并提交练习解题记录。'
-        : '当前题面已开放，队伍也已具备参赛资格，可以直接在下方输入 Flag 提交。',
+        ? '题面继续开放，提交按练习记录处理。'
+        : '题面已开放，可直接提交 Flag。',
     }
   }
 
@@ -1123,7 +1123,7 @@ function getChallengeCardMeta(challenge: GameChallengeDetail) {
       color: 'info' as const,
       icon: 'i-lucide-box',
       title: '当前可查看题面与实例信息',
-      description: '题面已经开放，但当前还不满足正式提交条件。你仍然可以先阅读题面，并结合实例状态区确认入口与运行策略。',
+      description: '题面已开放，提交条件仍受当前参赛状态限制。',
     }
   }
 
@@ -1131,7 +1131,7 @@ function getChallengeCardMeta(challenge: GameChallengeDetail) {
     color: 'info' as const,
     icon: 'i-lucide-file-text',
     title: '当前可查看题面，但还不能提交',
-    description: '题面内容已经开放。当前不能提交 Flag 时，页面会继续说明具体原因和下一步操作入口。',
+    description: '题面已开放，提交条件仍受当前参赛状态限制。',
   }
 }
 
@@ -1139,7 +1139,7 @@ const nextStepMeta = computed(() => {
   if (participationStateKey.value === 'guest') {
     return {
       title: '需要先登录',
-      description: '登录后会直接返回当前比赛，并继续读取当前账号对应的队伍与报名状态。',
+      description: '登录后返回当前比赛。',
       color: 'info' as const,
       actionLabel: '去登录',
       actionTo: loginEntry.value,
@@ -1151,7 +1151,7 @@ const nextStepMeta = computed(() => {
   if (participationStateKey.value === 'no_team') {
     return {
       title: '需要先关联队伍',
-      description: '当前比赛以内队形式参赛。请先在控制台创建或加入队伍，再返回当前比赛处理报名。',
+      description: '请先创建或加入队伍。',
       color: 'warning' as const,
       actionLabel: '去队伍页',
       actionTo: teamEntry.value,
@@ -1162,8 +1162,8 @@ const nextStepMeta = computed(() => {
     return {
       title: '当前可报名',
       description: game.value?.registration_mode === 'auto_accept'
-        ? '当前比赛会自动通过报名。确认后，如果比赛已开始，你的队伍就可以直接提交 Flag。'
-        : '当前比赛需要先提交报名申请。提交后等待管理员审核通过，才能正式参赛。',
+        ? '提交后立即获得参赛资格。'
+        : '提交后进入待审核状态。',
       color: 'info' as const,
       actionLabel: '报名比赛',
       actionTo: `/games/${gameId}`,
@@ -1187,7 +1187,7 @@ const nextStepMeta = computed(() => {
   if (participationStateKey.value === 'pending') {
     return {
       title: '报名待审核',
-      description: '你的队伍报名已经提交成功。现在无需重复操作，等待管理员审核通过后就能正式参赛。',
+      description: '等待管理员审核即可。',
       color: 'warning' as const,
       actionLabel: '查看队伍',
       actionTo: teamEntry.value,
@@ -1197,7 +1197,7 @@ const nextStepMeta = computed(() => {
   if (participationStateKey.value === 'rejected') {
     return {
       title: '报名未通过',
-      description: '当前报名没有通过。你可以先退出这次报名，调整队伍后再重新提交申请。',
+      description: '可先退出当前报名，再重新提交。',
       color: 'error' as const,
       actionLabel: '退出本次报名',
       actionTo: `/games/${gameId}`,
@@ -1207,7 +1207,7 @@ const nextStepMeta = computed(() => {
   if (participationStateKey.value === 'writeup_submitted') {
     return {
       title: 'Writeup 待审核',
-      description: 'Writeup 已经提交成功。你可以继续留在比赛页参赛，或返回 Writeup 标签补充更新内容。',
+      description: '当前记录已提交，等待管理员处理。',
       color: 'info' as const,
       actionLabel: '去 Writeup',
       actionTo: `/games/${gameId}`,
@@ -1218,7 +1218,7 @@ const nextStepMeta = computed(() => {
   if (publicGamePhase.value === 'before_start') {
     return {
       title: '等待开赛',
-      description: '你的队伍已经具备参赛资格。比赛开始后，题面会自动开放，随后就可以提交 Flag。',
+      description: '开赛后自动开放题面与提交。',
       color: 'info' as const,
       actionLabel: '查看题目',
       actionTo: `/games/${gameId}`,
@@ -1229,7 +1229,7 @@ const nextStepMeta = computed(() => {
   if (publicGamePhase.value === 'active') {
     return {
       title: '当前可开始解题',
-      description: '当前已经满足参赛条件，可以直接切换到题目标签开始查看题面、附件并提交 Flag。',
+      description: '当前已满足参赛条件。',
       color: 'success' as const,
       actionLabel: '进入题目',
       actionTo: `/games/${gameId}`,
@@ -1239,7 +1239,7 @@ const nextStepMeta = computed(() => {
 
   return {
     title: '比赛已结束',
-    description: '比赛当前已经结束。你仍然可以继续查看题目、排行榜和 Writeup 信息。',
+    description: '仍可继续查看公开信息。',
     color: 'neutral' as const,
     actionLabel: '查看排行榜',
     actionTo: `/games/${gameId}`,
@@ -1334,7 +1334,7 @@ const writeupGuide = computed(() => {
   if (!authState.user) {
     return {
       title: '登录后可查看 Writeup 状态',
-      description: '登录后会显示队伍对应的 Writeup 状态。',
+      description: '登录后显示当前队伍状态。',
       color: 'info' as const,
     }
   }
@@ -1367,8 +1367,8 @@ const writeupGuide = computed(() => {
     return {
       title: participation.value.status === 'pending' ? '等待报名审核' : '报名未通过',
       description: participation.value.status === 'pending'
-        ? '审核通过后开放 Writeup 提交。'
-        : '重新报名后再处理 Writeup。',
+        ? '审核通过后开放提交。'
+        : '重新报名后再处理。',
       color: participation.value.status === 'pending' ? 'warning' as const : 'error' as const,
     }
   }
@@ -1387,8 +1387,8 @@ const writeupGuide = computed(() => {
     return {
       title: '可提交 Writeup',
       description: writeup.value.status === 'rejected'
-        ? '当前记录曾被驳回，修改后可重新提交。'
-        : '重新提交会覆盖当前内容并回到 submitted 状态。',
+        ? '当前记录已驳回，修改后可重新提交。'
+        : '重新提交会覆盖当前内容。',
       color: 'success' as const,
     }
   }
