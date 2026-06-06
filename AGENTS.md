@@ -342,6 +342,7 @@ internal/<module>/
 - Once player submission, admin review, and export behavior all exist, keep the writeup flow documented as one standalone guide under `docs/guide/` instead of leaving the rules fragmented only across broader page docs.
 - Keep `docs/README.md` updated as the main human-facing entrypoint whenever new guide or get-started documents are added; avoid making readers discover important docs only by scanning the folder tree.
 - When an admin-facing list page such as audit logs references a concrete user, game, or challenge, prefer giving operators a direct route back to the relevant management context instead of leaving the page read-only.
+- When audit logs include actionable detail such as `announcement_id` or `challenge_id`, prefer carrying that context through route query params so the destination page can reopen the precise edit or review surface instead of only landing on a broad section anchor.
 - Challenge content delivery is now expected to use:
   - `description` for the main statement
   - `hints` as a JSON string array

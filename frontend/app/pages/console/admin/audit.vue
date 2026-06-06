@@ -54,6 +54,7 @@ const actionOptions = [
   { label: '导出 Writeup', value: 'admin.game.export_writeups' },
   { label: '导出提交记录', value: 'admin.game.export_submissions' },
   { label: '发布公告', value: 'admin.game.create_announcement' },
+  { label: '编辑公告', value: 'admin.game.update_announcement' },
   { label: '删除公告', value: 'admin.game.delete_announcement' },
   { label: '挂载题目', value: 'admin.game.attach_challenge' },
   { label: '移除比赛题目', value: 'admin.game.remove_challenge' },
@@ -139,6 +140,7 @@ function getActionLabel(action: string) {
     'admin.game.export_writeups': '导出 Writeup',
     'admin.game.export_submissions': '导出提交记录',
     'admin.game.create_announcement': '发布公告',
+    'admin.game.update_announcement': '编辑公告',
     'admin.game.delete_announcement': '删除公告',
     'admin.game.attach_challenge': '挂载题目',
     'admin.game.remove_challenge': '移除比赛题目',
@@ -164,7 +166,19 @@ function getTargetTypeLabel(targetType: string) {
   return labels[targetType] || targetType
 }
 
+function parseLogDetail(detail: string) {
+  try {
+    const parsed = JSON.parse(detail)
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, any> : null
+  }
+  catch {
+    return null
+  }
+}
+
 function resolveLogTarget(log: AuditLog) {
+  const detail = parseLogDetail(log.detail)
+
   if (log.target_type === 'user') {
     return {
       label: '去用户管理',
@@ -183,23 +197,53 @@ function resolveLogTarget(log: AuditLog) {
       if (log.action.includes('participation')) {
         return '#participants'
       }
+      if (log.action.includes('destroy_instance_lease')) {
+        return '#monitoring'
+      }
       if (log.action.includes('attach_challenge') || log.action.includes('remove_challenge')) {
         return '#attach-challenge'
       }
       return '#game-settings'
     })()
 
-    const mode = log.action === 'admin.game.update' ? '&mode=edit-game' : ''
+    const query = new URLSearchParams({
+      game_id: String(log.target_id),
+      section,
+    })
+
+    if (log.action === 'admin.game.update') {
+      query.set('mode', 'edit-game')
+    }
+
+    if (typeof detail?.challenge_id === 'number' && Number.isFinite(detail.challenge_id)) {
+      query.set('challenge_id', String(detail.challenge_id))
+    }
+
+    if (log.action === 'admin.game.update_announcement' && typeof detail?.announcement_id === 'number' && Number.isFinite(detail.announcement_id)) {
+      query.set('mode', 'edit-announcement')
+      query.set('announcement_id', String(detail.announcement_id))
+    }
+
     return {
       label: '去比赛管理',
-      to: `/console/admin?game_id=${log.target_id}&section=${encodeURIComponent(section)}${mode}`,
+      to: `/console/admin?${query.toString()}`,
     }
   }
 
   if (log.target_type === 'challenge') {
+    const query = new URLSearchParams({
+      challenge_id: String(log.target_id),
+      section: '#create-challenge',
+      mode: 'edit-challenge',
+    })
+
+    if (typeof detail?.game_id === 'number' && Number.isFinite(detail.game_id)) {
+      query.set('game_id', String(detail.game_id))
+    }
+
     return {
       label: '去题目维护',
-      to: `/console/admin?challenge_id=${log.target_id}&section=${encodeURIComponent('#create-challenge')}&mode=edit-challenge`,
+      to: `/console/admin?${query.toString()}`,
     }
   }
 

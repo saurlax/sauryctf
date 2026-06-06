@@ -543,6 +543,7 @@ const scoreboardFrozen = ref(false)
 const scoreboardFreezeTime = ref<string | null>(null)
 const selectedScoreboardDivision = ref('')
 const highlightedChallengeId = ref<number | null>(null)
+const pendingAnnouncementRouteId = ref<number | null>(null)
 type AdminGameSummary = (typeof games.value)[number]
 type ConfirmActionType =
   | 'destroy-instance'
@@ -2088,6 +2089,20 @@ function openEditAnnouncementModal(announcement: (typeof announcements.value)[nu
   announcementModalOpen.value = true
 }
 
+function tryOpenAnnouncementFromRoute() {
+  if (!pendingAnnouncementRouteId.value) {
+    return
+  }
+
+  const announcement = announcements.value.find(item => item.id === pendingAnnouncementRouteId.value)
+  if (!announcement) {
+    return
+  }
+
+  openEditAnnouncementModal(announcement)
+  pendingAnnouncementRouteId.value = null
+}
+
 async function createAnnouncement(payload: FormSubmitEvent<z.output<typeof announcementSchema>>) {
   if (!attachForm.game_id) {
     return
@@ -3060,16 +3075,19 @@ function selectGameContext(gameId?: number) {
 async function applyRouteContext() {
   const gameIdRaw = route.query.game_id
   const challengeIdRaw = route.query.challenge_id
+  const announcementIdRaw = route.query.announcement_id
   const sectionRaw = route.query.section
   const modeRaw = route.query.mode
 
   const gameIdValue = typeof gameIdRaw === 'string' ? gameIdRaw : Array.isArray(gameIdRaw) ? gameIdRaw[0] : ''
   const challengeIdValue = typeof challengeIdRaw === 'string' ? challengeIdRaw : Array.isArray(challengeIdRaw) ? challengeIdRaw[0] : ''
+  const announcementIdValue = typeof announcementIdRaw === 'string' ? announcementIdRaw : Array.isArray(announcementIdRaw) ? announcementIdRaw[0] : ''
   const sectionValue = typeof sectionRaw === 'string' ? sectionRaw : Array.isArray(sectionRaw) ? sectionRaw[0] : ''
   const modeValue = typeof modeRaw === 'string' ? modeRaw : Array.isArray(modeRaw) ? modeRaw[0] : ''
 
   const gameId = Number(gameIdValue)
   const challengeId = Number(challengeIdValue)
+  const announcementId = Number(announcementIdValue)
 
   if (Number.isFinite(gameId) && games.value.some(game => game.id === gameId)) {
     selectGameContext(gameId)
@@ -3090,6 +3108,11 @@ async function applyRouteContext() {
 
   if (modeValue === 'edit-challenge' && Number.isFinite(challengeId) && challenges.value.some(challenge => challenge.id === challengeId)) {
     challengeEditModalOpen.value = true
+  }
+
+  if (modeValue === 'edit-announcement' && Number.isFinite(announcementId) && announcementId > 0) {
+    pendingAnnouncementRouteId.value = announcementId
+    tryOpenAnnouncementFromRoute()
   }
 
   if (sectionValue) {
@@ -3997,6 +4020,7 @@ watch(() => attachForm.game_id, async () => {
   await loadSubmissions()
   await loadCheatClues()
   await loadAnnouncements()
+  tryOpenAnnouncementFromRoute()
 })
 
 watch(() => [submissionFilters.type, submissionFilters.count], async () => {
