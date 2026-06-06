@@ -958,12 +958,64 @@ func TestService_AnnouncementCRUD(t *testing.T) {
 	assert.Equal(t, second.ID, items[0].ID)
 	assert.Equal(t, first.ID, items[1].ID)
 
-	require.NoError(t, svc.DeleteAnnouncement(gameID, first.ID))
+	require.NoError(t, svc.DeleteAnnouncement(gameID, first.ID, 1))
 
 	items, err = svc.ListAnnouncements(gameID)
 	require.NoError(t, err)
 	require.Len(t, items, 1)
 	assert.Equal(t, second.ID, items[0].ID)
+
+	var logs []models.AuditLog
+	require.NoError(t, database.Order("id ASC").Find(&logs).Error)
+	require.Len(t, logs, 3)
+	assert.Equal(t, "admin.game.create_announcement", logs[0].Action)
+	assert.Equal(t, "admin.game.create_announcement", logs[1].Action)
+	assert.Equal(t, "admin.game.delete_announcement", logs[2].Action)
+}
+
+func TestService_RemoveChallenge_WritesAuditLog(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+
+	user := models.User{Username: "draft-owner", Email: "draft-owner@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&user).Error)
+
+	challenge := models.Challenge{
+		Title:     "Draft Challenge",
+		Category:  models.CategoryWeb,
+		Flag:      "flag{draft}",
+		BaseScore: 100,
+		MinScore:  10,
+		DecayRate: 0.1,
+		IsVisible: true,
+		CreatedBy: user.ID,
+	}
+	require.NoError(t, database.Create(&challenge).Error)
+
+	game := models.Game{
+		Name:      "Draft Game",
+		StartTime: time.Now().Add(time.Hour),
+		EndTime:   time.Now().Add(2 * time.Hour),
+		Status:    "draft",
+		IsPublic:  true,
+		CreatedBy: user.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+	require.NoError(t, database.Create(&models.GameChallenge{
+		GameID: game.ID, ChallengeID: challenge.ID,
+	}).Error)
+
+	err = svc.RemoveChallenge(game.ID, challenge.ID, user.ID)
+	require.NoError(t, err)
+
+	var logs []models.AuditLog
+	require.NoError(t, database.Order("id ASC").Find(&logs).Error)
+	require.Len(t, logs, 1)
+	assert.Equal(t, "admin.game.remove_challenge", logs[0].Action)
 }
 
 func TestService_GetAdminDashboardSummary(t *testing.T) {
@@ -1576,6 +1628,26 @@ func TestService_UpdateParticipationStatus(t *testing.T) {
 	updated, err := svc.UpdateParticipationStatus(gameID, team1ID, "rejected", nil)
 	require.NoError(t, err)
 	assert.Equal(t, "rejected", updated.Status)
+}
+
+func TestService_UpdateParticipationStatus_WritesAuditLog(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, _, team1ID, _ := createGameChallengeFixture(t, database)
+
+	updated, err := svc.UpdateParticipationStatus(gameID, team1ID, "accepted", nil, 1)
+	require.NoError(t, err)
+	assert.Equal(t, "accepted", updated.Status)
+
+	var logs []models.AuditLog
+	require.NoError(t, database.Order("id ASC").Find(&logs).Error)
+	require.Len(t, logs, 1)
+	assert.Equal(t, "admin.game.update_participation", logs[0].Action)
+	assert.Contains(t, logs[0].Detail, `"team_id":1`)
 }
 
 func TestService_GetScoreboard_FiltersByDivision(t *testing.T) {
@@ -2887,13 +2959,43 @@ func TestService_ReviewWriteup_UpdatesStatus(t *testing.T) {
 	reviewed, err := svc.ReviewWriteup(gameID, 1, 99, games.ReviewGameWriteupRequest{
 		Status: "approved",
 		Remark: "looks good",
-	})
+	}, 99)
 	require.NoError(t, err)
 	assert.Equal(t, "approved", reviewed.Status)
 	require.NotNil(t, reviewed.ReviewerID)
 	assert.Equal(t, uint(99), *reviewed.ReviewerID)
 	assert.Equal(t, "looks good", reviewed.ReviewRemark)
 	require.NotNil(t, reviewed.ReviewedAt)
+}
+
+func TestService_ReviewWriteup_WritesAuditLog(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, _, _, _ := createGameChallengeFixture(t, database)
+	reviewer := models.User{Username: "reviewer", Email: "reviewer@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&reviewer).Error)
+	writeupDeadline := time.Now().Add(time.Hour)
+	require.NoError(t, database.Model(&models.Game{}).Where("id = ?", gameID).Updates(map[string]any{
+		"writeup_required": true,
+		"writeup_deadline": writeupDeadline,
+	}).Error)
+	_, err = svc.SubmitWriteup(gameID, 1, games.SubmitGameWriteupRequest{Content: "team writeup"})
+	require.NoError(t, err)
+
+	_, err = svc.ReviewWriteup(gameID, 1, reviewer.ID, games.ReviewGameWriteupRequest{
+		Status: "approved",
+		Remark: "looks good",
+	}, reviewer.ID)
+	require.NoError(t, err)
+
+	var logs []models.AuditLog
+	require.NoError(t, database.Order("id ASC").Find(&logs).Error)
+	require.Len(t, logs, 1)
+	assert.Equal(t, "admin.game.review_writeup", logs[0].Action)
 }
 
 func TestService_GetParticipationStatus_FlagsMissingWriteupAfterDeadline(t *testing.T) {

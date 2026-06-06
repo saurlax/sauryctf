@@ -586,7 +586,7 @@ func (m *MockService) CreateAnnouncement(gameID uint, createdBy uint, req Create
 	return &announcement, nil
 }
 
-func (m *MockService) DeleteAnnouncement(gameID uint, announcementID uint) error {
+func (m *MockService) DeleteAnnouncement(gameID uint, announcementID uint, _ ...uint) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -688,7 +688,7 @@ func (m *MockService) AddChallenge(gameID uint, challengeID uint, scoreOverride 
 	return nil
 }
 
-func (m *MockService) RemoveChallenge(gameID uint, challengeID uint) error {
+func (m *MockService) RemoveChallenge(gameID uint, challengeID uint, _ ...uint) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -1026,7 +1026,7 @@ func (m *MockService) GetParticipants(gameID uint) ([]GameParticipantEntry, erro
 	return result, nil
 }
 
-func (m *MockService) UpdateParticipationStatus(gameID uint, teamID uint, status string, division *string) (*GameParticipantEntry, error) {
+func (m *MockService) UpdateParticipationStatus(gameID uint, teamID uint, status string, division *string, _ ...uint) (*GameParticipantEntry, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -1167,7 +1167,7 @@ func (m *MockService) ListWriteups(gameID uint) ([]GameWriteupResponse, error) {
 	return result, nil
 }
 
-func (m *MockService) ReviewWriteup(gameID uint, teamID uint, reviewerID uint, req ReviewGameWriteupRequest) (*GameWriteupResponse, error) {
+func (m *MockService) ReviewWriteup(gameID uint, teamID uint, reviewerID uint, req ReviewGameWriteupRequest, _ ...uint) (*GameWriteupResponse, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

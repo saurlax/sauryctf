@@ -230,7 +230,8 @@ func (h *Handler) CreateAnnouncement(c *gin.Context, id int) {
 }
 
 func (h *Handler) DeleteAnnouncement(c *gin.Context, id int, announcementId int) {
-	if err := h.svc.DeleteAnnouncement(uint(id), uint(announcementId)); err != nil {
+	userID := c.MustGet("user_id").(uint)
+	if err := h.svc.DeleteAnnouncement(uint(id), uint(announcementId), userID); err != nil {
 		switch err.Error() {
 		case "announcement not found":
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
@@ -355,7 +356,8 @@ func (h *Handler) AddChallengeToGame(c *gin.Context, id int) {
 }
 
 func (h *Handler) RemoveChallengeFromGame(c *gin.Context, id int, challengeId int) {
-	if err := h.svc.RemoveChallenge(uint(id), uint(challengeId)); err != nil {
+	userID := c.MustGet("user_id").(uint)
+	if err := h.svc.RemoveChallenge(uint(id), uint(challengeId), userID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
@@ -633,7 +635,8 @@ func (h *Handler) UpdateParticipantStatus(c *gin.Context, id int, teamId int) {
 		return
 	}
 
-	participant, err := h.svc.UpdateParticipationStatus(uint(id), uint(teamId), req.Status, req.Division)
+	userID := c.MustGet("user_id").(uint)
+	participant, err := h.svc.UpdateParticipationStatus(uint(id), uint(teamId), req.Status, req.Division, userID)
 	if err != nil {
 		switch err.Error() {
 		case "game not found", "participation not found":
@@ -744,7 +747,7 @@ func (h *Handler) ReviewWriteup(c *gin.Context, id int, teamId int) {
 	}
 
 	reviewerID := c.MustGet("user_id").(uint)
-	writeup, err := h.svc.ReviewWriteup(uint(id), uint(teamId), reviewerID, req)
+	writeup, err := h.svc.ReviewWriteup(uint(id), uint(teamId), reviewerID, req, reviewerID)
 	if err != nil {
 		switch err.Error() {
 		case "game not found", "writeup not found":

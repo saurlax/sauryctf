@@ -1438,6 +1438,12 @@ func (s *Service) CreateAnnouncement(gameID uint, createdBy uint, req CreateGame
 		return nil, err
 	}
 
+	if createdBy > 0 {
+		if err := s.writeAuditLog(createdBy, "admin.game.create_announcement", "game", game.ID, fmt.Sprintf("为比赛 %s 创建公告", game.Name), fmt.Sprintf(`{"announcement_id":%d,"content":%q}`, announcement.ID, announcement.Content)); err != nil {
+			return nil, err
+		}
+	}
+
 	return &GameAnnouncementResponse{
 		ID:        announcement.ID,
 		GameID:    announcement.GameID,
@@ -1447,7 +1453,15 @@ func (s *Service) CreateAnnouncement(gameID uint, createdBy uint, req CreateGame
 	}, nil
 }
 
-func (s *Service) DeleteAnnouncement(gameID uint, announcementID uint) error {
+func (s *Service) DeleteAnnouncement(gameID uint, announcementID uint, deletedBy ...uint) error {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("game not found")
+		}
+		return err
+	}
+
 	var announcement models.GameAnnouncement
 	if err := s.db.Where("game_id = ? AND id = ?", gameID, announcementID).First(&announcement).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1456,7 +1470,15 @@ func (s *Service) DeleteAnnouncement(gameID uint, announcementID uint) error {
 		return err
 	}
 
-	return s.db.Delete(&announcement).Error
+	if err := s.db.Delete(&announcement).Error; err != nil {
+		return err
+	}
+
+	if actorUserID := firstGameActorID(deletedBy...); actorUserID > 0 {
+		return s.writeAuditLog(actorUserID, "admin.game.delete_announcement", "game", game.ID, fmt.Sprintf("删除比赛 %s 的公告", game.Name), fmt.Sprintf(`{"announcement_id":%d,"content":%q}`, announcement.ID, announcement.Content))
+	}
+
+	return nil
 }
 
 func (s *Service) ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error) {
@@ -1853,7 +1875,7 @@ func firstGameActorID(actorUserIDs ...uint) uint {
 	return actorUserIDs[0]
 }
 
-func (s *Service) RemoveChallenge(gameID uint, challengeID uint) error {
+func (s *Service) RemoveChallenge(gameID uint, challengeID uint, removedBy ...uint) error {
 	var game models.Game
 	if err := s.db.First(&game, gameID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1883,7 +1905,19 @@ func (s *Service) RemoveChallenge(gameID uint, challengeID uint) error {
 	if result.RowsAffected == 0 {
 		return errors.New("challenge not in game")
 	}
-	return result.Error
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if actorUserID := firstGameActorID(removedBy...); actorUserID > 0 {
+		var ch models.Challenge
+		if err := s.db.First(&ch, challengeID).Error; err != nil {
+			return err
+		}
+		return s.writeAuditLog(actorUserID, "admin.game.remove_challenge", "game", game.ID, fmt.Sprintf("从比赛 %s 移除题目 %s", game.Name, ch.Title), fmt.Sprintf(`{"challenge_id":%d}`, ch.ID))
+	}
+
+	return nil
 }
 
 // JoinGame registers a team to a game.
@@ -2964,7 +2998,7 @@ func (s *Service) ListSubmissionCheatClues(gameID uint, limit int) ([]GameSubmis
 	return result, nil
 }
 
-func (s *Service) UpdateParticipationStatus(gameID uint, teamID uint, status string, division *string) (*GameParticipantEntry, error) {
+func (s *Service) UpdateParticipationStatus(gameID uint, teamID uint, status string, division *string, updatedBy ...uint) (*GameParticipantEntry, error) {
 	var game models.Game
 	if err := s.db.First(&game, gameID).Error; err != nil {
 		return nil, errors.New("game not found")
@@ -2988,12 +3022,33 @@ func (s *Service) UpdateParticipationStatus(gameID uint, teamID uint, status str
 	if err := s.db.Model(&participation).Update("status", nextStatus).Error; err != nil {
 		return nil, err
 	}
+	normalizedDivision := participation.Division
 	if division != nil {
-		normalizedDivision, err := normalizeParticipationDivision(decodeDivisions(game.Divisions), *division)
+		var err error
+		normalizedDivision, err = normalizeParticipationDivision(decodeDivisions(game.Divisions), *division)
 		if err != nil {
 			return nil, err
 		}
 		if err := s.db.Model(&participation).Update("division", normalizedDivision).Error; err != nil {
+			return nil, err
+		}
+	}
+	participation.Status = nextStatus
+	participation.Division = normalizedDivision
+
+	if actorUserID := firstGameActorID(updatedBy...); actorUserID > 0 {
+		var team models.Team
+		if err := s.db.First(&team, teamID).Error; err != nil {
+			return nil, err
+		}
+
+		detail := fmt.Sprintf(`{"team_id":%d,"status":%q`, team.ID, participation.Status)
+		if participation.Division != "" {
+			detail += fmt.Sprintf(`,"division":%q`, participation.Division)
+		}
+		detail += "}"
+
+		if err := s.writeAuditLog(actorUserID, "admin.game.update_participation", "game", game.ID, fmt.Sprintf("更新比赛 %s 中队伍 %s 的报名状态", game.Name, team.Name), detail); err != nil {
 			return nil, err
 		}
 	}
@@ -3168,7 +3223,7 @@ func (s *Service) ListWriteups(gameID uint) ([]GameWriteupResponse, error) {
 	return result, nil
 }
 
-func (s *Service) ReviewWriteup(gameID uint, teamID uint, reviewerID uint, req ReviewGameWriteupRequest) (*GameWriteupResponse, error) {
+func (s *Service) ReviewWriteup(gameID uint, teamID uint, reviewerID uint, req ReviewGameWriteupRequest, reviewedBy ...uint) (*GameWriteupResponse, error) {
 	status, err := normalizeWriteupStatus(req.Status)
 	if err != nil {
 		return nil, err
@@ -3211,6 +3266,12 @@ func (s *Service) ReviewWriteup(gameID uint, teamID uint, reviewerID uint, req R
 	writeup.ReviewerID = &reviewerID
 	writeup.ReviewRemark = strings.TrimSpace(req.Remark)
 	writeup.ReviewedAt = &now
+
+	if actorUserID := firstGameActorID(reviewedBy...); actorUserID > 0 {
+		if err := s.writeAuditLog(actorUserID, "admin.game.review_writeup", "game", game.ID, fmt.Sprintf("审核比赛 %s 中队伍 %s 的 Writeup", game.Name, team.Name), fmt.Sprintf(`{"team_id":%d,"status":%q,"remark":%q}`, team.ID, writeup.Status, writeup.ReviewRemark)); err != nil {
+			return nil, err
+		}
+	}
 
 	return toWriteupResponse(&writeup, team.Name, game.WriteupRequired), nil
 }

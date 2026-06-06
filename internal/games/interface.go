@@ -81,7 +81,7 @@ type ServiceInterface interface {
 	ExportSubmissionsPackage(id uint) ([]byte, string, error)
 	ListAnnouncements(gameID uint) ([]GameAnnouncementResponse, error)
 	CreateAnnouncement(gameID uint, createdBy uint, req CreateGameAnnouncementRequest) (*GameAnnouncementResponse, error)
-	DeleteAnnouncement(gameID uint, announcementID uint) error
+	DeleteAnnouncement(gameID uint, announcementID uint, deletedBy ...uint) error
 	ListSubmissionRecords(gameID uint, submissionType string, limit int) ([]GameSubmissionRecord, error)
 	ListSubmissionCheatClues(gameID uint, limit int) ([]GameSubmissionCheatClue, error)
 	GetAdminDashboardSummary(limit int) (*AdminDashboardSummaryResponse, error)
@@ -89,7 +89,7 @@ type ServiceInterface interface {
 	DestroyInstanceLease(gameID uint, leaseID uint) error
 	ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error)
 	AddChallenge(gameID uint, challengeID uint, scoreOverride int, addedBy ...uint) error
-	RemoveChallenge(gameID uint, challengeID uint) error
+	RemoveChallenge(gameID uint, challengeID uint, removedBy ...uint) error
 	// Participation
 	JoinGame(gameID uint, teamID uint, userID uint, invitationCode string) error
 	LeaveGame(gameID uint, teamID uint, userID uint) error
@@ -107,12 +107,12 @@ type ServiceInterface interface {
 	// Scoreboard
 	GetScoreboard(gameID uint, division string) (*ScoreboardResponse, error)
 	GetParticipants(gameID uint) ([]GameParticipantEntry, error)
-	UpdateParticipationStatus(gameID uint, teamID uint, status string, division *string) (*GameParticipantEntry, error)
+	UpdateParticipationStatus(gameID uint, teamID uint, status string, division *string, updatedBy ...uint) (*GameParticipantEntry, error)
 	RemoveParticipation(gameID uint, teamID uint) error
 	GetWriteup(gameID uint, userID uint) (*GameWriteupResponse, error)
 	SubmitWriteup(gameID uint, userID uint, req SubmitGameWriteupRequest) (*GameWriteupResponse, error)
 	ListWriteups(gameID uint) ([]GameWriteupResponse, error)
-	ReviewWriteup(gameID uint, teamID uint, reviewerID uint, req ReviewGameWriteupRequest) (*GameWriteupResponse, error)
+	ReviewWriteup(gameID uint, teamID uint, reviewerID uint, req ReviewGameWriteupRequest, reviewedBy ...uint) (*GameWriteupResponse, error)
 }
 
 type CreateGameRequest struct {
