@@ -3401,7 +3401,7 @@ onMounted(async () => {
         赛事管理
       </h1>
       <p class="text-muted mt-1">
-        使用现有管理 API 创建比赛、题目并挂载到比赛
+        统一维护比赛、题目、挂载、审核与赛时运行信息。
       </p>
     </div>
 
@@ -3433,13 +3433,13 @@ onMounted(async () => {
           <div class="space-y-4">
             <div class="space-y-2">
               <p class="text-sm text-muted">
-                这里集中保留比赛创建、预置方案和默认值填充入口，便于快速建立一场可继续维护的比赛上下文。
+                这里集中保留比赛创建、预置方案和默认值填充入口，用于建立可继续维护的比赛与题目上下文。
               </p>
               <UAlert
                 color="info"
                 variant="soft"
-                title="使用说明"
-                description="预置方案仅写入基础配置。正式发布前仍应补全题面、入口、镜像、附件与规则设置。"
+                title="录入约定"
+                description="预置方案只写入基础结构。正式发布前仍应补全题面、入口、镜像、附件与规则设置。"
               />
             </div>
 
@@ -3476,8 +3476,8 @@ onMounted(async () => {
             <UAlert
               color="info"
               variant="soft"
-              title="当前维护顺序"
-              description="比赛、题目、挂载、发布确认会集中显示在这里，便于直接判断当前缺口。"
+              title="当前检查项"
+              description="比赛、题目、挂载与发布检查会集中显示在这里，便于判断当前缺口。"
             />
 
             <div class="grid gap-3 xl:grid-cols-2">
