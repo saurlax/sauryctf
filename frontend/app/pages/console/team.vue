@@ -340,6 +340,23 @@ async function navigateBackToContestIfNeeded() {
   await navigateTo(contestRedirect.value)
 }
 
+function openInitialTeamEntryModal() {
+  if (team.value) {
+    return
+  }
+
+  if (joinInviteFromRoute.value) {
+    joinTeamModalOpen.value = true
+    createTeamModalOpen.value = false
+    return
+  }
+
+  if (contestRedirect.value) {
+    createTeamModalOpen.value = true
+    joinTeamModalOpen.value = false
+  }
+}
+
 async function fetchTeam() {
   loading.value = true
   try {
@@ -617,6 +634,7 @@ onMounted(async () => {
     joinForm.invite_code = joinInviteFromRoute.value
   }
   await fetchTeam()
+  openInitialTeamEntryModal()
 })
 </script>
 
