@@ -186,6 +186,7 @@ internal/<module>/
 - Current blood metadata (`first`, `second`, `third`) is retained for display, but does not apply an extra score multiplier.
 - Only when the `users` table is completely empty, backend startup auto-creates a bootstrap admin user: `admin / sauryctf`.
 - The frontend exposes separate `/login` and `/register` entries in the top-right navigation for account access.
+- `/login` and `/register` should stay as single-card form pages; do not append secondary summary panels, setup notes, or onboarding-style sidebars.
 - `/console/account` now provides a minimal account-security page:
   - logged-in users can change their own password
   - if the bootstrap admin still uses the initial password, both `/console` and `/console/account` surface a prominent reminder

@@ -28,21 +28,6 @@ const loginSchema = z.object({
 
 type LoginSchema = z.output<typeof loginSchema>
 
-const loginSummaryRows = computed(() => [
-  {
-    label: '登录后去向',
-    value: redirectTarget.value,
-  },
-  {
-    label: '认证方式',
-    value: '用户名或邮箱 + 密码',
-  },
-  {
-    label: '公开入口',
-    value: '仍可直接浏览比赛列表与公开详情',
-  },
-])
-
 async function onLogin(payload: FormSubmitEvent<LoginSchema>) {
   submitting.value = true
   try {
@@ -78,66 +63,47 @@ const state = reactive<Partial<LoginSchema>>({
 </script>
 
 <template>
-  <div class="py-8">
-    <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.05fr)_360px] xl:items-start">
-      <UPageCard
-        title="登录"
-        description="使用已有账号访问控制台、队伍页和比赛页面。"
-        icon="i-lucide-lock"
-      >
-        <UAlert
-          color="info"
-          variant="subtle"
-          icon="i-lucide-route"
-          title="当前登录后会保留目标跳转"
-          :description="`认证成功后会跳转到 ${redirectTarget}。`"
-          class="mb-4"
-        />
+  <div class="mx-auto max-w-xl py-8">
+    <UPageCard
+      title="登录"
+      description="使用已有账号访问控制台、队伍页和比赛页面。"
+      icon="i-lucide-lock"
+    >
+      <UAlert
+        color="info"
+        variant="subtle"
+        icon="i-lucide-route"
+        title="登录后跳转"
+        :description="`认证成功后会跳转到 ${redirectTarget}。`"
+        class="mb-4"
+      />
 
-        <UForm :schema="loginSchema" :state="state" class="space-y-4" @submit="onLogin">
-          <UFormField name="username" label="用户名或邮箱" required>
-            <UInput v-model="state.username" class="w-full" placeholder="请输入用户名或邮箱" :disabled="submitting" />
-          </UFormField>
+      <UForm :schema="loginSchema" :state="state" class="space-y-4" @submit="onLogin">
+        <UFormField name="username" label="用户名或邮箱" required>
+          <UInput v-model="state.username" class="w-full" placeholder="请输入用户名或邮箱" :disabled="submitting" />
+        </UFormField>
 
-          <UFormField name="password" label="密码" required>
-            <UInput v-model="state.password" class="w-full" type="password" placeholder="请输入密码" :disabled="submitting" />
-          </UFormField>
+        <UFormField name="password" label="密码" required>
+          <UInput v-model="state.password" class="w-full" type="password" placeholder="请输入密码" :disabled="submitting" />
+        </UFormField>
 
-          <UButton type="submit" block label="登录" icon="i-lucide-log-in" :loading="submitting" />
-        </UForm>
+        <UButton type="submit" block label="登录" icon="i-lucide-log-in" :loading="submitting" />
+      </UForm>
 
-        <template #footer>
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="text-sm text-muted">
-              还没有账号？
-              <ULink :to="registerTo" class="font-medium">
-                前往注册
-              </ULink>
-            </div>
-            <div class="flex flex-wrap gap-2">
-              <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="ghost" />
-              <UButton label="注册" icon="i-lucide-user-round-plus" :to="registerTo" variant="outline" :disabled="submitting" />
-            </div>
+      <template #footer>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="text-sm text-muted">
+            还没有账号？
+            <ULink :to="registerTo" class="font-medium">
+              前往注册
+            </ULink>
           </div>
-        </template>
-      </UPageCard>
-
-      <UPageCard
-        title="访问摘要"
-        description="当前认证入口保持最小闭环，只负责登录和跳转。"
-        icon="i-lucide-clipboard-list"
-      >
-        <div class="space-y-3 text-sm">
-          <div
-            v-for="row in loginSummaryRows"
-            :key="row.label"
-            class="flex items-center justify-between gap-3 rounded-md bg-elevated/60 px-3 py-2"
-          >
-            <span class="text-muted">{{ row.label }}</span>
-            <span class="text-right">{{ row.value }}</span>
+          <div class="flex flex-wrap gap-2">
+            <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="ghost" />
+            <UButton label="注册" icon="i-lucide-user-round-plus" :to="registerTo" variant="outline" :disabled="submitting" />
           </div>
         </div>
-      </UPageCard>
-    </div>
+      </template>
+    </UPageCard>
   </div>
 </template>
