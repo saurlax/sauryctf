@@ -673,8 +673,8 @@ function getManagedInstanceMeta(challenge: GameChallengeDetail) {
     return {
       color: 'info' as const,
       icon: 'i-lucide-log-in',
-      title: '登录后可查看当前队伍实例状态',
-      description: '实例租约按当前队伍维度管理。登录后，页面才会同步你的实例状态、可用入口与续期窗口。',
+      title: '登录后可查看实例状态',
+      description: '实例租约按队伍维度管理，登录后会同步对应状态与入口信息。',
     }
   }
 
@@ -682,8 +682,8 @@ function getManagedInstanceMeta(challenge: GameChallengeDetail) {
     return {
       color: 'warning' as const,
       icon: 'i-lucide-users',
-      title: '准备队伍后才能启动实例',
-      description: '当前比赛以内队形式分配实例。请先创建或加入队伍，再回到这里启动或查看当前队伍实例。',
+      title: '需先加入队伍',
+      description: '实例按队伍分配。',
     }
   }
 
@@ -691,8 +691,8 @@ function getManagedInstanceMeta(challenge: GameChallengeDetail) {
     return {
       color: 'info' as const,
       icon: 'i-lucide-badge-plus',
-      title: '报名成功后才能分配实例',
-      description: '当前队伍还没有这场比赛的报名记录。完成报名后，页面才会继续开放实例启动与状态同步。',
+      title: '报名后开放实例',
+      description: '当前队伍还没有这场比赛的报名记录。',
     }
   }
 
@@ -700,8 +700,8 @@ function getManagedInstanceMeta(challenge: GameChallengeDetail) {
     return {
       color: 'warning' as const,
       icon: 'i-lucide-hourglass',
-      title: '当前报名待审核，实例暂未开放',
-      description: '只有通过报名审核的队伍才能启动或续期实例。审核通过后，这里会自动切换到队伍实例视角。',
+      title: '报名待审核',
+      description: '审核通过后开放实例启动与续期。',
     }
   }
 
@@ -709,8 +709,8 @@ function getManagedInstanceMeta(challenge: GameChallengeDetail) {
     return {
       color: 'error' as const,
       icon: 'i-lucide-badge-x',
-      title: '当前报名未通过，实例暂不可用',
-      description: '这场比赛的报名还未通过。请先重新报名或调整队伍状态，实例入口与租约操作才会重新开放。',
+      title: '报名未通过',
+      description: '重新报名后才可使用实例。',
     }
   }
 
@@ -718,8 +718,8 @@ function getManagedInstanceMeta(challenge: GameChallengeDetail) {
     return {
       color: 'info' as const,
       icon: 'i-lucide-clock-3',
-      title: '比赛尚未开始，实例暂未开放',
-      description: '你的队伍已经具备参赛资格。开赛后，这里会自动切换为实例启动或续期状态。',
+      title: '比赛未开始',
+      description: '开赛后开放实例操作。',
     }
   }
 
@@ -727,8 +727,8 @@ function getManagedInstanceMeta(challenge: GameChallengeDetail) {
     return {
       color: 'neutral' as const,
       icon: 'i-lucide-flag-off',
-      title: '比赛已结束，实例租约已停止开放',
-      description: '当前比赛没有开启赛后练习模式，因此这里只保留实例记录展示，不再开放新的启动或续期操作。',
+      title: '实例租约已关闭',
+      description: '比赛结束后不再开放新的启动或续期操作。',
     }
   }
 
@@ -736,8 +736,8 @@ function getManagedInstanceMeta(challenge: GameChallengeDetail) {
     return {
       color: 'warning' as const,
       icon: 'i-lucide-rotate-ccw',
-      title: '当前实例已过期，建议重新启动',
-      description: '这条租约已经到期。你可以直接重新启动实例，平台会为当前队伍分配一条新的有效租约。',
+      title: '实例已过期',
+      description: '可直接重新启动实例。',
     }
   }
 
@@ -746,10 +746,10 @@ function getManagedInstanceMeta(challenge: GameChallengeDetail) {
       return {
         color: 'success' as const,
         icon: 'i-lucide-refresh-cw',
-        title: hasResolvedEntry ? '当前队伍实例运行中，已进入续期窗口' : '实例运行中，已进入续期窗口',
+        title: hasResolvedEntry ? '实例运行中，可续期' : '实例运行中，可续期',
         description: hasResolvedEntry
-          ? '当前显示的是这支队伍的真实实例入口。现在可以直接访问实例，也可以在到期前完成续期。'
-          : '实例已经运行，当前也已进入续期窗口。若入口仍未回填，可先刷新状态后再继续访问或续期。',
+          ? '当前已显示真实实例入口。'
+          : '实例已运行，入口信息仍在同步。',
       }
     }
 
@@ -757,20 +757,20 @@ function getManagedInstanceMeta(challenge: GameChallengeDetail) {
       return {
         color: isMockInstance(challenge) ? 'warning' as const : 'success' as const,
         icon: isMockInstance(challenge) ? 'i-lucide-monitor-up' : 'i-lucide-box',
-        title: isMockInstance(challenge) ? '当前队伍实例运行中，入口已切换到访问页' : '当前队伍实例运行中',
+        title: isMockInstance(challenge) ? '实例运行中，入口已切换' : '实例运行中',
         description: isMockInstance(challenge)
-          ? '当前入口已经切换到实例访问页。你可以先进入页面核对访问地址、租约剩余时间和后续续期窗口。'
-          : '当前显示的是这支队伍的真实实例入口。实例仍在有效期内，但还没有进入可续期时间。',
+          ? '当前入口已切换到实例访问页。'
+          : '当前已显示真实实例入口。',
       }
     }
 
     return {
       color: 'info' as const,
       icon: 'i-lucide-box',
-      title: hasTemplateEntry ? '实例运行中，当前仍显示入口模板' : '实例运行中，等待入口信息同步',
+      title: hasTemplateEntry ? '实例运行中，仍显示模板入口' : '实例运行中，等待入口同步',
       description: hasTemplateEntry
-        ? '实例已经启动，但当前还没有拿到这支队伍的实际入口，页面暂时继续展示模板接入信息。可以先刷新状态，等待真实入口回填。'
-        : '实例已经启动。若运行入口尚未显示，可以先刷新状态，等待后端同步当前队伍的实际入口信息。',
+        ? '实例已启动，真实入口尚未回填。'
+        : '实例已启动，入口信息仍在同步。',
     }
   }
 
@@ -778,16 +778,16 @@ function getManagedInstanceMeta(challenge: GameChallengeDetail) {
     return {
       color: 'info' as const,
       icon: 'i-lucide-layout-template',
-      title: '当前显示的是实例入口模板',
-      description: '这道题支持按队伍分配实例。启动后，这里的模板入口会优先切换成当前队伍的真实访问地址。',
+      title: '当前显示模板入口',
+      description: '启动后会切换为队伍对应的真实访问地址。',
     }
   }
 
   return {
     color: 'neutral' as const,
     icon: 'i-lucide-play',
-    title: '当前还没有运行中的队伍实例',
-    description: '这道题支持实例租约。启动后，页面会同步当前队伍的运行状态、剩余时间、入口信息与续期策略。',
+    title: '暂无运行中的实例',
+    description: '启动后会同步状态、入口与续期信息。',
   }
 }
 
@@ -969,8 +969,8 @@ const participationHint = computed(() => {
 const registrationPanelSummary = computed(() => {
   if (participationStateKey.value === 'guest') {
     return {
-      title: '当前还不能发起报名',
-      description: '先登录账号后，比赛页才会识别你自己的队伍与报名状态，并继续显示报名入口。',
+      title: '登录后可报名',
+      description: '登录后会识别你的队伍与报名状态。',
       color: 'info' as const,
       icon: 'i-lucide-log-in',
     }
@@ -978,8 +978,8 @@ const registrationPanelSummary = computed(() => {
 
   if (participationStateKey.value === 'no_team') {
     return {
-      title: '当前需要先准备队伍',
-      description: '比赛报名、提 Flag 和排行榜都按队伍进行。先创建或加入队伍，再回来完成报名。',
+      title: '需先加入队伍',
+      description: '比赛报名、Flag 提交和排行榜均按队伍处理。',
       color: 'warning' as const,
       icon: 'i-lucide-users',
     }
@@ -987,8 +987,8 @@ const registrationPanelSummary = computed(() => {
 
   if (participationStateKey.value === 'pending') {
     return {
-      title: '当前报名已提交，正在等待审核',
-      description: '这次报名已经进入管理员审核队列。现在不需要重复提交，等待通过后就会开放正式参赛资格。',
+      title: '报名待审核',
+      description: '审核通过后开放正式参赛资格。',
       color: 'warning' as const,
       icon: 'i-lucide-hourglass',
     }
@@ -996,8 +996,8 @@ const registrationPanelSummary = computed(() => {
 
   if (participationStateKey.value === 'rejected') {
     return {
-      title: '当前报名未通过',
-      description: '你可以先撤回这次报名，调整队伍成员或邀请码后，再重新提交新的报名申请。',
+      title: '报名未通过',
+      description: '可撤回后重新提交报名申请。',
       color: 'error' as const,
       icon: 'i-lucide-badge-x',
     }
@@ -1005,12 +1005,12 @@ const registrationPanelSummary = computed(() => {
 
   if (participationStateKey.value === 'accepted' || participationStateKey.value === 'missing_writeup' || participationStateKey.value === 'writeup_submitted') {
     return {
-      title: '当前队伍已经具备参赛资格',
+      title: '已具备参赛资格',
       description: publicGamePhase.value === 'before_start'
-        ? '报名已经通过，接下来只需要等待开赛。开赛后会自动开放完整题面和提交入口。'
+        ? '报名已通过，等待开赛。'
         : publicGamePhase.value === 'ended'
-            ? '这场比赛的正式报名已经完成。当前可以继续查看比赛信息，并按练习模式规则决定是否还能继续提交。'
-            : '报名已经通过，当前可以直接切换到题目标签开始解题、启动实例并提交 Flag。',
+            ? '报名已完成，可按练习模式查看后续开放范围。'
+            : '当前可进入题目区解题、提交 Flag 和使用实例。',
       color: 'success' as const,
       icon: 'i-lucide-badge-check',
     }
@@ -1018,8 +1018,8 @@ const registrationPanelSummary = computed(() => {
 
   if (participationStateKey.value === 'ended_unjoined') {
     return {
-      title: '比赛已结束，当前不会再受理新报名',
-      description: '你仍然可以查看当前比赛的公开信息、题目标题和排行榜，但不能再新增报名记录。',
+      title: '比赛已结束',
+      description: '当前不再受理新的报名记录。',
       color: 'error' as const,
       icon: 'i-lucide-clock-3',
     }
@@ -1334,41 +1334,41 @@ const writeupGuide = computed(() => {
   if (!authState.user) {
     return {
       title: '登录后可查看 Writeup 状态',
-      description: '登录后才能看到你自己的队伍、Writeup 状态和可提交性。',
+      description: '登录后会显示队伍对应的 Writeup 状态。',
       color: 'info' as const,
     }
   }
 
   if (!participation.value?.has_team) {
     return {
-      title: '需要先关联队伍',
-      description: '当前比赛以内队形式参赛。请先创建或加入队伍，再返回此处查看或提交 Writeup。',
+      title: '需先加入队伍',
+      description: 'Writeup 按队伍管理。',
       color: 'warning' as const,
     }
   }
 
   if (!game.value?.writeup_required) {
     return {
-      title: '当前比赛未启用 Writeup 提交',
-      description: '当前比赛不会开放选手侧 Writeup 提交，这里仅展示相关状态说明。',
+      title: '未启用 Writeup 提交',
+      description: '当前比赛不开放选手侧 Writeup 提交。',
       color: 'neutral' as const,
     }
   }
 
   if (!participation.value?.participated) {
     return {
-      title: '需要先完成比赛报名',
-      description: '只有已经报名的队伍，才会继续进入这场比赛的 Writeup 流程。',
+      title: '需先完成报名',
+      description: '仅已报名队伍可进入 Writeup 流程。',
       color: 'warning' as const,
     }
   }
 
   if (participation.value.status !== 'accepted') {
     return {
-      title: participation.value.status === 'pending' ? '等待报名审核通过' : '当前报名未通过',
+      title: participation.value.status === 'pending' ? '等待报名审核' : '报名未通过',
       description: participation.value.status === 'pending'
-        ? '报名审核通过后，Writeup 区才会正式开放可提交状态。'
-        : '当前报名没有通过，先调整队伍或重新报名，再回来处理 Writeup。',
+        ? '审核通过后开放 Writeup 提交。'
+        : '重新报名后再处理 Writeup。',
       color: participation.value.status === 'pending' ? 'warning' as const : 'error' as const,
     }
   }
@@ -1377,25 +1377,25 @@ const writeupGuide = computed(() => {
     return {
       title: 'Writeup 截止时间已过',
       description: game.value?.writeup_deadline
-        ? `当前比赛的 Writeup 截止时间是 ${new Date(game.value.writeup_deadline).toLocaleString()}，现在已经不能继续更新内容。`
-        : '当前比赛的 Writeup 提交流程已经结束，现在不能继续更新内容。',
+        ? `截止时间为 ${new Date(game.value.writeup_deadline).toLocaleString()}。`
+        : '提交流程已结束。',
       color: 'error' as const,
     }
   }
 
   if (writeup.value?.can_submit) {
     return {
-      title: '当前可以提交 Writeup',
+      title: '可提交 Writeup',
       description: writeup.value.status === 'rejected'
-        ? '管理员曾驳回过这份 Writeup。你可以修改后重新提交，状态会回到 submitted。'
-        : '你可以提交或覆盖当前队伍的 Writeup，重新提交后状态会回到 submitted。',
+        ? '当前记录曾被驳回，修改后可重新提交。'
+        : '重新提交会覆盖当前内容并回到 submitted 状态。',
       color: 'success' as const,
     }
   }
 
   return {
-    title: '当前暂时不能提交 Writeup',
-    description: '当前还不满足提交流程。通常需要报名已通过，并且比赛本身要求 Writeup。',
+    title: '暂不可提交 Writeup',
+    description: '当前不满足提交流程。',
     color: 'warning' as const,
   }
 })
