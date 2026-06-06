@@ -20,6 +20,7 @@ const loading = ref(true)
 const logs = ref<AuditLog[]>([])
 
 const filters = reactive({
+  actorUserId: undefined as number | undefined,
   targetType: 'all',
   limit: 50,
 })
@@ -43,6 +44,20 @@ const recent24hLogs = computed(() => {
   const since = Date.now() - 24 * 60 * 60 * 1000
   return logs.value.filter(log => new Date(log.created_at).getTime() >= since).length
 })
+const activeFilterSummary = computed(() => {
+  const items: string[] = []
+
+  if (filters.actorUserId) {
+    items.push(`操作者 #${filters.actorUserId}`)
+  }
+
+  if (filters.targetType !== 'all') {
+    items.push(getTargetTypeLabel(filters.targetType))
+  }
+
+  items.push(`最近 ${filters.limit} 条`)
+  return items.join(' / ')
+})
 
 function getActionLabel(action: string) {
   const labels: Record<string, string> = {
@@ -50,7 +65,13 @@ function getActionLabel(action: string) {
     'admin.game.create': '创建比赛',
     'admin.game.update': '更新比赛',
     'admin.game.delete': '删除比赛',
+    'admin.game.create_announcement': '发布公告',
+    'admin.game.delete_announcement': '删除公告',
     'admin.game.attach_challenge': '挂载题目',
+    'admin.game.remove_challenge': '移除比赛题目',
+    'admin.game.update_participation': '更新报名状态',
+    'admin.game.review_writeup': '审核 Writeup',
+    'admin.game.destroy_instance_lease': '销毁实例租约',
     'admin.challenge.create': '创建题目',
     'admin.challenge.update': '更新题目',
     'admin.challenge.delete': '删除题目',
@@ -74,6 +95,7 @@ async function loadLogs() {
   try {
     logs.value = await $fetch<AuditLog[]>('/api/admin/audit-logs', {
       query: {
+        actor_user_id: filters.actorUserId || undefined,
         target_type: filters.targetType === 'all' ? undefined : filters.targetType,
         limit: filters.limit,
       },
@@ -108,7 +130,10 @@ onMounted(loadLogs)
     </UPageGrid>
 
     <UPageCard title="筛选" icon="i-lucide-filter" class="mb-6">
-      <div class="grid gap-3 md:grid-cols-[180px_140px_auto] md:items-end">
+      <div class="grid gap-3 md:grid-cols-[160px_180px_140px_auto] md:items-end">
+        <UFormField label="操作者 ID" name="actor-user-id">
+          <UInputNumber v-model="filters.actorUserId" :min="1" orientation="vertical" class="w-full" placeholder="例如：1" />
+        </UFormField>
         <UFormField label="对象类型" name="target-type">
           <USelect v-model="filters.targetType" :items="targetTypeOptions" class="w-full" />
         </UFormField>
@@ -121,6 +146,11 @@ onMounted(loadLogs)
           </UButton>
         </div>
       </div>
+      <template #footer>
+        <div class="text-sm text-muted">
+          当前筛选：{{ activeFilterSummary }}
+        </div>
+      </template>
     </UPageCard>
 
     <UPageCard title="最近操作" icon="i-lucide-list">
