@@ -1349,6 +1349,7 @@ async function loadAdminResources() {
 
     games.value = gameList
     challenges.value = challengeList
+    syncAdminResourceContext()
   }
   catch (e: any) {
     toast.add({ title: '管理数据加载失败', description: e.data?.message || e.message, color: 'error' })
@@ -2444,6 +2445,25 @@ function selectGameContext(gameId?: number) {
   gameEditForm.game_id = gameId
 }
 
+function syncAdminResourceContext() {
+  if (attachForm.game_id && !games.value.some(game => game.id === attachForm.game_id)) {
+    attachForm.game_id = undefined
+    resetSelectedGameContext()
+  }
+  if (gameSettingsForm.game_id && !games.value.some(game => game.id === gameSettingsForm.game_id)) {
+    gameSettingsForm.game_id = undefined
+  }
+  if (gameEditForm.game_id && !games.value.some(game => game.id === gameEditForm.game_id)) {
+    gameEditForm.game_id = undefined
+  }
+  if (attachForm.challenge_id && !challenges.value.some(challenge => challenge.id === attachForm.challenge_id)) {
+    attachForm.challenge_id = undefined
+  }
+  if (challengeEditForm.challenge_id && !challenges.value.some(challenge => challenge.id === challengeEditForm.challenge_id)) {
+    challengeEditForm.challenge_id = undefined
+  }
+}
+
 async function createGame() {
   const timelineError = validateGameTimeline(gameForm, { requireStartEnd: true })
   if (timelineError) {
@@ -2453,7 +2473,7 @@ async function createGame() {
 
   gameSubmitting.value = true
   try {
-    await $api('post', '/api/games', {
+    const createdGame = await $api('post', '/api/games', {
       body: {
         name: gameForm.name,
         description: gameForm.description,
@@ -2488,6 +2508,8 @@ async function createGame() {
     gameForm.writeup_deadline = ''
     gameForm.is_public = true
     await loadAdminResources()
+    selectGameContext(createdGame.id)
+    jumpToAdminAnchor('#game-settings')
   }
   catch (e: any) {
     toast.add({ title: '比赛创建失败', description: e.data?.message || e.message, color: 'error' })
@@ -2506,7 +2528,7 @@ async function createChallenge() {
 
   challengeSubmitting.value = true
   try {
-    await $api('post', '/api/challenges', {
+    const createdChallenge = await $api('post', '/api/challenges', {
       body: {
         title: challengeForm.title,
         description: challengeForm.description,
@@ -2544,6 +2566,8 @@ async function createChallenge() {
     challengeForm.max_attempts = 0
     challengeForm.is_visible = true
     await loadAdminResources()
+    challengeEditForm.challenge_id = createdChallenge.id
+    attachForm.challenge_id = createdChallenge.id
   }
   catch (e: any) {
     toast.add({ title: '题目创建失败', description: e.data?.message || e.message, color: 'error' })
