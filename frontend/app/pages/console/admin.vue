@@ -513,11 +513,11 @@ const adminSetupContextMeta = computed(() => {
 
   return {
     game,
-    title: shouldGuideToAttach ? '继续完善这场比赛：先完成挂题' : '继续完善这场比赛：检查比赛设置',
+    title: shouldGuideToAttach ? '当前比赛待补充挂题' : '当前比赛待检查设置',
     description: shouldGuideToAttach
-      ? `${game.name} 已经创建完成。先挂载至少一道题目，再切换比赛状态并检查公开页展示。`
-      : `${game.name} 当前已经挂了 ${gameChallengeCount} 道题。接下来可以继续检查状态、公开性和报名模式。`,
-    actionLabel: shouldGuideToAttach ? '选中并去挂题' : '选中并去比赛设置',
+      ? `${game.name} 已创建完成。建议先挂载至少一道题目，再检查比赛状态与公开页展示。`
+      : `${game.name} 当前已挂载 ${gameChallengeCount} 道题，可以继续检查状态、公开性与报名模式。`,
+    actionLabel: shouldGuideToAttach ? '选中并前往挂题' : '选中并前往比赛设置',
     actionTo: shouldGuideToAttach ? '#attach-challenge' : '#game-settings',
   }
 })
@@ -3151,7 +3151,7 @@ onMounted(async () => {
               color="info"
               variant="soft"
               title="使用建议"
-              description="适合初始化新比赛、核对管理链路或建立标准模板；正式发布前仍应补全题面、入口、镜像、附件与规则配置。"
+              description="适合快速建立比赛骨架或整理标准配置；正式发布前仍应补全题面、入口、镜像、附件与规则设置。"
             />
           </div>
 
@@ -5606,6 +5606,7 @@ onMounted(async () => {
     v-model:open="confirmModalOpen"
     :title="confirmActionState.title"
     :description="confirmActionState.description"
+    :dismissible="!confirmActionBusy"
     :ui="{ description: 'whitespace-pre-wrap', footer: 'justify-end' }"
   >
     <template #footer>

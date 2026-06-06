@@ -96,18 +96,18 @@ const loginTo = computed(() => {
         <div class="mt-4 text-sm text-muted">
           已有账号？
           <ULink :to="loginTo" class="font-medium">
-            去登录页面
+            前往登录
           </ULink>
         </div>
       </UPageCard>
 
       <div class="space-y-6">
-        <UPageCard title="访问说明" icon="i-lucide-info">
+        <UPageCard title="注册说明" icon="i-lucide-info">
           <div class="space-y-3">
             <UAlert
               color="info"
               variant="soft"
-              title="注册后跳转"
+              title="默认去向"
               :description="redirectTarget.startsWith('/games/') ? `/console/team?redirect=${redirectTarget}` : '/console/team'"
             />
             <p class="text-sm text-muted">

@@ -80,18 +80,18 @@ const state = reactive<Partial<LoginSchema>>({
         <div class="mt-4 text-sm text-muted">
           还没有账号？
           <ULink :to="registerTo" class="font-medium">
-            去注册页面
+            前往注册
           </ULink>
         </div>
       </UPageCard>
 
       <div class="space-y-6">
-        <UPageCard title="访问说明" icon="i-lucide-info">
+        <UPageCard title="登录说明" icon="i-lucide-info">
           <div class="space-y-3">
             <UAlert
               color="info"
               variant="soft"
-              title="登录后跳转"
+              title="跳转目标"
               :description="redirectTarget"
             />
             <p class="text-sm text-muted">
