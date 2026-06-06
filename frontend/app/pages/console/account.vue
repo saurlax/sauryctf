@@ -34,8 +34,8 @@ const passwordSecurityRisk = computed(() => !!securityStatus.value?.password_cha
 const securityNextStepMeta = computed(() => {
   if (passwordSecurityRisk.value) {
     return {
-      title: '请立即更新登录密码',
-      description: '当前管理员账号仍在使用默认口令。完成改密后，再继续日常管理操作。',
+      title: '当前账号需完成密码更新',
+      description: '当前管理员账号仍在使用默认口令。请先完成改密，再继续处理管理操作。',
       color: 'warning' as const,
       icon: 'i-lucide-triangle-alert',
       actionLabel: '打开管理端',
@@ -47,7 +47,7 @@ const securityNextStepMeta = computed(() => {
 
   return {
     title: '账号状态正常',
-    description: '当前账号安全状态正常，可以返回控制台继续处理比赛、队伍或其他待办。',
+    description: '当前账号安全状态正常，可以继续处理比赛、队伍和其他控制台事项。',
     color: 'success' as const,
     icon: 'i-lucide-shield-check',
     actionLabel: '返回控制台',
@@ -139,7 +139,7 @@ onMounted(async () => {
         账号安全
       </h1>
       <p class="mt-1 text-muted">
-        管理当前账号信息，并及时更新登录密码。
+        查看当前账号信息，并维护登录密码。
       </p>
     </div>
 
@@ -183,7 +183,7 @@ onMounted(async () => {
                     登录密码维护
                   </div>
                   <p class="text-sm text-muted">
-                    {{ passwordSecurityRisk ? '当前账号仍在使用初始密码，请尽快完成更新。' : '密码修改属于低频敏感操作，提交前请确认当前密码与新密码信息无误。' }}
+                    {{ passwordSecurityRisk ? '当前账号仍在使用默认口令，建议优先完成更新。' : '密码修改属于低频敏感操作，提交前请确认当前密码与新密码填写无误。' }}
                   </p>
                 </div>
 
@@ -199,7 +199,7 @@ onMounted(async () => {
               <div class="flex items-center justify-between gap-3">
                 <span>当前风险级别</span>
                 <UBadge :color="passwordSecurityRisk ? 'warning' : 'success'" variant="soft">
-                  {{ passwordSecurityRisk ? '需要立即改密' : '状态正常' }}
+                  {{ passwordSecurityRisk ? '待更新密码' : '状态正常' }}
                 </UBadge>
               </div>
             </div>
@@ -246,7 +246,7 @@ onMounted(async () => {
               </div>
             </div>
             <p class="text-sm text-muted leading-6">
-              修改密码后，当前账号的既有会话会立即失效，后续需使用新密码重新登录。
+              修改密码后，当前账号的既有会话会立即失效，需使用新密码重新登录。
             </p>
           </div>
         </UPageCard>

@@ -834,7 +834,7 @@ onBeforeUnmount(() => {
                 v-if="!adminManagedGames.length"
                 icon="i-lucide-calendar-plus"
                 title="还没有可管理的比赛"
-                description="当前还没有任何比赛进入最近管理列表。创建比赛后，这里会显示最近的管理入口。"
+                description="当前还没有比赛进入最近管理列表。完成建赛后，这里会汇总最近使用的管理入口。"
                 :actions="[{
                   label: '去创建比赛',
                   icon: 'i-lucide-settings-2',
@@ -921,7 +921,7 @@ onBeforeUnmount(() => {
               v-else
               icon="i-lucide-calendar-range"
               title="还没有可浏览的公开比赛"
-              :description="isAdmin ? '创建并发布公开比赛后，这里会开始出现内容。' : '当前还没有公开中的比赛，稍后再来查看即可。'"
+              :description="isAdmin ? '比赛公开后，这里会显示当前可浏览的公开比赛。' : '当前还没有公开中的比赛，稍后再来查看即可。'"
               :actions="isAdmin
                 ? [{
                     label: '去管理端建赛',

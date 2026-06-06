@@ -5363,7 +5363,7 @@ onMounted(async () => {
                   icon="i-lucide-send"
                   variant="outline"
                   :disabled="!selectedGame"
-                  @click="announcementModalOpen = true"
+                  @click="openCreateAnnouncementModal"
                 >
                   发布公告
                 </UButton>
