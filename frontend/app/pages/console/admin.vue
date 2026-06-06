@@ -385,10 +385,14 @@ const createChallengeModalOpen = ref(false)
 const attachChallengeModalOpen = ref(false)
 const announcementModalOpen = ref(false)
 const gameSettingsModalOpen = ref(false)
+const participantReviewModalOpen = ref(false)
+const writeupReviewModalOpen = ref(false)
 const gameEditModalOpen = ref(false)
 const challengeEditModalOpen = ref(false)
 const importModalOpen = ref(false)
 const confirmModalOpen = ref(false)
+const activeParticipantReviewTeamId = ref<number | null>(null)
+const activeWriteupReviewTeamId = ref<number | null>(null)
 const games = ref<Array<{
   id: number
   name: string
@@ -761,6 +765,12 @@ const selectedGameDivisionOptions = computed(() => (selectedGame.value?.division
   label: division,
   value: division,
 })))
+const activeParticipantReviewEntry = computed(() =>
+  participants.value.find(item => item.team_id === activeParticipantReviewTeamId.value) || null,
+)
+const activeWriteupReviewEntry = computed(() =>
+  writeups.value.find(item => item.team_id === activeWriteupReviewTeamId.value) || null,
+)
 const preferredContextGame = computed(() =>
   games.value.find(game => game.status === 'draft')
   || games.value.find(game => game.status === 'active')
@@ -2143,6 +2153,11 @@ async function updateParticipantStatus(teamId: number) {
   participantReviewConfirmModalOpen.value = true
 }
 
+function openParticipantReviewModal(teamId: number) {
+  activeParticipantReviewTeamId.value = teamId
+  participantReviewModalOpen.value = true
+}
+
 async function confirmUpdateParticipantStatus() {
   const target = pendingParticipantReviewPayload.value
   if (!target) {
@@ -2169,6 +2184,8 @@ async function confirmUpdateParticipantStatus() {
     }
     participantStatusDrafts[target.teamId] = updated.status
     participantDivisionDrafts[target.teamId] = updated.division || ''
+    participantReviewModalOpen.value = false
+    activeParticipantReviewTeamId.value = null
     participantReviewConfirmModalOpen.value = false
     pendingParticipantReviewPayload.value = null
     toast.add({ title: '参赛状态已更新', color: 'success' })
@@ -2251,6 +2268,11 @@ async function reviewWriteup(teamId: number) {
   writeupReviewConfirmModalOpen.value = true
 }
 
+function openWriteupReviewModal(teamId: number) {
+  activeWriteupReviewTeamId.value = teamId
+  writeupReviewModalOpen.value = true
+}
+
 async function confirmReviewWriteup() {
   const target = pendingWriteupReviewPayload.value
   if (!target) {
@@ -2276,6 +2298,8 @@ async function confirmReviewWriteup() {
     }
     writeupReviewDrafts[target.teamId] = updated.status === 'rejected' ? 'rejected' : 'approved'
     writeupRemarkDrafts[target.teamId] = updated.review_remark || ''
+    writeupReviewModalOpen.value = false
+    activeWriteupReviewTeamId.value = null
     writeupReviewConfirmModalOpen.value = false
     pendingWriteupReviewPayload.value = null
     toast.add({ title: 'Writeup 审核已更新', color: 'success' })
@@ -5275,29 +5299,30 @@ onMounted(async () => {
                   当前分组：{{ participant.division || '未分配' }}
                 </div>
                 <div class="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] md:items-end">
-                  <UFormField label="参赛状态" :name="`participant-status-${participant.team_id}`">
-                    <USelect
-                      v-model="participantStatusDrafts[participant.team_id]"
-                      :items="participantStatusOptions"
-                      class="w-full"
-                    />
-                  </UFormField>
-                  <UFormField label="所属分组" :name="`participant-division-${participant.team_id}`">
-                    <USelect
-                      v-if="selectedGameDivisionOptions.length"
-                      v-model="participantDivisionDrafts[participant.team_id]"
-                      :items="selectedGameDivisionOptions"
-                      class="w-full"
-                      placeholder="未分配"
-                    />
-                    <UInput
-                      v-else
-                      v-model="participantDivisionDrafts[participant.team_id]"
-                      class="w-full"
-                      placeholder="当前比赛未配置分组"
-                      disabled
-                    />
-                  </UFormField>
+                  <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3 text-sm text-muted">
+                    <div class="font-medium text-highlighted">
+                      待保存状态
+                    </div>
+                    <div class="mt-2">
+                      {{ getParticipantStatusLabel(participantStatusDrafts[participant.team_id] || participant.status) }}
+                    </div>
+                  </div>
+                  <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3 text-sm text-muted">
+                    <div class="font-medium text-highlighted">
+                      待保存分组
+                    </div>
+                    <div class="mt-2">
+                      {{ participantDivisionDrafts[participant.team_id] || '未分配' }}
+                    </div>
+                  </div>
+                  <UButton
+                    size="sm"
+                    variant="outline"
+                    icon="i-lucide-square-pen"
+                    @click="openParticipantReviewModal(participant.team_id)"
+                  >
+                    审核设置
+                  </UButton>
                   <UButton
                     size="sm"
                     icon="i-lucide-check-check"
@@ -5383,25 +5408,31 @@ onMounted(async () => {
                   <div>审核时间：{{ writeup.reviewed_at ? new Date(writeup.reviewed_at).toLocaleString() : '未审核' }}</div>
                 </div>
 
-                <div class="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_auto] md:items-end">
-                  <UFormField label="审核结果" :name="`writeup-status-${writeup.team_id}`">
-                    <USelect
-                      v-model="writeupReviewDrafts[writeup.team_id]"
-                      :items="[
-                        { label: '通过', value: 'approved' },
-                        { label: '驳回', value: 'rejected' },
-                      ]"
-                      class="w-full"
-                    />
-                  </UFormField>
-
-                  <UFormField label="审核备注" :name="`writeup-remark-${writeup.team_id}`">
-                    <UInput
-                      v-model="writeupRemarkDrafts[writeup.team_id]"
-                      class="w-full"
-                      placeholder="可选，例如：请补充关键截图"
-                    />
-                  </UFormField>
+                <div class="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_auto_auto] md:items-end">
+                  <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3 text-sm text-muted">
+                    <div class="font-medium text-highlighted">
+                      待保存结果
+                    </div>
+                    <div class="mt-2">
+                      {{ getWriteupStatusLabel(writeupReviewDrafts[writeup.team_id] === 'rejected' ? 'rejected' : 'approved') }}
+                    </div>
+                  </div>
+                  <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3 text-sm text-muted">
+                    <div class="font-medium text-highlighted">
+                      待保存备注
+                    </div>
+                    <div class="mt-2 whitespace-pre-wrap break-all">
+                      {{ writeupRemarkDrafts[writeup.team_id] || '无' }}
+                    </div>
+                  </div>
+                  <UButton
+                    size="sm"
+                    variant="outline"
+                    icon="i-lucide-square-pen"
+                    @click="openWriteupReviewModal(writeup.team_id)"
+                  >
+                    审核设置
+                  </UButton>
 
                   <UButton
                     size="sm"
@@ -6714,6 +6745,76 @@ onMounted(async () => {
   </UModal>
 
   <UModal
+    v-model:open="participantReviewModalOpen"
+    title="审核报名"
+    :description="activeParticipantReviewEntry ? `调整 ${activeParticipantReviewEntry.team_name} 的参赛状态和分组。` : '调整当前队伍的参赛状态和分组。'"
+    :dismissible="!updatingParticipantId"
+    :ui="{ body: 'space-y-4', footer: 'justify-end' }"
+  >
+    <template #body>
+      <div v-if="activeParticipantReviewEntry" class="space-y-4">
+        <div class="rounded-lg border border-default px-3 py-3 text-sm">
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-muted">当前队伍</span>
+            <span>{{ activeParticipantReviewEntry.team_name }}</span>
+          </div>
+          <div class="mt-2 flex items-center justify-between gap-3">
+            <span class="text-muted">当前状态</span>
+            <span>{{ getParticipantStatusLabel(activeParticipantReviewEntry.status) }}</span>
+          </div>
+          <div class="mt-2 flex items-center justify-between gap-3">
+            <span class="text-muted">当前分组</span>
+            <span>{{ activeParticipantReviewEntry.division || '未分配' }}</span>
+          </div>
+        </div>
+
+        <UFormField :name="`participant-status-modal-${activeParticipantReviewEntry.team_id}`" label="参赛状态">
+          <USelect
+            v-model="participantStatusDrafts[activeParticipantReviewEntry.team_id]"
+            :items="participantStatusOptions"
+            class="w-full"
+          />
+        </UFormField>
+
+        <UFormField :name="`participant-division-modal-${activeParticipantReviewEntry.team_id}`" label="所属分组">
+          <USelect
+            v-if="selectedGameDivisionOptions.length"
+            v-model="participantDivisionDrafts[activeParticipantReviewEntry.team_id]"
+            :items="selectedGameDivisionOptions"
+            class="w-full"
+            placeholder="未分配"
+          />
+          <UInput
+            v-else
+            v-model="participantDivisionDrafts[activeParticipantReviewEntry.team_id]"
+            class="w-full"
+            placeholder="当前比赛未配置分组"
+            disabled
+          />
+        </UFormField>
+      </div>
+    </template>
+
+    <template #footer="{ close }">
+      <UButton
+        variant="ghost"
+        :disabled="!!updatingParticipantId"
+        @click="activeParticipantReviewTeamId = null; close()"
+      >
+        取消
+      </UButton>
+      <UButton
+        v-if="activeParticipantReviewEntry"
+        icon="i-lucide-check-check"
+        :loading="updatingParticipantId === activeParticipantReviewEntry.team_id"
+        @click="updateParticipantStatus(activeParticipantReviewEntry.team_id)"
+      >
+        保存状态
+      </UButton>
+    </template>
+  </UModal>
+
+  <UModal
     v-model:open="writeupReviewConfirmModalOpen"
     title="确认保存 Writeup 审核"
     :description="writeupReviewConfirmDescription"
@@ -6748,6 +6849,70 @@ onMounted(async () => {
         @click="confirmReviewWriteup"
       >
         确认保存
+      </UButton>
+    </template>
+  </UModal>
+
+  <UModal
+    v-model:open="writeupReviewModalOpen"
+    title="审核 Writeup"
+    :description="activeWriteupReviewEntry ? `调整 ${activeWriteupReviewEntry.team_name} 的审核结论与备注。` : '调整当前 Writeup 的审核结论与备注。'"
+    :dismissible="!reviewingWriteupId"
+    :ui="{ body: 'space-y-4', footer: 'justify-end' }"
+  >
+    <template #body>
+      <div v-if="activeWriteupReviewEntry" class="space-y-4">
+        <div class="rounded-lg border border-default px-3 py-3 text-sm">
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-muted">当前队伍</span>
+            <span>{{ activeWriteupReviewEntry.team_name }}</span>
+          </div>
+          <div class="mt-2 flex items-center justify-between gap-3">
+            <span class="text-muted">当前状态</span>
+            <span>{{ getWriteupStatusLabel(activeWriteupReviewEntry.status) }}</span>
+          </div>
+          <div class="mt-2 flex items-start justify-between gap-3">
+            <span class="text-muted">现有备注</span>
+            <span class="text-right whitespace-pre-wrap break-all">{{ activeWriteupReviewEntry.review_remark || '无' }}</span>
+          </div>
+        </div>
+
+        <UFormField :name="`writeup-status-modal-${activeWriteupReviewEntry.team_id}`" label="审核结果">
+          <USelect
+            v-model="writeupReviewDrafts[activeWriteupReviewEntry.team_id]"
+            :items="[
+              { label: '通过', value: 'approved' },
+              { label: '驳回', value: 'rejected' },
+            ]"
+            class="w-full"
+          />
+        </UFormField>
+
+        <UFormField :name="`writeup-remark-modal-${activeWriteupReviewEntry.team_id}`" label="审核备注">
+          <UInput
+            v-model="writeupRemarkDrafts[activeWriteupReviewEntry.team_id]"
+            class="w-full"
+            placeholder="可选，例如：请补充关键截图"
+          />
+        </UFormField>
+      </div>
+    </template>
+
+    <template #footer="{ close }">
+      <UButton
+        variant="ghost"
+        :disabled="!!reviewingWriteupId"
+        @click="activeWriteupReviewTeamId = null; close()"
+      >
+        取消
+      </UButton>
+      <UButton
+        v-if="activeWriteupReviewEntry"
+        icon="i-lucide-file-check-2"
+        :loading="reviewingWriteupId === activeWriteupReviewEntry.team_id"
+        @click="reviewWriteup(activeWriteupReviewEntry.team_id)"
+      >
+        保存审核
       </UButton>
     </template>
   </UModal>
