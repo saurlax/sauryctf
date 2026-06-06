@@ -339,6 +339,8 @@ const announcementForm = reactive({
 const announcementSchema = z.object({
   content: z.string().trim().min(1, '请输入公告内容'),
 })
+const announcementMode = ref<'create' | 'edit'>('create')
+const activeAnnouncementId = ref<number | null>(null)
 
 const resourceFilters = reactive({
   gameKeyword: '',
@@ -2051,6 +2053,8 @@ function resetSelectedGameContext() {
   scoreboardFreezeTime.value = null
   selectedScoreboardDivision.value = ''
   announcementForm.content = ''
+  announcementMode.value = 'create'
+  activeAnnouncementId.value = null
 
   for (const key of Object.keys(participantStatusDrafts)) {
     delete participantStatusDrafts[Number(key)]
@@ -2064,6 +2068,24 @@ function resetSelectedGameContext() {
   for (const key of Object.keys(writeupRemarkDrafts)) {
     delete writeupRemarkDrafts[Number(key)]
   }
+}
+
+function resetAnnouncementDraft() {
+  announcementForm.content = ''
+  announcementMode.value = 'create'
+  activeAnnouncementId.value = null
+}
+
+function openCreateAnnouncementModal() {
+  resetAnnouncementDraft()
+  announcementModalOpen.value = true
+}
+
+function openEditAnnouncementModal(announcement: (typeof announcements.value)[number]) {
+  announcementMode.value = 'edit'
+  activeAnnouncementId.value = announcement.id
+  announcementForm.content = announcement.content
+  announcementModalOpen.value = true
 }
 
 async function createAnnouncement(payload: FormSubmitEvent<z.output<typeof announcementSchema>>) {
@@ -2080,7 +2102,7 @@ async function createAnnouncement(payload: FormSubmitEvent<z.output<typeof annou
       },
     })
     announcements.value = [created, ...announcements.value]
-    announcementForm.content = ''
+    resetAnnouncementDraft()
     announcementModalOpen.value = false
     toast.add({ title: '比赛公告已发布', color: 'success' })
   }
@@ -2197,6 +2219,32 @@ async function confirmUpdateParticipantStatus() {
   }
   finally {
     updatingParticipantId.value = null
+  }
+}
+
+async function updateAnnouncement(payload: FormSubmitEvent<z.output<typeof announcementSchema>>) {
+  if (!attachForm.game_id || !activeAnnouncementId.value) {
+    return
+  }
+
+  announcementSubmitting.value = true
+  try {
+    const updated = await $fetch<(typeof announcements.value)[number]>(`/api/admin/games/${attachForm.game_id}/announcements/${activeAnnouncementId.value}`, {
+      method: 'PUT',
+      body: {
+        content: payload.data.content,
+      },
+    })
+    announcements.value = announcements.value.map(item => item.id === updated.id ? updated : item)
+    resetAnnouncementDraft()
+    announcementModalOpen.value = false
+    toast.add({ title: '比赛公告已更新', color: 'success' })
+  }
+  catch (e: any) {
+    toast.add({ title: '更新比赛公告失败', description: e.data?.message || e.message, color: 'error' })
+  }
+  finally {
+    announcementSubmitting.value = false
   }
 }
 
@@ -5495,7 +5543,7 @@ onMounted(async () => {
                   icon="i-lucide-send"
                   size="sm"
                   variant="outline"
-                  @click="announcementModalOpen = true"
+                  @click="openCreateAnnouncementModal"
                 >
                   发布公告
                 </UButton>
@@ -5521,6 +5569,14 @@ onMounted(async () => {
                         {{ announcement.content }}
                       </div>
                     </div>
+                    <UButton
+                      variant="soft"
+                      size="sm"
+                      icon="i-lucide-pencil-line"
+                      @click="openEditAnnouncementModal(announcement)"
+                    >
+                      编辑
+                    </UButton>
                     <UButton
                       color="error"
                       variant="soft"
@@ -6229,23 +6285,27 @@ onMounted(async () => {
 
   <UModal
     v-model:open="announcementModalOpen"
-    title="发布公告"
-    description="向当前比赛发布赛时通知、规则补充或维护说明。"
+    :title="announcementMode === 'edit' ? '编辑公告' : '发布公告'"
+    :description="announcementMode === 'edit'
+      ? '更新当前比赛公告的正文内容。'
+      : '向当前比赛发布赛时通知、规则补充或维护说明。'"
     :dismissible="!announcementSubmitting"
     :ui="{ body: 'space-y-4', footer: 'justify-end' }"
   >
     <template #body>
       <UForm
-        id="create-announcement-form"
+        id="announcement-form"
         :state="announcementForm"
         :schema="announcementSchema"
         class="space-y-3"
-        @submit="createAnnouncement"
+        @submit="announcementMode === 'edit' ? updateAnnouncement($event) : createAnnouncement($event)"
       >
         <UFormField
           label="公告内容"
           name="content"
-          description="用于发布开赛提醒、规则补充、实例维护通知或 Writeup 截止通知。"
+          :description="announcementMode === 'edit'
+            ? '用于修订已发布公告的正文内容。'
+            : '用于发布开赛提醒、规则补充、实例维护通知或 Writeup 截止通知。'"
         >
           <UTextarea
             v-model="announcementForm.content"
@@ -6259,17 +6319,21 @@ onMounted(async () => {
     </template>
 
     <template #footer="{ close }">
-      <UButton variant="ghost" :disabled="announcementSubmitting" @click="close()">
+      <UButton
+        variant="ghost"
+        :disabled="announcementSubmitting"
+        @click="close(); resetAnnouncementDraft()"
+      >
         取消
       </UButton>
       <UButton
         type="submit"
-        form="create-announcement-form"
-        icon="i-lucide-send"
+        form="announcement-form"
+        :icon="announcementMode === 'edit' ? 'i-lucide-save' : 'i-lucide-send'"
         :loading="announcementSubmitting"
         :disabled="announcementSubmitting"
       >
-        发布公告
+        {{ announcementMode === 'edit' ? '保存公告' : '发布公告' }}
       </UButton>
     </template>
   </UModal>

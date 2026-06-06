@@ -165,6 +165,18 @@ export interface paths {
     /** Export a game package (admin) */
     post: operations["exportAdminGamePackage"];
   };
+  "/api/admin/games/{id}/announcements": {
+    /** List game announcements (admin) */
+    get: operations["listAdminGameAnnouncements"];
+    /** Create a game announcement (admin) */
+    post: operations["createAdminGameAnnouncement"];
+  };
+  "/api/admin/games/{id}/announcements/{announcementId}": {
+    /** Update a game announcement (admin) */
+    put: operations["updateAdminGameAnnouncement"];
+    /** Delete a game announcement (admin) */
+    delete: operations["deleteAdminGameAnnouncement"];
+  };
   "/api/admin/games/{id}/challenges": {
     /** Get full mounted challenges for management (admin) */
     get: operations["getAdminGameChallenges"];
@@ -600,6 +612,20 @@ export interface components {
       /** @enum {string} */
       status: "approved" | "rejected";
       remark?: string;
+    };
+    CreateGameAnnouncementRequest: {
+      content: string;
+    };
+    UpdateGameAnnouncementRequest: {
+      content: string;
+    };
+    GameAnnouncement: {
+      id: number;
+      game_id: number;
+      content: string;
+      created_by: number;
+      /** Format: date-time */
+      created_at: string;
     };
     GameWriteup: {
       game_id: number;
@@ -1588,6 +1614,112 @@ export interface operations {
       200: {
         content: {
           "application/zip": string;
+        };
+      };
+    };
+  };
+  /** List game announcements (admin) */
+  listAdminGameAnnouncements: {
+    parameters: {
+      path: {
+        id: number;
+      };
+    };
+    responses: {
+      /** @description Announcement list */
+      200: {
+        content: {
+          "application/json": components["schemas"]["GameAnnouncement"][];
+        };
+      };
+      /** @description Not found */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /** Create a game announcement (admin) */
+  createAdminGameAnnouncement: {
+    parameters: {
+      path: {
+        id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateGameAnnouncementRequest"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        content: {
+          "application/json": components["schemas"]["GameAnnouncement"];
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Not found */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /** Update a game announcement (admin) */
+  updateAdminGameAnnouncement: {
+    parameters: {
+      path: {
+        id: number;
+        announcementId: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateGameAnnouncementRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        content: {
+          "application/json": components["schemas"]["GameAnnouncement"];
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Not found */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  /** Delete a game announcement (admin) */
+  deleteAdminGameAnnouncement: {
+    parameters: {
+      path: {
+        id: number;
+        announcementId: number;
+      };
+    };
+    responses: {
+      /** @description Deleted */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MessageResponse"];
         };
       };
     };

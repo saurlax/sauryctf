@@ -1473,6 +1473,48 @@ func (s *Service) CreateAnnouncement(gameID uint, createdBy uint, req CreateGame
 	}, nil
 }
 
+func (s *Service) UpdateAnnouncement(gameID uint, announcementID uint, updatedBy uint, req UpdateGameAnnouncementRequest) (*GameAnnouncementResponse, error) {
+	var game models.Game
+	if err := s.db.First(&game, gameID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("game not found")
+		}
+		return nil, err
+	}
+
+	var announcement models.GameAnnouncement
+	if err := s.db.Where("game_id = ? AND id = ?", gameID, announcementID).First(&announcement).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("announcement not found")
+		}
+		return nil, err
+	}
+
+	content, err := normalizeAnnouncementContent(req.Content)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.db.Model(&announcement).Update("content", content).Error; err != nil {
+		return nil, err
+	}
+	announcement.Content = content
+
+	if updatedBy > 0 {
+		if err := s.writeAuditLog(updatedBy, "admin.game.update_announcement", "game", game.ID, fmt.Sprintf("更新比赛 %s 的公告", game.Name), fmt.Sprintf(`{"announcement_id":%d,"content":%q}`, announcement.ID, announcement.Content)); err != nil {
+			return nil, err
+		}
+	}
+
+	return &GameAnnouncementResponse{
+		ID:        announcement.ID,
+		GameID:    announcement.GameID,
+		Content:   announcement.Content,
+		CreatedBy: announcement.CreatedBy,
+		CreatedAt: announcement.CreatedAt,
+	}, nil
+}
+
 func (s *Service) DeleteAnnouncement(gameID uint, announcementID uint, deletedBy ...uint) error {
 	var game models.Game
 	if err := s.db.First(&game, gameID).Error; err != nil {

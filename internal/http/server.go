@@ -68,15 +68,6 @@ func NewServer(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	admin.POST("/games/:id/submissions/export", func(c *gin.Context) {
 		handler.games.ExportSubmissionsPackage(c, mustIntParam(c, "id"))
 	})
-	admin.GET("/games/:id/announcements", func(c *gin.Context) {
-		handler.games.ListAnnouncements(c, mustIntParam(c, "id"))
-	})
-	admin.POST("/games/:id/announcements", func(c *gin.Context) {
-		handler.games.CreateAnnouncement(c, mustIntParam(c, "id"))
-	})
-	admin.DELETE("/games/:id/announcements/:announcementId", func(c *gin.Context) {
-		handler.games.DeleteAnnouncement(c, mustIntParam(c, "id"), mustIntParam(c, "announcementId"))
-	})
 	admin.GET("/games/:id/submissions", func(c *gin.Context) {
 		handler.games.ListSubmissionRecords(c, mustIntParam(c, "id"))
 	})

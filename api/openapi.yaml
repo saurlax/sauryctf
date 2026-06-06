@@ -839,6 +839,36 @@ components:
         remark:
           type: string
 
+    CreateGameAnnouncementRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+
+    UpdateGameAnnouncementRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+
+    GameAnnouncement:
+      type: object
+      required: [id, game_id, content, created_by, created_at]
+      properties:
+        id:
+          type: integer
+        game_id:
+          type: integer
+        content:
+          type: string
+        created_by:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
     GameWriteup:
       type: object
       required: [game_id, team_id, team_name, submitted_by, content, status, review_remark, submitted_at, can_submit]
@@ -2104,6 +2134,142 @@ paths:
               schema:
                 type: string
                 format: binary
+
+  /api/admin/games/{id}/announcements:
+    get:
+      operationId: listAdminGameAnnouncements
+      summary: List game announcements (admin)
+      tags: [games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Announcement list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GameAnnouncement"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      operationId: createAdminGameAnnouncement
+      summary: Create a game announcement (admin)
+      tags: [games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGameAnnouncementRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameAnnouncement"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/admin/games/{id}/announcements/{announcementId}:
+    put:
+      operationId: updateAdminGameAnnouncement
+      summary: Update a game announcement (admin)
+      tags: [games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: announcementId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateGameAnnouncementRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameAnnouncement"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      operationId: deleteAdminGameAnnouncement
+      summary: Delete a game announcement (admin)
+      tags: [games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: announcementId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
 
   /api/admin/games/{id}/challenges:
     get:

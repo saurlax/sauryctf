@@ -717,6 +717,11 @@ type CreateChallengeRequestDifficulty string
 // CreateChallengeRequestType defines model for CreateChallengeRequest.Type.
 type CreateChallengeRequestType string
 
+// CreateGameAnnouncementRequest defines model for CreateGameAnnouncementRequest.
+type CreateGameAnnouncementRequest struct {
+	Content string `json:"content"`
+}
+
 // CreateGameRequest defines model for CreateGameRequest.
 type CreateGameRequest struct {
 	Description        *string                            `json:"description,omitempty"`
@@ -776,6 +781,15 @@ type GameRegistrationMode string
 
 // GameStatus defines model for Game.Status.
 type GameStatus string
+
+// GameAnnouncement defines model for GameAnnouncement.
+type GameAnnouncement struct {
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+	CreatedBy int       `json:"created_by"`
+	GameId    int       `json:"game_id"`
+	Id        int       `json:"id"`
+}
 
 // GameChallengeDetail defines model for GameChallengeDetail.
 type GameChallengeDetail struct {
@@ -1025,6 +1039,11 @@ type UpdateChallengeRequest struct {
 	Type          *string  `json:"type,omitempty"`
 }
 
+// UpdateGameAnnouncementRequest defines model for UpdateGameAnnouncementRequest.
+type UpdateGameAnnouncementRequest struct {
+	Content string `json:"content"`
+}
+
 // UpdateGameRequest defines model for UpdateGameRequest.
 type UpdateGameRequest struct {
 	Description        *string                            `json:"description,omitempty"`
@@ -1129,6 +1148,12 @@ type UploadChallengeAttachmentMultipartRequestBody UploadChallengeAttachmentMult
 // ImportAdminGamePackageMultipartRequestBody defines body for ImportAdminGamePackage for multipart/form-data ContentType.
 type ImportAdminGamePackageMultipartRequestBody ImportAdminGamePackageMultipartBody
 
+// CreateAdminGameAnnouncementJSONRequestBody defines body for CreateAdminGameAnnouncement for application/json ContentType.
+type CreateAdminGameAnnouncementJSONRequestBody = CreateGameAnnouncementRequest
+
+// UpdateAdminGameAnnouncementJSONRequestBody defines body for UpdateAdminGameAnnouncement for application/json ContentType.
+type UpdateAdminGameAnnouncementJSONRequestBody = UpdateGameAnnouncementRequest
+
 // UpdateAdminGameWriteupJSONRequestBody defines body for UpdateAdminGameWriteup for application/json ContentType.
 type UpdateAdminGameWriteupJSONRequestBody = ReviewGameWriteupRequest
 
@@ -1200,6 +1225,18 @@ type ServerInterface interface {
 	// Delete a game and its game-scoped relations (admin)
 	// (DELETE /api/admin/games/{id})
 	DeleteAdminGame(c *gin.Context, id int)
+	// List game announcements (admin)
+	// (GET /api/admin/games/{id}/announcements)
+	ListAdminGameAnnouncements(c *gin.Context, id int)
+	// Create a game announcement (admin)
+	// (POST /api/admin/games/{id}/announcements)
+	CreateAdminGameAnnouncement(c *gin.Context, id int)
+	// Delete a game announcement (admin)
+	// (DELETE /api/admin/games/{id}/announcements/{announcementId})
+	DeleteAdminGameAnnouncement(c *gin.Context, id int, announcementId int)
+	// Update a game announcement (admin)
+	// (PUT /api/admin/games/{id}/announcements/{announcementId})
+	UpdateAdminGameAnnouncement(c *gin.Context, id int, announcementId int)
 	// Get full mounted challenges for management (admin)
 	// (GET /api/admin/games/{id}/challenges)
 	GetAdminGameChallenges(c *gin.Context, id int)
@@ -1458,6 +1495,132 @@ func (siw *ServerInterfaceWrapper) DeleteAdminGame(c *gin.Context) {
 	}
 
 	siw.Handler.DeleteAdminGame(c, id)
+}
+
+// ListAdminGameAnnouncements operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminGameAnnouncements(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAdminGameAnnouncements(c, id)
+}
+
+// CreateAdminGameAnnouncement operation middleware
+func (siw *ServerInterfaceWrapper) CreateAdminGameAnnouncement(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateAdminGameAnnouncement(c, id)
+}
+
+// DeleteAdminGameAnnouncement operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminGameAnnouncement(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "announcementId" -------------
+	var announcementId int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "announcementId", c.Param("announcementId"), &announcementId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter announcementId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteAdminGameAnnouncement(c, id, announcementId)
+}
+
+// UpdateAdminGameAnnouncement operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminGameAnnouncement(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "announcementId" -------------
+	var announcementId int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "announcementId", c.Param("announcementId"), &announcementId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter announcementId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateAdminGameAnnouncement(c, id, announcementId)
 }
 
 // GetAdminGameChallenges operation middleware
@@ -2731,6 +2894,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/api/admin/challenges/attachments", wrapper.UploadChallengeAttachment)
 	router.POST(options.BaseURL+"/api/admin/games/import", wrapper.ImportAdminGamePackage)
 	router.DELETE(options.BaseURL+"/api/admin/games/:id", wrapper.DeleteAdminGame)
+	router.GET(options.BaseURL+"/api/admin/games/:id/announcements", wrapper.ListAdminGameAnnouncements)
+	router.POST(options.BaseURL+"/api/admin/games/:id/announcements", wrapper.CreateAdminGameAnnouncement)
+	router.DELETE(options.BaseURL+"/api/admin/games/:id/announcements/:announcementId", wrapper.DeleteAdminGameAnnouncement)
+	router.PUT(options.BaseURL+"/api/admin/games/:id/announcements/:announcementId", wrapper.UpdateAdminGameAnnouncement)
 	router.GET(options.BaseURL+"/api/admin/games/:id/challenges", wrapper.GetAdminGameChallenges)
 	router.POST(options.BaseURL+"/api/admin/games/:id/export", wrapper.ExportAdminGamePackage)
 	router.GET(options.BaseURL+"/api/admin/games/:id/instances", wrapper.GetAdminGameInstances)

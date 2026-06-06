@@ -586,6 +586,27 @@ func (m *MockService) CreateAnnouncement(gameID uint, createdBy uint, req Create
 	return &announcement, nil
 }
 
+func (m *MockService) UpdateAnnouncement(gameID uint, announcementID uint, _ uint, req UpdateGameAnnouncementRequest) (*GameAnnouncementResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	content := strings.TrimSpace(req.Content)
+	if content == "" {
+		return nil, fmt.Errorf("announcement content is required")
+	}
+
+	items := m.Announcements[gameID]
+	for index, item := range items {
+		if item.ID == announcementID {
+			item.Content = content
+			m.Announcements[gameID][index] = item
+			return &item, nil
+		}
+	}
+
+	return nil, fmt.Errorf("announcement not found")
+}
+
 func (m *MockService) DeleteAnnouncement(gameID uint, announcementID uint, _ ...uint) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

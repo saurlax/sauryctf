@@ -1082,6 +1082,18 @@ func TestService_AnnouncementCRUD(t *testing.T) {
 	assert.Equal(t, second.ID, items[0].ID)
 	assert.Equal(t, first.ID, items[1].ID)
 
+	updated, err := svc.UpdateAnnouncement(gameID, first.ID, 1, games.UpdateGameAnnouncementRequest{
+		Content: "比赛将在 10 分钟后开放平台。",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "比赛将在 10 分钟后开放平台。", updated.Content)
+
+	items, err = svc.ListAnnouncements(gameID)
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+	assert.Equal(t, second.ID, items[0].ID)
+	assert.Equal(t, "比赛将在 10 分钟后开放平台。", items[1].Content)
+
 	require.NoError(t, svc.DeleteAnnouncement(gameID, first.ID, 1))
 
 	items, err = svc.ListAnnouncements(gameID)
@@ -1091,10 +1103,11 @@ func TestService_AnnouncementCRUD(t *testing.T) {
 
 	var logs []models.AuditLog
 	require.NoError(t, database.Order("id ASC").Find(&logs).Error)
-	require.Len(t, logs, 3)
+	require.Len(t, logs, 4)
 	assert.Equal(t, "admin.game.create_announcement", logs[0].Action)
 	assert.Equal(t, "admin.game.create_announcement", logs[1].Action)
-	assert.Equal(t, "admin.game.delete_announcement", logs[2].Action)
+	assert.Equal(t, "admin.game.update_announcement", logs[2].Action)
+	assert.Equal(t, "admin.game.delete_announcement", logs[3].Action)
 }
 
 func TestService_RemoveChallenge_WritesAuditLog(t *testing.T) {

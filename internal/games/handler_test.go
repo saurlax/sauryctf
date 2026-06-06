@@ -80,6 +80,12 @@ func setupTestRouter(svc games.ServiceInterface) *gin.Engine {
 		fmt.Sscan(c.Param("id"), &id)
 		h.CreateAnnouncement(c, id)
 	})
+	api.PUT("/admin/games/:id/announcements/:announcementId", func(c *gin.Context) {
+		var id, announcementId int
+		fmt.Sscan(c.Param("id"), &id)
+		fmt.Sscan(c.Param("announcementId"), &announcementId)
+		h.UpdateAnnouncement(c, id, announcementId)
+	})
 	api.DELETE("/admin/games/:id/announcements/:announcementId", func(c *gin.Context) {
 		var id, announcementId int
 		fmt.Sscan(c.Param("id"), &id)
@@ -885,6 +891,34 @@ func TestDeleteAnnouncement_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Empty(t, svc.Announcements[1])
+}
+
+func TestUpdateAnnouncement_Success(t *testing.T) {
+	svc := games.NewMockService()
+	r := setupTestRouter(svc)
+
+	public := true
+	_, _ = svc.CreateGame(games.CreateGameRequest{
+		Name: "Announcement Game", StartTime: time.Now(), EndTime: time.Now().Add(time.Hour), IsPublic: &public,
+	}, 1)
+	svc.Announcements[1] = []games.GameAnnouncementResponse{
+		{ID: 1, GameID: 1, Content: "旧公告", CreatedBy: 1, CreatedAt: time.Now()},
+	}
+
+	body := map[string]any{"content": "更新后的公告"}
+	b, _ := json.Marshal(body)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/admin/games/1/announcements/1", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]any
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "更新后的公告", response["content"])
+	assert.Equal(t, "更新后的公告", svc.Announcements[1][0].Content)
 }
 
 func TestGetAdminDashboardSummary_Success(t *testing.T) {

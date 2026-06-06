@@ -204,6 +204,34 @@ func (h *Handler) DeleteGame(c *gin.Context, id int) {
 func (h *Handler) DeleteAdminGame(c *gin.Context, id int) {
 	h.DeleteGame(c, id)
 }
+func (h *Handler) ListAdminGameAnnouncements(c *gin.Context, id int) {
+	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
+	if c.IsAborted() {
+		return
+	}
+	h.games.ListAnnouncements(c, id)
+}
+func (h *Handler) CreateAdminGameAnnouncement(c *gin.Context, id int) {
+	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
+	if c.IsAborted() {
+		return
+	}
+	h.games.CreateAnnouncement(c, id)
+}
+func (h *Handler) UpdateAdminGameAnnouncement(c *gin.Context, id int, announcementId int) {
+	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
+	if c.IsAborted() {
+		return
+	}
+	h.games.UpdateAnnouncement(c, id, announcementId)
+}
+func (h *Handler) DeleteAdminGameAnnouncement(c *gin.Context, id int, announcementId int) {
+	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
+	if c.IsAborted() {
+		return
+	}
+	h.games.DeleteAnnouncement(c, id, announcementId)
+}
 func (h *Handler) ExportGamePackage(c *gin.Context, id int) {
 	rbac.RequireRole(models.RoleAdmin, models.RoleSuperAdmin)(c)
 	if c.IsAborted() {

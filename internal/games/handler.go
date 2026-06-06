@@ -233,6 +233,30 @@ func (h *Handler) CreateAnnouncement(c *gin.Context, id int) {
 	c.JSON(http.StatusCreated, announcement)
 }
 
+func (h *Handler) UpdateAnnouncement(c *gin.Context, id int, announcementId int) {
+	var req UpdateGameAnnouncementRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+
+	userID := c.MustGet("user_id").(uint)
+	announcement, err := h.svc.UpdateAnnouncement(uint(id), uint(announcementId), userID, req)
+	if err != nil {
+		switch err.Error() {
+		case "game not found", "announcement not found":
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		case "announcement content is required":
+			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, announcement)
+}
+
 func (h *Handler) DeleteAnnouncement(c *gin.Context, id int, announcementId int) {
 	userID := c.MustGet("user_id").(uint)
 	if err := h.svc.DeleteAnnouncement(uint(id), uint(announcementId), userID); err != nil {

@@ -81,6 +81,7 @@ type ServiceInterface interface {
 	ExportSubmissionsPackage(id uint, exportedBy ...uint) ([]byte, string, error)
 	ListAnnouncements(gameID uint) ([]GameAnnouncementResponse, error)
 	CreateAnnouncement(gameID uint, createdBy uint, req CreateGameAnnouncementRequest) (*GameAnnouncementResponse, error)
+	UpdateAnnouncement(gameID uint, announcementID uint, updatedBy uint, req UpdateGameAnnouncementRequest) (*GameAnnouncementResponse, error)
 	DeleteAnnouncement(gameID uint, announcementID uint, deletedBy ...uint) error
 	ListSubmissionRecords(gameID uint, submissionType string, limit int) ([]GameSubmissionRecord, error)
 	ListSubmissionCheatClues(gameID uint, limit int) ([]GameSubmissionCheatClue, error)
@@ -321,6 +322,10 @@ type ReviewGameWriteupRequest struct {
 }
 
 type CreateGameAnnouncementRequest struct {
+	Content string `json:"content" binding:"required"`
+}
+
+type UpdateGameAnnouncementRequest struct {
 	Content string `json:"content" binding:"required"`
 }
 
