@@ -8,6 +8,7 @@ import type { components } from '~/types/api'
 const { authState, ensureInitialized } = useAuth()
 const toast = useToast()
 const { data: setupStatus, refresh: refreshSetupStatus } = await useAPI('auth-setup-status', 'get', '/api/auth/setup-status')
+const { resolveParticipationMeta } = usePublicGameParticipationState()
 
 interface TeamSummary {
   id: number
@@ -34,6 +35,7 @@ interface GameSummary {
 }
 
 type GameParticipation = components['schemas']['GameParticipation']
+type PublicGamePhase = 'draft' | 'before_start' | 'active' | 'ended'
 
 interface AdminParticipantEntry {
   team_id: number
@@ -155,6 +157,7 @@ const nextGame = computed(() => {
 })
 
 const showPasswordSecurityNotice = computed(() => !!setupStatus.value?.password_change_recommended)
+const now = ref(Date.now())
 
 const stats = computed(() => [
   { label: '我的队伍', value: team.value?.name || '未加入', icon: 'i-lucide-users' },
@@ -431,97 +434,77 @@ const statusItems = computed(() => {
   return items
 })
 
-function getParticipationMeta(game: GameSummary) {
-  const participation = participationMap.value[game.id]
+function getGamePhase(game: GameSummary): PublicGamePhase {
+  if (game.status === 'draft') {
+    return 'draft'
+  }
+
+  const startAt = new Date(game.start_time).getTime()
+  const endAt = new Date(game.end_time).getTime()
+
+  if (now.value < startAt) {
+    return 'before_start'
+  }
+
+  if (now.value > endAt || game.status === 'ended') {
+    return 'ended'
+  }
+
+  return 'active'
+}
+
+function getParticipationPriority(game: GameSummary, participation: GameParticipation | undefined) {
+  const phase = getGamePhase(game)
 
   if (!team.value) {
-    return {
-      label: '未加入队伍',
-      color: 'warning' as const,
-      description: '先创建或加入队伍，之后才能报名比赛。',
-      actionLabel: '去队伍页',
-      actionTo: '/console/team',
-      priority: 5,
-    }
+    return 5
   }
 
-  if (!participation?.participated) {
-    if (game.status === 'ended') {
-      return {
-        label: '比赛已结束',
-        color: 'neutral' as const,
-        description: '当前无法再报名，但仍可查看题目与排行榜。',
-        actionLabel: '查看详情',
-        actionTo: `/games/${game.id}`,
-        priority: 1,
-      }
-    }
-
-    return {
-      label: '尚未报名',
-      color: 'info' as const,
-      description: game.registration_mode === 'auto_accept'
-        ? '进入详情页后可直接完成报名并获得参赛资格。'
-        : '进入详情页后可提交报名，等待管理员审核。',
-      actionLabel: '前往报名',
-      actionTo: `/games/${game.id}`,
-      priority: 4,
-    }
+  if (participation?.missing_writeup) {
+    return 10
   }
 
-  if (participation.missing_writeup) {
-    return {
-      label: '待补 Writeup',
-      color: 'warning' as const,
-      description: '当前队伍已通过比赛报名，但还需要在截止前补交 Writeup。',
-      actionLabel: '前往补交',
-      actionTo: `/games/${game.id}`,
-      priority: 10,
-    }
+  if (participation?.status === 'pending') {
+    return 8
   }
 
-  if (participation.status === 'pending') {
-    return {
-      label: '待审核',
-      color: 'warning' as const,
-      description: '报名已提交，等待管理员审核通过。',
-      actionLabel: '查看详情',
-      actionTo: `/games/${game.id}`,
-      priority: 8,
-    }
+  if (participation?.status === 'rejected') {
+    return 7
   }
 
-  if (participation.status === 'rejected') {
-    return {
-      label: '已拒绝',
-      color: 'error' as const,
-      description: '这场比赛的报名未通过，可以进入详情页重新确认。',
-      actionLabel: '查看详情',
-      actionTo: `/games/${game.id}`,
-      priority: 7,
-    }
+  if (participation?.writeup_required && participation?.writeup_submitted && participation?.writeup_status === 'submitted') {
+    return 6
   }
 
-  if (participation.writeup_required && participation.writeup_submitted && participation.writeup_status === 'submitted') {
-    return {
-      label: 'Writeup 待审核',
-      color: 'info' as const,
-      description: 'Writeup 已提交，等待管理员审核。',
-      actionLabel: '查看详情',
-      actionTo: `/games/${game.id}`,
-      priority: 6,
-    }
+  if (participation?.participated) {
+    return phase === 'active' || (phase === 'ended' && game.practice_mode) ? 9 : 3
   }
+
+  if (phase === 'ended') {
+    return 1
+  }
+
+  return 4
+}
+
+function getParticipationMeta(game: GameSummary) {
+  const participation = participationMap.value[game.id]
+  const redirect = encodeURIComponent(`/games/${game.id}`)
+  const meta = resolveParticipationMeta({
+    gameId: game.id,
+    gamePhase: getGamePhase(game),
+    practiceMode: game.practice_mode,
+    isLoggedIn: !!authState.user,
+    participation,
+    registrationMode: game.registration_mode,
+    loginTo: `/login?redirect=${redirect}`,
+    registerTo: `/register?redirect=${redirect}`,
+    teamTo: `/console/team?redirect=${redirect}`,
+  })
 
   return {
-    label: '已报名',
-    color: 'success' as const,
-    description: game.status === 'active'
-      ? '当前队伍已拥有参赛资格，可以直接进入比赛。'
-      : '当前队伍已报名这场比赛，可继续关注比赛状态。',
-    actionLabel: game.status === 'active' ? '进入比赛' : '查看详情',
-    actionTo: `/games/${game.id}`,
-    priority: game.status === 'active' ? 9 : 3,
+    ...meta,
+    priority: getParticipationPriority(game, participation),
   }
 }
 
@@ -529,7 +512,7 @@ const myGameEntries = computed(() =>
   games.value
     .filter(game => {
       const participation = participationMap.value[game.id]
-      return Boolean(team.value) && Boolean(participation?.participated || game.status !== 'ended')
+      return Boolean(team.value) && Boolean(participation?.participated || getGamePhase(game) !== 'ended')
     })
     .map(game => ({
       game,
