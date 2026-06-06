@@ -674,7 +674,7 @@ function getInstancePolicyHint(challengeId: number) {
       return `当前实例采用 ${leaseDuration} 分钟初始租约，只有在到期前 ${renewalWindow} 分钟内才开放续期；每次成功续期会额外追加 ${extensionDuration} 分钟。当前每支队伍最多同时保留 ${teamActiveLimit} 个运行中实例。`
     }
 
-    return `首次启动会创建 ${leaseDuration} 分钟初始租约；之后每次成功续期会额外追加 ${extensionDuration} 分钟，并且只有在到期前 ${renewalWindow} 分钟内开放续期。当前每支队伍最多同时保留 ${teamActiveLimit} 个运行中实例。`
+    return `首次申请会创建 ${leaseDuration} 分钟初始租约；之后每次成功续期会额外追加 ${extensionDuration} 分钟，并且只有在到期前 ${renewalWindow} 分钟内开放续期。当前每支队伍最多同时保留 ${teamActiveLimit} 个运行中实例。`
   }
 
   if (state?.status === 'running') {
@@ -685,7 +685,7 @@ function getInstancePolicyHint(challengeId: number) {
     return state.message || '当前实例还未进入续期窗口；只有接近到期时才开放续期。'
   }
 
-  return '首次启动会创建一段初始租约；之后的续期会按当前实例策略额外追加新的时长。'
+  return '首次申请会创建一段初始租约；之后的续期会按当前实例策略额外追加新的时长。'
 }
 
 function getManagedInstanceMeta(challenge: GameChallengeDetail) {

@@ -98,6 +98,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - If a page already has modal-based create/edit flows, do not keep a second full inline version of the same form in the main page body unless there is a clear operational reason.
 - User-facing page copy should stay formal and product-oriented; avoid temporary notes, onboarding-style placeholders, and testing slang in visible UI text.
 - Public pages, login/register pages, and console home should not carry setup-wizard or initialization-style panels. Empty-state handling should stay minimal and operational.
+- Page-owned `UModal` blocks are commonly declared near the end of a page template. Treat that as implementation structure, not as leaving a dialog inline in the visible page body.
 - The public home page should function as a concise platform entry, not a marketing-style feature showcase; prefer direct access cards and current actions over large capability grids.
 - The no-team view at `/console/team` should keep a single primary entry card plus one concise rules/boundary card; avoid stacking multiple alerts and repeated status summaries for the same create/join flow.
 - On `/console/team`, invite-context, next-step, and no-team entry notices should prefer compact summary cards with actions instead of full-width `UAlert` blocks when they are mainly restating current state and available navigation.

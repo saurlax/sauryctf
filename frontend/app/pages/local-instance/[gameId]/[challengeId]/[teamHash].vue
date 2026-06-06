@@ -174,7 +174,7 @@ function getPolicyHint() {
     return `当前实例采用 ${policy.lease_duration_minutes} 分钟初始租约；只有在到期前 ${policy.renewal_window_minutes} 分钟内才开放续期。每支队伍最多同时保留 ${policy.team_active_limit} 个运行中实例。`
   }
 
-  return `首次启动会创建 ${policy.lease_duration_minutes} 分钟初始租约；后续每次成功续期会额外追加 ${policy.extension_duration_minutes} 分钟。`
+  return `首次申请会创建 ${policy.lease_duration_minutes} 分钟初始租约；后续每次成功续期会额外追加 ${policy.extension_duration_minutes} 分钟。`
 }
 
 function getPrimaryActionLabel() {
