@@ -13,11 +13,7 @@ const toast = useToast()
 const submitting = ref(false)
 
 const redirectTarget = computed(() => {
-  const redirect = route.query.redirect
-  if (typeof redirect === 'string' && redirect.startsWith('/')) {
-    return redirect
-  }
-  return '/console/team'
+  return resolveAuthRedirect(route.query.redirect, '/console/team')
 })
 
 const registerSchema = z.object({
@@ -55,12 +51,11 @@ async function onRegister(payload: FormSubmitEvent<RegisterSchema>) {
 }
 
 function resolveRedirect() {
-  const redirect = route.query.redirect
-  if (typeof redirect === 'string' && redirect.startsWith('/')) {
+  if (isSafeAuthRedirect(route.query.redirect)) {
     return {
       path: '/console/team',
       query: {
-        redirect,
+        redirect: route.query.redirect,
       },
     }
   }
@@ -70,12 +65,7 @@ function resolveRedirect() {
 }
 
 const loginTo = computed(() => {
-  const redirect = route.query.redirect
-  if (typeof redirect === 'string' && redirect.startsWith('/')) {
-    return `/login?redirect=${encodeURIComponent(redirect)}`
-  }
-
-  return '/login'
+  return buildAuthEntryPath('/login', redirectTarget.value)
 })
 </script>
 

@@ -9,8 +9,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return
   }
 
-  const redirect = to.query.redirect
-  if (typeof redirect === 'string' && redirect.startsWith('/')) {
+  const redirect = resolveOptionalAuthRedirect(to.query.redirect)
+  if (redirect) {
     return navigateTo(redirect)
   }
 

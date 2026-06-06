@@ -13,12 +13,7 @@ const toast = useToast()
 const submitting = ref(false)
 
 const redirectTarget = computed(() => {
-  const redirect = route.query.redirect
-  if (typeof redirect === 'string' && redirect.startsWith('/')) {
-    return redirect
-  }
-
-  return '/console'
+  return resolveAuthRedirect(route.query.redirect, '/console')
 })
 
 const loginSchema = z.object({
@@ -48,12 +43,7 @@ function resolveRedirect() {
 }
 
 const registerTo = computed(() => {
-  const redirect = route.query.redirect
-  if (typeof redirect === 'string' && redirect.startsWith('/')) {
-    return `/register?redirect=${encodeURIComponent(redirect)}`
-  }
-
-  return '/register'
+  return buildAuthEntryPath('/register', redirectTarget.value)
 })
 
 const state = reactive<Partial<LoginSchema>>({

@@ -15,19 +15,14 @@ const items = computed(() => {
 
 const authRedirect = computed(() => {
   if (route.path === '/login' || route.path === '/register') {
-    const redirect = route.query.redirect
-    if (typeof redirect === 'string' && redirect.startsWith('/')) {
-      return redirect
-    }
-
-    return '/console'
+    return resolveAuthRedirect(route.query.redirect, '/console')
   }
 
   return route.fullPath
 })
 
-const loginTo = computed(() => `/login?redirect=${encodeURIComponent(authRedirect.value)}`)
-const registerTo = computed(() => `/register?redirect=${encodeURIComponent(authRedirect.value)}`)
+const loginTo = computed(() => buildAuthEntryPath('/login', authRedirect.value))
+const registerTo = computed(() => buildAuthEntryPath('/register', authRedirect.value))
 </script>
 
 <template>

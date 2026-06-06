@@ -110,7 +110,7 @@ const joinInviteFromRoute = computed(() => {
   const invite = route.query.invite
   return typeof invite === 'string' ? invite.trim() : ''
 })
-const contestRedirect = computed(() => resolveRedirect())
+const contestRedirect = computed(() => resolveOptionalAuthRedirect(route.query.redirect))
 const inviteFlowMeta = computed(() => {
   if (!joinInviteFromRoute.value && !contestRedirect.value) {
     return null
@@ -375,14 +375,6 @@ const teamManagementHint = computed(() => {
 
   return '你当前可继续参赛；如需离开队伍，可直接使用下方退出按钮，之后再加入其他队伍。'
 })
-
-function resolveRedirect() {
-  const redirect = route.query.redirect
-  if (typeof redirect === 'string' && redirect.startsWith('/')) {
-    return redirect
-  }
-  return ''
-}
 
 async function navigateBackToContestIfNeeded() {
   if (!contestRedirect.value) {
