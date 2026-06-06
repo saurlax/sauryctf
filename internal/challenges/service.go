@@ -2,10 +2,12 @@ package challenges
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
 
+	"github.com/saurlax/sauryctf/internal/audit"
 	"github.com/saurlax/sauryctf/internal/models"
 	"github.com/saurlax/sauryctf/internal/scoring"
 )
@@ -67,6 +69,9 @@ func (s *Service) CreateChallenge(req CreateChallengeRequest, createdBy uint) (*
 	).Create(ch).Error; err != nil {
 		return nil, err
 	}
+	if err := s.writeAuditLog(createdBy, "admin.challenge.create", "challenge", ch.ID, fmt.Sprintf("创建题目 %s", ch.Title), fmt.Sprintf(`{"category":"%s","type":"%s"}`, ch.Category, ch.Type)); err != nil {
+		return nil, err
+	}
 	return ch, nil
 }
 
@@ -96,7 +101,7 @@ func (s *Service) ListChallenges(category string, showHidden bool) ([]models.Cha
 	return challenges, nil
 }
 
-func (s *Service) UpdateChallenge(id uint, req UpdateChallengeRequest) (*models.Challenge, error) {
+func (s *Service) UpdateChallenge(id uint, req UpdateChallengeRequest, updatedBy ...uint) (*models.Challenge, error) {
 	ch, err := s.GetChallenge(id)
 	if err != nil {
 		return nil, err
@@ -155,15 +160,65 @@ func (s *Service) UpdateChallenge(id uint, req UpdateChallengeRequest) (*models.
 		}
 	}
 
-	return s.GetChallenge(id)
+	updated, err := s.GetChallenge(id)
+	if err != nil {
+		return nil, err
+	}
+	if actorUserID := firstActorID(updatedBy...); actorUserID > 0 {
+		if err := s.writeAuditLog(actorUserID, "admin.challenge.update", "challenge", updated.ID, fmt.Sprintf("更新题目 %s", updated.Title), fmt.Sprintf(`{"category":"%s","type":"%s","visible":%t}`, updated.Category, updated.Type, updated.IsVisible)); err != nil {
+			return nil, err
+		}
+	}
+
+	return updated, nil
 }
 
-func (s *Service) DeleteChallenge(id uint) error {
+func (s *Service) DeleteChallenge(id uint, deletedBy ...uint) error {
+	ch, err := s.GetChallenge(id)
+	if err != nil {
+		return err
+	}
+
 	result := s.db.Delete(&models.Challenge{}, id)
 	if result.RowsAffected == 0 {
 		return errors.New("challenge not found")
 	}
-	return result.Error
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if actorUserID := firstActorID(deletedBy...); actorUserID > 0 {
+		return s.writeAuditLog(actorUserID, "admin.challenge.delete", "challenge", ch.ID, fmt.Sprintf("删除题目 %s", ch.Title), fmt.Sprintf(`{"category":"%s","type":"%s"}`, ch.Category, ch.Type))
+	}
+
+	return nil
+}
+
+func (s *Service) writeAuditLog(actorUserID uint, action string, targetType string, targetID uint, summary string, detail string) error {
+	var actor models.User
+	if err := s.db.Select("id", "username").First(&actor, actorUserID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+
+	return audit.CreateLog(s.db, audit.LogEntry{
+		ActorUserID:   actor.ID,
+		ActorUsername: actor.Username,
+		Action:        action,
+		TargetType:    targetType,
+		TargetID:      targetID,
+		Summary:       summary,
+		Detail:        detail,
+	})
+}
+
+func firstActorID(actorUserIDs ...uint) uint {
+	if len(actorUserIDs) == 0 {
+		return 0
+	}
+	return actorUserIDs[0]
 }
 
 func (s *Service) SubmitFlag(challengeID uint, gameID uint, userID uint, teamID uint, flag string) (*SubmitResult, error) {

@@ -89,7 +89,8 @@ func (h *Handler) UpdateGame(c *gin.Context, id int) {
 		}
 	}
 
-	game, err := h.svc.UpdateGame(uint(id), req)
+	userID := c.MustGet("user_id").(uint)
+	game, err := h.svc.UpdateGame(uint(id), req, userID)
 	if err != nil {
 		switch err.Error() {
 		case "game not found":
@@ -105,7 +106,8 @@ func (h *Handler) UpdateGame(c *gin.Context, id int) {
 }
 
 func (h *Handler) DeleteGame(c *gin.Context, id int) {
-	if err := h.svc.DeleteGame(uint(id)); err != nil {
+	userID := c.MustGet("user_id").(uint)
+	if err := h.svc.DeleteGame(uint(id), userID); err != nil {
 		switch err.Error() {
 		case "game not found":
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
@@ -344,7 +346,8 @@ func (h *Handler) AddChallengeToGame(c *gin.Context, id int) {
 		return
 	}
 
-	if err := h.svc.AddChallenge(uint(id), req.ChallengeID, req.ScoreOverride); err != nil {
+	userID := c.MustGet("user_id").(uint)
+	if err := h.svc.AddChallenge(uint(id), req.ChallengeID, req.ScoreOverride, userID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}

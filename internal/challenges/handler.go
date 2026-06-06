@@ -59,7 +59,8 @@ func (h *Handler) UpdateChallenge(c *gin.Context, id int) {
 		return
 	}
 
-	ch, err := h.svc.UpdateChallenge(uint(id), req)
+	userID := c.MustGet("user_id").(uint)
+	ch, err := h.svc.UpdateChallenge(uint(id), req, userID)
 	if err != nil {
 		if err.Error() == "challenge not found" {
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
@@ -72,7 +73,8 @@ func (h *Handler) UpdateChallenge(c *gin.Context, id int) {
 }
 
 func (h *Handler) DeleteChallenge(c *gin.Context, id int) {
-	if err := h.svc.DeleteChallenge(uint(id)); err != nil {
+	userID := c.MustGet("user_id").(uint)
+	if err := h.svc.DeleteChallenge(uint(id), userID); err != nil {
 		if err.Error() == "challenge not found" {
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
 			return

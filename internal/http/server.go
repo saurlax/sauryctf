@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"github.com/saurlax/sauryctf/internal/audit"
 	"github.com/saurlax/sauryctf/internal/auth"
 	"github.com/saurlax/sauryctf/internal/challenges"
 	"github.com/saurlax/sauryctf/internal/config"
@@ -25,6 +26,7 @@ func NewServer(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 	// 初始化各模块服务和 handler
 	authSvc := auth.NewService(db, cfg.JWTSecret)
+	auditSvc := audit.NewService(db)
 	gameSvc := games.NewServiceWithOptions(db, instanceProvidersFromConfig(cfg), games.InstancePolicy{
 		LeaseDuration:     cfg.InstanceLeaseDuration,
 		ExtensionDuration: cfg.InstanceExtensionDuration,
@@ -32,6 +34,7 @@ func NewServer(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		TeamActiveLimit:   cfg.InstanceTeamActiveLimit,
 	})
 	handler := NewHandler(
+		audit.NewHandler(auditSvc),
 		auth.NewHandler(authSvc),
 		teams.NewHandler(teams.NewService(db)),
 		challenges.NewHandler(challenges.NewService(db)),
@@ -82,6 +85,9 @@ func NewServer(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	})
 	admin.GET("/dashboard/summary", func(c *gin.Context) {
 		handler.games.GetAdminDashboardSummary(c)
+	})
+	admin.GET("/audit-logs", func(c *gin.Context) {
+		handler.ListAdminAuditLogs(c)
 	})
 
 	engine.GET("/api/games/:id/announcements", func(c *gin.Context) {

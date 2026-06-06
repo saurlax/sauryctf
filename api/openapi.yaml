@@ -101,6 +101,30 @@ components:
           type: string
           enum: [active, banned]
 
+    AuditLog:
+      type: object
+      required: [id, actor_user_id, actor_username, action, target_type, target_id, summary, detail, created_at]
+      properties:
+        id:
+          type: integer
+        actor_user_id:
+          type: integer
+        actor_username:
+          type: string
+        action:
+          type: string
+        target_type:
+          type: string
+        target_id:
+          type: integer
+        summary:
+          type: string
+        detail:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
     AuthResponse:
       type: object
       required: [token, user]
@@ -2163,7 +2187,37 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/UserInfo"
+                $ref: "#/components/schemas/UserInfo"
+
+  /api/admin/audit-logs:
+    get:
+      operationId: listAdminAuditLogs
+      summary: List admin audit logs
+      tags: [auth]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: actor_user_id
+          in: query
+          schema:
+            type: integer
+        - name: target_type
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Audit log list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditLog"
 
   /api/admin/users/{userId}:
     put:

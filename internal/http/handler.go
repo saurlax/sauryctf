@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/saurlax/sauryctf/internal/audit"
 	"github.com/saurlax/sauryctf/internal/auth"
 	"github.com/saurlax/sauryctf/internal/challenges"
 	"github.com/saurlax/sauryctf/internal/games"
@@ -23,6 +24,7 @@ func requireAdminForExpandedGameAccess(c *gin.Context) bool {
 
 // Handler 聚合所有子模块 handler，实现 ServerInterface。
 type Handler struct {
+	audit      *audit.Handler
 	auth       *auth.Handler
 	teams      *teams.Handler
 	challenges *challenges.Handler
@@ -30,12 +32,14 @@ type Handler struct {
 }
 
 func NewHandler(
+	auditH *audit.Handler,
 	authH *auth.Handler,
 	teamsH *teams.Handler,
 	challengesH *challenges.Handler,
 	gamesH *games.Handler,
 ) *Handler {
 	return &Handler{
+		audit:      auditH,
 		auth:       authH,
 		teams:      teamsH,
 		challenges: challengesH,
@@ -66,6 +70,9 @@ func (h *Handler) ListAdminUsers(c *gin.Context) {
 }
 func (h *Handler) UpdateAdminUser(c *gin.Context, userId int) {
 	h.auth.UpdateUserAccount(c, userId)
+}
+func (h *Handler) ListAdminAuditLogs(c *gin.Context) {
+	h.audit.ListLogs(c)
 }
 func (h *Handler) GetAuthSetupStatus(c *gin.Context) {
 	h.auth.SetupStatus(c)

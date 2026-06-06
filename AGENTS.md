@@ -58,6 +58,9 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - Admin-facing copy has been tightened to stay product-oriented:
   - public pages and admin shortcuts no longer reference external projects in user-facing descriptions
   - quick-create entries are now described by contest capability (`基础比赛` / `动态实例比赛` / `容器实例比赛`) instead of validation slang
+- Admin audit logs are now minimally implemented:
+  - `/console/admin/audit` lists recent management actions for users, games, and challenges
+  - current recorded actions include create/update/delete flows for games and challenges, plus admin user updates and challenge mounting
 
 ## Frontend (`frontend/`)
 

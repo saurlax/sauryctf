@@ -124,7 +124,7 @@ func (m *MockService) ListGames(showAll bool) ([]GameResponse, error) {
 	return result, nil
 }
 
-func (m *MockService) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, error) {
+func (m *MockService) UpdateGame(id uint, req UpdateGameRequest, updatedBy ...uint) (*GameResponse, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -206,7 +206,7 @@ func (m *MockService) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse,
 	return game, nil
 }
 
-func (m *MockService) DeleteGame(id uint) error {
+func (m *MockService) DeleteGame(id uint, deletedBy ...uint) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -676,7 +676,7 @@ func (m *MockService) ImportGamePackage(data []byte, createdBy uint) (*GameRespo
 	return imported, nil
 }
 
-func (m *MockService) AddChallenge(gameID uint, challengeID uint, scoreOverride int) error {
+func (m *MockService) AddChallenge(gameID uint, challengeID uint, scoreOverride int, addedBy ...uint) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

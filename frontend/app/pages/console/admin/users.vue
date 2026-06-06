@@ -47,7 +47,7 @@ function syncDrafts() {
 async function loadUsers() {
   loading.value = true
   try {
-    users.value = await $api('get', '/api/admin/users')
+    users.value = await $fetch<UserInfo[]>('/api/admin/users')
     syncDrafts()
   }
   catch (e: any) {

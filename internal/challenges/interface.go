@@ -7,8 +7,8 @@ type ServiceInterface interface {
 	CreateChallenge(req CreateChallengeRequest, createdBy uint) (*models.Challenge, error)
 	GetChallenge(id uint) (*models.Challenge, error)
 	ListChallenges(category string, showHidden bool) ([]models.Challenge, error)
-	UpdateChallenge(id uint, req UpdateChallengeRequest) (*models.Challenge, error)
-	DeleteChallenge(id uint) error
+	UpdateChallenge(id uint, req UpdateChallengeRequest, updatedBy ...uint) (*models.Challenge, error)
+	DeleteChallenge(id uint, deletedBy ...uint) error
 	SubmitFlag(challengeID uint, gameID uint, userID uint, teamID uint, flag string) (*SubmitResult, error)
 }
 

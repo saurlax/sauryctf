@@ -75,7 +75,7 @@ func (m *MockService) ListChallenges(category string, showHidden bool) ([]models
 	return result, nil
 }
 
-func (m *MockService) UpdateChallenge(id uint, req UpdateChallengeRequest) (*models.Challenge, error) {
+func (m *MockService) UpdateChallenge(id uint, req UpdateChallengeRequest, updatedBy ...uint) (*models.Challenge, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -98,7 +98,7 @@ func (m *MockService) UpdateChallenge(id uint, req UpdateChallengeRequest) (*mod
 	return ch, nil
 }
 
-func (m *MockService) DeleteChallenge(id uint) error {
+func (m *MockService) DeleteChallenge(id uint, deletedBy ...uint) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

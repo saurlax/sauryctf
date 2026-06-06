@@ -73,8 +73,8 @@ type ServiceInterface interface {
 	GetGame(id uint) (*GameResponse, error)
 	GetPublicGame(id uint) (*GameResponse, error)
 	ListGames(showAll bool) ([]GameResponse, error)
-	UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, error)
-	DeleteGame(id uint) error
+	UpdateGame(id uint, req UpdateGameRequest, updatedBy ...uint) (*GameResponse, error)
+	DeleteGame(id uint, deletedBy ...uint) error
 	ExportGamePackage(id uint) ([]byte, string, error)
 	ExportScoreboardPackage(id uint, division string) ([]byte, string, error)
 	ExportWriteupsPackage(id uint) ([]byte, string, error)
@@ -88,7 +88,7 @@ type ServiceInterface interface {
 	ListInstanceLeases(gameID uint) ([]GameInstanceLeaseEntry, error)
 	DestroyInstanceLease(gameID uint, leaseID uint) error
 	ImportGamePackage(data []byte, createdBy uint) (*GameResponse, error)
-	AddChallenge(gameID uint, challengeID uint, scoreOverride int) error
+	AddChallenge(gameID uint, challengeID uint, scoreOverride int, addedBy ...uint) error
 	RemoveChallenge(gameID uint, challengeID uint) error
 	// Participation
 	JoinGame(gameID uint, teamID uint, userID uint, invitationCode string) error

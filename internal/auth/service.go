@@ -11,6 +11,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 
+	"github.com/saurlax/sauryctf/internal/audit"
 	"github.com/saurlax/sauryctf/internal/models"
 )
 
@@ -262,6 +263,20 @@ func (s *Service) UpdateUserAccount(targetUserID, requesterID uint, role models.
 
 	if err := s.db.First(&target, targetUserID).Error; err != nil {
 		return nil, err
+	}
+
+	if requester.ID > 0 {
+		if err := audit.CreateLog(s.db, audit.LogEntry{
+			ActorUserID:   requester.ID,
+			ActorUsername: requester.Username,
+			Action:        "admin.user.update",
+			TargetType:    "user",
+			TargetID:      target.ID,
+			Summary:       fmt.Sprintf("更新用户 %s 的角色与状态", target.Username),
+			Detail:        fmt.Sprintf(`{"role":"%s","status":"%s"}`, target.Role, target.Status),
+		}); err != nil {
+			return nil, err
+		}
 	}
 
 	return &target, nil

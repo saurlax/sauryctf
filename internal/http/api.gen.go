@@ -588,6 +588,19 @@ type AdminGameInstanceLease struct {
 	TeamName       string     `json:"team_name"`
 }
 
+// AuditLog defines model for AuditLog.
+type AuditLog struct {
+	Action        string    `json:"action"`
+	ActorUserId   int       `json:"actor_user_id"`
+	ActorUsername string    `json:"actor_username"`
+	CreatedAt     time.Time `json:"created_at"`
+	Detail        string    `json:"detail"`
+	Id            int       `json:"id"`
+	Summary       string    `json:"summary"`
+	TargetId      int       `json:"target_id"`
+	TargetType    string    `json:"target_type"`
+}
+
 // AuthResponse defines model for AuthResponse.
 type AuthResponse struct {
 	Token string   `json:"token"`
@@ -1068,6 +1081,13 @@ type UserInfoStatus string
 // bearerAuthContextKey is the context key for BearerAuth security scheme
 type bearerAuthContextKey string
 
+// ListAdminAuditLogsParams defines parameters for ListAdminAuditLogs.
+type ListAdminAuditLogsParams struct {
+	ActorUserId *int    `form:"actor_user_id,omitempty" json:"actor_user_id,omitempty"`
+	TargetType  *string `form:"target_type,omitempty" json:"target_type,omitempty"`
+	Limit       *int    `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ImportAdminGamePackageMultipartBody defines parameters for ImportAdminGamePackage.
 type ImportAdminGamePackageMultipartBody struct {
 	File openapi_types.File `json:"file"`
@@ -1151,6 +1171,9 @@ type TransferTeamCaptainJSONRequestBody = TransferCaptainRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// List admin audit logs
+	// (GET /api/admin/audit-logs)
+	ListAdminAuditLogs(c *gin.Context, params ListAdminAuditLogsParams)
 	// Import a game package (admin)
 	// (POST /api/admin/games/import)
 	ImportAdminGamePackage(c *gin.Context)
@@ -1311,6 +1334,51 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(c *gin.Context)
+
+// ListAdminAuditLogs operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminAuditLogs(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminAuditLogsParams
+
+	// ------------- Optional query parameter "actor_user_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "actor_user_id", c.Request.URL.Query(), &params.ActorUserId, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter actor_user_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "target_type" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "target_type", c.Request.URL.Query(), &params.TargetType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter target_type: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAdminAuditLogs(c, params)
+}
 
 // ImportAdminGamePackage operation middleware
 func (siw *ServerInterfaceWrapper) ImportAdminGamePackage(c *gin.Context) {
@@ -2606,6 +2674,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 		ErrorHandler:       errorHandler,
 	}
 
+	router.GET(options.BaseURL+"/api/admin/audit-logs", wrapper.ListAdminAuditLogs)
 	router.POST(options.BaseURL+"/api/admin/games/import", wrapper.ImportAdminGamePackage)
 	router.DELETE(options.BaseURL+"/api/admin/games/:id", wrapper.DeleteAdminGame)
 	router.GET(options.BaseURL+"/api/admin/games/:id/challenges", wrapper.GetAdminGameChallenges)

@@ -181,6 +181,10 @@ export interface paths {
     /** List users for account management (admin) */
     get: operations["listAdminUsers"];
   };
+  "/api/admin/audit-logs": {
+    /** List admin audit logs */
+    get: operations["listAdminAuditLogs"];
+  };
   "/api/admin/users/{userId}": {
     /** Update user role or status (admin) */
     put: operations["updateAdminUser"];
@@ -228,6 +232,18 @@ export interface components {
       role: "user" | "team_captain" | "judge" | "admin" | "super_admin";
       /** @enum {string} */
       status: "active" | "banned";
+    };
+    AuditLog: {
+      id: number;
+      actor_user_id: number;
+      actor_username: string;
+      action: string;
+      target_type: string;
+      target_id: number;
+      summary: string;
+      detail: string;
+      /** Format: date-time */
+      created_at: string;
     };
     AuthResponse: {
       token: string;
@@ -1620,7 +1636,25 @@ export interface operations {
       /** @description User list */
       200: {
         content: {
-          "application/json": components["schemas"]["UserInfo"][];
+          "application/json": components["schemas"]["UserInfo"];
+        };
+      };
+    };
+  };
+  /** List admin audit logs */
+  listAdminAuditLogs: {
+    parameters: {
+      query?: {
+        actor_user_id?: number;
+        target_type?: string;
+        limit?: number;
+      };
+    };
+    responses: {
+      /** @description Audit log list */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AuditLog"][];
         };
       };
     };

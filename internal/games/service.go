@@ -18,6 +18,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/saurlax/sauryctf/internal/audit"
 	"github.com/saurlax/sauryctf/internal/models"
 	"github.com/saurlax/sauryctf/internal/scoring"
 )
@@ -518,6 +519,10 @@ func (s *Service) CreateGame(req CreateGameRequest, createdBy uint) (*GameRespon
 		return nil, err
 	}
 
+	if err := s.writeAuditLog(createdBy, "admin.game.create", "game", game.ID, fmt.Sprintf("创建比赛 %s", game.Name), fmt.Sprintf(`{"status":"%s","public":%t}`, game.Status, game.IsPublic)); err != nil {
+		return nil, err
+	}
+
 	return toResponse(game), nil
 }
 
@@ -873,7 +878,7 @@ func (s *Service) GetPublicGame(id uint) (*GameResponse, error) {
 	return sanitizePublicGameResponse(game), nil
 }
 
-func (s *Service) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, error) {
+func (s *Service) UpdateGame(id uint, req UpdateGameRequest, updatedBy ...uint) (*GameResponse, error) {
 	var game models.Game
 	if err := s.db.First(&game, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1000,10 +1005,20 @@ func (s *Service) UpdateGame(id uint, req UpdateGameRequest) (*GameResponse, err
 		}
 	}
 
-	return s.GetGame(id)
+	updated, err := s.GetGame(id)
+	if err != nil {
+		return nil, err
+	}
+	if actorUserID := firstGameActorID(updatedBy...); actorUserID > 0 {
+		if err := s.writeAuditLog(actorUserID, "admin.game.update", "game", updated.ID, fmt.Sprintf("更新比赛 %s", updated.Name), fmt.Sprintf(`{"status":"%s","public":%t}`, updated.Status, updated.IsPublic)); err != nil {
+			return nil, err
+		}
+	}
+
+	return updated, nil
 }
 
-func (s *Service) DeleteGame(id uint) error {
+func (s *Service) DeleteGame(id uint, deletedBy ...uint) error {
 	var game models.Game
 	if err := s.db.First(&game, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1030,6 +1045,11 @@ func (s *Service) DeleteGame(id uint) error {
 		}
 		if err := tx.Delete(&game).Error; err != nil {
 			return err
+		}
+		if actorUserID := firstGameActorID(deletedBy...); actorUserID > 0 {
+			if err := s.writeAuditLogTx(tx, actorUserID, "admin.game.delete", "game", game.ID, fmt.Sprintf("删除比赛 %s", game.Name), fmt.Sprintf(`{"status":"%s","public":%t}`, game.Status, game.IsPublic)); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -1775,7 +1795,7 @@ func sanitizeAttachmentName(name string) string {
 	return sanitized
 }
 
-func (s *Service) AddChallenge(gameID uint, challengeID uint, scoreOverride int) error {
+func (s *Service) AddChallenge(gameID uint, challengeID uint, scoreOverride int, addedBy ...uint) error {
 	var game models.Game
 	if err := s.db.First(&game, gameID).Error; err != nil {
 		return errors.New("game not found")
@@ -1791,7 +1811,46 @@ func (s *Service) AddChallenge(gameID uint, challengeID uint, scoreOverride int)
 		ChallengeID:   challengeID,
 		ScoreOverride: scoreOverride,
 	}
-	return s.db.Create(gc).Error
+	if err := s.db.Create(gc).Error; err != nil {
+		return err
+	}
+
+	if actorUserID := firstGameActorID(addedBy...); actorUserID > 0 {
+		return s.writeAuditLog(actorUserID, "admin.game.attach_challenge", "game", game.ID, fmt.Sprintf("向比赛 %s 挂载题目 %s", game.Name, ch.Title), fmt.Sprintf(`{"challenge_id":%d,"score_override":%d}`, ch.ID, scoreOverride))
+	}
+
+	return nil
+}
+
+func (s *Service) writeAuditLog(actorUserID uint, action string, targetType string, targetID uint, summary string, detail string) error {
+	return s.writeAuditLogTx(s.db, actorUserID, action, targetType, targetID, summary, detail)
+}
+
+func (s *Service) writeAuditLogTx(db *gorm.DB, actorUserID uint, action string, targetType string, targetID uint, summary string, detail string) error {
+	var actor models.User
+	if err := db.Select("id", "username").First(&actor, actorUserID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+
+	return audit.CreateLog(db, audit.LogEntry{
+		ActorUserID:   actor.ID,
+		ActorUsername: actor.Username,
+		Action:        action,
+		TargetType:    targetType,
+		TargetID:      targetID,
+		Summary:       summary,
+		Detail:        detail,
+	})
+}
+
+func firstGameActorID(actorUserIDs ...uint) uint {
+	if len(actorUserIDs) == 0 {
+		return 0
+	}
+	return actorUserIDs[0]
 }
 
 func (s *Service) RemoveChallenge(gameID uint, challengeID uint) error {
