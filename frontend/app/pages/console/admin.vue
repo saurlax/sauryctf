@@ -1107,6 +1107,7 @@ const monitorFocusItems = computed(() => {
         badge: '线索',
         color: 'error' as const,
         to: '#clues',
+        challengeId: firstClue.challenge_id,
       })
     }
   }
@@ -1120,7 +1121,8 @@ const monitorFocusItems = computed(() => {
         description: `${latestAccepted.team_name} 刚刚在 ${latestAccepted.challenge_title} 上拿到一次正确提交，可继续观察榜单和题目状态。`,
         badge: '通过',
         color: 'success' as const,
-        to: `/games/${overview.game.id}`,
+        to: '#submissions',
+        challengeId: latestAccepted.challenge_id,
       })
     }
   }
@@ -1188,6 +1190,34 @@ const selectedMonitorTimeline = computed(() => {
     .filter(item => Number.isFinite(item.timestamp))
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, 12)
+    .map((item) => {
+      if (item.key.startsWith('submission-')) {
+        const source = submissions.value.find(submission => `submission-${submission.id}` === item.key)
+        return {
+          ...item,
+          actionLabel: '查看提交流',
+          actionTo: '#submissions',
+          challengeId: source?.challenge_id,
+        }
+      }
+
+      if (item.key.startsWith('clue-')) {
+        const source = cheatClues.value.find(clue => `clue-${clue.challenge_id}-${clue.submitted_flag}` === item.key)
+        return {
+          ...item,
+          actionLabel: '查看线索区',
+          actionTo: '#clues',
+          challengeId: source?.challenge_id,
+        }
+      }
+
+      return {
+        ...item,
+        actionLabel: '查看公告区',
+        actionTo: '#announcements',
+        challengeId: undefined,
+      }
+    })
 })
 
 const scoreboardDivisionOptions = computed(() => [
@@ -2567,6 +2597,20 @@ function jumpToAdminAnchor(target: string) {
   }
 }
 
+function navigateAdminTarget(target: string, options?: { challengeId?: number }) {
+  const challengeId = options?.challengeId
+  highlightedChallengeId.value = typeof challengeId === 'number' && Number.isFinite(challengeId)
+    ? challengeId
+    : null
+
+  if (target.startsWith('#')) {
+    jumpToAdminAnchor(target)
+    return
+  }
+
+  navigateTo(target)
+}
+
 function isHighlightedChallenge(challengeId: number) {
   return highlightedChallengeId.value === challengeId
 }
@@ -2577,7 +2621,7 @@ function handleChecklistAction(step: { actionTo: string, contextGameId?: number 
   }
 
   if (step.actionTo.startsWith('#')) {
-    jumpToAdminAnchor(step.actionTo)
+    navigateAdminTarget(step.actionTo)
   }
 }
 
@@ -2587,7 +2631,7 @@ function handlePreflightAction(check: { actionTo?: string }) {
   }
 
   if (check.actionTo.startsWith('#')) {
-    jumpToAdminAnchor(check.actionTo)
+    navigateAdminTarget(check.actionTo)
   }
 }
 
@@ -4450,7 +4494,7 @@ onMounted(async () => {
                 <UButton
                   size="sm"
                   variant="outline"
-                  @click="item.to.startsWith('#') ? jumpToAdminAnchor(item.to) : navigateTo(item.to)"
+                  @click="navigateAdminTarget(item.to, { challengeId: item.challengeId })"
                 >
                   立即处理
                 </UButton>
@@ -4617,7 +4661,12 @@ onMounted(async () => {
                 <div
                   v-for="lease in instanceLeases"
                   :key="lease.id"
-                  class="rounded-md bg-elevated/60 px-3 py-3"
+                  :class="[
+                    'rounded-md px-3 py-3 transition-colors',
+                    isHighlightedChallenge(lease.challenge_id)
+                      ? 'border border-primary bg-primary/5'
+                      : 'bg-elevated/60',
+                  ]"
                 >
                   <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
@@ -4669,6 +4718,14 @@ onMounted(async () => {
                         @click="copyInstanceLeaseEntry(lease)"
                       >
                         复制入口
+                      </UButton>
+                      <UButton
+                        size="xs"
+                        variant="ghost"
+                        icon="i-lucide-logs"
+                        @click="navigateAdminTarget('#submissions', { challengeId: lease.challenge_id })"
+                      >
+                        同题提交
                       </UButton>
                       <UButton
                         size="xs"
@@ -4891,7 +4948,12 @@ onMounted(async () => {
               <div
                 v-for="submission in submissions.slice(0, 12)"
                 :key="submission.id"
-                class="rounded-lg border border-default px-3 py-3 text-sm"
+                :class="[
+                  'rounded-lg border px-3 py-3 text-sm transition-colors',
+                  isHighlightedChallenge(submission.challenge_id)
+                    ? 'border-primary bg-primary/5'
+                    : 'border-default',
+                ]"
               >
                 <div class="flex items-center justify-between gap-3">
                   <div class="font-medium">
@@ -4909,6 +4971,16 @@ onMounted(async () => {
                 </div>
                 <div class="mt-2 text-muted">
                   结果说明：{{ submission.message || '无' }}
+                </div>
+                <div class="mt-3 flex justify-end">
+                  <UButton
+                    size="xs"
+                    variant="ghost"
+                    icon="i-lucide-shield-alert"
+                    @click="navigateAdminTarget('#clues', { challengeId: submission.challenge_id })"
+                  >
+                    查看同题线索
+                  </UButton>
                 </div>
               </div>
             </div>
@@ -4938,7 +5010,12 @@ onMounted(async () => {
               <div
                 v-for="clue in cheatClues"
                 :key="`${clue.challenge_id}-${clue.submitted_flag}`"
-                class="rounded-lg border border-default px-3 py-3 text-sm"
+                :class="[
+                  'rounded-lg border px-3 py-3 text-sm transition-colors',
+                  isHighlightedChallenge(clue.challenge_id)
+                    ? 'border-primary bg-primary/5'
+                    : 'border-default',
+                ]"
               >
                 <div class="flex items-center justify-between gap-3">
                   <div class="font-medium">
@@ -4957,6 +5034,16 @@ onMounted(async () => {
                 </div>
                 <div class="mt-2 text-muted">
                   涉及队伍：{{ clue.teams.join(' / ') }}
+                </div>
+                <div class="mt-3 flex justify-end">
+                  <UButton
+                    size="xs"
+                    variant="ghost"
+                    icon="i-lucide-logs"
+                    @click="navigateAdminTarget('#submissions', { challengeId: clue.challenge_id })"
+                  >
+                    查看同题提交
+                  </UButton>
                 </div>
               </div>
             </div>
@@ -5006,6 +5093,16 @@ onMounted(async () => {
                     </UBadge>
                     <div class="mt-2 text-xs text-muted">
                       {{ new Date(item.occurredAt).toLocaleString() }}
+                    </div>
+                    <div class="mt-3">
+                      <UButton
+                        size="xs"
+                        variant="ghost"
+                        icon="i-lucide-arrow-right"
+                        @click="navigateAdminTarget(item.actionTo, { challengeId: item.challengeId })"
+                      >
+                        {{ item.actionLabel }}
+                      </UButton>
                     </div>
                   </div>
                 </div>
