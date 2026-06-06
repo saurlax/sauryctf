@@ -145,14 +145,17 @@ onMounted(async () => {
 
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
       <div class="space-y-6">
-        <UAlert
-          :color="securityNextStepMeta.color"
-          variant="soft"
-          :icon="securityNextStepMeta.icon"
-          :title="securityNextStepMeta.title"
-          :description="securityNextStepMeta.description"
-        >
-          <template #actions>
+        <div class="rounded-lg border border-default bg-elevated/50 px-4 py-3">
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 font-medium text-highlighted">
+                <UIcon :name="securityNextStepMeta.icon" class="size-4" />
+                <span>{{ securityNextStepMeta.title }}</span>
+              </div>
+              <p class="mt-2 text-sm text-muted leading-6">
+                {{ securityNextStepMeta.description }}
+              </p>
+            </div>
             <div class="flex flex-wrap gap-2">
               <UButton
                 size="sm"
@@ -168,8 +171,8 @@ onMounted(async () => {
                 variant="ghost"
               />
             </div>
-          </template>
-        </UAlert>
+          </div>
+        </div>
 
         <UPageCard title="修改密码" icon="i-lucide-key-round">
           <div class="space-y-4">
@@ -258,14 +261,25 @@ onMounted(async () => {
       :ui="{ body: 'space-y-4', footer: 'justify-end' }"
     >
       <template #body>
-        <UAlert
+        <div
           v-if="passwordSecurityRisk"
-          color="warning"
-          variant="soft"
-          icon="i-lucide-triangle-alert"
-          title="当前账号需要立即改密"
-          description="初始管理员密码不应长期保留，请尽快完成更新。"
-        />
+          class="rounded-lg border border-default bg-elevated/50 px-3 py-3"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 font-medium text-highlighted">
+                <UIcon name="i-lucide-triangle-alert" class="size-4" />
+                <span>当前账号需要立即改密</span>
+              </div>
+              <p class="mt-2 text-sm text-muted leading-6">
+                初始管理员密码不应长期保留，请尽快完成更新。
+              </p>
+            </div>
+            <UBadge color="warning" variant="soft">
+              高风险
+            </UBadge>
+          </div>
+        </div>
 
         <UForm
           id="account-password-form"

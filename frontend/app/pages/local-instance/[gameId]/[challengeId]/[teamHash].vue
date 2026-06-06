@@ -398,36 +398,46 @@ onBeforeUnmount(() => {
             :description="instanceState?.message || '当前会优先展示平台已经回填的实例状态。'"
           >
             <div class="space-y-4">
-              <UAlert
-                v-if="!authState.user"
-                color="warning"
-                variant="soft"
-                title="需要先登录"
-                description="实例详情依赖当前账号所属队伍和报名状态。登录后才能读取当前队伍的真实实例信息。"
-              >
-                <template #footer>
-                  <UButton :to="loginLink" size="sm" icon="i-lucide-log-in">
-                    前往登录
-                  </UButton>
-                </template>
-              </UAlert>
+              <div class="rounded-lg border border-default bg-elevated/50 px-4 py-3">
+                <div v-if="!authState.user" class="flex items-start justify-between gap-4 flex-wrap">
+                  <div class="min-w-0">
+                    <div class="font-medium text-highlighted">
+                      需要先登录
+                    </div>
+                    <p class="mt-2 text-sm text-muted leading-6">
+                      实例详情依赖当前账号所属队伍和报名状态。登录后才能读取当前队伍的真实实例信息。
+                    </p>
+                  </div>
+                  <div class="flex flex-wrap gap-2">
+                    <UButton :to="loginLink" size="sm" icon="i-lucide-log-in" variant="outline">
+                      前往登录
+                    </UButton>
+                  </div>
+                </div>
 
-              <UAlert
-                v-else-if="stateLoadError"
-                color="error"
-                variant="soft"
-                title="实例状态暂时不可用"
-                :description="stateLoadError"
-              />
+                <div v-else-if="stateLoadError" class="flex items-start justify-between gap-4">
+                  <div class="min-w-0">
+                    <div class="font-medium text-highlighted">
+                      实例状态暂时不可用
+                    </div>
+                    <p class="mt-2 text-sm text-muted leading-6">
+                      {{ stateLoadError }}
+                    </p>
+                  </div>
+                  <UBadge color="error" variant="soft">
+                    读取失败
+                  </UBadge>
+                </div>
 
-              <UAlert
-                v-else
-                :color="statusBadge.color"
-                variant="soft"
-                :title="hasRunningInstance ? '实例正在运行' : statusBadge.label === '待启动' ? '实例尚未启动' : '实例状态暂不可用'"
-                :description="instanceState?.message || '当前还没有读取到实例状态。'"
-              >
-                <template #footer>
+                <div v-else class="flex items-start justify-between gap-4 flex-wrap">
+                  <div class="min-w-0">
+                    <div class="font-medium text-highlighted">
+                      {{ hasRunningInstance ? '实例正在运行' : statusBadge.label === '待启动' ? '实例尚未启动' : '实例状态暂不可用' }}
+                    </div>
+                    <p class="mt-2 text-sm text-muted leading-6">
+                      {{ instanceState?.message || '当前还没有读取到实例状态。' }}
+                    </p>
+                  </div>
                   <div class="flex items-center gap-2">
                     <UBadge :color="statusBadge.color" variant="soft" size="sm">
                       {{ statusBadge.label }}
@@ -436,8 +446,8 @@ onBeforeUnmount(() => {
                       {{ stateLoading ? '正在读取状态...' : `剩余 ${formatSecondsLeft(getSecondsLeft())}` }}
                     </span>
                   </div>
-                </template>
-              </UAlert>
+                </div>
+              </div>
 
               <div class="rounded-md border border-default px-3 py-3">
                 <div class="mb-2 flex items-center justify-between gap-3 text-xs text-muted">
