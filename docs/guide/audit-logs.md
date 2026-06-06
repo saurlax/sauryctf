@@ -51,7 +51,8 @@
 - 日志条目现在也会提供“回到对象”入口：
   - 用户日志可直接跳到用户管理页
   - 比赛日志可直接跳回对应比赛的设置、报名、公告、Writeup、实例监控或挂题区
-  - 如果日志详情里带了 `announcement_id` 或 `challenge_id`，页面会继续承接到更具体的公告编辑或题目上下文
+  - 如果日志详情里带了 `announcement_id`、`team_id` 或 `challenge_id`，页面会继续承接到更具体的公告编辑、目标队伍审核或题目上下文
+  - `admin.game.update_participation`、`admin.game.remove_participation`、`admin.game.review_writeup` 这类记录现在会优先直开对应队伍的审核 `UModal`
   - 题目日志可直接跳回题目维护区，并在可能时带上关联比赛上下文
   - `admin.game.destroy_instance_lease` 这类实例运维日志当前会回到 `/console/admin?game_id=...&section=%23monitoring`
   - 如果详情里还带了 `challenge_id`，管理端会继续保留题目级高亮，直接落到实例运维明细而不是总览标签

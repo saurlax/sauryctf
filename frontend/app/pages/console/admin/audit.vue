@@ -176,6 +176,11 @@ function parseLogDetail(detail: string) {
   }
 }
 
+function getFiniteDetailNumber(detail: Record<string, any> | null, key: string) {
+  const value = detail?.[key]
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
 function resolveLogTarget(log: AuditLog) {
   const detail = parseLogDetail(log.detail)
 
@@ -205,6 +210,9 @@ function resolveLogTarget(log: AuditLog) {
       }
       return '#game-settings'
     })()
+    const challengeId = getFiniteDetailNumber(detail, 'challenge_id')
+    const announcementId = getFiniteDetailNumber(detail, 'announcement_id')
+    const teamId = getFiniteDetailNumber(detail, 'team_id')
 
     const query = new URLSearchParams({
       game_id: String(log.target_id),
@@ -215,13 +223,29 @@ function resolveLogTarget(log: AuditLog) {
       query.set('mode', 'edit-game')
     }
 
-    if (typeof detail?.challenge_id === 'number' && Number.isFinite(detail.challenge_id)) {
-      query.set('challenge_id', String(detail.challenge_id))
+    if (challengeId !== null) {
+      query.set('challenge_id', String(challengeId))
     }
 
-    if (log.action === 'admin.game.update_announcement' && typeof detail?.announcement_id === 'number' && Number.isFinite(detail.announcement_id)) {
+    if (
+      ['admin.game.create_announcement', 'admin.game.update_announcement', 'admin.game.delete_announcement'].includes(log.action)
+      && announcementId !== null
+    ) {
       query.set('mode', 'edit-announcement')
-      query.set('announcement_id', String(detail.announcement_id))
+      query.set('announcement_id', String(announcementId))
+    }
+
+    if (
+      ['admin.game.update_participation', 'admin.game.remove_participation'].includes(log.action)
+      && teamId !== null
+    ) {
+      query.set('mode', 'review-participant')
+      query.set('team_id', String(teamId))
+    }
+
+    if (log.action === 'admin.game.review_writeup' && teamId !== null) {
+      query.set('mode', 'review-writeup')
+      query.set('team_id', String(teamId))
     }
 
     return {
