@@ -117,6 +117,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - If a low-frequency action already uses `UModal`, do not simulate a second dialog inside the page body with another elevated explanation block; keep the body to one concise summary sentence plus the real entry action.
 - In admin review lists such as participants or writeups, draft values like pending status, division, or review remark should stay as one compact summary row instead of multiple mini-cards.
 - On `/console/admin`, page-top sections such as `管理入口`, `当前检查项`, or `发布前检查` should prefer one concise summary line before the real cards, not another elevated header block.
+- In admin modals such as challenge create/edit, instance access-mode explanations should use compact summary blocks instead of `UAlert` when they are informational rather than exceptional.
 - On `/console/admin`, low-frequency maintenance forms such as contest settings, create/edit flows, import/export confirmations, and similar operator write actions should prefer `UModal`; the page body should focus on overview, lists, monitoring, and current context summaries.
 - In `/console/admin` sections such as `比赛挂题`, keep the page body focused on current contest context and mounted-resource lists; challenge selection, score overrides, and similar low-frequency maintenance input should stay inside `UModal`.
 - On console and admin list pages, page-top reminders such as password-risk notices or account-permission scope should also prefer one compact summary card instead of a standalone full-width `UAlert`.

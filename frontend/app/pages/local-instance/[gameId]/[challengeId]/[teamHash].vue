@@ -625,9 +625,8 @@ onBeforeUnmount(() => {
               icon="i-lucide-waypoints"
               description="当前页面用于承接实例详情，适合在不离开平台的前提下核对队伍入口与租约状态。"
             >
-              <div class="space-y-2 text-sm text-muted leading-6">
-                <p>如果这里显示的是平台回填后的真实入口，说明当前账号已经拿到了队伍维度的实例地址。</p>
-                <p>如果实例仍处于待启动状态，可以先启动实例，再返回比赛页继续完成访问、续期或提交流程。</p>
+              <div class="text-sm text-muted leading-6">
+                如果这里显示的是平台回填后的真实入口，说明当前账号已经拿到了队伍维度的实例地址；如果实例仍处于待启动状态，可先启动实例，再返回比赛页继续完成访问、续期或提交流程。
               </div>
             </UPageCard>
           </div>

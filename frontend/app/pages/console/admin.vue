@@ -6008,13 +6008,17 @@ onMounted(async () => {
 
         <UPageCard v-if="challengeFormInstanceSpec" title="实例预览" icon="i-lucide-box" description="按比赛页展示逻辑预览当前实例接入信息。">
           <div class="space-y-2 text-sm text-muted">
-            <UAlert
+            <div
               v-if="challengeFormAccessMode"
-              :color="challengeFormAccessMode.color"
-              variant="soft"
-              :title="challengeFormAccessMode.title"
-              :description="challengeFormAccessMode.description"
-            />
+              class="rounded-lg border border-default px-3 py-3 text-sm text-muted leading-6"
+            >
+              <div class="font-medium text-highlighted">
+                {{ challengeFormAccessMode.title }}
+              </div>
+              <div class="mt-2">
+                {{ challengeFormAccessMode.description }}
+              </div>
+            </div>
             <p v-if="challengeFormInstanceSpec.note" class="whitespace-pre-wrap">
               {{ challengeFormInstanceSpec.note }}
             </p>
@@ -6411,13 +6415,17 @@ onMounted(async () => {
           description="按比赛页展示逻辑预览当前实例接入信息。"
         >
           <div class="space-y-2 text-sm text-muted">
-            <UAlert
+            <div
               v-if="challengeEditAccessMode"
-              :color="challengeEditAccessMode.color"
-              variant="soft"
-              :title="challengeEditAccessMode.title"
-              :description="challengeEditAccessMode.description"
-            />
+              class="rounded-lg border border-default px-3 py-3 text-sm text-muted leading-6"
+            >
+              <div class="font-medium text-highlighted">
+                {{ challengeEditAccessMode.title }}
+              </div>
+              <div class="mt-2">
+                {{ challengeEditAccessMode.description }}
+              </div>
+            </div>
             <p v-if="challengeEditInstanceSpec.note" class="whitespace-pre-wrap">
               {{ challengeEditInstanceSpec.note }}
             </p>
