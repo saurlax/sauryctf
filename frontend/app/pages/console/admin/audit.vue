@@ -23,6 +23,7 @@ const expandedLogIds = ref<number[]>([])
 const filters = reactive({
   actorUserId: undefined as number | undefined,
   targetType: 'all',
+  action: 'all',
   limit: 50,
   keyword: '',
 })
@@ -40,6 +41,24 @@ const limitOptions = [
   { label: '100 条', value: 100 },
 ]
 
+const actionOptions = [
+  { label: '全部动作', value: 'all' },
+  { label: '更新用户', value: 'admin.user.update' },
+  { label: '创建比赛', value: 'admin.game.create' },
+  { label: '更新比赛', value: 'admin.game.update' },
+  { label: '删除比赛', value: 'admin.game.delete' },
+  { label: '发布公告', value: 'admin.game.create_announcement' },
+  { label: '删除公告', value: 'admin.game.delete_announcement' },
+  { label: '挂载题目', value: 'admin.game.attach_challenge' },
+  { label: '移除比赛题目', value: 'admin.game.remove_challenge' },
+  { label: '更新报名状态', value: 'admin.game.update_participation' },
+  { label: '审核 Writeup', value: 'admin.game.review_writeup' },
+  { label: '销毁实例租约', value: 'admin.game.destroy_instance_lease' },
+  { label: '创建题目', value: 'admin.challenge.create' },
+  { label: '更新题目', value: 'admin.challenge.update' },
+  { label: '删除题目', value: 'admin.challenge.delete' },
+]
+
 const totalLogs = computed(() => logs.value.length)
 const uniqueActors = computed(() => new Set(logs.value.map(log => log.actor_user_id)).size)
 const recent24hLogs = computed(() => {
@@ -50,6 +69,10 @@ const filteredLogs = computed(() => {
   const keyword = filters.keyword.trim().toLowerCase()
 
   return logs.value.filter((log) => {
+    if (filters.action !== 'all' && log.action !== filters.action) {
+      return false
+    }
+
     if (!keyword) {
       return true
     }
@@ -78,6 +101,10 @@ const activeFilterSummary = computed(() => {
 
   if (filters.targetType !== 'all') {
     items.push(getTargetTypeLabel(filters.targetType))
+  }
+
+  if (filters.action !== 'all') {
+    items.push(getActionLabel(filters.action))
   }
 
   items.push(`最近 ${filters.limit} 条`)
@@ -165,7 +192,7 @@ onMounted(loadLogs)
     </UPageGrid>
 
     <UPageCard title="筛选" icon="i-lucide-filter" class="mb-6">
-      <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px_180px_140px_auto] md:items-end">
+      <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px_180px_200px_140px_auto] md:items-end">
         <UFormField label="关键词" name="audit-keyword">
           <UInput v-model="filters.keyword" class="w-full" placeholder="搜索摘要、详情、操作者或对象 ID" />
         </UFormField>
@@ -175,6 +202,9 @@ onMounted(loadLogs)
         <UFormField label="对象类型" name="target-type">
           <USelect v-model="filters.targetType" :items="targetTypeOptions" class="w-full" />
         </UFormField>
+        <UFormField label="动作类型" name="action-type">
+          <USelect v-model="filters.action" :items="actionOptions" class="w-full" />
+        </UFormField>
         <UFormField label="记录条数" name="limit">
           <USelect v-model="filters.limit" :items="limitOptions" class="w-full" />
         </UFormField>
@@ -182,7 +212,7 @@ onMounted(loadLogs)
           <UButton
             variant="outline"
             icon="i-lucide-rotate-ccw"
-            @click="filters.keyword = ''; filters.actorUserId = undefined; filters.targetType = 'all'; filters.limit = 50"
+            @click="filters.keyword = ''; filters.actorUserId = undefined; filters.targetType = 'all'; filters.action = 'all'; filters.limit = 50"
           >
             重置
           </UButton>
