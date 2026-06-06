@@ -827,7 +827,7 @@ const localDockerSmokeChecklist = computed(() => {
   }
 
   const runningLeaseCount = instanceLeases.value.filter(lease =>
-    lease.challenge_title === 'Local Docker Web Instance'
+    lease.challenge_title === 'Dynamic Web Instance'
     && !lease.is_expired,
   ).length
 
@@ -844,10 +844,10 @@ const localDockerSmokeChecklist = computed(() => {
     },
     {
       key: 'instance-start',
-      label: '2. 在题目卡片里启动本地 Docker 实例',
+      label: '2. 在题目卡片里启动容器实例',
       done: runningLeaseCount > 0,
       description: runningLeaseCount > 0
-        ? `当前已有 ${runningLeaseCount} 条 Local Docker Web Instance 正在运行，说明实例至少已经成功启动一次。`
+        ? `当前已有 ${runningLeaseCount} 条动态 Web 实例正在运行，说明实例至少已经成功启动一次。`
         : '报名后到公开比赛页点击启动实例。成功时应拿到真实 host / port / launch_url，而不是手写固定入口。',
       actionLabel: '打开公开页',
       actionTo: `/games/${overview.game.id}`,
@@ -1679,8 +1679,8 @@ function fillPwnNetcatTemplate() {
 }
 
 function fillDynamicContainerTemplate() {
-  challengeForm.title = 'Local Docker Web Instance'
-  challengeForm.description = '这是一个面向本地 Docker 运行环境的动态题模板。启用 INSTANCE_DOCKER_PROVIDER_ENABLED 后，后端会按 runtime.image 与 runtime.expose 启动当前题目的本地容器。'
+  challengeForm.title = 'Dynamic Web Instance'
+  challengeForm.description = '这是一个面向动态 Web 实例链路的题目模板。启用 INSTANCE_DOCKER_PROVIDER_ENABLED 后，后端会按 runtime.image 与 runtime.expose 启动当前题目的本地容器。'
   challengeForm.hints = JSON.stringify([
     '当前默认使用 nginx:alpine 和容器内 80 端口。',
     '启动实例后，比赛页应优先看到平台回填后的 host / port / launch_url。',
@@ -1694,7 +1694,7 @@ function fillDynamicContainerTemplate() {
       expose: [80],
     },
     connection: {
-      note: '启用 INSTANCE_DOCKER_PROVIDER_ENABLED 后，平台会在启动实例时为当前题目拉起本地 Docker Web 容器，并把实际 host / port / launch_url 回填到实例响应里。',
+      note: '启用 INSTANCE_DOCKER_PROVIDER_ENABLED 后，平台会在启动实例时为当前题目拉起容器，并把实际 host / port / launch_url 回填到实例响应里。',
     },
     links: [
       {
@@ -1721,7 +1721,7 @@ function fillDynamicContainerTemplate() {
   challengeForm.decay_rate = 0.1
   challengeForm.is_visible = true
 
-  toast.add({ title: '已填充本地 Docker Web 模板', description: '默认使用 nginx:alpine，适合快速配置本地 Docker Web 题。', color: 'success' })
+  toast.add({ title: '已填充动态 Web 模板', description: '默认使用 nginx:alpine，适合快速配置动态 Web 题。', color: 'success' })
 }
 
 function fillTeamScopedDynamicTemplate() {
@@ -1729,7 +1729,7 @@ function fillTeamScopedDynamicTemplate() {
   challengeForm.description = '这是一个按队伍生成独立入口的动态题模板。当前版本会为每支队伍生成稳定但不同的入口信息。'
   challengeForm.hints = JSON.stringify([
     '当前版本不会真的起容器，但会把每队入口预设稳定展开到实例租约响应里。',
-    '后续接入真实 Docker / K8s provider 时，可以继续沿用这份结构。',
+    '如果后端继续扩展其他实例 provider，可以继续沿用这份结构。',
   ], null, 2)
   challengeForm.attachments = '[]'
   challengeForm.container_spec = JSON.stringify({
@@ -1743,7 +1743,7 @@ function fillTeamScopedDynamicTemplate() {
       host: '127.0.0.1',
       port: '{{team_id}}',
       command: 'open /local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
-      note: '当前队伍 {{team_id}} 会看到独立入口。默认会落到本地实例访问页，后续可替换成真实反代、容器网关或平台代理地址。',
+      note: '当前队伍 {{team_id}} 会看到独立入口。默认会落到实例访问页，后端也可以继续替换成正式的入口分发地址。',
     },
     links: [
       {
@@ -1883,7 +1883,7 @@ async function createDynamicSmokeProvision() {
             host: '127.0.0.1',
             port: '{{team_id}}',
             command: 'open /local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
-            note: '当前队伍 {{team_id}} 会看到独立入口。默认会落到本地实例访问页，后续可替换成真实网关、平台代理或容器反代地址。',
+            note: '当前队伍 {{team_id}} 会看到独立入口。默认会落到实例访问页，后端也可以继续替换成正式的入口分发地址。',
           },
           links: [
             {
@@ -1895,7 +1895,7 @@ async function createDynamicSmokeProvision() {
         category: 'web',
         type: 'dynamic',
         difficulty: 'hard',
-        flag: 'flag{dynamic-smoke}',
+        flag: 'flag{dynamic-instance}',
         base_score: 300,
         min_score: 100,
         decay_rate: 0.1,
@@ -1941,7 +1941,7 @@ async function createLocalDockerSmokeProvision() {
     const game = await $api('post', '/api/games', {
       body: {
         name: `Local Docker Web ${start.getFullYear()}`,
-        description: '适合快速配置本地 Docker Web 实例流程的公开比赛模板。',
+        description: '适合快速配置容器实例流程的公开比赛模板。',
         notice: '请先确认 Docker daemon 可用，再使用普通账号完成报名、启动实例和提交流程。',
         divisions: [],
         start_time: start.toISOString(),
@@ -1958,8 +1958,8 @@ async function createLocalDockerSmokeProvision() {
 
     const challenge = await $api('post', '/api/challenges', {
       body: {
-        title: 'Local Docker Web Instance',
-        description: '这是一个适合快速配置本地 Docker Web 实例流程的动态题模板。',
+        title: 'Dynamic Web Instance',
+        description: '这是一个适合快速配置容器实例流程的动态题模板。',
         hints: JSON.stringify([
           '先确认后端已经启用 INSTANCE_DOCKER_PROVIDER_ENABLED=true，且本机 docker version 能看到 Server 段。',
           '启动实例后，应优先看到平台回填的真实 host / port / launch_url。',
@@ -1972,7 +1972,7 @@ async function createLocalDockerSmokeProvision() {
             expose: [80],
           },
           connection: {
-            note: '实例启动后，平台会为当前题目回填真实本地 Docker Web 入口。',
+            note: '实例启动后，平台会为当前题目回填真实容器实例入口。',
           },
           links: [
             {
@@ -1989,7 +1989,7 @@ async function createLocalDockerSmokeProvision() {
         category: 'web',
         type: 'dynamic',
         difficulty: 'medium',
-        flag: 'flag{local-docker-smoke}',
+        flag: 'flag{dynamic-web-instance}',
         base_score: 300,
         min_score: 100,
         decay_rate: 0.1,
@@ -2010,14 +2010,14 @@ async function createLocalDockerSmokeProvision() {
     selectGameContext(game.id)
     attachForm.challenge_id = challenge.id
     toast.add({
-      title: '本地 Docker 环境比赛已创建',
-      description: `已创建 ${game.name}，并自动挂上一道本地 Docker Web 题。现在可以继续前往公开页完成配置并确认实例入口。`,
+      title: '容器实例比赛已创建',
+      description: `已创建 ${game.name}，并自动挂上一道动态 Web 题。现在可以继续前往公开页完成配置并确认实例入口。`,
       color: 'success',
     })
     jumpToAdminAnchor('#attach-challenge')
   }
   catch (e: any) {
-    toast.add({ title: '创建本地 Docker 环境比赛失败', description: e.data?.message || e.message, color: 'error' })
+    toast.add({ title: '创建容器实例比赛失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
     localDockerSmokeProvisioning.value = false
@@ -2743,7 +2743,7 @@ onMounted(async () => {
               :loading="localDockerSmokeProvisioning"
               @click="createLocalDockerSmokeProvision"
             >
-              创建本地 Docker 环境比赛
+              创建容器实例比赛
             </UButton>
             <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeGameTemplate">
               填充比赛模板
@@ -2938,7 +2938,7 @@ onMounted(async () => {
 
       <UPageCard
         v-if="localDockerSmokeChecklist.length"
-        title="本地 Docker 环境检查清单"
+        title="容器实例检查清单"
         icon="i-lucide-container"
         id="local-docker-checklist"
       >
@@ -2946,8 +2946,8 @@ onMounted(async () => {
           <UAlert
             color="info"
             variant="soft"
-            title="这场比赛正在使用本地 Docker Web 模板"
-            description="下面这组步骤聚焦本地 Docker provider 的关键流程：报名、启动实例、确认入口回填，以及最后检查资源回收。"
+            title="这场比赛正在使用容器实例模板"
+            description="下面这组步骤聚焦实例链路中的关键流程：报名、启动实例、确认入口回填，以及最后检查资源回收。"
           />
 
           <div
@@ -3894,7 +3894,7 @@ onMounted(async () => {
           <template #footer>
             <div class="flex flex-wrap items-center justify-between gap-3">
               <p class="text-sm text-muted">
-                可以直接套用基础题、Web 实例、Pwn 服务、本地 Docker Web 模板或每队独立入口模板，加快录题速度。
+                可以直接套用基础题、Web 实例、Pwn 服务、动态 Web 模板或每队独立入口模板，加快录题速度。
               </p>
               <div class="flex flex-wrap gap-2">
                 <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeChallengeTemplate">
@@ -3907,7 +3907,7 @@ onMounted(async () => {
                   Pwn 服务
                 </UButton>
                 <UButton size="sm" variant="outline" icon="i-lucide-box" @click="fillDynamicContainerTemplate">
-                  本地 Docker Web
+                  动态 Web
                 </UButton>
                 <UButton size="sm" variant="outline" icon="i-lucide-waypoints" @click="fillTeamScopedDynamicTemplate">
                   每队独立入口

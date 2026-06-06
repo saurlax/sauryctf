@@ -55,6 +55,9 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
   - creates one public auto-accept game
   - creates one `dynamic` challenge with team-scoped instance templates
   - mounts it automatically so operators can jump straight into public-page lease verification
+- Admin-facing copy has been tightened to stay product-oriented:
+  - public pages and admin shortcuts no longer reference external projects in user-facing descriptions
+  - quick-create entries are now described by contest capability (`基础比赛` / `动态实例比赛` / `容器实例比赛`) instead of validation slang
 
 ## Frontend (`frontend/`)
 

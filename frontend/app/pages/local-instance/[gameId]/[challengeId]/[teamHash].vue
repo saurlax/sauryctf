@@ -27,7 +27,7 @@ const pageLinks = computed(() => [
     <div class="mx-auto flex max-w-4xl flex-col gap-6">
       <UPageCard
         title="实例访问页"
-        description="这是当前实例入口的本地访问页，用于承接按队伍解析后的独立地址，并方便继续核对实例链路。"
+        description="这是当前实例入口的访问页，用于承接按队伍解析后的独立地址，并方便继续核对实例链路。"
         icon="i-lucide-box"
       >
         <template #footer>
@@ -54,7 +54,7 @@ const pageLinks = computed(() => [
         <div class="mt-4 grid gap-4 md:grid-cols-2">
           <UPageCard
             title="当前租约"
-            description="当前入口已经完成队伍维度解析。后续接入真实服务后，这里可以替换为实际题目环境。"
+            description="当前入口已经完成队伍维度解析，适合继续核对实例标识、入口分发和访问状态。"
             icon="i-lucide-shield-check"
           >
             <div class="space-y-2 text-sm text-muted">
@@ -65,12 +65,12 @@ const pageLinks = computed(() => [
           </UPageCard>
 
           <UPageCard
-            title="后续步骤"
+            title="当前说明"
             description="如果你是从比赛页进入这里，说明当前实例地址已经成功下发，可以继续核对入口、续期和销毁流程。"
             icon="i-lucide-waypoints"
           >
             <div class="space-y-2 text-sm text-muted">
-              <p>下一步可以继续接入真实网关、容器调度或平台代理。</p>
+              <p>这里适合作为实例入口占位页，便于在前后端链路完全打通前先确认访问路径是否正确。</p>
               <p>也可以返回比赛页继续核对续期、状态同步和提交流程。</p>
             </div>
           </UPageCard>

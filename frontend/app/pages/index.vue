@@ -5,7 +5,7 @@ const { data: setupStatus } = await useAPI('landing-auth-setup-status', 'get', '
 const features = [
   {
     title: '动态容器',
-    description: '基于 k3s 的动态题目容器，每队独立实例，自动生命周期管理',
+    description: '支持动态题目实例链路，覆盖独立入口、租约续期与生命周期回收等核心流程',
     icon: 'i-lucide-server',
   },
   {
@@ -20,7 +20,7 @@ const features = [
   },
   {
     title: '安全隔离',
-    description: 'NetworkPolicy 隔离、资源配额控制、审计日志全程记录',
+    description: '围绕账号、队伍、比赛与实例链路提供清晰的权限边界与运行隔离能力',
     icon: 'i-lucide-shield',
   },
 ]
