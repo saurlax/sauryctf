@@ -33,8 +33,8 @@ const listGuideMeta = computed(() => {
     return {
       title: '公开比赛可直接浏览',
       description: firstVisibleGame.value
-        ? '可先查看比赛信息、题目标题和公开榜单；需要参赛时再登录账号即可。'
-        : '公开比赛开放后，可直接从这里进入对应比赛页面。',
+        ? '可先查看比赛信息、题目标题和公开榜单。'
+        : '公开比赛开放后，会直接显示在这里。',
       color: 'info' as const,
       icon: 'i-lucide-log-in',
       actionLabel: '去登录',
@@ -46,7 +46,7 @@ const listGuideMeta = computed(() => {
 
   if (!hasTeam.value) {
     return {
-      title: '需先加入队伍',
+      title: '需要先准备队伍',
       description: '比赛报名、Flag 提交和排行榜均按队伍处理。',
       color: 'warning' as const,
       icon: 'i-lucide-users',
@@ -60,7 +60,7 @@ const listGuideMeta = computed(() => {
   if (firstJoinedGame.value) {
     return {
       title: '已有参赛记录',
-      description: `你的队伍已关联到 ${firstJoinedGame.value.name}。`,
+      description: `当前队伍已关联到 ${firstJoinedGame.value.name}。`,
       color: 'success' as const,
       icon: 'i-lucide-badge-check',
       actionLabel: '打开当前比赛',
@@ -72,10 +72,10 @@ const listGuideMeta = computed(() => {
 
   if (firstJoinableGame.value) {
     return {
-      title: '可前往报名',
+      title: '可直接前往报名',
       description: firstJoinableGame.value.registration_mode === 'auto_accept'
-        ? `${firstJoinableGame.value.name} 使用自动通过报名。`
-        : `${firstJoinableGame.value.name} 使用审核制报名。`,
+        ? `${firstJoinableGame.value.name} 当前使用自动通过报名。`
+        : `${firstJoinableGame.value.name} 当前使用人工审核报名。`,
       color: 'info' as const,
       icon: 'i-lucide-flag',
       actionLabel: '前往报名',
@@ -186,6 +186,37 @@ function getParticipationMeta(game: Game) {
     registerTo: `/register?redirect=${redirect}`,
     teamTo: `/console/team?redirect=${redirect}`,
   })
+}
+
+function getGameSummaryRows(game: Game) {
+  return [
+    {
+      label: '报名方式',
+      value: game.registration_mode === 'auto_accept' ? '自动通过' : '人工审核',
+    },
+    {
+      label: '队伍人数',
+      value: game.max_team_members ? `上限 ${game.max_team_members} 人` : '不限制',
+    },
+    {
+      label: '比赛分组',
+      value: game.divisions?.length ? game.divisions.join(' / ') : '不区分分组',
+    },
+    {
+      label: '赛后策略',
+      value: game.practice_mode ? '保留练习入口' : '仅正赛模式',
+    },
+    {
+      label: 'Writeup',
+      value: game.writeup_required ? '要求提交' : '不要求',
+    },
+    ...(game.writeup_deadline
+      ? [{
+          label: 'Writeup 截止',
+          value: new Date(game.writeup_deadline).toLocaleString(),
+        }]
+      : []),
+  ]
 }
 
 const filteredGames = computed(() => {
@@ -470,21 +501,16 @@ onMounted(async () => {
         <p class="text-sm text-muted line-clamp-2">
           {{ game.description || '暂无描述' }}
         </p>
-        <p class="mt-2 text-xs text-muted">
-          报名方式：{{ game.registration_mode === 'auto_accept' ? '自动通过' : '人工审核' }}
-        </p>
-        <p class="mt-1 text-xs text-muted">
-          {{ game.max_team_members ? `队伍人数上限：${game.max_team_members} 人` : '队伍人数不限' }}
-        </p>
-        <p class="mt-1 text-xs text-muted">
-          {{ game.divisions?.length ? `比赛分组：${game.divisions.join(' / ')}` : '当前不区分分组榜' }}
-        </p>
-        <p class="mt-1 text-xs text-muted">
-          {{ game.practice_mode ? '支持赛后练习' : '仅正赛模式' }} · {{ game.writeup_required ? '要求 Writeup' : '不要求 Writeup' }}
-        </p>
-        <p v-if="game.writeup_deadline" class="mt-1 text-xs text-muted">
-          Writeup 截止：{{ new Date(game.writeup_deadline).toLocaleString() }}
-        </p>
+        <div class="mt-3 rounded-lg border border-default bg-elevated/50 px-3 py-3 text-xs">
+          <div
+            v-for="row in getGameSummaryRows(game)"
+            :key="row.label"
+            class="flex items-center justify-between gap-3 py-1.5"
+          >
+            <span class="text-muted">{{ row.label }}</span>
+            <span class="text-right">{{ row.value }}</span>
+          </div>
+        </div>
         <div class="mt-4 rounded-lg border border-default bg-elevated/50 px-3 py-3">
           <div class="mb-2 flex items-center justify-between gap-2">
             <span class="text-sm font-medium">我的参赛状态</span>
