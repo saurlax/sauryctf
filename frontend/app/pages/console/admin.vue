@@ -2974,13 +2974,13 @@ onMounted(async () => {
         </div>
       </UPageCard>
 
-      <UPageCard title="首次建赛路径" icon="i-lucide-list-checks">
+      <UPageCard title="建赛流程建议" icon="i-lucide-list-checks">
         <div class="space-y-3">
           <UAlert
             color="info"
             variant="soft"
             title="推荐顺序：先建比赛，再建题、挂题，最后切到 active"
-            description="这条顺序可用于空库首次启动后的最小闭环，也能减少把未配置完成的比赛提前公开。"
+            description="这条顺序适合常规管理配置，也能减少把未配置完成的比赛提前公开。"
           />
 
           <div class="grid gap-3 xl:grid-cols-2">
@@ -5369,35 +5369,27 @@ onMounted(async () => {
     </template>
   </UModal>
 
-  <UModal v-model:open="confirmModalOpen">
-    <template #content>
-      <div class="space-y-4 p-4 sm:p-5">
-        <div class="space-y-2">
-          <div class="text-base font-semibold">
-            {{ confirmActionState.title }}
-          </div>
-          <div class="whitespace-pre-wrap text-sm text-muted">
-            {{ confirmActionState.description }}
-          </div>
-        </div>
-
-        <div class="flex justify-end gap-2">
-          <UButton
-            variant="ghost"
-            :disabled="confirmActionBusy"
-            @click="confirmModalOpen = false; resetConfirmAction()"
-          >
-            取消
-          </UButton>
-          <UButton
-            color="error"
-            :loading="confirmActionBusy"
-            @click="confirmAction"
-          >
-            {{ confirmActionState.confirmLabel }}
-          </UButton>
-        </div>
-      </div>
+  <UModal
+    v-model:open="confirmModalOpen"
+    :title="confirmActionState.title"
+    :description="confirmActionState.description"
+    :ui="{ description: 'whitespace-pre-wrap', footer: 'justify-end' }"
+  >
+    <template #footer>
+      <UButton
+        variant="ghost"
+        :disabled="confirmActionBusy"
+        @click="confirmModalOpen = false; resetConfirmAction()"
+      >
+        取消
+      </UButton>
+      <UButton
+        color="error"
+        :loading="confirmActionBusy"
+        @click="confirmAction"
+      >
+        {{ confirmActionState.confirmLabel }}
+      </UButton>
     </template>
   </UModal>
 </template>
