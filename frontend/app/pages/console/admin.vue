@@ -503,7 +503,7 @@ const adminSetupContextMeta = computed(() => {
 
   return {
     game,
-    title: shouldGuideToAttach ? '继续配置这场比赛：先完成挂题' : '继续配置这场比赛：检查比赛设置',
+    title: shouldGuideToAttach ? '继续完善这场比赛：先完成挂题' : '继续完善这场比赛：检查比赛设置',
     description: shouldGuideToAttach
       ? `${game.name} 已经创建完成。先挂载至少一道题目，再切换比赛状态并检查公开页展示。`
       : `${game.name} 当前已经挂了 ${gameChallengeCount} 道题。接下来可以继续检查状态、公开性和报名模式。`,
@@ -1008,7 +1008,7 @@ const adminSetupSteps = computed(() => {
   return [
     {
       key: 'game',
-      title: '1. 先创建一场比赛',
+      title: '1. 创建比赛',
       description: hasGames
         ? `当前已经有 ${games.value.length} 场比赛，可以继续补充配置或直接复用。`
         : '先填写比赛名称、时间和报名模式，创建一场最小可用的比赛。默认先保持 draft 更安全。',
@@ -1019,7 +1019,7 @@ const adminSetupSteps = computed(() => {
     },
     {
       key: 'challenge',
-      title: '2. 再创建至少一道题目',
+      title: '2. 创建题目',
       description: hasChallenges
         ? `当前题库已有 ${challenges.value.length} 道题目，可以直接挂到比赛里。`
         : '题目至少需要标题、Flag 和基础分类，后续再逐步补题面、提示和附件即可。',
@@ -1030,7 +1030,7 @@ const adminSetupSteps = computed(() => {
     },
     {
       key: 'attach',
-      title: '3. 把题目挂到比赛上',
+      title: '3. 挂载题目',
       description: hasMountedChallenges
         ? `当前选中的比赛已经挂载了 ${selectedGameChallenges.value.length} 道题目，可以继续补挂或直接准备开赛。`
         : hasGames && hasChallenges
@@ -1043,7 +1043,7 @@ const adminSetupSteps = computed(() => {
     },
     {
       key: 'launch',
-      title: '4. 最后切到 active 并检查公开页',
+      title: '4. 发布前检查',
       description: activeGame
         ? `当前已有进行中的比赛：${activeGame.name}。现在可以去公开页检查报名、题目显示和排行榜。`
         : '确认比赛时间、公开性和挂题都无误后，再把状态从 draft 切到 active。',
@@ -2943,17 +2943,17 @@ onMounted(async () => {
         />
       </div>
 
-      <UPageCard title="快速创建入口" icon="i-lucide-flask-conical">
+      <UPageCard title="预置配置" icon="i-lucide-flask-conical">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div class="space-y-2">
             <p class="text-sm text-muted">
-              可以直接生成一套精简的比赛与题目配置，用于建立首个可用赛事流程。
+              可以直接生成一套精简但完整的比赛与题目配置，用于快速建立一条可运行的赛事链路。
             </p>
             <UAlert
               color="info"
               variant="soft"
-              title="推荐用途"
-              description="这一组入口用于先完成比赛创建、选手报名、Flag 提交和排行榜更新等基础流程。"
+              title="使用建议"
+              description="适合本地联调、功能验收或建立新的管理基线；正式发布前仍应补全题面、入口、镜像、附件与规则配置。"
             />
           </div>
 
@@ -2978,22 +2978,22 @@ onMounted(async () => {
               创建容器实例比赛
             </UButton>
             <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeGameTemplate">
-              填充比赛模板
+              填充比赛表单
             </UButton>
             <UButton variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeChallengeTemplate">
-              填充题目模板
+              填充题目表单
             </UButton>
           </div>
         </div>
       </UPageCard>
 
-      <UPageCard title="建赛流程建议" icon="i-lucide-list-checks">
+      <UPageCard title="配置步骤概览" icon="i-lucide-list-checks">
         <div class="space-y-3">
           <UAlert
             color="info"
             variant="soft"
-            title="推荐顺序：先建比赛，再建题、挂题，最后切到 active"
-            description="这条顺序适合常规管理配置，也能减少把未配置完成的比赛提前公开。"
+            title="推荐顺序：比赛、题目、挂载、发布检查"
+            description="这组步骤用于帮助管理员快速判断当前还缺哪一环，并减少未完成配置被提前公开的风险。"
           />
 
           <div class="grid gap-3 xl:grid-cols-2">
