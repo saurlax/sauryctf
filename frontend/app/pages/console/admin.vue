@@ -3232,17 +3232,17 @@ onMounted(async () => {
         />
       </div>
 
-      <UPageCard title="快速模板" icon="i-lucide-layout-template">
+      <UPageCard title="预置方案" icon="i-lucide-layout-template">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div class="space-y-2">
             <p class="text-sm text-muted">
-              可直接生成一套精简的比赛与题目配置，便于快速建立标准化赛事基础结构。
+              可直接生成一套精简的比赛与题目配置，用于建立标准化赛事基础结构。
             </p>
             <UAlert
               color="info"
               variant="soft"
               title="使用说明"
-              description="模板仅写入基础配置。正式发布前仍应补全题面、入口、镜像、附件与规则设置。"
+              description="预置方案仅写入基础配置。正式发布前仍应补全题面、入口、镜像、附件与规则设置。"
             />
           </div>
 
@@ -3381,7 +3381,7 @@ onMounted(async () => {
                   color="info"
                   variant="soft"
                   icon="i-lucide-route"
-                  title="已有可继续配置的比赛"
+                  title="已有待维护的比赛"
                   :description="adminSetupContextMeta.description"
                 />
                 <div class="flex flex-wrap justify-center gap-2">
@@ -3411,7 +3411,7 @@ onMounted(async () => {
               color="info"
               variant="soft"
               title="开赛前先确认这几项"
-              description="这里只保留当前最影响公开运行的检查项，便于快速判断是否可以继续发布。"
+              description="这里只保留当前最影响公开运行的检查项，便于判断是否可以继续发布。"
             />
 
             <div
@@ -3968,7 +3968,7 @@ onMounted(async () => {
           <div v-else-if="activeMonitorTab === 'submissions'" class="space-y-3">
             <div class="flex items-center justify-between gap-3 flex-wrap">
               <div class="text-sm text-muted">
-                保留最近提交的即时视角，可在开赛后快速观察正确率与重复提交流量。
+                保留最近提交的即时视角，可在开赛后持续观察正确率与重复提交流量。
               </div>
               <div class="flex items-center gap-2">
                 <USelect
@@ -4065,7 +4065,7 @@ onMounted(async () => {
               color="info"
               variant="soft"
               title="时间线会混合展示公告、正确提交与可疑线索"
-              description="可在赛时快速回放最近发生了什么，帮助管理员判断是正常比赛推进，还是需要插入运维或排查动作。"
+              description="可在赛时集中回看最近发生的关键事件，帮助管理员判断是正常比赛推进，还是需要插入运维或排查动作。"
             />
 
             <div v-if="selectedMonitorTimeline.length" class="space-y-2">
@@ -4191,7 +4191,7 @@ onMounted(async () => {
                 </UBadge>
               </div>
               <div class="space-y-2 text-sm text-muted">
-                <p>继续配置时，可直接回到比赛设置、挂题和参赛队伍区。</p>
+                <p>如需继续维护，可直接回到比赛设置、挂题和参赛队伍区。</p>
                 <p>如果已经开赛，可以直接打开公开页观察报名、题目和排行榜状态。</p>
               </div>
               <div class="mt-3 flex flex-wrap justify-end gap-2">
@@ -4232,7 +4232,7 @@ onMounted(async () => {
               variant="outline"
               @click="fillStarterGameTemplate(); createGameModalOpen = true"
             >
-              使用基础模板
+              载入基础配置
             </UButton>
             <UButton icon="i-lucide-pencil-line" variant="outline" @click="gameEditModalOpen = true">
               编辑比赛信息
@@ -4249,7 +4249,7 @@ onMounted(async () => {
               </div>
               <ul class="space-y-2">
                 <li>建议先完成题目录入、挂题和公开页检查，再切换到 `active`。</li>
-                <li>需要快速起步时，可先载入基础模板，再在弹层里补齐正式时间、规则和公告。</li>
+                <li>如需减少重复录入，可先载入基础配置，再在弹层里补齐正式时间、规则和公告。</li>
               </ul>
             </div>
 

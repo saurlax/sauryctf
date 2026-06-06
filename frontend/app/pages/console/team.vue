@@ -82,8 +82,8 @@ const contestRedirect = computed(() => resolveRedirect())
 const teamSetupGuideMeta = computed(() => {
   if (contestRedirect.value) {
     return {
-      title: '当前状态：需先完成队伍准备',
-      description: '你当前还没有队伍。可先创建队伍或使用邀请码加入，完成后会自动返回原比赛继续报名或参赛。',
+      title: '当前尚未加入队伍',
+      description: '你当前还没有队伍。可先创建队伍或使用邀请码加入，完成后会返回原比赛页继续后续操作。',
       color: 'info' as const,
       icon: 'i-lucide-route',
       actionLabel: '先看原比赛',
@@ -94,8 +94,8 @@ const teamSetupGuideMeta = computed(() => {
   }
 
   return {
-    title: '当前状态：尚未加入队伍',
-    description: '准备参赛前，建议先完成组队，再前往比赛页处理报名和后续操作。',
+    title: '当前尚未加入队伍',
+    description: '参赛前请先完成组队，再前往比赛页处理报名和后续操作。',
     color: 'neutral' as const,
     icon: 'i-lucide-flag',
     actionLabel: '浏览比赛',
@@ -127,23 +127,23 @@ const teamNextStepMeta = computed(() => {
 
   if (contestRedirect.value) {
     return {
-      title: '当前状态：可返回原比赛继续操作',
+      title: '队伍已可用于当前比赛',
       description: isCaptain.value
-        ? '队伍已准备就绪。你可以直接返回原比赛继续报名，也可以先复制邀请链接补充队员。'
+        ? '你可以直接返回原比赛继续处理报名，也可以先在当前页面补充队员。'
         : '你已加入当前队伍，现在可以返回原比赛继续查看报名状态、题目和排行榜。',
       color: 'info' as const,
       icon: 'i-lucide-route',
       actionLabel: '返回原比赛',
       actionTo: contestRedirect.value,
-      secondaryLabel: isCaptain.value ? '复制邀请链接' : '浏览更多比赛',
+      secondaryLabel: isCaptain.value ? '查看队伍页' : '浏览更多比赛',
       secondaryTo: isCaptain.value ? '/console/team' : '/games',
     }
   }
 
   if (isCaptain.value && memberCount.value <= 1) {
     return {
-      title: '当前状态：队伍可继续扩充',
-      description: '你当前是队长，可以先邀请队友，也可以直接前往比赛页完成报名。',
+      title: '队伍当前可继续扩充',
+      description: '你当前是队长，可以继续邀请队友，也可以直接前往比赛页处理报名。',
       color: 'success' as const,
       icon: 'i-lucide-user-round-plus',
       actionLabel: '浏览比赛',
@@ -154,9 +154,9 @@ const teamNextStepMeta = computed(() => {
   }
 
   return {
-    title: '当前状态：可前往比赛页继续参赛',
+    title: '队伍当前可继续参赛',
     description: isCaptain.value
-      ? '队伍已具备基本参赛条件，可前往比赛页完成报名，并按比赛状态继续提交 Flag 或补交 Writeup。'
+      ? '队伍已具备基本参赛条件，可前往比赛页处理报名，并按比赛状态继续提交 Flag 或补交 Writeup。'
       : '你当前已在队伍中，可直接前往比赛页查看队伍的报名状态和参赛入口。',
     color: 'success' as const,
     icon: 'i-lucide-trophy',
@@ -445,7 +445,7 @@ async function copyInviteLink() {
     const inviteLink = inviteUrl.toString()
     await navigator.clipboard.writeText(inviteLink)
     toast.add({
-      title: '邀请链接已复制',
+      title: '邀请入口已复制',
       description: contestRedirect.value
         ? '队友打开后会自动填入邀请码，加入后也会回到原比赛。'
         : '队友打开后会自动填入邀请码。',
@@ -487,7 +487,7 @@ async function resetInviteCode() {
 function openResetInviteCodeConfirm() {
   confirmAction.value = {
     title: '确认重置邀请码',
-    description: '重置后，旧邀请码会立即失效，后续需使用新的邀请码或邀请链接邀请队友。',
+    description: '重置后，旧邀请码会立即失效，后续需使用新的邀请码或新的邀请入口邀请队友。',
     actionLabel: '确认重置',
     color: 'warning',
     payload: { type: 'reset-invite-code' },
@@ -653,7 +653,7 @@ onMounted(async () => {
                 @click="copyInviteCode()"
               />
               <UButton
-                label="复制邀请链接"
+                label="复制邀请入口"
                 icon="i-lucide-link"
                 variant="ghost"
                 size="xs"
@@ -801,8 +801,8 @@ onMounted(async () => {
             color="info"
             variant="soft"
             icon="i-lucide-route"
-            title="当前来自比赛页"
-            description="当前页面由比赛详情跳转而来。创建或加入队伍成功后，系统会自动返回原比赛。"
+            title="当前来自比赛详情"
+            description="当前页面由比赛详情跳转而来。创建或加入队伍成功后，系统会返回原比赛页。"
           >
             <template #actions>
               <UButton
@@ -862,7 +862,7 @@ onMounted(async () => {
             class="mb-4"
             color="info"
             variant="soft"
-            title="已识别邀请链接"
+            title="已识别邀请入口"
             description="页面已经自动填入邀请码，确认后即可直接加入队伍。"
           />
           <UForm :state="joinForm" class="space-y-4" @submit="joinTeam">
@@ -873,7 +873,7 @@ onMounted(async () => {
           </UForm>
           <template #footer>
             <p class="text-sm text-muted">
-              通过队长分享的邀请码即可快速加入，加入后就能前往比赛页面完成报名。
+              通过队长分享的邀请码即可加入队伍，随后可前往比赛页面继续报名或参赛。
             </p>
           </template>
         </UPageCard>
@@ -883,11 +883,11 @@ onMounted(async () => {
             <UAlert
               color="info"
               variant="soft"
-              title="先完成组队，再继续参赛"
+              title="队伍是比赛参与的基础单元"
               description="比赛报名、Flag 提交和排行榜都按队伍进行。创建者会自动成为队长，其他成员通过邀请码加入。"
             />
             <div v-if="contestRedirect" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              当前来自比赛详情页。创建或加入成功后，系统会自动返回原比赛继续操作。
+              当前来自比赛详情页。创建或加入成功后，系统会返回原比赛页继续操作。
             </div>
           </div>
 
