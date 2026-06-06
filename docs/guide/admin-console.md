@@ -69,6 +69,8 @@
   - 不把 `setup`、初始化或向导式语义继续扩散到页面实现和计算属性命名里
 - 当当前比赛使用容器实例模板时，管理端会额外显示一张容器实例检查清单：
   - 当前优先根据题目 `container_spec.metadata.purpose` 识别模板类型，不再依赖题目标题必须保持固定值
+  - 如果历史数据还没补 `metadata.purpose`，则只允许退回到 `runtime.provider / runtime.image / runtime.expose` 这类结构级判断
+  - 不再根据题目标题或实例租约里的 `challenge_title` 猜测模板类型
   - 先提醒管理员用普通用户报名比赛
   - 再提醒去公开页启动实例
   - 然后回到管理端检查实例监控里的 `host:port / launch_url` 回填

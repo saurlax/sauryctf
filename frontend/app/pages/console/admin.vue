@@ -448,8 +448,16 @@ const challengeEditAccessMode = computed(() => describeChallengeAccessMode(chall
 const selectedChallengeTemplatePurposes = computed(() =>
   new Set(
     selectedGameChallenges.value
-      .map(challenge => parseChallengeTemplatePurpose(challenge.container_spec, challenge.title))
+      .map(challenge => parseChallengeTemplatePurpose(challenge.container_spec))
       .filter(Boolean),
+  ),
+)
+
+const localDockerChallengeIds = computed(() =>
+  new Set(
+    selectedGameChallenges.value
+      .filter(challenge => parseChallengeTemplatePurpose(challenge.container_spec) === 'local-docker-web')
+      .map(challenge => challenge.id),
   ),
 )
 const filteredGames = computed(() => {
@@ -1266,10 +1274,15 @@ function describeChallengeAccessMode(containerSpec?: string) {
   }
 }
 
-function parseChallengeTemplatePurpose(containerSpec?: string, fallbackTitle?: string) {
+function parseChallengeTemplatePurpose(containerSpec?: string) {
   if (containerSpec) {
     try {
       const parsed = JSON.parse(containerSpec) as {
+        runtime?: {
+          provider?: string
+          image?: string
+          expose?: Array<string | number>
+        }
         metadata?: {
           purpose?: string
         }
@@ -1278,30 +1291,40 @@ function parseChallengeTemplatePurpose(containerSpec?: string, fallbackTitle?: s
       if (purpose) {
         return purpose
       }
+
+      const provider = parsed?.runtime?.provider?.trim()
+      const image = parsed?.runtime?.image?.trim()
+      const expose = Array.isArray(parsed?.runtime?.expose)
+        ? parsed.runtime.expose.map(item => String(item).trim()).filter(Boolean)
+        : []
+
+      if (provider === 'docker' && image === 'nginx:alpine' && expose.includes('80')) {
+        return 'local-docker-web'
+      }
     }
     catch {
-      // Ignore malformed template metadata and fall back to older title-based detection.
+      return ''
     }
-  }
-
-  const title = fallbackTitle?.trim()
-  if (title === 'Web Dynamic Container' || title === '动态容器 Web 题') {
-    return 'local-docker-web'
   }
 
   return ''
 }
 
 function matchesLocalDockerLease(lease: {
+  challenge_id: number
   challenge_title?: string
   image?: string
   provider?: string
 }) {
+  if (localDockerChallengeIds.value.has(lease.challenge_id)) {
+    return true
+  }
+
   if (lease.provider === 'docker' && lease.image === 'nginx:alpine') {
     return true
   }
 
-  return lease.challenge_title === 'Web Dynamic Container' || lease.challenge_title === '动态容器 Web 题'
+  return false
 }
 
 async function loadAdminResources() {
