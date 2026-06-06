@@ -460,6 +460,30 @@ const consoleWorkbenchActions = computed(() => {
   return actions
 })
 
+const consoleActionButtons = computed(() => {
+  const actions: Array<{
+    label: string
+    icon?: string
+    to: string
+    variant?: 'solid' | 'outline' | 'ghost' | 'soft' | 'subtle' | 'link'
+  }> = [
+    {
+      label: consoleNextActionMeta.value.buttonLabel,
+      to: consoleNextActionMeta.value.buttonTo,
+      variant: consoleNextActionMeta.value.buttonVariant,
+    },
+  ]
+
+  for (const action of consoleWorkbenchActions.value) {
+    const duplicated = actions.some(item => item.to === action.to && item.label === action.label)
+    if (!duplicated) {
+      actions.push(action)
+    }
+  }
+
+  return actions
+})
+
 const consoleNextActionMeta = computed(() => {
   const writeupGame = pendingWriteupGames.value[0]
   if (writeupGame) {
@@ -813,15 +837,9 @@ onBeforeUnmount(() => {
                   </UBadge>
                 </div>
 
-                <div class="mt-3 flex flex-col gap-3">
+                <div class="mt-3 flex flex-wrap gap-2">
                   <UButton
-                    size="sm"
-                    :variant="consoleNextActionMeta.buttonVariant"
-                    :to="consoleNextActionMeta.buttonTo"
-                    :label="consoleNextActionMeta.buttonLabel"
-                  />
-                  <UButton
-                    v-for="action in consoleWorkbenchActions"
+                    v-for="action in consoleActionButtons"
                     :key="`${action.label}-${action.to}`"
                     size="sm"
                     :label="action.label"
