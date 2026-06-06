@@ -2367,10 +2367,10 @@ onMounted(async () => {
         <UEmpty
           v-if="challenges.length === 0"
           icon="i-lucide-file-question"
-          title="当前还没有可浏览的题目"
+          title="暂无可浏览题目"
           :description="authState.user
-            ? '如果这场比赛已经开赛但仍然没有题目，建议先回到概览区确认比赛状态，或联系管理员核对题目发布情况。'
-            : '当前可以先浏览比赛信息和排行榜；题目开放后，这里会展示对应分类和题目列表。'"
+            ? '当前比赛尚未提供可浏览题目。'
+            : '题目开放后会显示在这里。'"
           :actions="[
             {
               label: '返回比赛概览',
@@ -2439,7 +2439,7 @@ onMounted(async () => {
                   />
 
                   <p class="text-muted leading-6 whitespace-pre-wrap">
-                    {{ ch.description || '当前题面内容暂未开放，待报名通过并开赛后会自动显示。' }}
+                    {{ ch.description || '题面内容开放后会显示在这里。' }}
                   </p>
 
                   <div v-if="getChallengeHints(ch.hints).length" class="rounded-lg border border-default bg-muted/40 px-3 py-3">
@@ -2718,7 +2718,7 @@ onMounted(async () => {
                     color="warning"
                     variant="subtle"
                     title="题面暂未开放"
-                    description="当前只能查看题目基础信息。提示与附件会在具备参赛资格后自动显示。"
+                    description="当前仅展示题目基础信息。"
                   />
                 </div>
 
@@ -2748,7 +2748,7 @@ onMounted(async () => {
                   <UEmpty
                     v-else
                     icon="i-lucide-flag-off"
-                    title="当前还不能提交 Flag"
+                    title="暂不可提交 Flag"
                     :description="challengeSubmitMeta.description"
                     :actions="flagBlockedAction?.to
                       ? [{
@@ -2832,10 +2832,10 @@ onMounted(async () => {
             <UEmpty
               v-if="scoreboard.length === 0"
               icon="i-lucide-trophy"
-              title="当前还没有公开榜单数据"
+              title="暂无公开榜单数据"
               :description="selectedDivision
-                ? `当前分组 ${selectedDivision} 还没有产生可公开展示的队伍或解题记录。`
-                : '当前还没有产生可公开展示的队伍或解题记录；通常需要至少有队伍报名并开始解题后，公开榜单才会出现内容。'"
+                ? `分组 ${selectedDivision} 暂无公开记录。`
+                : '当前暂无可公开展示的队伍或解题记录。'"
               :actions="[
                 {
                   label: authState.user ? '查看比赛概览' : '登录账号',
@@ -2884,10 +2884,10 @@ onMounted(async () => {
             <UEmpty
               v-if="scoreboardChallenges.length === 0"
               icon="i-lucide-chart-column-big"
-              title="当前还没有分题统计"
+              title="暂无分题统计"
               :description="scoreboard.length
-                ? '当前榜单里还没有产生可公开展示的题目统计，通常需要至少有队伍开始解题后才会出现。'
-                : '当前榜单里还没有可公开展示的队伍或解题记录，所以分题统计也暂时不会出现。'"
+                ? '当前还没有可公开展示的题目统计。'
+                : '当前还没有可用于统计的公开解题记录。'"
             />
             <div v-else class="space-y-6">
               <UPageCard
@@ -2986,7 +2986,7 @@ onMounted(async () => {
                 <UEmpty
                   v-else
                   icon="i-lucide-file-lock-2"
-                  title="当前还不能编辑 Writeup"
+                  title="暂不可编辑 Writeup"
                   :description="writeupGuide.description"
                   :actions="writeupBlockedAction?.to
                     ? [{
@@ -3033,8 +3033,8 @@ onMounted(async () => {
                       v-if="!writeup?.review_remark"
                       class="mt-2"
                       icon="i-lucide-message-square-text"
-                      title="当前还没有审核备注"
-                      description="管理员当前还没有留下备注。审核状态变化后，这里会显示对应内容。"
+                      title="暂无审核备注"
+                      description="审核备注会显示在这里。"
                       variant="naked"
                     />
                     <div v-else class="mt-2 leading-6">
@@ -3064,7 +3064,7 @@ onMounted(async () => {
     <template v-else>
       <UEmpty
         icon="i-lucide-shield-alert"
-        title="当前比赛暂时不可用"
+        title="比赛暂不可用"
         :description="pageLoadError || '当前比赛不存在，或你现在还不能访问这场比赛。'"
         :actions="[
           {
