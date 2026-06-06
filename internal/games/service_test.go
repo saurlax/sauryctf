@@ -2589,13 +2589,19 @@ func TestService_DestroyInstanceLease_ForAdmin(t *testing.T) {
 	}
 	require.NoError(t, database.Create(&lease).Error)
 
-	err = svc.DestroyInstanceLease(game.ID, lease.ID)
+	err = svc.DestroyInstanceLease(game.ID, lease.ID, user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 1, provider.destroyCalled)
 
 	var leaseCount int64
 	require.NoError(t, database.Model(&models.GameInstanceLease{}).Where("id = ?", lease.ID).Count(&leaseCount).Error)
 	assert.Equal(t, int64(0), leaseCount)
+
+	var logs []models.AuditLog
+	require.NoError(t, database.Order("id ASC").Find(&logs).Error)
+	require.Len(t, logs, 1)
+	assert.Equal(t, "admin.game.destroy_instance_lease", logs[0].Action)
+	assert.Contains(t, logs[0].Detail, `"lease_id":`)
 }
 
 func TestService_ChallengeInstanceLifecycle_DestroyUsesProvider(t *testing.T) {

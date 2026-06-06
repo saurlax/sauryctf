@@ -2334,7 +2334,7 @@ func (s *Service) DestroyChallengeInstance(gameID uint, challengeID uint, userID
 	return result, nil
 }
 
-func (s *Service) DestroyInstanceLease(gameID uint, leaseID uint) error {
+func (s *Service) DestroyInstanceLease(gameID uint, leaseID uint, destroyedBy ...uint) error {
 	var lease models.GameInstanceLease
 	if err := s.db.Where("game_id = ? AND id = ?", gameID, leaseID).First(&lease).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -2371,7 +2371,15 @@ func (s *Service) DestroyInstanceLease(gameID uint, leaseID uint) error {
 		return err
 	}
 
-	return s.db.Delete(&lease).Error
+	if err := s.db.Delete(&lease).Error; err != nil {
+		return err
+	}
+
+	if actorUserID := firstGameActorID(destroyedBy...); actorUserID > 0 {
+		return s.writeAuditLog(actorUserID, "admin.game.destroy_instance_lease", "game", lease.GameID, fmt.Sprintf("手动销毁比赛实例租约 #%d", lease.ID), fmt.Sprintf(`{"lease_id":%d,"challenge_id":%d,"team_id":%d,"provider":%q,"image":%q}`, lease.ID, lease.ChallengeID, lease.TeamID, lease.Provider, lease.Image))
+	}
+
+	return nil
 }
 
 func (s *Service) CleanupExpiredChallengeInstances(now time.Time) (int, error) {

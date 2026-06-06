@@ -832,7 +832,7 @@ func (m *MockService) ListInstanceLeases(gameID uint) ([]GameInstanceLeaseEntry,
 	return result, nil
 }
 
-func (m *MockService) DestroyInstanceLease(gameID uint, leaseID uint) error {
+func (m *MockService) DestroyInstanceLease(gameID uint, leaseID uint, _ ...uint) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

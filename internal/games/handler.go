@@ -482,7 +482,8 @@ func (h *Handler) ListInstanceLeases(c *gin.Context, id int) {
 }
 
 func (h *Handler) DestroyInstanceLease(c *gin.Context, id int, leaseId int) {
-	if err := h.svc.DestroyInstanceLease(uint(id), uint(leaseId)); err != nil {
+	userID := c.MustGet("user_id").(uint)
+	if err := h.svc.DestroyInstanceLease(uint(id), uint(leaseId), userID); err != nil {
 		switch err.Error() {
 		case "instance lease not found", "challenge not found":
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
