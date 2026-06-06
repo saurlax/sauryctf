@@ -1689,6 +1689,41 @@ func TestService_LeaveGame_RejectsAcceptedWithdrawal(t *testing.T) {
 	assert.Contains(t, err.Error(), "cannot be withdrawn")
 }
 
+func TestService_LeaveGame_RejectsNonMemberUser(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+
+	captain := models.User{Username: "leave-captain", Email: "leave-captain@example.com", PasswordHash: "hash"}
+	outsider := models.User{Username: "leave-outsider", Email: "leave-outsider@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&captain).Error)
+	require.NoError(t, database.Create(&outsider).Error)
+
+	team := models.Team{Name: "Leave Team", InviteCode: "leave01", CaptainID: captain.ID, Status: models.TeamStatusActive}
+	require.NoError(t, database.Create(&team).Error)
+	require.NoError(t, database.Create(&models.TeamMember{
+		TeamID: team.ID, UserID: captain.ID, Role: models.MemberRoleCaptain,
+	}).Error)
+
+	game := models.Game{
+		Name:      "Leave Membership Game",
+		StartTime: time.Now().Add(time.Hour),
+		EndTime:   time.Now().Add(2 * time.Hour),
+		Status:    "active",
+		IsPublic:  true,
+		CreatedBy: captain.ID,
+	}
+	require.NoError(t, database.Create(&game).Error)
+	require.NoError(t, svc.JoinGame(game.ID, team.ID, captain.ID, ""))
+
+	err = svc.LeaveGame(game.ID, team.ID, outsider.ID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not a member of this team")
+}
+
 func TestService_JoinGame_RejectsTeamExceedingGameMemberLimit(t *testing.T) {
 	database, err := db.ConnectTest()
 	require.NoError(t, err)
@@ -1941,6 +1976,23 @@ func TestService_SubmitFlag_RejectsBeforeGameStart(t *testing.T) {
 	_, err = svc.SubmitFlag(gameID, challengeID, 1, team1ID, "flag{fixture}")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "has not started yet")
+}
+
+func TestService_SubmitFlag_RejectsNonMemberUser(t *testing.T) {
+	database, err := db.ConnectTest()
+	require.NoError(t, err)
+	require.NoError(t, db.Migrate(database))
+	db.CleanTables(database)
+
+	svc := games.NewService(database)
+	gameID, challengeID, team1ID, _ := createGameChallengeFixture(t, database)
+
+	outsider := models.User{Username: "submit-outsider", Email: "submit-outsider@example.com", PasswordHash: "hash"}
+	require.NoError(t, database.Create(&outsider).Error)
+
+	_, err = svc.SubmitFlag(gameID, challengeID, outsider.ID, team1ID, "flag{fixture}")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not a member of this team")
 }
 
 func TestService_SubmitFlag_RejectsAfterGameEnd(t *testing.T) {

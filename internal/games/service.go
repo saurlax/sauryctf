@@ -1938,11 +1938,7 @@ func (s *Service) JoinGame(gameID uint, teamID uint, userID uint, invitationCode
 		return errors.New("invalid game invitation code")
 	}
 
-	var member models.TeamMember
-	if err := s.db.Where("team_id = ? AND user_id = ?", teamID, userID).First(&member).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errors.New("user is not a member of this team")
-		}
+	if err := s.ensureUserBelongsToTeam(teamID, userID); err != nil {
 		return err
 	}
 
@@ -1994,6 +1990,10 @@ func (s *Service) LeaveGame(gameID uint, teamID uint, userID uint) error {
 	var game models.Game
 	if err := s.db.First(&game, gameID).Error; err != nil {
 		return errors.New("game not found")
+	}
+
+	if err := s.ensureUserBelongsToTeam(teamID, userID); err != nil {
+		return err
 	}
 
 	var participation models.Participation
@@ -2433,6 +2433,18 @@ func (s *Service) CleanupExpiredChallengeInstances(now time.Time) (int, error) {
 	return cleaned, nil
 }
 
+func (s *Service) ensureUserBelongsToTeam(teamID uint, userID uint) error {
+	var member models.TeamMember
+	if err := s.db.Where("team_id = ? AND user_id = ?", teamID, userID).First(&member).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("user is not a member of this team")
+		}
+		return err
+	}
+
+	return nil
+}
+
 func (s *Service) countWrongSubmissions(gameID uint, challengeID uint, teamID uint, isPractice bool) (int64, error) {
 	var wrongCount int64
 	err := s.db.Model(&models.GameSubmission{}).
@@ -2470,6 +2482,10 @@ func (s *Service) SubmitFlag(gameID uint, challengeID uint, userID uint, teamID 
 	}
 	if part.Status != models.ParticipationAccepted {
 		return nil, errors.New("team is not approved for this game yet")
+	}
+
+	if err := s.ensureUserBelongsToTeam(teamID, userID); err != nil {
+		return nil, err
 	}
 
 	// Verify challenge is in this game
