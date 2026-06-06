@@ -685,7 +685,7 @@ const monitorFocusItems = computed(() => {
     items.push({
       key: 'participants',
       title: '还有报名待审核',
-      description: `${overview.pendingParticipantCount} 支队伍仍在等待通过，优先处理后可以更快恢复报名链路。`,
+      description: `${overview.pendingParticipantCount} 支队伍仍在等待通过，处理后即可恢复完整参赛链路。`,
       badge: '报名',
       color: 'warning' as const,
       to: '#attach-challenge',
@@ -696,7 +696,7 @@ const monitorFocusItems = computed(() => {
     items.push({
       key: 'writeups',
       title: '有 Writeup 等待审核',
-      description: `${writeups.value.filter(item => item.status === 'submitted').length} 份 Writeup 仍未处理，适合在赛后第一时间收尾。`,
+      description: `${writeups.value.filter(item => item.status === 'submitted').length} 份 Writeup 仍未处理，可在这里继续完成赛后收尾。`,
       badge: 'Writeup',
       color: 'info' as const,
       to: '#attach-challenge',
@@ -709,7 +709,7 @@ const monitorFocusItems = computed(() => {
       items.push({
         key: 'clues',
         title: '出现跨队重复错误 Flag',
-        description: `${firstClue.challenge_title} 当前已有 ${firstClue.team_count} 支队伍重复提交同一错误 Flag，可优先排查线索传播。`,
+        description: `${firstClue.challenge_title} 当前已有 ${firstClue.team_count} 支队伍重复提交同一错误 Flag，可继续排查线索传播。`,
         badge: '线索',
         color: 'error' as const,
         to: '#attach-challenge',
@@ -723,7 +723,7 @@ const monitorFocusItems = computed(() => {
       items.push({
         key: 'accepted',
         title: '已有队伍完成解题',
-        description: `${latestAccepted.team_name} 刚刚在 ${latestAccepted.challenge_title} 上拿到一次正确提交，适合继续观察榜单和题目状态。`,
+        description: `${latestAccepted.team_name} 刚刚在 ${latestAccepted.challenge_title} 上拿到一次正确提交，可继续观察榜单和题目状态。`,
         badge: '通过',
         color: 'success' as const,
         to: `/games/${overview.game.id}`,
@@ -735,7 +735,7 @@ const monitorFocusItems = computed(() => {
     items.push({
       key: 'announcement',
       title: '比赛还没有发布公告',
-      description: '如果这场比赛已经对外开放，可以先发布一条开赛或维护公告，方便参赛队伍同步状态。',
+      description: '如果这场比赛已经对外开放，可以发布一条开赛或维护公告，方便参赛队伍同步状态。',
       badge: '公告',
       color: 'neutral' as const,
       to: '#attach-challenge',
@@ -885,10 +885,10 @@ const selectedGamePreflightChecks = computed(() => {
       label: '当前状态可识别',
       done: ['draft', 'active', 'ended'].includes(overview.game.status),
       description: overview.game.status === 'draft'
-        ? '当前仍处于 draft，适合继续补题和核对配置。'
+        ? '当前仍处于 draft，可继续补题和核对配置。'
         : overview.game.status === 'active'
           ? '当前已经开赛，公开页应同步开放报名与题目可见性。'
-          : '当前已结束，适合复核榜单、Writeup 和赛后练习状态。',
+          : '当前已结束，可继续复核榜单、Writeup 和赛后练习状态。',
       actionLabel: overview.game.status === 'active' ? '打开公开页' : '去比赛设置',
       actionTo: overview.game.status === 'active' ? `/games/${overview.game.id}` : '#game-settings',
     },
@@ -926,7 +926,7 @@ const selectedGamePreflightChecks = computed(() => {
       done: overview.participantCount > 0,
       description: overview.participantCount > 0
         ? `当前 ${overview.participantCount} 支队伍，其中 ${overview.acceptedParticipantCount} 支已通过、${overview.pendingParticipantCount} 支待审核、${overview.rejectedParticipantCount} 支已拒绝。`
-        : '当前还没有报名队伍，建议先使用普通用户完成一轮报名与参赛流程。',
+        : '当前还没有报名队伍，可先使用普通用户完成一轮报名与参赛流程。',
       actionLabel: overview.participantCount > 0 ? '查看报名队伍' : '打开公开页',
       actionTo: overview.participantCount > 0 ? '#attach-challenge' : `/games/${overview.game.id}`,
     },
@@ -1717,8 +1717,8 @@ function fillSmokeGameTemplate() {
   const writeupDeadline = new Date(end.getTime() + 24 * 60 * 60 * 1000)
 
   gameForm.name = `Starter Contest ${start.getFullYear()}`
-  gameForm.description = '适合快速完成首场公开比赛配置的精简模板。'
-  gameForm.notice = '可先使用普通账号完成注册、组队、报名和提交流程，再继续补充题目与规则。'
+  gameForm.description = '用于快速建立公开比赛基础结构的精简模板。'
+  gameForm.notice = '可使用普通账号完成注册、组队、报名和提交流程，再继续补充题目与规则。'
   gameForm.divisions_text = ''
   gameForm.start_time = start.toISOString().slice(0, 16)
   gameForm.end_time = end.toISOString().slice(0, 16)
@@ -1730,12 +1730,12 @@ function fillSmokeGameTemplate() {
   gameForm.writeup_deadline = writeupDeadline.toISOString().slice(0, 16)
   gameForm.is_public = true
 
-  toast.add({ title: '已填充比赛模板', description: '已写入一份适合快速配置的公开比赛默认值。', color: 'success' })
+  toast.add({ title: '已填充比赛模板', description: '已写入一份公开比赛默认值。', color: 'success' })
 }
 
 function fillSmokeChallengeTemplate() {
   challengeForm.title = 'Basic Challenge'
-  challengeForm.description = '这是一个基础静态题模板，适合先完成题面、提示、附件和计分配置。'
+  challengeForm.description = '这是一个基础静态题模板，用于补齐题面、提示、附件和计分配置。'
   challengeForm.hints = JSON.stringify([
     '请在发布前补充正式题面、提示和附件信息。',
     '保存前请确认 Flag、分值和可见性设置已经完成。',
@@ -1762,12 +1762,12 @@ function fillSmokeChallengeTemplate() {
   challengeForm.decay_rate = 0
   challengeForm.is_visible = true
 
-  toast.add({ title: '已填充题目模板', description: '已写入一份适合正式录题的基础默认值。', color: 'success' })
+  toast.add({ title: '已填充题目模板', description: '已写入一份基础题目默认值。', color: 'success' })
 }
 
 function fillStaticWebTemplate() {
   challengeForm.title = 'Web Instance'
-  challengeForm.description = '这是一个带统一访问入口的 Web 题模板，适合记录题面、提示和访问地址。'
+  challengeForm.description = '这是一个带统一访问入口的 Web 题模板，用于记录题面、提示和访问地址。'
   challengeForm.hints = JSON.stringify([
     '请确认选手侧访问入口、账号体系和附加依赖已经准备完成。',
     '如果题目依赖额外凭据或访问限制，请写入接入说明。',
@@ -1794,12 +1794,12 @@ function fillStaticWebTemplate() {
   challengeForm.decay_rate = 0.1
   challengeForm.is_visible = true
 
-  toast.add({ title: '已填充 Web 实例模板', description: '适合录入统一入口型 Web 题。', color: 'success' })
+  toast.add({ title: '已填充 Web 实例模板', description: '已写入统一入口型 Web 题默认值。', color: 'success' })
 }
 
 function fillPwnNetcatTemplate() {
   challengeForm.title = 'Pwn Service'
-  challengeForm.description = '这是一个 nc / tcp 服务题模板。适合先记录 host、port、连接命令和附件。'
+  challengeForm.description = '这是一个 nc / tcp 服务题模板，用于记录 host、port、连接命令和附件。'
   challengeForm.hints = JSON.stringify([
     '优先把题目附件放到 attachments 里。',
     '如果服务地址会变化，请保留一个稳定代理入口。',
@@ -1824,7 +1824,7 @@ function fillPwnNetcatTemplate() {
   challengeForm.decay_rate = 0.1
   challengeForm.is_visible = true
 
-  toast.add({ title: '已填充 Pwn 服务模板', description: '适合录入 host / port / nc 连接方式。', color: 'success' })
+  toast.add({ title: '已填充 Pwn 服务模板', description: '已写入 host / port / nc 连接方式默认值。', color: 'success' })
 }
 
 function fillDynamicContainerTemplate() {
@@ -1870,12 +1870,12 @@ function fillDynamicContainerTemplate() {
   challengeForm.decay_rate = 0.1
   challengeForm.is_visible = true
 
-  toast.add({ title: '已填充动态容器模板', description: '默认使用 nginx:alpine，适合配置动态 Web 题。', color: 'success' })
+  toast.add({ title: '已填充动态容器模板', description: '默认使用 nginx:alpine。', color: 'success' })
 }
 
 function fillTeamScopedDynamicTemplate() {
   challengeForm.title = 'Team Scoped Instance'
-  challengeForm.description = '这是一个按队伍生成独立入口的动态题模板，适合需要稳定队伍级地址分发的场景。'
+  challengeForm.description = '这是一个按队伍生成独立入口的动态题模板，用于需要稳定队伍级地址分发的场景。'
   challengeForm.hints = JSON.stringify([
     '请根据实际部署方式调整 runtime、connection 和 links 字段。',
     '如果后端后续接入新的实例 provider，可以继续复用这份结构。',
@@ -1910,7 +1910,7 @@ function fillTeamScopedDynamicTemplate() {
   challengeForm.decay_rate = 0.1
   challengeForm.is_visible = true
 
-  toast.add({ title: '已填充每队独立实例模板', description: '适合快速配置带队伍独立入口的动态题。', color: 'success' })
+  toast.add({ title: '已填充每队独立实例模板', description: '已写入带队伍独立入口的动态题默认值。', color: 'success' })
 }
 
 async function createSmokeProvision() {
@@ -1924,8 +1924,8 @@ async function createSmokeProvision() {
     const game = await $api('post', '/api/games', {
       body: {
         name: `Starter Contest ${start.getFullYear()}`,
-        description: '适合快速完成首场公开比赛配置的精简模板。',
-        notice: '建议先使用普通账号完成注册、组队、报名和提交流程，再继续补充题目与规则。',
+        description: '用于快速建立公开比赛基础结构的精简模板。',
+        notice: '可使用普通账号完成注册、组队、报名和提交流程，再继续补充题目与规则。',
         divisions: [],
         start_time: start.toISOString(),
         end_time: end.toISOString(),
@@ -1942,10 +1942,10 @@ async function createSmokeProvision() {
     const challenge = await $api('post', '/api/challenges', {
       body: {
         title: 'Basic Challenge',
-        description: '这是一个基础静态题模板，适合先完成题面、提示、附件和计分配置。',
+        description: '这是一个基础静态题模板，用于补齐题面、提示、附件和计分配置。',
         hints: JSON.stringify([
           '请在发布前补充正式题面、提示和附件信息。',
-          '建议保存前确认 Flag、分值和可见性设置已经完成。',
+          '保存前请确认 Flag、分值和可见性设置已经完成。',
         ]),
         attachments: '[]',
         category: 'misc',
@@ -1997,8 +1997,8 @@ async function createDynamicSmokeProvision() {
     const game = await $api('post', '/api/games', {
       body: {
         name: `Dynamic Instance ${start.getFullYear()}`,
-        description: '适合快速配置动态实例流程的公开比赛模板。',
-        notice: '建议先确认实例状态与入口信息，再继续完成报名和解题流程。',
+        description: '用于快速建立动态实例流程的公开比赛模板。',
+        notice: '请先确认实例状态与入口信息，再继续完成报名和解题流程。',
         divisions: [],
         start_time: start.toISOString(),
         end_time: end.toISOString(),
@@ -2090,7 +2090,7 @@ async function createLocalDockerSmokeProvision() {
     const game = await $api('post', '/api/games', {
       body: {
         name: `Local Docker Web ${start.getFullYear()}`,
-        description: '适合快速配置容器实例流程的公开比赛模板。',
+        description: '用于快速建立容器实例流程的公开比赛模板。',
         notice: '请先确认 Docker daemon 可用，再使用普通账号完成报名、启动实例和提交流程。',
         divisions: [],
         start_time: start.toISOString(),
@@ -2108,7 +2108,7 @@ async function createLocalDockerSmokeProvision() {
     const challenge = await $api('post', '/api/challenges', {
       body: {
         title: 'Web Dynamic Container',
-        description: '这是一个动态容器题模板，适合先完成镜像、端口和入口配置。',
+        description: '这是一个动态容器题模板，用于补齐镜像、端口和入口配置。',
         hints: JSON.stringify([
           '请先确认运行节点已启用本地 Docker provider，且 Docker daemon 可用。',
           '实例启动后，应优先看到平台回填的真实 host、port 和 launch_url。',
@@ -2934,13 +2934,13 @@ onMounted(async () => {
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div class="space-y-2">
             <p class="text-sm text-muted">
-              可以直接生成一套精简的比赛与题目配置，便于快速建立首个可用赛事流程。
+              可以直接生成一套精简的比赛与题目配置，用于建立首个可用赛事流程。
             </p>
             <UAlert
               color="info"
               variant="soft"
               title="推荐用途"
-              description="适合先完成比赛创建、选手报名、Flag 提交和排行榜更新这一组基础流程，再继续扩展更完整的赛事配置。"
+              description="这一组入口用于先完成比赛创建、选手报名、Flag 提交和排行榜更新等基础流程。"
             />
           </div>
 
@@ -2980,7 +2980,7 @@ onMounted(async () => {
             color="info"
             variant="soft"
             title="推荐顺序：先建比赛，再建题、挂题，最后切到 active"
-            description="这条顺序更适合空库首次启动后的最小闭环，也能减少把未配置完成的比赛提前公开。"
+            description="这条顺序可用于空库首次启动后的最小闭环，也能减少把未配置完成的比赛提前公开。"
           />
 
           <div class="grid gap-3 xl:grid-cols-2">
@@ -3109,7 +3109,7 @@ onMounted(async () => {
               color="info"
               variant="soft"
               title="先看这里，再决定是否立即开赛"
-              description="这组检查不替代详细配置，只帮助你快速判断当前选中的比赛是否已经具备最小可用的公开比赛形态。"
+              description="这组检查不替代详细配置，只用于判断当前选中的比赛是否已经具备最小可用的公开比赛形态。"
             />
 
             <div
@@ -3309,7 +3309,7 @@ onMounted(async () => {
                 v-else
                 icon="i-lucide-megaphone"
                 title="当前还没有公告"
-                description="这场比赛还没有发布赛时通知。可以先补一条开赛提醒、规则补充或维护公告，方便参赛队伍同步状态。"
+                description="这场比赛还没有发布赛时通知。可以补一条开赛提醒、规则补充或维护公告，方便参赛队伍同步状态。"
                 :actions="[{
                   label: '去公告区',
                   icon: 'i-lucide-send',
@@ -3403,7 +3403,7 @@ onMounted(async () => {
                     实例监控
                   </div>
                   <div class="text-sm text-muted">
-                    当前比赛下所有动态实例租约，优先帮助判断是否有队伍实例已经过期。
+                    当前比赛下所有动态实例租约，可用于判断是否有队伍实例已经过期。
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
@@ -3638,9 +3638,9 @@ onMounted(async () => {
                   </div>
                 </div>
 
-                <div v-else class="text-sm text-muted">
-                  当前还没有可展示的分题统计。
-                </div>
+              <div v-else class="text-sm text-muted">
+                当前还没有可展示的分题统计。
+              </div>
               </UPageCard>
             </div>
           </div>
@@ -3648,7 +3648,7 @@ onMounted(async () => {
           <div v-else-if="activeMonitorTab === 'submissions'" class="space-y-3">
             <div class="flex items-center justify-between gap-3 flex-wrap">
               <div class="text-sm text-muted">
-                保留最近提交的即时视角，适合在开赛后快速观察正确率与重复提交流量。
+                保留最近提交的即时视角，可在开赛后快速观察正确率与重复提交流量。
               </div>
               <div class="flex items-center gap-2">
                 <USelect
@@ -3745,7 +3745,7 @@ onMounted(async () => {
               color="info"
               variant="soft"
               title="时间线会混合展示公告、正确提交与可疑线索"
-              description="适合在赛时快速回放最近发生了什么，帮助管理员判断是正常比赛推进，还是需要插入运维或排查动作。"
+              description="可在赛时快速回放最近发生了什么，帮助管理员判断是正常比赛推进，还是需要插入运维或排查动作。"
             />
 
             <div v-if="selectedMonitorTimeline.length" class="space-y-2">
@@ -3793,7 +3793,7 @@ onMounted(async () => {
                 </UBadge>
               </div>
               <div class="space-y-2 text-sm text-muted">
-                <p>适合把当前比赛的配置、榜单、Writeup 和提交记录统一下载下来，留给赛后复盘、存档或交付。</p>
+                <p>这里可以把当前比赛的配置、榜单、Writeup 和提交记录统一下载下来，用于赛后复盘、存档或交付。</p>
                 <p v-if="selectedScoreboardDivision">
                   当前榜单导出会跟随“榜单”标签里的分组选择：{{ selectedScoreboardDivision }}。
                 </p>
@@ -3851,8 +3851,8 @@ onMounted(async () => {
                 </UBadge>
               </div>
               <div class="space-y-2 text-sm text-muted">
-                <p>适合发布开赛提醒、规则补充、实例维护通知或 Writeup 截止提醒。</p>
-                <p>如果比赛已经公开但仍无公告，可以先补一条开赛说明。</p>
+                <p>这里用于发布开赛提醒、规则补充、实例维护通知或 Writeup 截止提醒。</p>
+                <p>如果比赛已经公开但仍无公告，可以补一条开赛说明。</p>
               </div>
               <div class="mt-3 flex justify-end">
                 <UButton size="sm" variant="outline" @click="jumpToAdminAnchor('#attach-challenge')">
@@ -3871,7 +3871,7 @@ onMounted(async () => {
                 </UBadge>
               </div>
               <div class="space-y-2 text-sm text-muted">
-                <p>继续配置时优先回到比赛设置、挂题和参赛队伍区。</p>
+                <p>继续配置时，可直接回到比赛设置、挂题和参赛队伍区。</p>
                 <p>如果已经开赛，可以直接打开公开页观察报名、题目和排行榜状态。</p>
               </div>
               <div class="mt-3 flex flex-wrap justify-end gap-2">
@@ -3899,7 +3899,7 @@ onMounted(async () => {
           <template #footer>
             <div class="flex flex-wrap items-center justify-between gap-3">
               <p class="text-sm text-muted">
-                可以先填充一份基础模板，再按需要调整时间、公告和报名规则。
+                可以填充一份基础模板，再按需要调整时间、公告和报名规则。
               </p>
               <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeGameTemplate">
                 填充基础模板
@@ -3916,7 +3916,7 @@ onMounted(async () => {
               <UTextarea v-model="gameForm.description" class="w-full" :rows="4" placeholder="简要介绍比赛规则或主题" />
             </UFormField>
 
-            <UFormField label="规则补充" name="notice" description="这里适合填写长期有效的补充规则，会展示在公开比赛页的“规则补充”区域">
+            <UFormField label="规则补充" name="notice" description="这里用于填写长期有效的补充规则，会展示在公开比赛页的“规则补充”区域">
               <UTextarea v-model="gameForm.notice" class="w-full" :rows="4" placeholder="例如：禁止共享 Flag；比赛开始前 15 分钟开放平台。" />
             </UFormField>
 
