@@ -65,7 +65,7 @@ const registerTo = computed(() => `/register?redirect=${encodeURIComponent(authR
       </template>
       <template v-else>
         <div class="flex items-center gap-2">
-          <UButton label="登录" icon="i-lucide-log-in" variant="ghost" :to="loginTo" />
+          <UButton label="登录/注册" icon="i-lucide-log-in" variant="ghost" :to="loginTo" />
           <UButton label="注册" icon="i-lucide-user-round-plus" :to="registerTo" />
         </div>
       </template>

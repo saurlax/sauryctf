@@ -25,7 +25,7 @@ const features = [
   },
 ]
 
-const firstSteps = computed(() => [
+const accessCards = computed(() => [
   {
     title: setupStatus.value?.bootstrap_admin_available ? '空库管理入口' : '管理入口',
     description: setupStatus.value?.bootstrap_admin_available
@@ -64,8 +64,8 @@ const landingGuideMeta = computed(() => {
 
   if (setupStatus.value?.bootstrap_admin_available) {
     return {
-      title: '当前下一步：先用初始管理员打通建赛闭环',
-      description: `当前数据库为空，可直接使用 ${setupStatus.value.default_admin_username} / ${setupStatus.value.default_admin_password} 登录。建议先创建一场公开比赛，再用普通账号走一遍报名参赛链路。`,
+      title: '当前状态：可直接使用默认管理员登录',
+      description: `当前数据库为空，可直接使用 ${setupStatus.value.default_admin_username} / ${setupStatus.value.default_admin_password} 登录并完成基础配置。`,
       color: 'info' as const,
       icon: 'i-lucide-shield-check',
       actionLabel: '去登录',
@@ -76,8 +76,8 @@ const landingGuideMeta = computed(() => {
   }
 
   return {
-    title: '当前下一步：先挑一场公开比赛，或直接注册选手账号',
-    description: '如果你是普通选手，可以先浏览公开比赛再决定是否参赛；如果已经准备好实际使用，也可以直接注册并进入队伍准备流程。',
+    title: '当前状态：可浏览公开比赛或注册账号',
+    description: '公开比赛支持先浏览基础信息；如果准备正式参赛，可以直接注册并进入队伍流程。',
     color: 'neutral' as const,
     icon: 'i-lucide-rocket',
     actionLabel: '浏览比赛',
@@ -125,7 +125,7 @@ const heroLinks = computed(() => {
       </template>
     </UPageHero>
 
-    <UPageSection title="首次使用" description="第一次把项目跑起来时，按这三个入口最省事。">
+    <UPageSection title="主要入口" description="平台的公开访问、账号入口和管理入口都集中在这里。">
       <UAlert
         class="mb-6"
         :color="landingGuideMeta.color"
@@ -155,12 +155,12 @@ const heroLinks = computed(() => {
 
       <UPageGrid>
         <UPageCard
-          v-for="step in firstSteps"
-          :key="step.title"
-          :title="step.title"
-          :description="step.description"
-          :icon="step.icon"
-          :to="step.to"
+          v-for="card in accessCards"
+          :key="card.title"
+          :title="card.title"
+          :description="card.description"
+          :icon="card.icon"
+          :to="card.to"
         />
       </UPageGrid>
     </UPageSection>
@@ -177,7 +177,7 @@ const heroLinks = computed(() => {
       </UPageGrid>
     </UPageSection>
 
-    <UPageSection title="推荐使用顺序" description="建议先完成管理配置，再进入选手侧流程。">
+    <UPageSection title="推荐流程" description="建议先完成管理配置，再验证参赛侧链路。">
       <UPageGrid>
         <UPageCard
           title="1. 管理员建赛"

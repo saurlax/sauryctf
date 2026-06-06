@@ -30,6 +30,31 @@ const state = reactive<Partial<SecuritySchema>>({
 
 const submitting = ref(false)
 const bootstrapRisk = computed(() => !!setupStatus.value?.password_change_recommended)
+const securityNextStepMeta = computed(() => {
+  if (bootstrapRisk.value) {
+    return {
+      title: '当前下一步：先完成管理员改密，再继续配置平台',
+      description: '默认管理员口令只适合空库首次启动阶段使用。完成改密后，再去管理端创建比赛、题目和普通选手账号会更安全。',
+      color: 'warning' as const,
+      icon: 'i-lucide-triangle-alert',
+      actionLabel: '打开管理端',
+      actionTo: '/console/admin',
+      secondaryLabel: '返回控制台',
+      secondaryTo: '/console',
+    }
+  }
+
+  return {
+    title: '当前下一步：继续控制台里的日常操作',
+    description: '当前账号已经可以安全地继续使用。你可以返回控制台处理比赛、队伍或管理待办，也可以去公开比赛页继续参赛。',
+    color: 'success' as const,
+    icon: 'i-lucide-shield-check',
+    actionLabel: '返回控制台',
+    actionTo: '/console',
+    secondaryLabel: '浏览比赛',
+    secondaryTo: '/games',
+  }
+})
 
 const accountFacts = computed(() => [
   {
@@ -100,6 +125,32 @@ onMounted(async () => {
 
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
       <div class="space-y-6">
+        <UAlert
+          :color="securityNextStepMeta.color"
+          variant="soft"
+          :icon="securityNextStepMeta.icon"
+          :title="securityNextStepMeta.title"
+          :description="securityNextStepMeta.description"
+        >
+          <template #actions>
+            <div class="flex flex-wrap gap-2">
+              <UButton
+                size="sm"
+                :to="securityNextStepMeta.actionTo"
+                :label="securityNextStepMeta.actionLabel"
+                variant="outline"
+              />
+              <UButton
+                v-if="securityNextStepMeta.secondaryLabel && securityNextStepMeta.secondaryTo"
+                size="sm"
+                :to="securityNextStepMeta.secondaryTo"
+                :label="securityNextStepMeta.secondaryLabel"
+                variant="ghost"
+              />
+            </div>
+          </template>
+        </UAlert>
+
         <UPageCard title="修改密码" icon="i-lucide-key-round">
           <UAlert
             v-if="bootstrapRisk"
@@ -126,6 +177,17 @@ onMounted(async () => {
 
             <UButton type="submit" label="更新密码" icon="i-lucide-save" :loading="submitting" block />
           </UForm>
+
+          <template #footer>
+            <div class="space-y-2 text-sm text-muted">
+              <p>
+                修改密码后，当前登录态不会立刻失效；后续重新登录时请改用新密码。
+              </p>
+              <p v-if="bootstrapRisk">
+                如果这是空库阶段的默认管理员，建议改密后立即回到管理端继续完成建赛与普通账号准备。
+              </p>
+            </div>
+          </template>
         </UPageCard>
       </div>
 
@@ -147,16 +209,16 @@ onMounted(async () => {
         </UPageCard>
 
         <UPageCard title="安全建议" icon="i-lucide-shield-check">
-          <div class="space-y-3 text-sm text-muted">
-            <p>
+          <div class="space-y-3">
+            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
               初始管理员账号只适合平台首次启动阶段使用，不应长期保留默认口令。
-            </p>
-            <p>
+            </div>
+            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
               修改密码后，原有登录态仍可继续使用；后续重新登录时请改用新密码。
-            </p>
-            <p>
+            </div>
+            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
               建议先完成管理员改密，再继续创建比赛、题目以及其他业务账号。
-            </p>
+            </div>
           </div>
         </UPageCard>
       </div>

@@ -135,6 +135,10 @@ const exportingWriteupsGameId = ref<number | null>(null)
 const exportingSubmissionsGameId = ref<number | null>(null)
 const importingGame = ref(false)
 const deletingChallengeId = ref<number | null>(null)
+const gameEditModalOpen = ref(false)
+const challengeEditModalOpen = ref(false)
+const importModalOpen = ref(false)
+const confirmModalOpen = ref(false)
 const games = ref<Array<{
   id: number
   name: string
@@ -278,6 +282,46 @@ const scoreboardFrozen = ref(false)
 const scoreboardFreezeTime = ref<string | null>(null)
 const selectedScoreboardDivision = ref('')
 type AdminGameSummary = (typeof games.value)[number]
+type ConfirmActionType =
+  | 'destroy-instance'
+  | 'delete-announcement'
+  | 'remove-participant'
+  | 'delete-challenge'
+  | 'delete-game'
+
+const confirmActionState = reactive<{
+  type: ConfirmActionType | null
+  id: number | null
+  title: string
+  description: string
+  confirmLabel: string
+}>({
+  type: null,
+  id: null,
+  title: '',
+  description: '',
+  confirmLabel: '确认',
+})
+
+const confirmActionBusy = computed(() => {
+  if (confirmActionState.type === 'destroy-instance') {
+    return deletingInstanceLeaseId.value === confirmActionState.id
+  }
+  if (confirmActionState.type === 'delete-announcement') {
+    return deletingAnnouncementId.value === confirmActionState.id
+  }
+  if (confirmActionState.type === 'remove-participant') {
+    return removingParticipantId.value === confirmActionState.id
+  }
+  if (confirmActionState.type === 'delete-challenge') {
+    return deletingChallengeId.value === confirmActionState.id
+  }
+  if (confirmActionState.type === 'delete-game') {
+    return deletingGameId.value === confirmActionState.id
+  }
+
+  return false
+})
 
 const participantStatusDrafts = reactive<Record<number, 'pending' | 'accepted' | 'rejected'>>({})
 const participantDivisionDrafts = reactive<Record<number, string>>({})
@@ -1060,8 +1104,18 @@ async function destroyInstanceLease(leaseId: number) {
   }
 
   const lease = instanceLeases.value.find(item => item.id === leaseId)
-  const confirmed = window.confirm(`确认销毁实例租约吗？\n\n${lease?.team_name || '未知队伍'} · ${lease?.challenge_title || `#${leaseId}`}`)
-  if (!confirmed) {
+  openConfirmAction({
+    type: 'destroy-instance',
+    id: leaseId,
+    title: '确认销毁实例租约',
+    description: `${lease?.team_name || '未知队伍'} · ${lease?.challenge_title || `#${leaseId}`}\n销毁后需要由队伍重新申请实例。`,
+    confirmLabel: '销毁租约',
+  })
+}
+
+async function runDestroyInstanceLease(leaseId: number) {
+  const gameId = attachForm.game_id
+  if (!gameId) {
     return
   }
 
@@ -1069,7 +1123,7 @@ async function destroyInstanceLease(leaseId: number) {
   try {
     await $api('delete', '/api/admin/games/{id}/instances/{leaseId}', {
       params: {
-        id: attachForm.game_id,
+        id: gameId,
         leaseId,
       },
     })
@@ -1272,11 +1326,16 @@ async function deleteAnnouncement(announcementId: number) {
   }
 
   const target = announcements.value.find(item => item.id === announcementId)
-  const confirmed = window.confirm(`确认删除这条公告吗？\n\n${target?.content || ''}`)
-  if (!confirmed) {
-    return
-  }
+  openConfirmAction({
+    type: 'delete-announcement',
+    id: announcementId,
+    title: '确认删除比赛公告',
+    description: target?.content || '这条公告删除后将不再对参赛队伍可见。',
+    confirmLabel: '删除公告',
+  })
+}
 
+async function runDeleteAnnouncement(announcementId: number) {
   deletingAnnouncementId.value = announcementId
   try {
     await $fetch(`/api/admin/games/${attachForm.game_id}/announcements/${announcementId}`, {
@@ -1339,8 +1398,18 @@ async function removeParticipant(teamId: number) {
   }
 
   const participant = participants.value.find(item => item.team_id === teamId)
-  const confirmed = window.confirm(`确认移除队伍「${participant?.team_name || `#${teamId}`}」的比赛报名吗？`)
-  if (!confirmed) {
+  openConfirmAction({
+    type: 'remove-participant',
+    id: teamId,
+    title: '确认移除参赛队伍',
+    description: `队伍「${participant?.team_name || `#${teamId}`}」的当前比赛报名记录会被移除。`,
+    confirmLabel: '移除报名',
+  })
+}
+
+async function runRemoveParticipant(teamId: number) {
+  const gameId = attachForm.game_id
+  if (!gameId) {
     return
   }
 
@@ -1348,7 +1417,7 @@ async function removeParticipant(teamId: number) {
   try {
     await $api('delete', '/api/games/{id}/participants/{teamId}', {
       params: {
-        id: attachForm.game_id,
+        id: gameId,
         teamId,
       },
     })
@@ -2167,11 +2236,16 @@ async function updateChallengeDetails() {
 
 async function deleteChallenge(challengeId: number) {
   const challenge = challenges.value.find(item => item.id === challengeId)
-  const confirmed = window.confirm(`确认删除题目「${challenge?.title || `#${challengeId}`}」吗？`)
-  if (!confirmed) {
-    return
-  }
+  openConfirmAction({
+    type: 'delete-challenge',
+    id: challengeId,
+    title: '确认删除题目',
+    description: `题目「${challenge?.title || `#${challengeId}`}」删除后，将无法继续被比赛挂载或编辑。`,
+    confirmLabel: '删除题目',
+  })
+}
 
+async function runDeleteChallenge(challengeId: number) {
   deletingChallengeId.value = challengeId
   try {
     await $api('delete', '/api/challenges/{id}', {
@@ -2312,11 +2386,16 @@ async function updateGameDetails() {
 
 async function deleteGame(gameId: number) {
   const game = games.value.find(item => item.id === gameId)
-  const confirmed = window.confirm(`确认删除比赛「${game?.name || `#${gameId}`}」吗？这会清理该比赛的报名、解题、Writeup 和挂题关系。`)
-  if (!confirmed) {
-    return
-  }
+  openConfirmAction({
+    type: 'delete-game',
+    id: gameId,
+    title: '确认删除比赛',
+    description: `比赛「${game?.name || `#${gameId}`}」删除后，会同时清理该比赛下的报名、解题、Writeup 和挂题关系。`,
+    confirmLabel: '删除比赛',
+  })
+}
 
+async function runDeleteGame(gameId: number) {
   deletingGameId.value = gameId
   try {
     await $api('delete', '/api/admin/games/{id}', {
@@ -2530,13 +2609,67 @@ async function removeChallengeFromGame(challengeId: number) {
 
 function quickEditGame(gameId: number) {
   selectGameContext(gameId)
+  gameEditModalOpen.value = true
   toast.add({ title: '已填充比赛管理表单', color: 'info' })
 }
 
 function quickEditChallenge(challengeId: number) {
   challengeEditForm.challenge_id = challengeId
   attachForm.challenge_id = challengeId
+  challengeEditModalOpen.value = true
   toast.add({ title: '已填充题目管理表单', color: 'info' })
+}
+
+function openConfirmAction(payload: {
+  type: ConfirmActionType
+  id: number
+  title: string
+  description: string
+  confirmLabel: string
+}) {
+  confirmActionState.type = payload.type
+  confirmActionState.id = payload.id
+  confirmActionState.title = payload.title
+  confirmActionState.description = payload.description
+  confirmActionState.confirmLabel = payload.confirmLabel
+  confirmModalOpen.value = true
+}
+
+function resetConfirmAction() {
+  confirmActionState.type = null
+  confirmActionState.id = null
+  confirmActionState.title = ''
+  confirmActionState.description = ''
+  confirmActionState.confirmLabel = '确认'
+}
+
+async function confirmAction() {
+  const actionType = confirmActionState.type
+  const actionId = confirmActionState.id
+
+  if (!actionType || actionId === null) {
+    return
+  }
+
+  confirmModalOpen.value = false
+
+  if (actionType === 'destroy-instance') {
+    await runDestroyInstanceLease(actionId)
+  }
+  else if (actionType === 'delete-announcement') {
+    await runDeleteAnnouncement(actionId)
+  }
+  else if (actionType === 'remove-participant') {
+    await runRemoveParticipant(actionId)
+  }
+  else if (actionType === 'delete-challenge') {
+    await runDeleteChallenge(actionId)
+  }
+  else if (actionType === 'delete-game') {
+    await runDeleteGame(actionId)
+  }
+
+  resetConfirmAction()
 }
 
 watch(() => challengeEditForm.challenge_id, () => {
@@ -4920,4 +5053,36 @@ onMounted(async () => {
       </div>
     </div>
   </div>
+
+  <UModal v-model:open="confirmModalOpen">
+    <template #content>
+      <div class="space-y-4 p-4 sm:p-5">
+        <div class="space-y-2">
+          <div class="text-base font-semibold">
+            {{ confirmActionState.title }}
+          </div>
+          <div class="whitespace-pre-wrap text-sm text-muted">
+            {{ confirmActionState.description }}
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2">
+          <UButton
+            variant="ghost"
+            :disabled="confirmActionBusy"
+            @click="confirmModalOpen = false; resetConfirmAction()"
+          >
+            取消
+          </UButton>
+          <UButton
+            color="error"
+            :loading="confirmActionBusy"
+            @click="confirmAction"
+          >
+            {{ confirmActionState.confirmLabel }}
+          </UButton>
+        </div>
+      </div>
+    </template>
+  </UModal>
 </template>

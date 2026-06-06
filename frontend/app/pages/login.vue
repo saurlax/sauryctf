@@ -53,21 +53,21 @@ const quickLinks = computed(() => {
   return links
 })
 
-const afterLoginSteps = computed(() => {
+const afterLoginNotes = computed(() => {
   if (redirectTarget.value.startsWith('/games/')) {
     return [
       {
-        title: '1. 先回到原比赛',
+        title: '返回原比赛',
         description: '登录成功后会直接跳回刚才的比赛详情页，继续查看报名状态、题目和排行榜。',
         icon: 'i-lucide-undo-2',
       },
       {
-        title: '2. 如果还没有队伍，先去准备队伍',
+        title: '按需准备队伍',
         description: '比赛报名、提 Flag 和排行榜都按队伍进行，缺队伍时再去队伍页处理会更顺。',
         icon: 'i-lucide-users',
       },
       {
-        title: '3. 再继续报名或启动实例',
+        title: '继续比赛操作',
         description: '准备好队伍后，就可以回到比赛里完成报名、提交 Flag，或继续使用动态题实例能力。',
         icon: 'i-lucide-flag',
       },
@@ -77,17 +77,17 @@ const afterLoginSteps = computed(() => {
   if (setupStatus.value?.bootstrap_admin_available) {
     return [
       {
-        title: '1. 进入管理端',
+        title: '进入管理端',
         description: '空库阶段登录成功后会直接进入管理端，方便先完成平台基础配置。',
         icon: 'i-lucide-layout-dashboard',
       },
       {
-        title: '2. 创建比赛与题目',
+        title: '完成基础配置',
         description: '建议先创建一场公开比赛，再补充题目、挂题并切换到可用状态。',
         icon: 'i-lucide-settings-2',
       },
       {
-        title: '3. 再补选手侧流程',
+        title: '再验证选手流程',
         description: '管理配置完成后，再使用普通账号继续准备队伍、报名参赛和查看排行榜。',
         icon: 'i-lucide-user-round-plus',
       },
@@ -96,17 +96,17 @@ const afterLoginSteps = computed(() => {
 
   return [
     {
-      title: '1. 进入控制台',
+      title: '进入控制台',
       description: '登录成功后默认会进入控制台，方便先确认当前账号、队伍和比赛待办。',
       icon: 'i-lucide-layout-dashboard',
     },
     {
-      title: '2. 没有队伍就先准备队伍',
+      title: '按需准备队伍',
       description: '如果这是一个普通选手账号，接下来最值得先处理的是创建队伍或使用邀请码加入队伍。',
       icon: 'i-lucide-users',
     },
     {
-      title: '3. 再回到比赛页继续操作',
+      title: '回到比赛页继续操作',
       description: '准备好队伍后，再去公开比赛页完成报名、提交 Flag，或补交 Writeup。',
       icon: 'i-lucide-trophy',
     },
@@ -197,17 +197,17 @@ const state = reactive<Partial<LoginSchema>>({
       </UPageCard>
 
       <div class="space-y-6">
-        <UPageCard title="登录后下一步" icon="i-lucide-list-checks">
+        <UPageCard title="登录说明" icon="i-lucide-list-checks">
           <div class="space-y-3">
             <UAlert
               color="info"
               variant="soft"
-              title="当前登录成功后的首个落点"
+              title="默认跳转位置"
               :description="redirectTarget"
             />
 
             <div
-              v-for="item in afterLoginSteps"
+              v-for="item in afterLoginNotes"
               :key="item.title"
               class="rounded-lg border border-default px-3 py-3"
             >

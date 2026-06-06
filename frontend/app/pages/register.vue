@@ -28,61 +28,43 @@ const initialRegisterLanding = computed(() => {
   return '/console/team?onboarding=created'
 })
 
-const onboardingCards = [
-  {
-    title: '1. 创建账号',
-    description: '注册成功后会直接建立登录态，不需要再回头手动登录一次。',
-    icon: 'i-lucide-user-round-plus',
-  },
-  {
-    title: '2. 准备队伍',
-    description: '系统会优先把你带去队伍相关入口，创建或加入队伍后再继续参赛。',
-    icon: 'i-lucide-users',
-  },
-  {
-    title: '3. 回到比赛',
-    description: '如果你是从比赛详情页过来的，完成组队后会自动回到原比赛继续报名。',
-    icon: 'i-lucide-flag',
-  },
-]
-
-const afterRegisterSteps = computed(() => {
+const afterRegisterNotes = computed(() => {
   if (redirectTarget.value.startsWith('/games/')) {
     return [
       {
-        title: '1. 先进入队伍页',
+        title: '先进入队伍页',
         description: '注册成功后会先带你去队伍页，而不是直接回比赛，这样你可以先把队伍准备完整。',
         icon: 'i-lucide-users',
       },
       {
-        title: '2. 创建或加入队伍',
+        title: '创建或加入队伍',
         description: '账号只是第一步，真正参赛前还需要先确定当前使用的队伍。',
         icon: 'i-lucide-user-round-plus',
       },
       {
-        title: '3. 再回到原比赛报名',
+        title: '回到原比赛报名',
         description: '准备好队伍后，系统会把你带回刚才的比赛详情页，继续报名、提 Flag 或启动实例。',
         icon: 'i-lucide-flag',
       },
     ]
   }
 
-  return [
-    {
-      title: '1. 自动进入队伍页',
-      description: '注册成功后会直接建立登录态，并进入队伍页，不需要再回头手动登录一次。',
-      icon: 'i-lucide-layout-dashboard',
-    },
-    {
-      title: '2. 先把队伍准备好',
-      description: 'CTF 的报名、排行榜和动态实例都基于队伍进行，所以建议优先创建自己的队伍或加入现有队伍。',
-      icon: 'i-lucide-users',
-    },
-    {
-      title: '3. 再去比赛页继续参赛',
-      description: '队伍准备完成后，再去公开比赛列表选择目标比赛并完成报名、提交 Flag 或补交 Writeup。',
-      icon: 'i-lucide-trophy',
-    },
+    return [
+      {
+        title: '自动进入队伍页',
+        description: '注册成功后会直接建立登录态，并进入队伍页，不需要再回头手动登录一次。',
+        icon: 'i-lucide-layout-dashboard',
+      },
+      {
+        title: '优先准备队伍',
+        description: 'CTF 的报名、排行榜和动态实例都基于队伍进行，所以建议优先创建自己的队伍或加入现有队伍。',
+        icon: 'i-lucide-users',
+      },
+      {
+        title: '再去比赛页继续参赛',
+        description: '队伍准备完成后，再去公开比赛列表选择目标比赛并完成报名、提交 Flag 或补交 Writeup。',
+        icon: 'i-lucide-trophy',
+      },
   ]
 })
 
@@ -145,7 +127,7 @@ const loginTo = computed(() => {
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.05fr)_360px] xl:items-start">
       <UPageCard
         title="注册"
-        description="创建一个新的选手账号，注册成功后会直接登录；如果你是从比赛页进来的，接下来会先带你去准备队伍。"
+        description="创建一个新的选手账号。注册成功后会直接登录，并进入队伍相关页面。"
         icon="i-lucide-user-plus"
       >
         <UForm :schema="registerSchema" :state="state" class="space-y-4" @submit="onRegister">
@@ -173,17 +155,17 @@ const loginTo = computed(() => {
       </UPageCard>
 
       <div class="space-y-6">
-        <UPageCard title="注册后下一步" icon="i-lucide-list-checks">
+        <UPageCard title="注册说明" icon="i-lucide-list-checks">
           <div class="space-y-3">
             <UAlert
               color="info"
               variant="soft"
-              title="当前注册成功后的首个落点"
+              title="默认跳转位置"
               :description="initialRegisterLanding"
             />
 
             <div
-              v-for="item in afterRegisterSteps"
+              v-for="item in afterRegisterNotes"
               :key="item.title"
               class="rounded-lg border border-default px-3 py-3"
             >
@@ -203,22 +185,12 @@ const loginTo = computed(() => {
         </UPageCard>
 
         <UAlert
-          color="info"
+          color="neutral"
           variant="soft"
           icon="i-lucide-route"
-          title="注册后的最短路径"
-          description="推荐顺序是先注册、再准备队伍、最后回到比赛详情页完成报名和提交。"
+          title="处理顺序"
+          description="建议先完成账号创建和队伍准备，再进入具体比赛完成报名与提交。"
         />
-
-        <UPageGrid :cols="{ default: 1, sm: 3, xl: 1 }">
-          <UPageCard
-            v-for="card in onboardingCards"
-            :key="card.title"
-            :title="card.title"
-            :description="card.description"
-            :icon="card.icon"
-          />
-        </UPageGrid>
       </div>
     </div>
   </div>
