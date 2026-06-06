@@ -169,6 +169,24 @@ const teamEntryGuideMeta = computed(() => {
     secondaryTo: '/console',
   }
 })
+const teamEntrySummaryRows = computed(() => [
+  {
+    label: '当前目标',
+    value: joinInviteFromRoute.value ? '加入现有队伍' : '创建或加入队伍',
+  },
+  {
+    label: '邀请码状态',
+    value: joinInviteFromRoute.value ? '已自动带入' : '等待输入',
+  },
+  {
+    label: '比赛返回',
+    value: contestRedirect.value ? '完成后自动返回原比赛' : '完成后可继续浏览比赛',
+  },
+  {
+    label: '队伍权限',
+    value: '创建者自动成为队长',
+  },
+])
 
 const teamNextStepMeta = computed(() => {
   if (!team.value) {
@@ -933,7 +951,7 @@ onMounted(async () => {
               color="info"
               variant="soft"
               title="队伍按入口动作处理"
-              description="创建和加入都通过弹层完成，页面主体仅保留返回比赛、队伍规则和当前入口说明。"
+              description="创建和加入都通过弹层完成，页面主体仅保留返回比赛、队伍规则和当前入口状态。"
             />
 
             <div class="flex flex-wrap gap-2">
@@ -945,17 +963,18 @@ onMounted(async () => {
               </UButton>
             </div>
 
-            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              <div class="mb-2 font-medium text-highlighted">
-                当前入口说明
+            <div class="space-y-3 rounded-lg border border-default px-3 py-3">
+              <div class="font-medium">
+                当前入口状态
               </div>
-              <ul class="space-y-2">
-                <li>创建者会自动成为队长，并获得邀请其他成员的权限。</li>
-                <li>{{ joinInviteFromRoute
-                  ? '当前已自动带入邀请码。确认加入后，可继续前往公开比赛页或返回原比赛。'
-                  : '通过队长分享的邀请码即可加入队伍，随后可前往比赛页面继续报名或参赛。'
-                }}</li>
-              </ul>
+              <div
+                v-for="row in teamEntrySummaryRows"
+                :key="row.label"
+                class="flex items-center justify-between gap-3 rounded-md bg-elevated/60 px-3 py-2 text-sm"
+              >
+                <span class="text-muted">{{ row.label }}</span>
+                <span class="text-right">{{ row.value }}</span>
+              </div>
             </div>
           </div>
         </UPageCard>
