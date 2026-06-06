@@ -701,14 +701,14 @@ const selectedMonitorStats = computed(() => {
   const expiredInstanceCount = instanceLeases.value.filter(item => item.is_expired).length
 
   return [
-    { label: '最近提交', value: String(submissions.value.length), icon: 'i-lucide-logs' },
-    { label: '正确提交', value: String(acceptedCount), icon: 'i-lucide-circle-check-big' },
-    { label: '错误 Flag', value: String(wrongCount), icon: 'i-lucide-circle-x' },
-    { label: '重复提交', value: String(repeatedCount), icon: 'i-lucide-copy-check' },
-    { label: '运行中实例', value: String(runningInstanceCount), icon: 'i-lucide-box' },
-    { label: '已过期实例', value: String(expiredInstanceCount), icon: 'i-lucide-box-select' },
-    { label: '可疑线索', value: String(cheatClues.value.length), icon: 'i-lucide-shield-alert' },
-    { label: '比赛公告', value: String(announcements.value.length), icon: 'i-lucide-megaphone' },
+    { label: '最近提交', value: String(submissions.value.length), icon: 'i-lucide-logs', actionTo: '#submissions' },
+    { label: '正确提交', value: String(acceptedCount), icon: 'i-lucide-circle-check-big', actionTo: '#submissions' },
+    { label: '错误 Flag', value: String(wrongCount), icon: 'i-lucide-circle-x', actionTo: '#submissions' },
+    { label: '重复提交', value: String(repeatedCount), icon: 'i-lucide-copy-check', actionTo: '#submissions' },
+    { label: '运行中实例', value: String(runningInstanceCount), icon: 'i-lucide-box', actionTo: '#monitoring' },
+    { label: '已过期实例', value: String(expiredInstanceCount), icon: 'i-lucide-box-select', actionTo: '#monitoring' },
+    { label: '可疑线索', value: String(cheatClues.value.length), icon: 'i-lucide-shield-alert', actionTo: '#clues' },
+    { label: '比赛公告', value: String(announcements.value.length), icon: 'i-lucide-megaphone', actionTo: '#monitoring' },
   ]
 })
 
@@ -3641,7 +3641,20 @@ onMounted(async () => {
               :title="stat.value"
               :description="stat.label"
               :icon="stat.icon"
-            />
+            >
+              <template #footer>
+                <div class="flex justify-end">
+                  <UButton
+                    size="sm"
+                    variant="ghost"
+                    icon="i-lucide-arrow-right"
+                    @click="jumpToAdminAnchor(stat.actionTo)"
+                  >
+                    查看详情
+                  </UButton>
+                </div>
+              </template>
+            </UPageCard>
           </UPageGrid>
 
           <div v-if="monitorFocusItems.length" class="grid gap-3 xl:grid-cols-2">
