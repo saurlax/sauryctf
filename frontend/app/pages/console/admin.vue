@@ -135,6 +135,9 @@ const exportingWriteupsGameId = ref<number | null>(null)
 const exportingSubmissionsGameId = ref<number | null>(null)
 const importingGame = ref(false)
 const deletingChallengeId = ref<number | null>(null)
+const createGameModalOpen = ref(false)
+const createChallengeModalOpen = ref(false)
+const attachChallengeModalOpen = ref(false)
 const announcementModalOpen = ref(false)
 const gameEditModalOpen = ref(false)
 const challengeEditModalOpen = ref(false)
@@ -2129,6 +2132,7 @@ async function createGame() {
       },
     })
     toast.add({ title: '比赛创建成功', color: 'success' })
+    createGameModalOpen.value = false
     gameForm.name = ''
     gameForm.description = ''
     gameForm.notice = ''
@@ -2174,6 +2178,7 @@ async function createChallenge() {
       },
     })
     toast.add({ title: '题目创建成功', color: 'success' })
+    createChallengeModalOpen.value = false
     challengeForm.title = ''
     challengeForm.description = ''
     challengeForm.hints = '[]'
@@ -2575,6 +2580,7 @@ async function attachChallengeToGame() {
     })
 
     toast.add({ title: '题目已加入比赛', color: 'success' })
+    attachChallengeModalOpen.value = false
     attachForm.challenge_id = undefined
     attachForm.score_override = undefined
     await loadSelectedGameChallenges()
@@ -3908,11 +3914,10 @@ onMounted(async () => {
 
         <UPageCard title="比赛维护" icon="i-lucide-pencil-line">
           <div class="space-y-4">
-            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              比赛基础信息和比赛包导入改为独立弹层处理，避免长期占用主页面空间。
-            </div>
-
             <div class="flex flex-wrap gap-2">
+              <UButton icon="i-lucide-plus" @click="createGameModalOpen = true">
+                创建比赛
+              </UButton>
               <UButton icon="i-lucide-pencil-line" variant="outline" @click="gameEditModalOpen = true">
                 编辑比赛信息
               </UButton>
@@ -4011,172 +4016,12 @@ onMounted(async () => {
           </UForm>
         </UPageCard>
 
-        <UPageCard id="create-challenge" title="创建题目" icon="i-lucide-flag">
-          <template #footer>
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <p class="text-sm text-muted">
-                可以直接套用基础题、Web 实例、Pwn 服务、动态 Web 模板或每队独立入口模板，加快录题速度。
-              </p>
-              <div class="flex flex-wrap gap-2">
-                <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeChallengeTemplate">
-                  基础题
-                </UButton>
-                <UButton size="sm" variant="outline" icon="i-lucide-globe" @click="fillStaticWebTemplate">
-                  Web 实例
-                </UButton>
-                <UButton size="sm" variant="outline" icon="i-lucide-terminal" @click="fillPwnNetcatTemplate">
-                  Pwn 服务
-                </UButton>
-                <UButton size="sm" variant="outline" icon="i-lucide-box" @click="fillDynamicContainerTemplate">
-                  动态 Web
-                </UButton>
-                <UButton size="sm" variant="outline" icon="i-lucide-waypoints" @click="fillTeamScopedDynamicTemplate">
-                  每队独立入口
-                </UButton>
-              </div>
-            </div>
-          </template>
-
-          <UForm :state="challengeForm" class="space-y-4" @submit="createChallenge">
-            <UFormField label="题目名称" name="title">
-              <UInput v-model="challengeForm.title" class="w-full" placeholder="例如：Easy XSS" />
-            </UFormField>
-
-            <UFormField label="题目描述" name="description">
-              <UTextarea v-model="challengeForm.description" class="w-full" :rows="4" placeholder="题目简介、提示或附件说明" />
-            </UFormField>
-
-            <UFormField
-              label="提示列表"
-              name="hints"
-              description='使用 JSON 数组，例如 ["先看首页","再看接口返回"]'
-            >
-              <UTextarea v-model="challengeForm.hints" class="w-full" :rows="3" placeholder='["提示 1","提示 2"]' />
-            </UFormField>
-
-            <UFormField
-              label="附件链接"
-              name="attachments"
-              description='使用 JSON 数组，例如 ["https://example.com/files/web.zip"]'
-            >
-              <UTextarea v-model="challengeForm.attachments" class="w-full" :rows="3" placeholder='["https://example.com/files/challenge.zip"]' />
-            </UFormField>
-
-            <UFormField
-              label="实例接入信息"
-              name="container_spec"
-              description='使用 JSON 记录实例 URL、host/port、连接命令或代理入口'
-            >
-              <UTextarea v-model="challengeForm.container_spec" class="w-full font-mono" :rows="8" placeholder='{"connection":{"url":"","note":"请填写实际入口或接入说明"}}' />
-            </UFormField>
-
-            <UPageCard
-              title="模板占位符"
-              icon="i-lucide-braces"
-              description="动态题的 connection 字段可以直接使用这些占位符，为不同队伍生成不同入口。"
-            >
-              <div class="flex flex-wrap gap-2">
-                <UBadge
-                  v-for="token in instanceTemplateTokens"
-                  :key="token"
-                  color="neutral"
-                  variant="subtle"
-                >
-                  {{ token }}
-                </UBadge>
-              </div>
-            </UPageCard>
-
-            <UPageCard
-              v-if="challengeFormInstanceSpec"
-              title="实例预览"
-              icon="i-lucide-box"
-              description="这里会按比赛页的展示逻辑预览当前实例接入信息。"
-            >
-              <div class="space-y-2 text-sm text-muted">
-                <p v-if="challengeFormInstanceSpec.note" class="whitespace-pre-wrap">
-                  {{ challengeFormInstanceSpec.note }}
-                </p>
-                <div v-if="challengeFormInstanceSpec.url">
-                  入口：{{ challengeFormInstanceSpec.url }}
-                </div>
-                <div v-if="challengeFormInstanceSpec.host || challengeFormInstanceSpec.port">
-                  主机：{{ challengeFormInstanceSpec.host || 'host' }}<template v-if="challengeFormInstanceSpec.port">:{{ challengeFormInstanceSpec.port }}</template>
-                </div>
-                <div v-if="challengeFormInstanceSpec.command" class="rounded-md border border-default bg-default px-3 py-2 font-mono text-xs whitespace-pre-wrap">
-                  {{ challengeFormInstanceSpec.command }}
-                </div>
-                <div v-if="challengeFormInstanceSpec.links.length" class="space-y-1">
-                  <div
-                    v-for="(link, index) in challengeFormInstanceSpec.links"
-                    :key="`${link.url}-${index}`"
-                  >
-                    附加入口：{{ link.label }} -> {{ link.url }}
-                  </div>
-                </div>
-                <div v-if="challengeFormInstanceSpec.runtimeProvider || challengeFormInstanceSpec.runtimeImage || challengeFormInstanceSpec.runtimeExpose.length" class="rounded-md border border-default bg-default px-3 py-2 text-xs">
-                  <div v-if="challengeFormInstanceSpec.runtimeProvider">
-                    运行环境：{{ challengeFormInstanceSpec.runtimeProvider }}
-                  </div>
-                  <div v-if="challengeFormInstanceSpec.runtimeImage">
-                    镜像：{{ challengeFormInstanceSpec.runtimeImage }}
-                  </div>
-                  <div v-if="challengeFormInstanceSpec.runtimeExpose.length">
-                    暴露端口：{{ challengeFormInstanceSpec.runtimeExpose.join(' / ') }}
-                  </div>
-                </div>
-              </div>
-            </UPageCard>
-
-            <div class="grid gap-4 md:grid-cols-3">
-              <UFormField label="分类" name="category">
-                <USelect v-model="challengeForm.category" :items="categoryOptions" class="w-full" />
-              </UFormField>
-
-              <UFormField label="类型" name="type">
-                <USelect v-model="challengeForm.type" :items="typeOptions" class="w-full" />
-              </UFormField>
-
-              <UFormField label="难度" name="difficulty">
-                <USelect v-model="challengeForm.difficulty" :items="difficultyOptions" class="w-full" />
-              </UFormField>
-            </div>
-
-            <UFormField label="Flag" name="flag">
-              <UInput v-model="challengeForm.flag" class="w-full" placeholder="请填写正式 Flag" />
-            </UFormField>
-
-            <div class="grid gap-4 md:grid-cols-3">
-              <UFormField label="基础分值" name="base_score">
-                <UInput v-model.number="challengeForm.base_score" type="number" class="w-full" />
-              </UFormField>
-
-              <UFormField label="最低分值" name="min_score">
-                <UInput v-model.number="challengeForm.min_score" type="number" class="w-full" />
-              </UFormField>
-
-              <UFormField label="衰减率" name="decay_rate">
-                <UInput v-model.number="challengeForm.decay_rate" type="number" step="0.1" class="w-full" />
-              </UFormField>
-            </div>
-
-            <UFormField label="是否可见" name="is_visible">
-              <USwitch v-model="challengeForm.is_visible" />
-            </UFormField>
-
-            <UButton type="submit" :loading="challengeSubmitting">
-              创建题目
-            </UButton>
-          </UForm>
-        </UPageCard>
-
-        <UPageCard title="题目维护" icon="i-lucide-file-pen-line">
+        <UPageCard id="create-challenge" title="题目维护" icon="i-lucide-flag">
           <div class="space-y-4">
-            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              题目编辑改为弹层处理，保留当前创建区用于录入新题目。
-            </div>
-
             <div class="flex flex-wrap gap-2">
+              <UButton icon="i-lucide-plus" @click="createChallengeModalOpen = true">
+                创建题目
+              </UButton>
               <UButton icon="i-lucide-file-pen-line" variant="outline" @click="challengeEditModalOpen = true">
                 编辑题目
               </UButton>
@@ -4191,33 +4036,11 @@ onMounted(async () => {
 
       <div class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <UPageCard id="attach-challenge" title="比赛挂题" icon="i-lucide-link">
-          <UForm :state="attachForm" class="space-y-4" @submit="attachChallengeToGame">
-            <UFormField label="选择比赛" name="game_id">
-              <USelect
-                v-model="attachForm.game_id"
-                :items="gameOptions"
-                class="w-full"
-                placeholder="选择一个比赛"
-              />
-            </UFormField>
-
-            <UFormField label="选择题目" name="challenge_id">
-              <USelect
-                v-model="attachForm.challenge_id"
-                :items="challengeOptions"
-                class="w-full"
-                placeholder="选择一个题目"
-              />
-            </UFormField>
-
-            <UFormField label="覆盖分值" name="score_override" description="留空时沿用题目基础分值">
-              <UInput v-model.number="attachForm.score_override" type="number" min="0" class="w-full" placeholder="例如：500" />
-            </UFormField>
-
-            <UButton type="submit" :loading="attachSubmitting" :disabled="loadingResources">
-              加入比赛
+          <div class="mb-4 flex flex-wrap gap-2">
+            <UButton icon="i-lucide-link" @click="attachChallengeModalOpen = true">
+              挂载题目
             </UButton>
-          </UForm>
+          </div>
 
           <div class="mt-6 border-t border-default pt-4">
             <div class="mb-2 text-sm font-medium">
@@ -4287,10 +4110,6 @@ onMounted(async () => {
         <div class="space-y-6">
           <UPageCard title="导入比赛包" icon="i-lucide-upload">
             <div class="space-y-4">
-              <p class="text-sm text-muted">
-                导入动作改为弹层处理，避免文件上传控件长期占据页面。
-              </p>
-
               <div class="flex justify-end">
                 <UButton
                   icon="i-lucide-file-up"
@@ -4851,6 +4670,276 @@ onMounted(async () => {
       </div>
     </div>
   </div>
+
+  <UModal
+    v-model:open="createGameModalOpen"
+    title="创建比赛"
+    description="录入比赛基础信息，创建后可继续在比赛设置中调整公开性、状态和报名规则。"
+    :ui="{ body: 'space-y-4', footer: 'justify-end' }"
+  >
+    <template #body>
+      <UForm :state="gameForm" class="space-y-4" @submit="createGame">
+        <UFormField label="比赛名称" name="name">
+          <UInput v-model="gameForm.name" class="w-full" placeholder="例如：2026 校内选拔赛" />
+        </UFormField>
+
+        <UFormField label="比赛描述" name="description">
+          <UTextarea v-model="gameForm.description" class="w-full" :rows="3" placeholder="面向选手展示的比赛简介" />
+        </UFormField>
+
+        <UFormField label="规则补充" name="notice" description="适合填写长期有效的规则说明或补充约束">
+          <UTextarea v-model="gameForm.notice" class="w-full" :rows="3" placeholder="例如：禁止账号共享、禁止队伍间共享 Flag。" />
+        </UFormField>
+
+        <UFormField label="比赛邀请码" name="invitation_code" description="留空表示任何队伍都可报名">
+          <UInput v-model="gameForm.invitation_code" class="w-full" placeholder="例如：spring-2026" />
+        </UFormField>
+
+        <UFormField label="比赛分组" name="divisions_text" description="按行或逗号分隔，例如：本科组, 公开组">
+          <UTextarea v-model="gameForm.divisions_text" class="w-full" :rows="2" placeholder="本科组, 公开组" />
+        </UFormField>
+
+        <div class="grid gap-4 md:grid-cols-2">
+          <UFormField label="开始时间" name="start_time">
+            <UInput v-model="gameForm.start_time" type="datetime-local" class="w-full" />
+          </UFormField>
+
+          <UFormField label="结束时间" name="end_time">
+            <UInput v-model="gameForm.end_time" type="datetime-local" class="w-full" />
+          </UFormField>
+        </div>
+
+        <UFormField label="封榜时间" name="scoreboard_freeze_at" description="留空表示不封榜">
+          <UInput v-model="gameForm.scoreboard_freeze_at" type="datetime-local" class="w-full" />
+        </UFormField>
+
+        <UFormField label="报名模式" name="registration_mode">
+          <USelect v-model="gameForm.registration_mode" :items="registrationModeOptions" class="w-full" />
+        </UFormField>
+
+        <div class="grid gap-4 md:grid-cols-2">
+          <UFormField label="队伍人数上限" name="max_team_members" description="0 表示不限制">
+            <UInput v-model.number="gameForm.max_team_members" type="number" min="0" class="w-full" />
+          </UFormField>
+
+          <UFormField label="Writeup 截止时间" name="writeup_deadline" description="留空表示不额外设置">
+            <UInput v-model="gameForm.writeup_deadline" type="datetime-local" class="w-full" />
+          </UFormField>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-3">
+          <UFormField label="公开比赛" name="is_public">
+            <USwitch v-model="gameForm.is_public" />
+          </UFormField>
+
+          <UFormField label="启用赛后练习" name="practice_mode">
+            <USwitch v-model="gameForm.practice_mode" />
+          </UFormField>
+
+          <UFormField label="要求 Writeup" name="writeup_required">
+            <USwitch v-model="gameForm.writeup_required" />
+          </UFormField>
+        </div>
+
+        <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+          <div class="mb-2 font-medium text-highlighted">
+            当前规则摘要
+          </div>
+          <ul class="space-y-2">
+            <li v-for="item in createGameRuleSummary" :key="item">
+              {{ item }}
+            </li>
+          </ul>
+        </div>
+      </UForm>
+    </template>
+
+    <template #footer="{ close }">
+      <UButton variant="ghost" :disabled="gameSubmitting" @click="close()">
+        取消
+      </UButton>
+      <UButton :loading="gameSubmitting" @click="createGame">
+        创建比赛
+      </UButton>
+    </template>
+  </UModal>
+
+  <UModal
+    v-model:open="createChallengeModalOpen"
+    title="创建题目"
+    description="录入题目基础信息、接入说明和计分规则。"
+    :ui="{ body: 'space-y-4', footer: 'justify-end' }"
+  >
+    <template #body>
+      <div class="flex flex-wrap gap-2">
+        <UButton size="sm" variant="outline" icon="i-lucide-wand-sparkles" @click="fillSmokeChallengeTemplate">
+          基础题
+        </UButton>
+        <UButton size="sm" variant="outline" icon="i-lucide-globe" @click="fillStaticWebTemplate">
+          Web 实例
+        </UButton>
+        <UButton size="sm" variant="outline" icon="i-lucide-terminal" @click="fillPwnNetcatTemplate">
+          Pwn 服务
+        </UButton>
+        <UButton size="sm" variant="outline" icon="i-lucide-box" @click="fillDynamicContainerTemplate">
+          动态 Web
+        </UButton>
+        <UButton size="sm" variant="outline" icon="i-lucide-waypoints" @click="fillTeamScopedDynamicTemplate">
+          每队独立入口
+        </UButton>
+      </div>
+
+      <UForm :state="challengeForm" class="space-y-4" @submit="createChallenge">
+        <UFormField label="题目名称" name="title">
+          <UInput v-model="challengeForm.title" class="w-full" placeholder="例如：Easy XSS" />
+        </UFormField>
+
+        <UFormField label="题目描述" name="description">
+          <UTextarea v-model="challengeForm.description" class="w-full" :rows="4" placeholder="题目简介、提示或附件说明" />
+        </UFormField>
+
+        <UFormField label="提示列表" name="hints" description='使用 JSON 数组，例如 ["先看首页","再看接口返回"]'>
+          <UTextarea v-model="challengeForm.hints" class="w-full" :rows="3" placeholder='["提示 1","提示 2"]' />
+        </UFormField>
+
+        <UFormField label="附件链接" name="attachments" description='使用 JSON 数组，例如 ["https://example.com/files/web.zip"]'>
+          <UTextarea v-model="challengeForm.attachments" class="w-full" :rows="3" placeholder='["https://example.com/files/challenge.zip"]' />
+        </UFormField>
+
+        <UFormField label="实例接入信息" name="container_spec" description='使用 JSON 记录实例 URL、host/port、连接命令或代理入口'>
+          <UTextarea v-model="challengeForm.container_spec" class="w-full font-mono" :rows="8" placeholder='{"connection":{"url":"","note":"请填写实际入口或接入说明"}}' />
+        </UFormField>
+
+        <UPageCard title="模板占位符" icon="i-lucide-braces" description="动态题的 connection 字段可以直接使用这些占位符，为不同队伍生成不同入口。">
+          <div class="flex flex-wrap gap-2">
+            <UBadge v-for="token in instanceTemplateTokens" :key="token" color="neutral" variant="subtle">
+              {{ token }}
+            </UBadge>
+          </div>
+        </UPageCard>
+
+        <UPageCard v-if="challengeFormInstanceSpec" title="实例预览" icon="i-lucide-box" description="这里会按比赛页的展示逻辑预览当前实例接入信息。">
+          <div class="space-y-2 text-sm text-muted">
+            <p v-if="challengeFormInstanceSpec.note" class="whitespace-pre-wrap">
+              {{ challengeFormInstanceSpec.note }}
+            </p>
+            <div v-if="challengeFormInstanceSpec.url">
+              入口：{{ challengeFormInstanceSpec.url }}
+            </div>
+            <div v-if="challengeFormInstanceSpec.host || challengeFormInstanceSpec.port">
+              主机：{{ challengeFormInstanceSpec.host || 'host' }}<template v-if="challengeFormInstanceSpec.port">:{{ challengeFormInstanceSpec.port }}</template>
+            </div>
+            <div v-if="challengeFormInstanceSpec.command" class="rounded-md border border-default bg-default px-3 py-2 font-mono text-xs whitespace-pre-wrap">
+              {{ challengeFormInstanceSpec.command }}
+            </div>
+            <div v-if="challengeFormInstanceSpec.links.length" class="space-y-1">
+              <div v-for="(link, index) in challengeFormInstanceSpec.links" :key="`${link.url}-${index}`">
+                附加入口：{{ link.label }} -> {{ link.url }}
+              </div>
+            </div>
+            <div v-if="challengeFormInstanceSpec.runtimeProvider || challengeFormInstanceSpec.runtimeImage || challengeFormInstanceSpec.runtimeExpose.length" class="rounded-md border border-default bg-default px-3 py-2 text-xs">
+              <div v-if="challengeFormInstanceSpec.runtimeProvider">
+                运行环境：{{ challengeFormInstanceSpec.runtimeProvider }}
+              </div>
+              <div v-if="challengeFormInstanceSpec.runtimeImage">
+                镜像：{{ challengeFormInstanceSpec.runtimeImage }}
+              </div>
+              <div v-if="challengeFormInstanceSpec.runtimeExpose.length">
+                暴露端口：{{ challengeFormInstanceSpec.runtimeExpose.join(' / ') }}
+              </div>
+            </div>
+          </div>
+        </UPageCard>
+
+        <div class="grid gap-4 md:grid-cols-3">
+          <UFormField label="分类" name="category">
+            <USelect v-model="challengeForm.category" :items="categoryOptions" class="w-full" />
+          </UFormField>
+
+          <UFormField label="类型" name="type">
+            <USelect v-model="challengeForm.type" :items="typeOptions" class="w-full" />
+          </UFormField>
+
+          <UFormField label="难度" name="difficulty">
+            <USelect v-model="challengeForm.difficulty" :items="difficultyOptions" class="w-full" />
+          </UFormField>
+        </div>
+
+        <UFormField label="Flag" name="flag">
+          <UInput v-model="challengeForm.flag" class="w-full" placeholder="请填写正式 Flag" />
+        </UFormField>
+
+        <div class="grid gap-4 md:grid-cols-3">
+          <UFormField label="基础分值" name="base_score">
+            <UInput v-model.number="challengeForm.base_score" type="number" class="w-full" />
+          </UFormField>
+
+          <UFormField label="最低分值" name="min_score">
+            <UInput v-model.number="challengeForm.min_score" type="number" class="w-full" />
+          </UFormField>
+
+          <UFormField label="衰减率" name="decay_rate">
+            <UInput v-model.number="challengeForm.decay_rate" type="number" step="0.1" class="w-full" />
+          </UFormField>
+        </div>
+
+        <UFormField label="是否可见" name="is_visible">
+          <USwitch v-model="challengeForm.is_visible" />
+        </UFormField>
+      </UForm>
+    </template>
+
+    <template #footer="{ close }">
+      <UButton variant="ghost" :disabled="challengeSubmitting" @click="close()">
+        取消
+      </UButton>
+      <UButton :loading="challengeSubmitting" @click="createChallenge">
+        创建题目
+      </UButton>
+    </template>
+  </UModal>
+
+  <UModal
+    v-model:open="attachChallengeModalOpen"
+    title="比赛挂题"
+    description="将现有题目加入比赛，并按需覆盖比赛内分值。"
+    :ui="{ body: 'space-y-4', footer: 'justify-end' }"
+  >
+    <template #body>
+      <UForm :state="attachForm" class="space-y-4" @submit="attachChallengeToGame">
+        <UFormField label="选择比赛" name="game_id">
+          <USelect
+            v-model="attachForm.game_id"
+            :items="gameOptions"
+            class="w-full"
+            placeholder="选择一个比赛"
+          />
+        </UFormField>
+
+        <UFormField label="选择题目" name="challenge_id">
+          <USelect
+            v-model="attachForm.challenge_id"
+            :items="challengeOptions"
+            class="w-full"
+            placeholder="选择一个题目"
+          />
+        </UFormField>
+
+        <UFormField label="覆盖分值" name="score_override" description="留空时沿用题目基础分值">
+          <UInput v-model.number="attachForm.score_override" type="number" min="0" class="w-full" placeholder="例如：500" />
+        </UFormField>
+      </UForm>
+    </template>
+
+    <template #footer="{ close }">
+      <UButton variant="ghost" :disabled="attachSubmitting" @click="close()">
+        取消
+      </UButton>
+      <UButton :loading="attachSubmitting" @click="attachChallengeToGame">
+        加入比赛
+      </UButton>
+    </template>
+  </UModal>
 
   <UModal
     v-model:open="announcementModalOpen"
