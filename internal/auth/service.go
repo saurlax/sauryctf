@@ -239,8 +239,13 @@ func (s *Service) UpdateUserAccount(targetUserID, requesterID uint, role models.
 		return nil, err
 	}
 
-	if requester.ID == target.ID && status == models.StatusBanned {
-		return nil, errors.New("cannot ban current user")
+	if requester.ID == target.ID {
+		if status == models.StatusBanned {
+			return nil, errors.New("cannot ban current user")
+		}
+		if role != target.Role {
+			return nil, errors.New("cannot change current user role")
+		}
 	}
 
 	if requester.Role != models.RoleSuperAdmin {

@@ -186,8 +186,13 @@ func (m *MockService) UpdateUserAccount(targetUserID, requesterID uint, role mod
 	if requester == nil || target == nil {
 		return nil, assert.AnError
 	}
-	if requester.ID == target.ID && status == models.StatusBanned {
-		return nil, assert.AnError
+	if requester.ID == target.ID {
+		if status == models.StatusBanned {
+			return nil, assert.AnError
+		}
+		if role != target.Role {
+			return nil, assert.AnError
+		}
 	}
 	if requester.Role != models.RoleSuperAdmin {
 		if target.Role == models.RoleSuperAdmin || role == models.RoleSuperAdmin {

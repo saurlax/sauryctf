@@ -328,6 +328,12 @@ func TestUpdateUserAccount(t *testing.T) {
 		assert.Contains(t, err.Error(), "cannot ban current user")
 	})
 
+	t.Run("current user cannot change own role", func(t *testing.T) {
+		_, err := svc.UpdateUserAccount(admin.ID, admin.ID, models.RoleJudge, models.StatusActive)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot change current user role")
+	})
+
 	t.Run("super admin can assign super admin", func(t *testing.T) {
 		updated, err := svc.UpdateUserAccount(user.ID, superAdmin.ID, models.RoleSuperAdmin, models.StatusActive)
 		require.NoError(t, err)

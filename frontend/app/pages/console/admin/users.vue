@@ -72,6 +72,10 @@ function canEditUser(user: UserInfo) {
 }
 
 function getRoleOptions(user: UserInfo) {
+  if (user.id === currentUserId.value) {
+    return roleOptions.filter(option => option.value === user.role)
+  }
+
   if (currentUserRole.value === 'super_admin') {
     return roleOptions
   }
@@ -97,7 +101,7 @@ function getEditRestrictionReason(user: UserInfo) {
   }
 
   if (user.id === currentUserId.value) {
-    return '当前账号不能把自己改为封禁。'
+    return '当前账号不能修改自己的角色，也不能把自己改为封禁。'
   }
 
   return ''
@@ -116,6 +120,12 @@ async function saveUser(user: UserInfo) {
     if (user.id === currentUserId.value && nextStatus === 'banned') {
       statusDrafts[user.id] = user.status
       toast.add({ title: '无法保存', description: '当前登录账号不能把自己改为封禁。', color: 'warning' })
+      return
+    }
+
+    if (user.id === currentUserId.value && nextRole !== user.role) {
+      roleDrafts[user.id] = user.role
+      toast.add({ title: '无法保存', description: '当前登录账号不能修改自己的角色。', color: 'warning' })
       return
     }
 
@@ -187,7 +197,7 @@ onMounted(async () => {
       variant="soft"
       icon="i-lucide-shield-check"
       title="当前页仅处理基础账号权限"
-      description="建议只在确有需要时调整管理员权限。当前登录账号不能在这里把自己改为封禁。"
+      description="建议只在确有需要时调整管理员权限。当前登录账号不能在这里修改自己的角色，也不能把自己改为封禁。"
     />
 
     <UPageGrid :cols="{ default: 1, sm: 3 }" class="mb-6">
