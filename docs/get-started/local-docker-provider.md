@@ -81,6 +81,24 @@ docker info
 - 实例真正启动前，不需要手写固定 `url`，平台会在租约响应里回填真实 `host / port / launch_url`
 - 这份模板优先服务于本地真实 Docker provider 检查，而不是固定入口网关场景
 - 如果题目需要最小运行参数，也可以继续在 `runtime.env` 里声明：
+- 如果题目需要覆盖镜像默认入口或补充最小启动参数，也可以继续写：
+
+```json
+{
+  "runtime": {
+    "provider": "docker",
+    "image": "python:3.12-alpine",
+    "expose": [8000],
+    "entrypoint": "python",
+    "args": ["-m", "http.server", "{{team_id}}"]
+  }
+}
+```
+
+- 当前 `runtime.entrypoint` 会在 `docker run` 时转换成 `--entrypoint`
+- 当前 `runtime.args` 会作为镜像名后的启动参数追加到 `docker run`
+- 这两项里的值同样支持 `{{game_id}} / {{challenge_id}} / {{team_id}} / {{user_id}} / {{team_hash}}` 模板
+- 如果题目需要最小环境变量，也可以继续在 `runtime.env` 里声明：
 
 ```json
 {
@@ -106,6 +124,8 @@ docker info
 - 调用 `docker run -d`
 - 按 `runtime.expose` 自动发布容器端口
 - 按 `runtime.env` 透传最小环境变量
+- 按 `runtime.entrypoint` 覆盖镜像默认入口
+- 按 `runtime.args` 追加启动参数
 - 调用 `docker inspect` 读回实际宿主机端口
 - 在实例响应里回填：
   - `host`
@@ -116,7 +136,7 @@ docker info
 ## 当前限制
 
 - 仍然是“每条租约一个本地容器”的最小实现
-- 还没有卷挂载、环境变量注入、自定义网络、registry 登录、资源限制
+- 还没有卷挂载、自定义网络、registry 登录、资源限制
 - 还没有接到真正的反向代理或平台网关
 - 如果你需要“每队固定入口 URL”而不是随机宿主机端口，当前更适合继续使用 `每队独立入口` 模板，再往后补网关层
 

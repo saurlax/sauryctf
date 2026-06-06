@@ -2542,7 +2542,7 @@ onMounted(async () => {
                           {{ link.label || `实例链接 ${linkIndex + 1}` }}
                         </UButton>
                       </div>
-                      <div v-if="getChallengeInstanceSpec(ch.container_spec)?.runtimeProvider || getChallengeInstanceSpec(ch.container_spec)?.runtimeImage || getChallengeInstanceSpec(ch.container_spec)?.runtimeExpose.length" class="rounded-md border border-default bg-default px-3 py-2 text-xs text-muted">
+                      <div v-if="getChallengeInstanceSpec(ch.container_spec)?.runtimeProvider || getChallengeInstanceSpec(ch.container_spec)?.runtimeImage || getChallengeInstanceSpec(ch.container_spec)?.runtimeExpose.length || getChallengeInstanceSpec(ch.container_spec)?.runtimeEnv.length || getChallengeInstanceSpec(ch.container_spec)?.runtimeEntrypoint || getChallengeInstanceSpec(ch.container_spec)?.runtimeArgs.length" class="rounded-md border border-default bg-default px-3 py-2 text-xs text-muted">
                         <div v-if="getChallengeInstanceSpec(ch.container_spec)?.runtimeProvider">
                           运行环境：{{ getChallengeInstanceSpec(ch.container_spec)?.runtimeProvider }}
                         </div>
@@ -2551,6 +2551,15 @@ onMounted(async () => {
                         </div>
                         <div v-if="getChallengeInstanceSpec(ch.container_spec)?.runtimeExpose.length">
                           暴露端口：{{ getChallengeInstanceSpec(ch.container_spec)?.runtimeExpose.join(' / ') }}
+                        </div>
+                        <div v-if="getChallengeInstanceSpec(ch.container_spec)?.runtimeEnv.length">
+                          环境变量：{{ getChallengeInstanceSpec(ch.container_spec)?.runtimeEnv.map(item => `${item.key}=${item.value}`).join(' / ') }}
+                        </div>
+                        <div v-if="getChallengeInstanceSpec(ch.container_spec)?.runtimeEntrypoint">
+                          覆盖入口：{{ getChallengeInstanceSpec(ch.container_spec)?.runtimeEntrypoint }}
+                        </div>
+                        <div v-if="getChallengeInstanceSpec(ch.container_spec)?.runtimeArgs.length">
+                          启动参数：{{ getChallengeInstanceSpec(ch.container_spec)?.runtimeArgs.join(' ') }}
                         </div>
                       </div>
                       <div

@@ -48,6 +48,8 @@ type parsedInstanceSpec struct {
 	Image     string
 	Expose    []string
 	Env       map[string]string
+	Entrypoint string
+	Args      []string
 	LaunchURL string
 	Host      string
 	Port      string
@@ -198,6 +200,8 @@ func parseManagedInstanceSpec(raw string) *parsedInstanceSpec {
 		Image:     normalizeStringValue(runtime["image"]),
 		Expose:    normalizeStringList(runtime["expose"]),
 		Env:       normalizeStringMap(runtime["env"]),
+		Entrypoint: normalizeStringValue(runtime["entrypoint"]),
+		Args:      normalizeStringList(runtime["args"]),
 		LaunchURL: normalizeStringValue(connection["url"]),
 		Host:      normalizeStringValue(connection["host"]),
 		Port:      normalizeStringValue(connection["port"]),
@@ -216,6 +220,8 @@ func toChallengeInstanceRuntimeSpec(spec *parsedInstanceSpec) ChallengeInstanceR
 		Image:     spec.Image,
 		Expose:    append([]string(nil), spec.Expose...),
 		Env:       cloneStringMap(spec.Env),
+		Entrypoint: spec.Entrypoint,
+		Args:      append([]string(nil), spec.Args...),
 		LaunchURL: spec.LaunchURL,
 		Host:      spec.Host,
 		Port:      spec.Port,

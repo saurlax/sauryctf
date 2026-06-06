@@ -26,3 +26,6 @@
   - 可在 `container_spec.runtime.env` 里声明最小环境变量映射
   - 当前主要用于本地 Docker provider 把题目运行参数传入容器
   - 管理端实例预览会直接展示这些键值对，便于在保存前核对
+  - 也可继续使用 `container_spec.runtime.entrypoint` 与 `container_spec.runtime.args`
+  - 当前主要用于覆盖镜像默认启动入口，或补充最小启动参数
+  - 管理端实例预览会同步展示覆盖入口与启动参数，避免只剩原始 JSON 可读

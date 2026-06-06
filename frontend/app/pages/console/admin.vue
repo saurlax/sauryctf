@@ -6368,7 +6368,7 @@ onMounted(async () => {
                 附加入口：{{ link.label }} -> {{ link.url }}
               </div>
             </div>
-            <div v-if="challengeFormInstanceSpec.runtimeProvider || challengeFormInstanceSpec.runtimeImage || challengeFormInstanceSpec.runtimeExpose.length || challengeFormInstanceSpec.runtimeEnv.length" class="rounded-md border border-default bg-default px-3 py-2 text-xs">
+            <div v-if="challengeFormInstanceSpec.runtimeProvider || challengeFormInstanceSpec.runtimeImage || challengeFormInstanceSpec.runtimeExpose.length || challengeFormInstanceSpec.runtimeEnv.length || challengeFormInstanceSpec.runtimeEntrypoint || challengeFormInstanceSpec.runtimeArgs.length" class="rounded-md border border-default bg-default px-3 py-2 text-xs">
               <div v-if="challengeFormInstanceSpec.runtimeProvider">
                 运行环境：{{ challengeFormInstanceSpec.runtimeProvider }}
               </div>
@@ -6380,6 +6380,12 @@ onMounted(async () => {
               </div>
               <div v-if="challengeFormInstanceSpec.runtimeEnv.length">
                 环境变量：{{ challengeFormInstanceSpec.runtimeEnv.map(item => `${item.key}=${item.value}`).join(' / ') }}
+              </div>
+              <div v-if="challengeFormInstanceSpec.runtimeEntrypoint">
+                覆盖入口：{{ challengeFormInstanceSpec.runtimeEntrypoint }}
+              </div>
+              <div v-if="challengeFormInstanceSpec.runtimeArgs.length">
+                启动参数：{{ challengeFormInstanceSpec.runtimeArgs.join(' ') }}
               </div>
             </div>
           </div>
@@ -6789,7 +6795,7 @@ onMounted(async () => {
                 附加入口：{{ link.label }} -> {{ link.url }}
               </div>
             </div>
-            <div v-if="challengeEditInstanceSpec.runtimeProvider || challengeEditInstanceSpec.runtimeImage || challengeEditInstanceSpec.runtimeExpose.length || challengeEditInstanceSpec.runtimeEnv.length" class="rounded-md border border-default bg-default px-3 py-2 text-xs">
+            <div v-if="challengeEditInstanceSpec.runtimeProvider || challengeEditInstanceSpec.runtimeImage || challengeEditInstanceSpec.runtimeExpose.length || challengeEditInstanceSpec.runtimeEnv.length || challengeEditInstanceSpec.runtimeEntrypoint || challengeEditInstanceSpec.runtimeArgs.length" class="rounded-md border border-default bg-default px-3 py-2 text-xs">
               <div v-if="challengeEditInstanceSpec.runtimeProvider">
                 运行环境：{{ challengeEditInstanceSpec.runtimeProvider }}
               </div>
@@ -6801,6 +6807,12 @@ onMounted(async () => {
               </div>
               <div v-if="challengeEditInstanceSpec.runtimeEnv.length">
                 环境变量：{{ challengeEditInstanceSpec.runtimeEnv.map(item => `${item.key}=${item.value}`).join(' / ') }}
+              </div>
+              <div v-if="challengeEditInstanceSpec.runtimeEntrypoint">
+                覆盖入口：{{ challengeEditInstanceSpec.runtimeEntrypoint }}
+              </div>
+              <div v-if="challengeEditInstanceSpec.runtimeArgs.length">
+                启动参数：{{ challengeEditInstanceSpec.runtimeArgs.join(' ') }}
               </div>
             </div>
           </div>

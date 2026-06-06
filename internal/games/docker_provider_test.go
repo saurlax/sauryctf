@@ -133,6 +133,94 @@ func TestNormalizeDockerEnvArgsSortsAndTemplatesValues(t *testing.T) {
 	}, args)
 }
 
+func TestDockerCLIProvider_EnsureLeaseSupportsEntrypointAndArgs(t *testing.T) {
+	req := ChallengeInstanceProviderRequest{
+		GameID:            61,
+		ChallengeID:       62,
+		TeamID:            63,
+		UserID:            64,
+		Now:               time.Date(2026, 6, 7, 11, 0, 0, 0, time.UTC),
+		LeaseDuration:     30 * time.Minute,
+		ExtensionDuration: 30 * time.Minute,
+		Runtime: ChallengeInstanceRuntimeSpec{
+			Provider:   "docker",
+			Image:      "python:3.12-alpine",
+			Expose:     []string{"8000"},
+			Entrypoint: "python",
+			Args: []string{
+				"-m",
+				"http.server",
+				"{{team_id}}",
+			},
+		},
+	}
+	containerName := dockerInstanceContainerName(req)
+
+	runner := &fakeDockerCommandRunner{
+		outputs: map[string]fakeDockerCommandResult{
+			strings.Join([]string{
+				"run", "-d",
+				"--name", containerName,
+				"--label", "sauryctf.managed=true",
+				"--label", "sauryctf.game_id=61",
+				"--label", "sauryctf.challenge_id=62",
+				"--label", "sauryctf.team_id=63",
+				"-p", "8000",
+				"--entrypoint", "python",
+				"python:3.12-alpine",
+				"-m", "http.server", "63",
+			}, "\x00"): {
+				output: []byte("container-id\n"),
+			},
+			strings.Join([]string{"inspect", "--format", "{{json .NetworkSettings.Ports}}", containerName}, "\x00"): {
+				output: []byte(`{"8000/tcp":[{"HostIp":"0.0.0.0","HostPort":"49200"}]}`),
+			},
+		},
+	}
+
+	provider := newDockerCLIProvider("127.0.0.1", runner).(*dockerCLIProvider)
+	state, err := provider.EnsureLease(req)
+	require.NoError(t, err)
+
+	require.Len(t, runner.calls, 2)
+	assert.Equal(t, []string{
+		"run", "-d",
+		"--name", containerName,
+		"--label", "sauryctf.managed=true",
+		"--label", "sauryctf.game_id=61",
+		"--label", "sauryctf.challenge_id=62",
+		"--label", "sauryctf.team_id=63",
+		"-p", "8000",
+		"--entrypoint", "python",
+		"python:3.12-alpine",
+		"-m", "http.server", "63",
+	}, runner.calls[0])
+	assert.Equal(t, "49200", state.Port)
+	assert.Equal(t, "http://127.0.0.1:49200", state.LaunchURL)
+}
+
+func TestNormalizeDockerCommandArgsTemplatesValues(t *testing.T) {
+	req := ChallengeInstanceProviderRequest{
+		GameID:      71,
+		ChallengeID: 72,
+		TeamID:      73,
+		UserID:      74,
+	}
+
+	args := normalizeDockerCommandArgs([]string{
+		"-m",
+		"http.server",
+		"{{team_id}}",
+		" ",
+	}, req)
+
+	assert.Equal(t, []string{
+		"-m",
+		"http.server",
+		"73",
+	}, args)
+}
+
 func TestDockerCLIProvider_EnsureLeaseReusesExistingContainer(t *testing.T) {
 	runner := &fakeDockerCommandRunner{
 		outputs: map[string]fakeDockerCommandResult{

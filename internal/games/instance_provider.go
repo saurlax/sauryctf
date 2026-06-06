@@ -171,7 +171,11 @@ func (p *dockerCLIProvider) EnsureLease(req ChallengeInstanceProviderRequest) (*
 		for _, envItem := range normalizeDockerEnvArgs(req.Runtime.Env, req) {
 			args = append(args, "--env", envItem)
 		}
+		if entrypoint := templateChallengeInstanceValue(req.Runtime.Entrypoint, req); entrypoint != "" {
+			args = append(args, "--entrypoint", entrypoint)
+		}
 		args = append(args, image)
+		args = append(args, normalizeDockerCommandArgs(req.Runtime.Args, req)...)
 
 		if _, err := p.run(args...); err != nil {
 			return nil, err
@@ -309,6 +313,23 @@ func normalizeDockerEnvArgs(env map[string]string, req ChallengeInstanceProvider
 		value := templateChallengeInstanceValue(env[key], req)
 		result = append(result, fmt.Sprintf("%s=%s", key, value))
 	}
+	return result
+}
+
+func normalizeDockerCommandArgs(commandArgs []string, req ChallengeInstanceProviderRequest) []string {
+	if len(commandArgs) == 0 {
+		return nil
+	}
+
+	result := make([]string, 0, len(commandArgs))
+	for _, arg := range commandArgs {
+		templated := templateChallengeInstanceValue(arg, req)
+		if strings.TrimSpace(templated) == "" {
+			continue
+		}
+		result = append(result, templated)
+	}
+
 	return result
 }
 

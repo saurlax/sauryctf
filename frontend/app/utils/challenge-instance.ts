@@ -14,6 +14,8 @@ type ChallengeInstanceSpec = {
   runtimeImage: string
   runtimeExpose: string[]
   runtimeEnv: Array<{ key: string, value: string }>
+  runtimeEntrypoint: string
+  runtimeArgs: string[]
   raw: string
 }
 
@@ -97,6 +99,8 @@ export function parseChallengeInstanceSpec(raw?: string): ChallengeInstanceSpec 
         runtimeImage: toTrimmedString(runtime.image),
         runtimeExpose: toStringList(runtime.expose),
         runtimeEnv: toStringEntries(runtime.env),
+        runtimeEntrypoint: toTrimmedString(runtime.entrypoint),
+        runtimeArgs: toStringList(runtime.args),
         raw: source,
       }
     }
@@ -116,6 +120,8 @@ export function parseChallengeInstanceSpec(raw?: string): ChallengeInstanceSpec 
     runtimeImage: '',
     runtimeExpose: [],
     runtimeEnv: [],
+    runtimeEntrypoint: '',
+    runtimeArgs: [],
     raw: source,
   }
 }
@@ -136,7 +142,9 @@ export function hasChallengeInstanceSpec(raw?: string) {
     || spec.runtimeProvider
     || spec.runtimeImage
     || spec.runtimeExpose.length
-    || spec.runtimeEnv.length,
+    || spec.runtimeEnv.length
+    || spec.runtimeEntrypoint
+    || spec.runtimeArgs.length
   )
 }
 
