@@ -16,6 +16,7 @@ const toast = useToast()
 const loading = ref(true)
 const savingUserId = ref<number | null>(null)
 const users = ref<UserInfo[]>([])
+const saveConfirmModalOpen = ref(false)
 const filters = reactive({
   keyword: '',
   role: 'all' as 'all' | UserRole,
@@ -24,6 +25,11 @@ const filters = reactive({
 
 const roleDrafts = reactive<Record<number, UserRole>>({})
 const statusDrafts = reactive<Record<number, UserStatus>>({})
+const pendingSaveTarget = ref<{
+  user: UserInfo
+  nextRole: UserRole
+  nextStatus: UserStatus
+} | null>(null)
 
 const roleOptions = [
   { label: '普通用户', value: 'user' },
@@ -163,47 +169,105 @@ function hasPendingChange(user: UserInfo) {
   return roleDrafts[user.id] !== user.role || statusDrafts[user.id] !== user.status
 }
 
-async function saveUser(user: UserInfo) {
-  savingUserId.value = user.id
+function openSaveConfirm(user: UserInfo) {
+  const nextRole: UserRole = roleDrafts[user.id] ?? user.role
+  const nextStatus: UserStatus = statusDrafts[user.id] ?? user.status
+
+  if (user.id === currentUserId.value && nextStatus === 'banned') {
+    statusDrafts[user.id] = user.status
+    toast.add({ title: '无法保存', description: '当前登录账号不能把自己改为封禁。', color: 'warning' })
+    return
+  }
+
+  if (user.id === currentUserId.value && nextRole !== user.role) {
+    roleDrafts[user.id] = user.role
+    toast.add({ title: '无法保存', description: '当前登录账号不能修改自己的角色。', color: 'warning' })
+    return
+  }
+
+  if (currentUserRole.value !== 'super_admin' && nextRole === 'super_admin') {
+    roleDrafts[user.id] = user.role
+    toast.add({ title: '无法保存', description: '只有超级管理员可以授予超级管理员角色。', color: 'warning' })
+    return
+  }
+
+  pendingSaveTarget.value = {
+    user,
+    nextRole,
+    nextStatus,
+  }
+  saveConfirmModalOpen.value = true
+}
+
+const saveConfirmRows = computed(() => {
+  const target = pendingSaveTarget.value
+  if (!target) {
+    return []
+  }
+
+  return [
+    {
+      label: '目标用户',
+      value: `${target.user.username} (#${target.user.id})`,
+    },
+    {
+      label: '角色调整',
+      value: `${getRoleLabel(target.user.role)} -> ${getRoleLabel(target.nextRole)}`,
+    },
+    {
+      label: '状态调整',
+      value: `${getStatusLabel(target.user.status)} -> ${getStatusLabel(target.nextStatus)}`,
+    },
+  ]
+})
+
+const saveConfirmDescription = computed(() => {
+  const target = pendingSaveTarget.value
+  if (!target) {
+    return ''
+  }
+
+  if (target.user.role !== target.nextRole && target.nextStatus === 'banned') {
+    return '这次操作会同时调整角色并封禁该账号。请确认该用户不再承担当前比赛或平台管理职责。'
+  }
+
+  if (target.nextStatus === 'banned') {
+    return '封禁后，该账号将不能继续正常登录平台。请确认这是当前需要的处理结果。'
+  }
+
+  if (target.user.role !== target.nextRole) {
+    return '角色权限会立即按新设置生效。请确认当前账号边界与职责范围匹配。'
+  }
+
+  return '本次会更新该用户的账号状态。请在保存前再次确认调整结果。'
+})
+
+async function saveUser() {
+  const target = pendingSaveTarget.value
+  if (!target) {
+    saveConfirmModalOpen.value = false
+    return
+  }
+
+  savingUserId.value = target.user.id
   try {
-    const nextRole: UserRole = roleDrafts[user.id] ?? user.role
-    const nextStatus: UserStatus = statusDrafts[user.id] ?? user.status
-
-    if (user.id === currentUserId.value && nextStatus === 'banned') {
-      statusDrafts[user.id] = user.status
-      toast.add({ title: '无法保存', description: '当前登录账号不能把自己改为封禁。', color: 'warning' })
-      return
-    }
-
-    if (user.id === currentUserId.value && nextRole !== user.role) {
-      roleDrafts[user.id] = user.role
-      toast.add({ title: '无法保存', description: '当前登录账号不能修改自己的角色。', color: 'warning' })
-      return
-    }
-
-    if (currentUserRole.value !== 'super_admin' && nextRole === 'super_admin') {
-      roleDrafts[user.id] = user.role
-      toast.add({ title: '无法保存', description: '只有超级管理员可以授予超级管理员角色。', color: 'warning' })
-      return
-    }
-
     const updated = await $api('put', '/api/admin/users/{userId}', {
       params: {
-        userId: user.id,
+        userId: target.user.id,
       },
       body: {
-        role: nextRole,
-        status: nextStatus,
+        role: target.nextRole,
+        status: target.nextStatus,
       },
     })
     const normalized: UserInfo = {
-      ...user,
+      ...target.user,
       ...updated,
-      role: updated.role || nextRole,
-      status: updated.status || nextStatus,
+      role: updated.role || target.nextRole,
+      status: updated.status || target.nextStatus,
     }
 
-    const index = users.value.findIndex(item => item.id === user.id)
+    const index = users.value.findIndex(item => item.id === target.user.id)
     if (index !== -1) {
       users.value[index] = normalized
       roleDrafts[normalized.id] = normalized.role
@@ -215,10 +279,12 @@ async function saveUser(user: UserInfo) {
       description: `${normalized.username} 的账号状态已经保存。`,
       color: 'success',
     })
+    saveConfirmModalOpen.value = false
+    pendingSaveTarget.value = null
   }
   catch (e: any) {
-    roleDrafts[user.id] = user.role
-    statusDrafts[user.id] = user.status
+    roleDrafts[target.user.id] = target.user.role
+    statusDrafts[target.user.id] = target.user.status
     toast.add({ title: '保存失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
@@ -367,7 +433,7 @@ onMounted(async () => {
                 icon="i-lucide-save"
                 :loading="savingUserId === row.original.id"
                 :disabled="!canEditUser(row.original) || !hasPendingChange(row.original)"
-                @click="saveUser(row.original)"
+                @click="openSaveConfirm(row.original)"
               >
                 保存
               </UButton>
@@ -384,5 +450,46 @@ onMounted(async () => {
         当前筛选下没有匹配的用户记录。
       </div>
     </UPageCard>
+
+    <UModal
+      v-model:open="saveConfirmModalOpen"
+      title="确认保存账号调整"
+      :description="saveConfirmDescription"
+      :dismissible="savingUserId === null"
+      :ui="{ footer: 'justify-end' }"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <div class="rounded-lg border border-default px-3 py-3 text-sm">
+            <div
+              v-for="row in saveConfirmRows"
+              :key="row.label"
+              class="flex items-center justify-between gap-3 py-2"
+            >
+              <span class="text-muted">{{ row.label }}</span>
+              <span class="text-right">{{ row.value }}</span>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <template #footer>
+        <UButton
+          color="neutral"
+          variant="outline"
+          :disabled="savingUserId !== null"
+          @click="saveConfirmModalOpen = false; pendingSaveTarget = null"
+        >
+          取消
+        </UButton>
+        <UButton
+          icon="i-lucide-save"
+          :loading="savingUserId !== null"
+          @click="saveUser()"
+        >
+          确认保存
+        </UButton>
+      </template>
+    </UModal>
   </div>
 </template>
