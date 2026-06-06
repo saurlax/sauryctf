@@ -234,6 +234,10 @@
   - `{{team_id}}`
   - `{{user_id}}`
   - `{{team_hash}}`
+- 当前 `{{team_hash}}` 采用稳定的 12 位十六进制短串：
+  - 由 `game_id + challenge_id + team_id` 组合后做 SHA256，再截取中段 12 个字符
+  - 适合当前本地动态题和实例入口的稳定寻址
+  - 目前还不是签名 token，也还没有引入比赛级盐值
 - 适合先把动态题的连接入口做成“每队不同但稳定”的本地形态
   - 例如 `connection.url` 可以写成 `/local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}`
   - 当前会把这类地址作为实例详情页入口使用；如果未启用真实 provider，仍然不会真的创建容器或反代

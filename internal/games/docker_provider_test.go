@@ -41,7 +41,7 @@ func TestDockerCLIProvider_EnsureLeaseCreatesContainerAndInspectsRandomPort(t *t
 		outputs: map[string]fakeDockerCommandResult{
 			strings.Join([]string{
 				"run", "-d",
-				"--name", "sauryctf-g12-c34-t56-87bf001670ef",
+				"--name", "sauryctf-g12-c34-t56-578dd75cad60",
 				"--label", "sauryctf.managed=true",
 				"--label", "sauryctf.game_id=12",
 				"--label", "sauryctf.challenge_id=34",
@@ -52,7 +52,7 @@ func TestDockerCLIProvider_EnsureLeaseCreatesContainerAndInspectsRandomPort(t *t
 			}, "\x00"): {
 				output: []byte("container-id\n"),
 			},
-			strings.Join([]string{"inspect", "--format", "{{json .NetworkSettings.Ports}}", "sauryctf-g12-c34-t56-87bf001670ef"}, "\x00"): {
+			strings.Join([]string{"inspect", "--format", "{{json .NetworkSettings.Ports}}", "sauryctf-g12-c34-t56-578dd75cad60"}, "\x00"): {
 				output: []byte(`{"80/tcp":[{"HostIp":"0.0.0.0","HostPort":"49123"}],"443/tcp":[{"HostIp":"0.0.0.0","HostPort":"49124"}]}`),
 			},
 		},
@@ -81,7 +81,7 @@ func TestDockerCLIProvider_EnsureLeaseCreatesContainerAndInspectsRandomPort(t *t
 	require.Len(t, runner.calls, 2)
 	assert.Equal(t, []string{
 		"run", "-d",
-		"--name", "sauryctf-g12-c34-t56-87bf001670ef",
+		"--name", "sauryctf-g12-c34-t56-578dd75cad60",
 		"--label", "sauryctf.managed=true",
 		"--label", "sauryctf.game_id=12",
 		"--label", "sauryctf.challenge_id=34",
@@ -90,7 +90,7 @@ func TestDockerCLIProvider_EnsureLeaseCreatesContainerAndInspectsRandomPort(t *t
 		"-p", "443/tcp",
 		"nginx:alpine",
 	}, runner.calls[0])
-	assert.Equal(t, []string{"inspect", "--format", "{{json .NetworkSettings.Ports}}", "sauryctf-g12-c34-t56-87bf001670ef"}, runner.calls[1])
+	assert.Equal(t, []string{"inspect", "--format", "{{json .NetworkSettings.Ports}}", "sauryctf-g12-c34-t56-578dd75cad60"}, runner.calls[1])
 
 	assert.Equal(t, "docker", state.Provider)
 	assert.Equal(t, "nginx:alpine", state.Image)
@@ -101,16 +101,16 @@ func TestDockerCLIProvider_EnsureLeaseCreatesContainerAndInspectsRandomPort(t *t
 	assert.Equal(t, now, state.LastRenewedAt)
 	assert.Equal(t, now.Add(30*time.Minute), state.ExpiresAt)
 	assert.Contains(t, state.Note, "fixture note")
-	assert.Contains(t, state.Note, "docker container: sauryctf-g12-c34-t56-87bf001670ef")
+	assert.Contains(t, state.Note, "docker container: sauryctf-g12-c34-t56-578dd75cad60")
 }
 
 func TestDockerCLIProvider_EnsureLeaseReusesExistingContainer(t *testing.T) {
 	runner := &fakeDockerCommandRunner{
 		outputs: map[string]fakeDockerCommandResult{
-			strings.Join([]string{"inspect", "sauryctf-g3-c4-t5-9c9b3382932b"}, "\x00"): {
+			strings.Join([]string{"inspect", "sauryctf-g3-c4-t5-64b47ee0d554"}, "\x00"): {
 				output: []byte("{}"),
 			},
-			strings.Join([]string{"inspect", "--format", "{{json .NetworkSettings.Ports}}", "sauryctf-g3-c4-t5-9c9b3382932b"}, "\x00"): {
+			strings.Join([]string{"inspect", "--format", "{{json .NetworkSettings.Ports}}", "sauryctf-g3-c4-t5-64b47ee0d554"}, "\x00"): {
 				output: []byte(`{"80/tcp":[{"HostIp":"0.0.0.0","HostPort":"38080"}]}`),
 			},
 		},
@@ -144,8 +144,8 @@ func TestDockerCLIProvider_EnsureLeaseReusesExistingContainer(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, runner.calls, 2)
-	assert.Equal(t, []string{"inspect", "sauryctf-g3-c4-t5-9c9b3382932b"}, runner.calls[0])
-	assert.Equal(t, []string{"inspect", "--format", "{{json .NetworkSettings.Ports}}", "sauryctf-g3-c4-t5-9c9b3382932b"}, runner.calls[1])
+	assert.Equal(t, []string{"inspect", "sauryctf-g3-c4-t5-64b47ee0d554"}, runner.calls[0])
+	assert.Equal(t, []string{"inspect", "--format", "{{json .NetworkSettings.Ports}}", "sauryctf-g3-c4-t5-64b47ee0d554"}, runner.calls[1])
 	assert.Equal(t, startedAt, state.StartedAt)
 	assert.Equal(t, now.Add(20*time.Minute), state.ExpiresAt)
 	assert.Equal(t, "38080", state.Port)
@@ -154,8 +154,8 @@ func TestDockerCLIProvider_EnsureLeaseReusesExistingContainer(t *testing.T) {
 func TestDockerCLIProvider_DestroyLeaseRemovesContainer(t *testing.T) {
 	runner := &fakeDockerCommandRunner{
 		outputs: map[string]fakeDockerCommandResult{
-			strings.Join([]string{"rm", "-f", "sauryctf-g7-c8-t9-3b506438f955"}, "\x00"): {
-				output: []byte("sauryctf-g7-c8-t9-3b506438f955\n"),
+			strings.Join([]string{"rm", "-f", "sauryctf-g7-c8-t9-293f756e2f93"}, "\x00"): {
+				output: []byte("sauryctf-g7-c8-t9-293f756e2f93\n"),
 			},
 		},
 	}
@@ -168,14 +168,14 @@ func TestDockerCLIProvider_DestroyLeaseRemovesContainer(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, runner.calls, 1)
-	assert.Equal(t, []string{"rm", "-f", "sauryctf-g7-c8-t9-3b506438f955"}, runner.calls[0])
+	assert.Equal(t, []string{"rm", "-f", "sauryctf-g7-c8-t9-293f756e2f93"}, runner.calls[0])
 }
 
 func TestDockerCLIProvider_DestroyLeaseIgnoresMissingContainer(t *testing.T) {
 	runner := &fakeDockerCommandRunner{
 		outputs: map[string]fakeDockerCommandResult{
-			strings.Join([]string{"rm", "-f", "sauryctf-g7-c8-t9-3b506438f955"}, "\x00"): {
-				output: []byte("Error response from daemon: No such container: sauryctf-g7-c8-t9-3b506438f955"),
+			strings.Join([]string{"rm", "-f", "sauryctf-g7-c8-t9-293f756e2f93"}, "\x00"): {
+				output: []byte("Error response from daemon: No such container: sauryctf-g7-c8-t9-293f756e2f93"),
 				err:    fmt.Errorf("exit status 1"),
 			},
 		},

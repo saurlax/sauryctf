@@ -2,7 +2,7 @@ package games
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -297,8 +297,12 @@ func dockerPortKey(value string) string {
 }
 
 func challengeInstanceTeamHash(req ChallengeInstanceProviderRequest) string {
-	sum := sha1.Sum([]byte(fmt.Sprintf("%d:%d:%d", req.GameID, req.ChallengeID, req.TeamID)))
-	return hex.EncodeToString(sum[:6])
+	// Keep the current local implementation deterministic while aligning the
+	// visible team-hash format with the 12-char middle-slice style used by
+	// mature CTF platforms. We still derive it from local IDs because this
+	// project does not yet issue signed team tokens or per-game hash salts.
+	sum := sha256.Sum256([]byte(fmt.Sprintf("sauryctf:%d:%d:%d", req.GameID, req.ChallengeID, req.TeamID)))
+	return hex.EncodeToString(sum[:])[12:24]
 }
 
 func dockerInstanceContainerName(req ChallengeInstanceProviderRequest) string {

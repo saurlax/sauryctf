@@ -3,7 +3,7 @@ package games_test
 import (
 	"archive/zip"
 	"bytes"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -3071,8 +3071,8 @@ func svcDB(t *testing.T, svc *games.Service) *gorm.DB {
 }
 
 func shortTeamHash(gameID uint, challengeID uint, teamID uint) string {
-	sum := sha1.Sum([]byte(fmt.Sprintf("%d:%d:%d", gameID, challengeID, teamID)))
-	return hex.EncodeToString(sum[:6])
+	sum := sha256.Sum256([]byte(fmt.Sprintf("sauryctf:%d:%d:%d", gameID, challengeID, teamID)))
+	return hex.EncodeToString(sum[:])[12:24]
 }
 
 func TestService_SubmitWriteup_RequiresAcceptedParticipation(t *testing.T) {
