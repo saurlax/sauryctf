@@ -3903,16 +3903,20 @@ onMounted(async () => {
       <UPageCard title="管理入口" icon="i-lucide-layout-template">
         <div class="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
           <div class="space-y-4">
-            <div class="space-y-2">
-              <p class="text-sm text-muted">
-                这里集中提供比赛创建与常用维护入口，用于建立和维护正式赛事内容。
-              </p>
-              <UAlert
-                color="info"
-                variant="soft"
-                title="录入约定"
-                description="快捷创建仅写入基础结构。正式发布前仍应补全题面、入口、镜像、附件与规则设置。"
-              />
+            <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="font-medium text-highlighted">
+                    录入约定
+                  </div>
+                  <div class="mt-2 text-sm text-muted">
+                    这里集中提供比赛创建与常用维护入口，用于建立和维护正式赛事内容。快捷创建仅写入基础结构，正式发布前仍应补全题面、入口、镜像、附件与规则设置。
+                  </div>
+                </div>
+                <UBadge color="info" variant="soft">
+                  维护入口
+                </UBadge>
+              </div>
             </div>
 
             <div class="flex flex-wrap gap-2">
@@ -3945,12 +3949,21 @@ onMounted(async () => {
           </div>
 
           <div class="space-y-3">
-            <UAlert
-              color="info"
-              variant="soft"
-              title="当前检查项"
-              description="比赛、题目、挂载与发布检查会集中显示在这里，便于判断当前缺口。"
-            />
+            <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="font-medium text-highlighted">
+                    当前检查项
+                  </div>
+                  <div class="mt-2 text-sm text-muted">
+                    比赛、题目、挂载与发布检查会集中显示在这里，便于判断当前缺口。
+                  </div>
+                </div>
+                <UBadge color="info" variant="soft">
+                  检查概览
+                </UBadge>
+              </div>
+            </div>
 
             <div class="grid gap-3 xl:grid-cols-2">
               <div
@@ -4906,12 +4919,21 @@ onMounted(async () => {
 
       <UPageCard id="create-game" title="比赛录入" icon="i-lucide-trophy">
         <div class="space-y-4">
-          <UAlert
-            color="info"
-            variant="soft"
-            title="比赛信息通过弹层维护"
-            description="创建、编辑和导入统一通过弹层完成，页面主体仅保留概览、设置、审核与监控。"
-          />
+          <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="font-medium text-highlighted">
+                  比赛信息通过弹层维护
+                </div>
+                <div class="mt-2 text-sm text-muted">
+                  创建、编辑和导入统一通过弹层完成，页面主体仅保留概览、设置、审核与监控。
+                </div>
+              </div>
+              <UBadge color="info" variant="soft">
+                弹层维护
+              </UBadge>
+            </div>
+          </div>
 
           <div class="flex flex-wrap gap-2">
             <UButton icon="i-lucide-plus" @click="createGameModalOpen = true">
@@ -5051,12 +5073,21 @@ onMounted(async () => {
 
         <UPageCard id="create-challenge" title="题目维护" icon="i-lucide-flag">
           <div class="space-y-4">
-            <UAlert
-              color="info"
-              variant="soft"
-              title="题目信息通过弹层维护"
-              description="创建、编辑和预设载入集中在这里完成，再挂题或回到当前比赛核对展示效果。"
-            />
+            <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="font-medium text-highlighted">
+                    题目信息通过弹层维护
+                  </div>
+                  <div class="mt-2 text-sm text-muted">
+                    创建、编辑和预设载入集中在这里完成，再挂题或回到当前比赛核对展示效果。
+                  </div>
+                </div>
+                <UBadge color="info" variant="soft">
+                  弹层维护
+                </UBadge>
+              </div>
+            </div>
 
             <div class="flex flex-wrap gap-2">
               <UButton icon="i-lucide-plus" @click="createChallengeModalOpen = true">
@@ -5183,12 +5214,21 @@ onMounted(async () => {
         <div class="space-y-6">
           <UPageCard title="维护入口" icon="i-lucide-briefcase" id="maintenance-actions">
             <div class="space-y-4">
-              <UAlert
-                color="info"
-                variant="soft"
-                title="维护入口"
-                description="导入比赛包、发布公告和公开页跳转统一保留为入口动作，避免在主体区域重复展开。"
-              />
+              <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="font-medium text-highlighted">
+                      维护入口
+                    </div>
+                    <div class="mt-2 text-sm text-muted">
+                      导入比赛包、发布公告和公开页跳转统一保留为入口动作，避免在主体区域重复展开。
+                    </div>
+                  </div>
+                  <UBadge color="info" variant="soft">
+                    低频动作
+                  </UBadge>
+                </div>
+              </div>
 
               <div class="flex flex-wrap gap-2">
                 <UButton

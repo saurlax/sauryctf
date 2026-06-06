@@ -173,15 +173,6 @@ onMounted(async () => {
 
         <UPageCard title="修改密码" icon="i-lucide-key-round">
           <div class="space-y-4">
-            <UAlert
-              v-if="passwordSecurityRisk"
-              color="warning"
-              variant="soft"
-              icon="i-lucide-triangle-alert"
-              title="当前账号仍在使用初始密码"
-              description="当前账号仍在使用平台首次启动时的默认口令，请尽快更新为新的管理员密码。"
-            />
-
             <div class="rounded-lg border border-default px-4 py-4">
               <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div class="space-y-1">
@@ -189,7 +180,7 @@ onMounted(async () => {
                     登录密码维护
                   </div>
                   <p class="text-sm text-muted">
-                    密码修改属于低频敏感操作，提交前请确认当前密码与新密码信息无误。
+                    {{ passwordSecurityRisk ? '当前账号仍在使用初始密码，请尽快完成更新。' : '密码修改属于低频敏感操作，提交前请确认当前密码与新密码信息无误。' }}
                   </p>
                 </div>
 
@@ -198,6 +189,15 @@ onMounted(async () => {
                   icon="i-lucide-key-round"
                   @click="passwordModalOpen = true"
                 />
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+              <div class="flex items-center justify-between gap-3">
+                <span>当前风险级别</span>
+                <UBadge :color="passwordSecurityRisk ? 'warning' : 'success'" variant="soft">
+                  {{ passwordSecurityRisk ? '需要立即改密' : '状态正常' }}
+                </UBadge>
               </div>
             </div>
           </div>

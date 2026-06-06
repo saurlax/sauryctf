@@ -111,6 +111,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - On the console home page, prefer one consolidated workbench card for current summary, pending action, and common entry buttons instead of splitting overview and entry into separate cards with overlapping purpose.
 - On the public `/games` list page, prefer one compact entry banner and one combined per-card participation/rules summary. Do not split card-level context into multiple stacked status boxes.
 - In admin-facing checklist sections, prefer a compact section summary header plus the actual checklist cards. Avoid placing a full-width `UAlert` above a list when it only repeats the section title and purpose.
+- On admin entry cards such as `管理入口`, `比赛录入`, `题目维护`, and `维护入口`, prefer one compact summary header instead of stacking a `UAlert` above the actual action row and context cards.
 - In console pages, prefer neutral internal names such as `context`, `checklist`, and `entry` over `setup` for maintenance-oriented panels and computed state.
 - Challenge attachments remain a JSON string array. For local files, prefer the admin upload entry so `/attachments/**` paths stay consistent with import/export behavior.
 - If a challenge defines `flag_format`, player-facing pages should reuse it for display and submit placeholders instead of hard-coding `flag{...}`.
@@ -200,6 +201,7 @@ internal/<module>/
 - `/console/account` now provides a minimal account-security page:
   - logged-in users can change their own password
   - if the bootstrap admin still uses the initial password, both `/console` and `/console/account` surface a prominent reminder
+  - the password-maintenance card itself should stay compact: one action summary, one clear button, and modal-based editing; avoid repeating the same password-risk warning both inside the page card and again in the modal trigger area
   - guest-facing bootstrap state and logged-in password-risk state are now split:
     - `/api/auth/setup-status` only reports whether an empty database can still use the bootstrap admin
     - `/api/auth/security-status` reports `password_change_recommended` for the current logged-in session
