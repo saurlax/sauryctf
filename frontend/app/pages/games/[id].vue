@@ -53,6 +53,21 @@ const registrationForm = reactive({
   invitation_code: '',
 })
 const now = ref(Date.now())
+const confirmModalOpen = ref(false)
+const confirmActionLoading = ref(false)
+const confirmAction = reactive<{
+  title: string
+  description: string
+  confirmLabel: string
+  color: 'error' | 'warning' | 'primary' | 'neutral'
+  run: null | (() => Promise<void>)
+}>({
+  title: '',
+  description: '',
+  confirmLabel: '确认',
+  color: 'error',
+  run: null,
+})
 
 const gameId = route.params.id as string
 const currentGameRedirect = computed(() => {
@@ -355,6 +370,66 @@ async function leaveGame() {
   finally {
     leaving.value = false
   }
+}
+
+function resetConfirmAction() {
+  confirmAction.title = ''
+  confirmAction.description = ''
+  confirmAction.confirmLabel = '确认'
+  confirmAction.color = 'error'
+  confirmAction.run = null
+}
+
+function openConfirmAction(options: {
+  title: string
+  description: string
+  confirmLabel: string
+  color?: 'error' | 'warning' | 'primary' | 'neutral'
+  run: () => Promise<void>
+}) {
+  confirmAction.title = options.title
+  confirmAction.description = options.description
+  confirmAction.confirmLabel = options.confirmLabel
+  confirmAction.color = options.color || 'error'
+  confirmAction.run = options.run
+  confirmModalOpen.value = true
+}
+
+async function executeConfirmAction() {
+  if (!confirmAction.run) {
+    confirmModalOpen.value = false
+    return
+  }
+
+  confirmActionLoading.value = true
+  try {
+    await confirmAction.run()
+    confirmModalOpen.value = false
+    resetConfirmAction()
+  }
+  finally {
+    confirmActionLoading.value = false
+  }
+}
+
+function confirmLeaveGame() {
+  openConfirmAction({
+    title: '确认退出当前报名',
+    description: '退出后，当前队伍会从这场比赛的报名记录中移除。若比赛仍开放报名，可稍后重新提交。',
+    confirmLabel: '确认退出',
+    color: 'error',
+    run: leaveGame,
+  })
+}
+
+function confirmDestroyChallengeInstance(challenge: GameChallengeDetail) {
+  openConfirmAction({
+    title: '确认销毁当前实例',
+    description: `实例销毁后，当前队伍在题目「${challenge.title}」上的运行环境会被回收；如仍需使用，可稍后重新启动。`,
+    confirmLabel: '销毁实例',
+    color: 'error',
+    run: () => destroyChallengeInstance(challenge.id),
+  })
 }
 
 async function submitWriteup() {
@@ -857,7 +932,7 @@ const challengeSubmitMeta = computed(() => {
 const nextStepMeta = computed(() => {
   if (!authState.user) {
     return {
-      title: '下一步：先登录账号',
+      title: '当前状态：需要登录',
       description: '已有账号登录后会直接回到当前比赛；如果还没有账号，也可以先注册，系统会先带你去准备队伍，再回到这里继续报名。',
       color: 'info' as const,
       actionLabel: '去登录',
@@ -869,7 +944,7 @@ const nextStepMeta = computed(() => {
 
   if (!participation.value?.has_team) {
     return {
-      title: '下一步：先准备队伍',
+      title: '当前状态：需要队伍',
       description: '当前比赛以内队形式参赛。先去控制台创建或加入队伍，再回来完成报名。',
       color: 'warning' as const,
       actionLabel: '去队伍页',
@@ -879,7 +954,7 @@ const nextStepMeta = computed(() => {
 
   if (!participation.value?.participated) {
     return {
-      title: '下一步：完成报名',
+      title: '当前状态：待报名',
       description: game.value?.registration_mode === 'auto_accept'
         ? '当前比赛会自动通过报名。确认后，如果比赛已开始，你的队伍就可以直接提交 Flag。'
         : '当前比赛需要先提交报名申请。提交后等待管理员审核通过，才能正式参赛。',
@@ -891,7 +966,7 @@ const nextStepMeta = computed(() => {
 
   if (participation.value.missing_writeup) {
     return {
-      title: '下一步：补交 Writeup',
+      title: '当前状态：待补 Writeup',
       description: participation.value.writeup_deadline
         ? `当前队伍还没有提交 Writeup，请在 ${new Date(participation.value.writeup_deadline).toLocaleString()} 前切换到 Writeup 标签补交。`
         : '当前队伍还没有提交 Writeup，请切换到 Writeup 标签尽快补交。',
@@ -904,7 +979,7 @@ const nextStepMeta = computed(() => {
 
   if (participation.value.status === 'pending') {
     return {
-      title: '下一步：等待审核',
+      title: '当前状态：待审核',
       description: '你的队伍报名已经提交成功。现在无需重复操作，等待管理员审核通过后就能正式参赛。',
       color: 'warning' as const,
       actionLabel: '查看队伍',
@@ -914,7 +989,7 @@ const nextStepMeta = computed(() => {
 
   if (participation.value.status === 'rejected') {
     return {
-      title: '下一步：撤回后重新报名',
+      title: '当前状态：报名未通过',
       description: '当前报名没有通过。你可以先退出这次报名，调整队伍后再重新提交申请。',
       color: 'error' as const,
       actionLabel: '退出本次报名',
@@ -924,7 +999,7 @@ const nextStepMeta = computed(() => {
 
   if (participation.value.writeup_required && participation.value.writeup_submitted && participation.value.writeup_status === 'submitted') {
     return {
-      title: '下一步：等待 Writeup 审核',
+      title: '当前状态：Writeup 待审核',
       description: 'Writeup 已经提交成功。你可以继续留在比赛页参赛，或返回 Writeup 标签补充更新内容。',
       color: 'info' as const,
       actionLabel: '去 Writeup',
@@ -935,7 +1010,7 @@ const nextStepMeta = computed(() => {
 
   if (gameStatusMeta.value.label === '未开始') {
     return {
-      title: '下一步：等待开赛',
+      title: '当前状态：等待开赛',
       description: '你的队伍已经具备参赛资格。比赛开始后，题面会自动开放，随后就可以提交 Flag。',
       color: 'info' as const,
       actionLabel: '查看题目',
@@ -946,7 +1021,7 @@ const nextStepMeta = computed(() => {
 
   if (gameStatusMeta.value.label === '进行中') {
     return {
-      title: '下一步：开始解题',
+      title: '当前状态：可开始解题',
       description: '当前已经满足参赛条件，可以直接切换到题目标签开始查看题面、附件并提交 Flag。',
       color: 'success' as const,
       actionLabel: '进入题目',
@@ -956,7 +1031,7 @@ const nextStepMeta = computed(() => {
   }
 
   return {
-    title: '下一步：查看复盘信息',
+    title: '当前状态：比赛已结束',
     description: '比赛当前已经结束。你仍然可以继续查看题目、排行榜和 Writeup 信息。',
     color: 'neutral' as const,
     actionLabel: '查看排行榜',
@@ -1143,7 +1218,7 @@ const detailPrimaryAction = computed(() => {
       variant: canLeaveGame.value ? 'outline' as const : 'solid' as const,
       loading: canLeaveGame.value ? leaving.value : false,
       disabled: canLeaveGame.value ? !canLeaveGame.value : false,
-      onClick: canLeaveGame.value ? leaveGame : undefined,
+      onClick: canLeaveGame.value ? confirmLeaveGame : undefined,
       to: canLeaveGame.value ? undefined : participationMeta.value.actionTo,
     }
   }
@@ -2488,7 +2563,7 @@ onMounted(async () => {
                             icon="i-lucide-trash-2"
                             :loading="instanceDestroying[ch.id]"
                             :disabled="instanceStarting[ch.id] || instanceLoading[ch.id]"
-                            @click="destroyChallengeInstance(ch.id)"
+                            @click="confirmDestroyChallengeInstance(ch)"
                           >
                             销毁实例
                           </UButton>
@@ -2860,7 +2935,7 @@ onMounted(async () => {
                 </div>
               </UPageCard>
 
-              <UPageCard title="提交流程说明" icon="i-lucide-list-checks">
+              <UPageCard title="提交规则" icon="i-lucide-list-checks">
                 <div class="space-y-3 text-sm text-muted">
                   <p
                     v-for="(item, index) in writeupRuleItems"
@@ -2876,6 +2951,28 @@ onMounted(async () => {
         </div>
       </div>
     </template>
+
+    <UModal v-model:open="confirmModalOpen" :title="confirmAction.title" :description="confirmAction.description">
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton
+            color="neutral"
+            variant="outline"
+            :disabled="confirmActionLoading"
+            @click="confirmModalOpen = false; resetConfirmAction()"
+          >
+            取消
+          </UButton>
+          <UButton
+            :color="confirmAction.color"
+            :loading="confirmActionLoading"
+            @click="executeConfirmAction"
+          >
+            {{ confirmAction.confirmLabel }}
+          </UButton>
+        </div>
+      </template>
+    </UModal>
 
     <UEmpty
       v-else

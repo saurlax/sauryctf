@@ -154,32 +154,7 @@ const nextGame = computed(() => {
     .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0] || null
 })
 
-const showAdminBootstrapGuide = computed(() => isAdmin.value && games.value.length === 0)
 const showPasswordSecurityNotice = computed(() => !!setupStatus.value?.password_change_recommended)
-
-const adminBootstrapSteps = computed(() => [
-  {
-    key: 'create-game',
-    title: '1. 先创建一场公开比赛',
-    description: '先用最小配置建一场公开比赛，后续公开展示、报名和提交流程都会围绕这场比赛展开。',
-    actionLabel: '去管理端建赛',
-    actionTo: '/console/admin',
-  },
-  {
-    key: 'attach-challenge',
-    title: '2. 再创建题目并挂到比赛',
-    description: '推荐先建一道最小热身题，把题面、Flag 和挂题链路跑通，再继续补更多题型。',
-    actionLabel: '继续配置',
-    actionTo: '/console/admin',
-  },
-  {
-    key: 'verify-public',
-    title: '3. 最后回公开页检查选手流程',
-    description: '把比赛切到 active 后，回到公开页确认比赛可见，再注册普通账号走一遍建队、报名和提 Flag。',
-    actionLabel: '打开公开比赛页',
-    actionTo: '/games',
-  },
-])
 
 const stats = computed(() => [
   { label: '我的队伍', value: team.value?.name || '未加入', icon: 'i-lucide-users' },
@@ -638,47 +613,6 @@ onMounted(async () => {
           />
         </template>
       </UAlert>
-
-      <UPageCard
-        v-if="showAdminBootstrapGuide"
-        class="mb-6"
-        title="后台配置建议"
-        description="当前还没有任何比赛。建议先建一场公开比赛、挂一道题、切到 active，再回公开页检查选手侧流程。"
-        icon="i-lucide-shield-check"
-      >
-        <div class="space-y-3">
-          <UAlert
-            color="info"
-            variant="soft"
-            icon="i-lucide-circle-help"
-            title="当前推荐顺序"
-            description="先在管理端完成基础建赛配置，再去公开比赛页确认展示、报名和提交流程。"
-          />
-
-          <div
-            v-for="step in adminBootstrapSteps"
-            :key="step.key"
-            class="rounded-lg border border-default px-3 py-3"
-          >
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0">
-                <div class="font-medium">
-                  {{ step.title }}
-                </div>
-                <div class="mt-2 text-sm text-muted">
-                  {{ step.description }}
-                </div>
-              </div>
-              <UButton
-                size="sm"
-                variant="outline"
-                :to="step.actionTo"
-                :label="step.actionLabel"
-              />
-            </div>
-          </div>
-        </div>
-      </UPageCard>
 
       <UPageGrid :cols="{ default: 1, sm: 2, lg: 4 }">
         <UPageCard
@@ -1307,14 +1241,8 @@ onMounted(async () => {
             />
           </UPageCard>
 
-          <UPageCard :title="isAdmin ? '管理提示' : '参赛提示'" :icon="isAdmin ? 'i-lucide-shield-check' : 'i-lucide-info'">
+          <UPageCard :title="isAdmin ? '快捷入口' : '常用入口'" :icon="isAdmin ? 'i-lucide-shield-check' : 'i-lucide-navigation'">
             <div class="space-y-3 text-sm text-muted">
-              <p v-if="isAdmin">
-                你当前拥有管理权限，已经可以在管理端创建比赛、创建题目、挂载题目并移除比赛题目。
-              </p>
-              <p v-else>
-                建议先准备队伍，再进入目标比赛详情页完成报名，比赛开始后即可提交 Flag。
-              </p>
               <UButton
                 v-if="isAdmin"
                 label="打开管理端"
@@ -1344,6 +1272,14 @@ onMounted(async () => {
                 icon="i-lucide-key-round"
                 to="/console/account"
                 variant="ghost"
+                block
+              />
+              <UButton
+                v-if="!isAdmin"
+                label="浏览比赛"
+                icon="i-lucide-trophy"
+                to="/games"
+                variant="outline"
                 block
               />
             </div>
