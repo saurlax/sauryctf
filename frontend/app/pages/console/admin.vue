@@ -1235,6 +1235,18 @@ const selectedMonitorTimeline = computed(() => {
         }
       }
 
+      if (item.key.startsWith('announcement-')) {
+        const source = announcements.value.find(announcement => `announcement-${announcement.id}` === item.key)
+        return {
+          ...item,
+          actionLabel: source && attachForm.game_id ? '编辑公告' : '查看公告区',
+          actionTo: source && attachForm.game_id
+            ? buildAdminAnnouncementEditLink(attachForm.game_id, source.id)
+            : '#announcements',
+          challengeId: undefined,
+        }
+      }
+
       return {
         ...item,
         actionLabel: '查看公告区',
@@ -1329,6 +1341,17 @@ function buildPublicGameLink(gameId: number, options?: {
 
   const queryString = query.toString()
   return queryString ? `/games/${gameId}?${queryString}` : `/games/${gameId}`
+}
+
+function buildAdminAnnouncementEditLink(gameId: number, announcementId: number) {
+  const query = new URLSearchParams({
+    game_id: String(gameId),
+    section: '#announcements',
+    announcement_id: String(announcementId),
+    mode: 'edit-announcement',
+  })
+
+  return `/console/admin?${query.toString()}`
 }
 
 function getAdminPublicGameLink(game: {
@@ -4976,8 +4999,18 @@ onMounted(async () => {
                   :key="announcement.id"
                   class="rounded-md bg-elevated/60 px-3 py-2"
                 >
-                  <div class="text-xs text-muted">
-                    {{ new Date(announcement.created_at).toLocaleString() }}
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="text-xs text-muted">
+                      {{ new Date(announcement.created_at).toLocaleString() }}
+                    </div>
+                    <UButton
+                      size="xs"
+                      variant="ghost"
+                      icon="i-lucide-square-pen"
+                      :to="buildAdminAnnouncementEditLink(selectedAdminOverview.game.id, announcement.id)"
+                    >
+                      编辑
+                    </UButton>
                   </div>
                   <div class="mt-1 text-sm line-clamp-3">
                     {{ announcement.content }}
