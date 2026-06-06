@@ -210,12 +210,13 @@
   - 比赛挂题关系
   - 题库中的原始题目不会被一起删除，方便后续复用
 - 导出比赛会下载一个 ZIP 包：
-  - 当前包内只有 `game.json`
+  - 当前包内至少包含 `game.json`
   - 包含比赛基础信息与已挂载题目的完整配置
   - 当前导出版本为 `sauryctf.export.v2`
   - 也会包含 `practice_mode`、`writeup_required`、`writeup_deadline`
   - 外部附件链接会继续保留为 JSON 数组
-  - 如果题目附件使用本地 `/attachments/**` 路径，这些文件也会一起打包进 ZIP
+  - 如果题目附件使用本地 `/attachments/**` 路径，这些文件也会作为独立 ZIP 条目一起打包
+  - `game.json` 里的对应题目会额外带上 `embedded_attachments`，用于标记这些本地附件在压缩包里的位置与原始路径
 - 导出榜单会下载一个单独的 ZIP 包：
   - 当前包内包含 `scoreboard.json`
   - 也会额外包含 `rankings.csv` 和 `challenge-stats.csv`

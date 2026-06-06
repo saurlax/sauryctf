@@ -9,7 +9,10 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -1093,6 +1096,13 @@ func TestServer_AdminCanExportImportAndDeleteGamePackage(t *testing.T) {
 
 	tokenCookie := loginBootstrapAdmin(t, server.URL)
 
+	require.NoError(t, os.MkdirAll("attachments", 0o755))
+	t.Cleanup(func() {
+		_ = os.RemoveAll("attachments")
+	})
+	localAttachmentPath := filepath.Join("attachments", "portable-local.bin")
+	require.NoError(t, os.WriteFile(localAttachmentPath, []byte("portable local attachment"), 0o644))
+
 	start := time.Now().Add(30 * time.Minute).UTC().Truncate(time.Second)
 	end := start.Add(2 * time.Hour)
 	writeupDeadline := end.Add(24 * time.Hour)
@@ -1122,7 +1132,7 @@ func TestServer_AdminCanExportImportAndDeleteGamePackage(t *testing.T) {
 		"min_score":    50,
 		"decay_rate":   0.2,
 		"hints":        "[\"take the zip\"]",
-		"attachments":  "[\"https://example.com/portable.zip\"]",
+		"attachments":  "[\"https://example.com/portable.zip\",\"/attachments/portable-local.bin\"]",
 		"is_visible":   true,
 	})
 
@@ -1187,9 +1197,14 @@ func TestServer_AdminCanExportImportAndDeleteGamePackage(t *testing.T) {
 			Divisions        []string  `json:"divisions"`
 		} `json:"game"`
 		Challenges []struct {
-			Title         string `json:"title"`
-			Attachments   string `json:"attachments"`
-			ScoreOverride int    `json:"score_override"`
+			Title               string `json:"title"`
+			Attachments         string `json:"attachments"`
+			ScoreOverride       int    `json:"score_override"`
+			EmbeddedAttachments []struct {
+				Name        string `json:"name"`
+				OriginalURL string `json:"original_url"`
+				ZipPath     string `json:"zip_path"`
+			} `json:"embedded_attachments"`
 		} `json:"challenges"`
 	}
 	require.NoError(t, json.NewDecoder(gameJSONReader).Decode(&exportedPayload))
@@ -1204,6 +1219,28 @@ func TestServer_AdminCanExportImportAndDeleteGamePackage(t *testing.T) {
 	require.Len(t, exportedPayload.Challenges, 1)
 	assert.Equal(t, "Portable Challenge", exportedPayload.Challenges[0].Title)
 	assert.Equal(t, 275, exportedPayload.Challenges[0].ScoreOverride)
+	assert.Equal(t, "[\"https://example.com/portable.zip\",\"/attachments/portable-local.bin\"]", exportedPayload.Challenges[0].Attachments)
+	require.Len(t, exportedPayload.Challenges[0].EmbeddedAttachments, 1)
+	assert.Equal(t, "portable-local.bin", exportedPayload.Challenges[0].EmbeddedAttachments[0].Name)
+	assert.Equal(t, "/attachments/portable-local.bin", exportedPayload.Challenges[0].EmbeddedAttachments[0].OriginalURL)
+
+	embeddedAttachmentPath := exportedPayload.Challenges[0].EmbeddedAttachments[0].ZipPath
+	var embeddedAttachmentFile *zip.File
+	for _, file := range zipReader.File {
+		if file.Name == embeddedAttachmentPath {
+			embeddedAttachmentFile = file
+			break
+		}
+	}
+	require.NotNil(t, embeddedAttachmentFile)
+
+	embeddedAttachmentReader, err := embeddedAttachmentFile.Open()
+	require.NoError(t, err)
+	defer embeddedAttachmentReader.Close()
+
+	embeddedAttachmentData, err := io.ReadAll(embeddedAttachmentReader)
+	require.NoError(t, err)
+	assert.Equal(t, "portable local attachment", string(embeddedAttachmentData))
 
 	var importBody bytes.Buffer
 	importWriter := multipart.NewWriter(&importBody)
@@ -1250,6 +1287,19 @@ func TestServer_AdminCanExportImportAndDeleteGamePackage(t *testing.T) {
 	require.Len(t, importedChallenges, 1)
 	assert.Equal(t, "Portable Challenge", importedChallenges[0].Title)
 	assert.Equal(t, 275, importedChallenges[0].Score)
+	assert.Contains(t, importedChallenges[0].Attachments, "https://example.com/portable.zip")
+	assert.Contains(t, importedChallenges[0].Attachments, "/attachments/")
+
+	var importedAttachments []string
+	require.NoError(t, json.Unmarshal([]byte(importedChallenges[0].Attachments), &importedAttachments))
+	require.Len(t, importedAttachments, 2)
+	assert.Equal(t, "https://example.com/portable.zip", importedAttachments[0])
+	assert.True(t, strings.HasPrefix(importedAttachments[1], "/attachments/"))
+
+	restoredAttachmentPath := filepath.Clean(strings.TrimPrefix(importedAttachments[1], "/"))
+	restoredAttachmentData, err := os.ReadFile(restoredAttachmentPath)
+	require.NoError(t, err)
+	assert.Equal(t, "portable local attachment", string(restoredAttachmentData))
 
 	deleteReq, err := http.NewRequest(http.MethodDelete, server.URL+"/api/admin/games/"+idPath(game.ID), nil)
 	require.NoError(t, err)
