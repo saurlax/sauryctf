@@ -34,6 +34,7 @@ const announcements = ref<Array<{
   created_at: string
 }>>([])
 const loading = ref(true)
+const pageLoadError = ref('')
 const participationLoading = ref(false)
 const joining = ref(false)
 const leaving = ref(false)
@@ -94,6 +95,7 @@ async function fetchAll() {
       participationRequest,
     ])
     const writeupRes = await writeupRequest
+    pageLoadError.value = ''
     game.value = gameRes
     challenges.value = challengesRes
     announcements.value = announcementsRes
@@ -106,6 +108,13 @@ async function fetchAll() {
     writeupForm.content = writeupRes?.content || ''
   }
   catch (e: any) {
+    game.value = null
+    challenges.value = []
+    announcements.value = []
+    participation.value = null
+    writeup.value = null
+    writeupForm.content = ''
+    pageLoadError.value = e.data?.message || e.message
     toast.add({ title: '获取比赛信息失败', description: e.data?.message || e.message, color: 'error' })
   }
   finally {
@@ -2702,10 +2711,39 @@ onMounted(async () => {
       </div>
     </template>
 
-    <div v-else class="text-center py-16">
-      <p class="text-muted">
-        比赛不存在
-      </p>
-    </div>
+    <UEmpty
+      v-else
+      icon="i-lucide-shield-alert"
+      title="当前比赛暂时不可用"
+      :description="pageLoadError || '当前比赛不存在，或你现在还不能访问这场比赛。'"
+      :actions="[
+        {
+          label: '返回比赛列表',
+          icon: 'i-lucide-arrow-left',
+          to: '/games',
+          color: 'neutral',
+          variant: 'outline',
+        },
+      ]"
+    >
+      <template #footer>
+        <div class="mt-4 flex flex-wrap justify-center gap-2">
+          <UButton
+            icon="i-lucide-refresh-cw"
+            variant="outline"
+            @click="fetchAll"
+          >
+            重新加载
+          </UButton>
+          <UButton
+            v-if="!authState.user"
+            :to="loginEntry"
+            icon="i-lucide-log-in"
+          >
+            先去登录
+          </UButton>
+        </div>
+      </template>
+    </UEmpty>
   </UContainer>
 </template>
