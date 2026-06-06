@@ -111,6 +111,84 @@ const joinInviteFromRoute = computed(() => {
   return typeof invite === 'string' ? invite.trim() : ''
 })
 const contestRedirect = computed(() => resolveOptionalAuthRedirect(route.query.redirect))
+
+function parseGameIdFromPath(path?: string | null) {
+  if (!path) {
+    return null
+  }
+
+  const matched = path.match(/^\/games\/(\d+)(?:[/?#]|$)/)
+  if (!matched) {
+    return null
+  }
+
+  const parsed = Number(matched[1])
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+function buildGameDetailLink(gameId: number, options?: {
+  tab?: 'overview' | 'challenges' | 'scoreboard' | 'writeup'
+}) {
+  if (!options?.tab) {
+    return `/games/${gameId}`
+  }
+
+  const query = new URLSearchParams({
+    tab: options.tab,
+  })
+
+  return `/games/${gameId}?${query.toString()}`
+}
+
+function getLockedGamePhase(game: {
+  start_time: string
+  end_time: string
+}) {
+  const startAt = new Date(game.start_time).getTime()
+  const endAt = new Date(game.end_time).getTime()
+  const current = Date.now()
+
+  if (current < startAt) {
+    return 'before_start' as const
+  }
+
+  if (current > endAt) {
+    return 'ended' as const
+  }
+
+  return 'active' as const
+}
+
+function buildLockedGameLink(game: {
+  game_id: number
+  start_time: string
+  end_time: string
+}) {
+  if (contestRedirect.value && parseGameIdFromPath(contestRedirect.value) === game.game_id) {
+    return contestRedirect.value
+  }
+
+  return buildGameDetailLink(game.game_id, {
+    tab: getLockedGamePhase(game) === 'before_start' ? 'overview' : 'challenges',
+  })
+}
+
+const contestRedirectGameId = computed(() => parseGameIdFromPath(contestRedirect.value))
+const preferredLockedGame = computed(() =>
+  lockedGames.value.find(game => game.game_id === contestRedirectGameId.value) || lockedGames.value[0] || null,
+)
+const preferredContestLink = computed(() => {
+  if (contestRedirect.value) {
+    return contestRedirect.value
+  }
+
+  if (preferredLockedGame.value) {
+    return buildLockedGameLink(preferredLockedGame.value)
+  }
+
+  return '/games'
+})
+
 const inviteFlowMeta = computed(() => {
   if (!joinInviteFromRoute.value && !contestRedirect.value) {
     return null
@@ -214,8 +292,8 @@ const teamNextStepMeta = computed(() => {
         : '当前队伍已经进入锁定状态。现在更适合直接回比赛页继续处理参赛事项，而不是再调整成员。',
       color: 'warning' as const,
       icon: 'i-lucide-lock',
-      actionLabel: contestRedirect.value ? '返回原比赛' : '浏览比赛',
-      actionTo: contestRedirect.value || '/games',
+      actionLabel: contestRedirect.value ? '返回原比赛' : preferredLockedGame.value ? `前往 ${preferredLockedGame.value.name}` : '浏览比赛',
+      actionTo: preferredContestLink.value,
       secondaryLabel: '查看队伍规则',
       secondaryTo: '/console/team',
     }
@@ -705,12 +783,12 @@ onMounted(async () => {
                 </p>
               </div>
               <div class="flex flex-wrap gap-2">
-                <UButton
-                  size="sm"
-                  :to="teamNextStepMeta.actionTo"
-                  :label="teamNextStepMeta.actionLabel"
-                  :color="teamNextStepMeta.color === 'warning' ? 'warning' : 'primary'"
-                  variant="outline"
+                    <UButton
+                      size="sm"
+                      :to="teamNextStepMeta.actionTo"
+                      :label="teamNextStepMeta.actionLabel"
+                      :color="teamNextStepMeta.color === 'warning' ? 'warning' : 'primary'"
+                      variant="outline"
                 />
                 <UButton
                   v-if="teamNextStepMeta.secondaryLabel && teamNextStepMeta.secondaryTo"
@@ -895,11 +973,11 @@ onMounted(async () => {
                   </div>
                 </div>
                 <UButton
-                  label="查看比赛"
+                  :label="contestRedirectGameId === game.game_id ? '返回原比赛' : '查看比赛'"
                   variant="ghost"
                   size="xs"
                   icon="i-lucide-arrow-up-right"
-                  :to="`/games/${game.game_id}`"
+                  :to="buildLockedGameLink(game)"
                 />
               </div>
             </div>
