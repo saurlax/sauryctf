@@ -377,7 +377,7 @@ function getSubmissionResultMeta(result: AdminSubmissionEntry['result']) {
 
 const primaryPendingEntry = computed(() => myGameEntries.value[0] || null)
 
-const nextStepItems = computed(() => {
+const statusItems = computed(() => {
   const items = [
     {
       key: 'team',
@@ -415,7 +415,7 @@ const nextStepItems = computed(() => {
       ? `${writeupGame.name} 当前还需要补交 Writeup，请优先进入比赛详情页处理。`
       : primaryPendingEntry.value
         ? `${primaryPendingEntry.value.meta.label}：${primaryPendingEntry.value.meta.description}`
-        : '当比赛进入审核、开赛或 Writeup 阶段后，这里会优先提示你下一步该处理的事项。',
+        : '当比赛进入审核、开赛或 Writeup 阶段后，这里会优先显示当前最需要处理的事项。',
     done: !writeupGame && !primaryPendingEntry.value,
     buttonLabel: writeupGame
       ? '去补交'
@@ -728,10 +728,10 @@ onMounted(async () => {
             </div>
           </UPageCard>
 
-          <UPageCard title="下一步" icon="i-lucide-list-checks">
+          <UPageCard title="当前状态" icon="i-lucide-list-checks">
             <div class="space-y-3">
               <div
-                v-for="item in nextStepItems"
+                v-for="item in statusItems"
                 :key="item.key"
                 class="rounded-lg border border-default px-3 py-3"
               >
