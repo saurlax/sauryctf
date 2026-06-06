@@ -31,9 +31,9 @@
   - `/api/auth/setup-status` 会额外返回 `password_change_recommended = true`
   - `/console` 会显示一条显式安全提醒
   - `/console/account` 会继续高亮“立即改密”的风险提示
-- `/console/account` 现在也会在页面顶部给出一条“当前下一步”提示：
-  - 默认管理员未改密时，优先提示先改密再回管理端继续建赛
-  - 普通账号或已改密账号，会提示返回控制台或继续浏览公开比赛
+- `/console/account` 当前采用更紧凑的状态卡：
+  - 顶部仅保留一条账号安全状态提示
+  - 右侧改为账号信息与安全状态摘要，不再堆叠长段建议文案
 
 推荐顺序：
 

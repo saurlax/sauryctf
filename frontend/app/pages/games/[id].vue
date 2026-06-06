@@ -2018,7 +2018,7 @@ onMounted(async () => {
 
       <div v-if="activeTab === 'overview'" class="space-y-6">
         <div class="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.95fr)]">
-          <UPageCard title="比赛说明" icon="i-lucide-scroll-text">
+          <UPageCard title="比赛信息" icon="i-lucide-scroll-text">
             <div class="space-y-4 text-sm leading-7">
               <p class="text-default whitespace-pre-wrap">
                 {{ game.description || '当前比赛暂未填写详细规则。你可以先完成队伍准备与比赛报名。' }}
@@ -2033,9 +2033,6 @@ onMounted(async () => {
               />
 
               <div class="rounded-lg border border-default bg-muted/40 p-4">
-                <p class="mb-3 font-medium">
-                  规则摘要
-                </p>
                 <ul class="space-y-2 text-muted">
                   <li
                     v-for="(item, index) in contestRuleSummaryItems"
@@ -2760,13 +2757,6 @@ onMounted(async () => {
           </UPageCard>
 
           <UPageCard title="分题统计" icon="i-lucide-chart-column-big">
-            <UAlert
-              class="mb-4"
-              color="info"
-              variant="soft"
-              title="分题统计说明"
-              description="这里展示的是当前公开榜单口径下的题目分值、解出队伍数和前三血信息。赛后练习解题不会计入这些正式统计。"
-            />
             <UEmpty
               v-if="scoreboardChallenges.length === 0"
               icon="i-lucide-chart-column-big"
@@ -2839,7 +2829,7 @@ onMounted(async () => {
           </UPageGrid>
 
           <div class="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-            <UPageCard title="Writeup 内容" icon="i-lucide-file-text">
+            <UPageCard title="Writeup" icon="i-lucide-file-text">
               <div class="space-y-4">
                 <UAlert
                   :color="writeupGuide.color"
@@ -2852,9 +2842,7 @@ onMounted(async () => {
                   <UFormField
                     label="Writeup 内容"
                     name="content"
-                    :description="writeup?.can_submit
-                      ? '支持重复提交，重新提交后会回到 submitted 状态。'
-                      : writeupGuide.description"
+                    :description="writeup?.can_submit ? '支持重复提交。' : writeupGuide.description"
                   >
                     <UTextarea v-model="writeupForm.content" class="w-full" :rows="14" placeholder="记录解题思路、复盘总结、关键截图或附件说明。" />
                   </UFormField>
@@ -2902,7 +2890,7 @@ onMounted(async () => {
             </UPageCard>
 
             <div class="space-y-6">
-              <UPageCard title="当前审核信息" icon="i-lucide-file-check">
+              <UPageCard title="审核状态" icon="i-lucide-file-check">
                 <div class="space-y-3 text-sm">
                   <div class="flex items-center justify-between gap-3">
                     <span class="text-muted">当前状态</span>
@@ -2935,7 +2923,7 @@ onMounted(async () => {
                 </div>
               </UPageCard>
 
-              <UPageCard title="提交规则" icon="i-lucide-list-checks">
+              <UPageCard title="规则摘要" icon="i-lucide-list-checks">
                 <div class="space-y-3 text-sm text-muted">
                   <p
                     v-for="(item, index) in writeupRuleItems"

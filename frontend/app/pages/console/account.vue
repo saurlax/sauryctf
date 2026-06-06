@@ -33,8 +33,8 @@ const bootstrapRisk = computed(() => !!setupStatus.value?.password_change_recomm
 const securityNextStepMeta = computed(() => {
   if (bootstrapRisk.value) {
     return {
-      title: '当前下一步：先完成管理员改密，再继续配置平台',
-      description: '默认管理员口令只适合空库首次启动阶段使用。完成改密后，再去管理端创建比赛、题目和普通选手账号会更安全。',
+      title: '当前状态：建议立即改密',
+      description: '当前管理员账号仍在使用默认口令，建议先完成改密，再继续日常管理操作。',
       color: 'warning' as const,
       icon: 'i-lucide-triangle-alert',
       actionLabel: '打开管理端',
@@ -45,8 +45,8 @@ const securityNextStepMeta = computed(() => {
   }
 
   return {
-    title: '当前下一步：继续控制台里的日常操作',
-    description: '当前账号已经可以安全地继续使用。你可以返回控制台处理比赛、队伍或管理待办，也可以去公开比赛页继续参赛。',
+    title: '当前状态：账号可继续使用',
+    description: '当前账号安全状态正常，可以返回控制台继续处理比赛、队伍或其他待办。',
     color: 'success' as const,
     icon: 'i-lucide-shield-check',
     actionLabel: '返回控制台',
@@ -76,6 +76,24 @@ const accountFacts = computed(() => [
     label: '状态',
     value: authState.user?.status || '-',
     icon: 'i-lucide-badge-check',
+  },
+])
+
+const securityFacts = computed(() => [
+  {
+    label: '风险级别',
+    value: bootstrapRisk.value ? '需要改密' : '正常',
+    icon: bootstrapRisk.value ? 'i-lucide-triangle-alert' : 'i-lucide-shield-check',
+  },
+  {
+    label: '当前会话',
+    value: '改密后不立即退出',
+    icon: 'i-lucide-key-round',
+  },
+  {
+    label: '推荐操作',
+    value: bootstrapRisk.value ? '改密后返回管理端' : '返回控制台继续使用',
+    icon: 'i-lucide-navigation',
   },
 ])
 
@@ -179,13 +197,8 @@ onMounted(async () => {
           </UForm>
 
           <template #footer>
-            <div class="space-y-2 text-sm text-muted">
-              <p>
-                修改密码后，当前登录态不会立刻失效；后续重新登录时请改用新密码。
-              </p>
-              <p v-if="bootstrapRisk">
-                如果这是空库阶段的默认管理员，建议改密后立即回到管理端继续完成建赛与普通账号准备。
-              </p>
+            <div class="text-sm text-muted">
+              修改密码后，当前登录态不会立刻失效；后续重新登录时请改用新密码。
             </div>
           </template>
         </UPageCard>
@@ -208,16 +221,20 @@ onMounted(async () => {
           </div>
         </UPageCard>
 
-        <UPageCard title="安全建议" icon="i-lucide-shield-check">
+        <UPageCard title="安全状态" icon="i-lucide-shield-check">
           <div class="space-y-3">
             <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              初始管理员账号只适合平台首次启动阶段使用，不应长期保留默认口令。
-            </div>
-            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              修改密码后，原有登录态仍可继续使用；后续重新登录时请改用新密码。
-            </div>
-            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              建议先完成管理员改密，再继续创建比赛、题目以及其他业务账号。
+              <div
+                v-for="item in securityFacts"
+                :key="item.label"
+                class="flex items-center justify-between gap-3 py-2"
+              >
+                <div class="flex items-center gap-2 text-muted">
+                  <UIcon :name="item.icon" class="size-4" />
+                  <span>{{ item.label }}</span>
+                </div>
+                <span class="text-right">{{ item.value }}</span>
+              </div>
             </div>
           </div>
         </UPageCard>
