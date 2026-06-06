@@ -220,6 +220,7 @@ internal/<module>/
   - lists current users with role and status
   - supports updating one user's role or status inline
   - current user cannot ban self; only `super_admin` can manage `super_admin`
+  - when entered from audit logs with `highlight_user_id`, the page should keep one compact context summary, auto-focus the target record, and visually highlight that row instead of opening a separate detail flow
 - Direct `/register` success now lands on `/console/team`, so first-time players can create or join a team immediately instead of bouncing through `/console` first.
 - If registration started from a public game page, success now lands on `/console/team?redirect=...`, so the game return path stays available through the team flow.
 - When a guest is redirected from a protected page such as `/console/**`, the target path is preserved in `?redirect=...` so login/register can return the user to the original destination.

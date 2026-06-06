@@ -12,6 +12,7 @@ type UserStatus = NonNullable<UserInfo['status']>
 
 const { authState, ensureInitialized } = useAuth()
 const toast = useToast()
+const route = useRoute()
 
 const loading = ref(true)
 const savingUserId = ref<number | null>(null)
@@ -49,6 +50,17 @@ const adminUsers = computed(() => users.value.filter(user => ['admin', 'super_ad
 const bannedUsers = computed(() => users.value.filter(user => user.status === 'banned').length)
 const currentUserId = computed(() => authState.user?.id || 0)
 const currentUserRole = computed<UserRole | ''>(() => authState.user?.role || '')
+const highlightedUserId = computed(() => {
+  const raw = route.query.highlight_user_id
+  const value = Number(Array.isArray(raw) ? raw[0] : raw)
+
+  return Number.isFinite(value) && value > 0 ? value : null
+})
+const highlightedUser = computed(() =>
+  highlightedUserId.value === null
+    ? null
+    : users.value.find(user => user.id === highlightedUserId.value) || null,
+)
 const filterRoleOptions = computed(() => [{ label: '全部角色', value: 'all' as const }, ...roleOptions])
 const filterStatusOptions = computed(() => [{ label: '全部状态', value: 'all' as const }, ...statusOptions])
 const filteredUsers = computed(() => {
@@ -96,11 +108,31 @@ function getStatusLabel(status: UserStatus) {
   return statusOptions.find(option => option.value === status)?.label || status
 }
 
+function isHighlightedUser(user: UserInfo) {
+  return highlightedUserId.value !== null && user.id === highlightedUserId.value
+}
+
 function syncDrafts() {
   for (const user of users.value) {
     roleDrafts[user.id] = user.role
     statusDrafts[user.id] = user.status
   }
+}
+
+async function syncHighlightContext() {
+  if (highlightedUserId.value === null) {
+    return
+  }
+
+  if (!filters.keyword.trim()) {
+    filters.keyword = String(highlightedUserId.value)
+  }
+
+  await nextTick()
+  document.getElementById(`user-row-${highlightedUserId.value}`)?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'center',
+  })
 }
 
 async function loadUsers() {
@@ -295,6 +327,11 @@ async function saveUser() {
 onMounted(async () => {
   await ensureInitialized()
   await loadUsers()
+  await syncHighlightContext()
+})
+
+watch(highlightedUserId, async () => {
+  await syncHighlightContext()
 })
 </script>
 
@@ -322,6 +359,31 @@ onMounted(async () => {
         </div>
         <UBadge color="info" variant="soft">
           账号权限
+        </UBadge>
+      </div>
+    </div>
+
+    <div
+      v-if="highlightedUserId !== null"
+      class="mb-6 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3"
+    >
+      <div class="flex items-start justify-between gap-4 flex-wrap">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 font-medium text-highlighted">
+            <UIcon name="i-lucide-crosshair" class="size-4" />
+            <span>当前已带入目标用户上下文</span>
+          </div>
+          <p class="mt-2 text-sm text-muted leading-6">
+            <template v-if="highlightedUser">
+              当前聚焦 {{ highlightedUser.username }}（#{{ highlightedUser.id }}），列表已定位到对应记录。
+            </template>
+            <template v-else>
+              当前目标用户为 #{{ highlightedUserId }}，列表会按该编号筛选；如无结果，请先确认该账号仍存在。
+            </template>
+          </p>
+        </div>
+        <UBadge color="primary" variant="soft">
+          审计回查
         </UBadge>
       </div>
     </div>
@@ -375,11 +437,14 @@ onMounted(async () => {
         }"
       >
         <template #username-cell="{ row }">
-          <div class="min-w-52">
+          <div :id="`user-row-${row.original.id}`" class="min-w-52">
             <div class="flex items-center gap-2 flex-wrap">
               <span class="font-medium">{{ row.original.username }}</span>
               <UBadge v-if="row.original.id === currentUserId" color="primary" variant="subtle">
                 当前账号
+              </UBadge>
+              <UBadge v-if="isHighlightedUser(row.original)" color="primary" variant="soft">
+                当前定位
               </UBadge>
             </div>
             <div class="mt-1 text-xs text-muted">
@@ -417,7 +482,10 @@ onMounted(async () => {
         </template>
 
         <template #actions-cell="{ row }">
-          <div class="min-w-[420px] space-y-3">
+          <div
+            class="min-w-[420px] space-y-3 rounded-lg"
+            :class="isHighlightedUser(row.original) ? 'bg-primary/5 p-3 ring-1 ring-primary/40' : ''"
+          >
             <div class="grid gap-3 md:grid-cols-[160px_160px_auto] md:items-end">
               <UFormField label="角色" :name="`role-${row.original.id}`">
                 <USelect
