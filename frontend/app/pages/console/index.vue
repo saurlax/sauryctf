@@ -636,14 +636,6 @@ onBeforeUnmount(() => {
           {{ authState.user?.username || '选手' }} 的当前工作台
         </p>
       </div>
-
-      <UButton
-        v-if="isAdmin"
-        label="赛事管理"
-        icon="i-lucide-settings-2"
-        to="/console/admin"
-        variant="outline"
-      />
     </div>
 
     <template v-if="loading">
@@ -984,31 +976,6 @@ onBeforeUnmount(() => {
             />
           </UPageCard>
 
-          <UPageCard v-if="pendingWriteupGames.length" title="待补交 Writeup" icon="i-lucide-file-warning">
-            <div class="space-y-3">
-              <div
-                v-for="game in pendingWriteupGames"
-                :key="game.id"
-                class="flex items-start justify-between gap-3 rounded-lg border border-default px-3 py-3"
-              >
-                <div class="min-w-0">
-                  <div class="font-medium">
-                    {{ game.name }}
-                  </div>
-                  <div class="text-sm text-muted">
-                    比赛已要求补交 Writeup，请尽快进入详情页处理。
-                  </div>
-                </div>
-                <UButton
-                  size="sm"
-                  icon="i-lucide-arrow-up-right"
-                  :to="`/games/${game.id}`"
-                >
-                  前往补交
-                </UButton>
-              </div>
-            </div>
-          </UPageCard>
         </div>
 
         <div class="space-y-6">
