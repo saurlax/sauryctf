@@ -2633,7 +2633,37 @@ onMounted(async () => {
               title="排行榜已封榜"
               :description="`公开榜单当前冻结在 ${new Date(scoreboardFreezeTime).toLocaleString()}，后续解题不会继续显示在公开排名中。`"
             />
+            <UEmpty
+              v-if="scoreboard.length === 0"
+              icon="i-lucide-trophy"
+              title="当前还没有公开榜单数据"
+              :description="selectedDivision
+                ? `当前分组 ${selectedDivision} 还没有产生可公开展示的队伍或解题记录。`
+                : '当前还没有产生可公开展示的队伍或解题记录；通常需要至少有队伍报名并开始解题后，公开榜单才会出现内容。'"
+              :actions="[
+                {
+                  label: authState.user ? '返回比赛概览' : '先去登录',
+                  icon: authState.user ? 'i-lucide-layout-template' : 'i-lucide-log-in',
+                  to: authState.user ? undefined : loginEntry,
+                  color: 'neutral',
+                  variant: 'outline',
+                },
+              ]"
+            >
+              <template #footer>
+                <div v-if="authState.user" class="mt-4 flex justify-center">
+                  <UButton
+                    variant="outline"
+                    icon="i-lucide-layout-template"
+                    @click="activeTab = 'overview'"
+                  >
+                    返回比赛概览
+                  </UButton>
+                </div>
+              </template>
+            </UEmpty>
             <UTable
+              v-else
               :data="scoreboard"
               :columns="[
                 { accessorKey: 'rank', header: '#' },
@@ -2642,7 +2672,6 @@ onMounted(async () => {
                 { accessorKey: 'solve_count', header: '解题数' },
                 { accessorKey: 'last_solve', header: '最后解题' },
               ]"
-              :empty-state="{ icon: 'i-lucide-trophy', label: '暂无数据' }"
             >
               <template #rank-cell="{ row }">
                 <span :class="row?.original?.rank && row.original.rank <= 3 ? 'font-bold text-warning' : ''">
@@ -2816,8 +2845,16 @@ onMounted(async () => {
                   </div>
                   <div class="rounded-lg border border-default px-3 py-3">
                     <div class="text-muted">审核备注</div>
-                    <div class="mt-2 leading-6">
-                      {{ writeup?.review_remark || '暂无审核备注' }}
+                    <UEmpty
+                      v-if="!writeup?.review_remark"
+                      class="mt-2"
+                      icon="i-lucide-message-square-text"
+                      title="当前还没有审核备注"
+                      description="管理员暂时还没有留下额外说明。审核状态变化后，这里会优先显示对应备注。"
+                      variant="naked"
+                    />
+                    <div v-else class="mt-2 leading-6">
+                      {{ writeup.review_remark }}
                     </div>
                   </div>
                 </div>
