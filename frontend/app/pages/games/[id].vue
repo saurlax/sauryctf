@@ -1311,7 +1311,7 @@ const nextStepMeta = computed(() => {
         : '提交后进入待审核状态。',
       color: 'info' as const,
       actionLabel: '报名比赛',
-      actionTo: `/games/${gameId}`,
+      onClick: openRegistrationModal,
     }
   }
 
@@ -1324,8 +1324,9 @@ const nextStepMeta = computed(() => {
         : '当前队伍仍有未提交的 Writeup，请尽快联系管理员确认后续处理流程。',
       color: 'warning' as const,
       actionLabel: '去 Writeup',
-      actionTo: `/games/${gameId}`,
-      actionTab: 'writeup' as const,
+      onClick: () => {
+        activeTab.value = 'writeup'
+      },
     }
   }
 
@@ -1345,7 +1346,7 @@ const nextStepMeta = computed(() => {
       description: '可先退出当前报名，再重新提交。',
       color: 'error' as const,
       actionLabel: '退出本次报名',
-      actionTo: `/games/${gameId}`,
+      onClick: confirmLeaveGame,
     }
   }
 
@@ -1355,8 +1356,9 @@ const nextStepMeta = computed(() => {
       description: '当前记录已提交，等待管理员处理。',
       color: 'info' as const,
       actionLabel: '去 Writeup',
-      actionTo: `/games/${gameId}`,
-      actionTab: 'writeup' as const,
+      onClick: () => {
+        activeTab.value = 'writeup'
+      },
     }
   }
 
@@ -1366,8 +1368,9 @@ const nextStepMeta = computed(() => {
       description: '开赛后自动开放题面与提交。',
       color: 'info' as const,
       actionLabel: '查看题目',
-      actionTo: `/games/${gameId}`,
-      actionTab: 'challenges' as const,
+      onClick: () => {
+        activeTab.value = 'challenges'
+      },
     }
   }
 
@@ -1377,8 +1380,9 @@ const nextStepMeta = computed(() => {
       description: '当前已满足参赛条件。',
       color: 'success' as const,
       actionLabel: '进入题目',
-      actionTo: `/games/${gameId}`,
-      actionTab: 'challenges' as const,
+      onClick: () => {
+        activeTab.value = 'challenges'
+      },
     }
   }
 
@@ -1387,8 +1391,9 @@ const nextStepMeta = computed(() => {
     description: '仍可继续查看公开信息。',
     color: 'neutral' as const,
     actionLabel: '查看排行榜',
-    actionTo: `/games/${gameId}`,
-    actionTab: 'scoreboard' as const,
+    onClick: () => {
+      activeTab.value = 'scoreboard'
+    },
   }
 })
 
@@ -1418,6 +1423,38 @@ const detailPrimaryAction = computed(() => {
   }
 
   if (participation.value?.participated) {
+    if (!canLeaveGame.value) {
+      if (participationStateKey.value === 'missing_writeup' || participationStateKey.value === 'writeup_submitted') {
+        return {
+          mode: 'button' as const,
+          label: '查看 Writeup',
+          icon: 'i-lucide-file-text',
+          color: 'primary' as const,
+          variant: 'solid' as const,
+          loading: false,
+          disabled: false,
+          onClick: () => {
+            activeTab.value = 'writeup'
+          },
+          to: undefined,
+        }
+      }
+
+      return {
+        mode: 'button' as const,
+        label: publicGamePhase.value === 'ended' ? '查看排行榜' : '进入题目',
+        icon: publicGamePhase.value === 'ended' ? 'i-lucide-trophy' : 'i-lucide-flag',
+        color: 'primary' as const,
+        variant: 'solid' as const,
+        loading: false,
+        disabled: false,
+        onClick: () => {
+          activeTab.value = publicGamePhase.value === 'ended' ? 'scoreboard' : 'challenges'
+        },
+        to: undefined,
+      }
+    }
+
     return {
       mode: 'button' as const,
       label: canLeaveGame.value ? '退出比赛' : participationMeta.value.actionLabel,
@@ -1468,12 +1505,6 @@ const detailSecondaryAction = computed(() => {
 
   return null
 })
-
-function handleNextStepAction(meta: typeof nextStepMeta.value) {
-  if (meta.actionTab) {
-    activeTab.value = meta.actionTab
-  }
-}
 
 const writeupGuide = computed(() => {
   if (!authState.user) {
@@ -2035,6 +2066,10 @@ function getBloodRows(challenge: ScoreboardChallengeStat) {
   ]
 }
 
+function getStepActionColor(color: 'info' | 'error' | 'warning' | 'success' | 'neutral') {
+  return color === 'neutral' ? 'neutral' : 'primary'
+}
+
 const tabItems = [
   { label: '概览', value: 'overview', icon: 'i-lucide-layout-template' },
   { label: '题目', value: 'challenges', icon: 'i-lucide-flag' },
@@ -2196,10 +2231,18 @@ onMounted(async () => {
                   </div>
                   <div class="flex gap-2 flex-wrap">
                     <UButton
+                      v-if="nextStepMeta.actionTo"
                       size="sm"
                       :to="nextStepMeta.actionTo"
-                      :color="nextStepMeta.color === 'neutral' ? 'neutral' : 'primary'"
-                      @click="handleNextStepAction(nextStepMeta)"
+                      :color="getStepActionColor(nextStepMeta.color)"
+                    >
+                      {{ nextStepMeta.actionLabel }}
+                    </UButton>
+                    <UButton
+                      v-else
+                      size="sm"
+                      :color="getStepActionColor(nextStepMeta.color)"
+                      @click="nextStepMeta.onClick?.()"
                     >
                       {{ nextStepMeta.actionLabel }}
                     </UButton>
