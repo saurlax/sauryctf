@@ -219,6 +219,24 @@ function getGameSummaryRows(game: Game) {
   ]
 }
 
+function getGameContextRows(game: Game) {
+  const participation = participationMap.value[game.id]
+
+  return [
+    {
+      label: '我的状态',
+      value: getParticipationMeta(game).label,
+    },
+    ...(participation?.division
+      ? [{
+          label: '当前分组',
+          value: participation.division,
+        }]
+      : []),
+    ...getGameSummaryRows(game),
+  ]
+}
+
 const filteredGames = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase()
 
@@ -386,32 +404,33 @@ onMounted(async () => {
     </div>
 
     <template v-else>
-      <UAlert
-        class="mb-6"
-        :color="listGuideMeta.color"
-        variant="soft"
-        :icon="listGuideMeta.icon"
-        :title="listGuideMeta.title"
-        :description="listGuideMeta.description"
-      >
-        <template #actions>
+      <div class="mb-6 rounded-lg border border-default bg-elevated/50 px-4 py-4">
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 font-medium text-highlighted">
+              <UIcon :name="listGuideMeta.icon" class="size-4" />
+              <span>{{ listGuideMeta.title }}</span>
+            </div>
+            <p class="mt-2 text-sm text-muted leading-6">
+              {{ listGuideMeta.description }}
+            </p>
+          </div>
           <div class="flex flex-wrap gap-2">
             <UButton
               size="sm"
               :to="listGuideMeta.actionTo"
               :label="listGuideMeta.actionLabel"
-              variant="outline"
             />
             <UButton
               v-if="listGuideMeta.secondaryLabel && listGuideMeta.secondaryTo"
               size="sm"
               :to="listGuideMeta.secondaryTo"
               :label="listGuideMeta.secondaryLabel"
-              variant="ghost"
+              variant="outline"
             />
           </div>
-        </template>
-      </UAlert>
+        </div>
+      </div>
 
       <UPageGrid :cols="{ default: 1, sm: 2, xl: 4 }" class="mb-6">
         <UPageCard
@@ -502,27 +521,22 @@ onMounted(async () => {
           {{ game.description || '暂无描述' }}
         </p>
         <div class="mt-3 rounded-lg border border-default bg-elevated/50 px-3 py-3 text-xs">
+          <div class="mb-2 flex items-center justify-between gap-2">
+            <span class="text-sm font-medium text-highlighted">参赛与规则摘要</span>
+            <UBadge :color="getParticipationMeta(game).color" variant="soft" size="sm">
+              {{ getParticipationMeta(game).label }}
+            </UBadge>
+          </div>
           <div
-            v-for="row in getGameSummaryRows(game)"
+            v-for="row in getGameContextRows(game)"
             :key="row.label"
             class="flex items-center justify-between gap-3 py-1.5"
           >
             <span class="text-muted">{{ row.label }}</span>
             <span class="text-right">{{ row.value }}</span>
           </div>
-        </div>
-        <div class="mt-4 rounded-lg border border-default bg-elevated/50 px-3 py-3">
-          <div class="mb-2 flex items-center justify-between gap-2">
-            <span class="text-sm font-medium">我的参赛状态</span>
-            <UBadge :color="getParticipationMeta(game).color" variant="soft" size="sm">
-              {{ getParticipationMeta(game).label }}
-            </UBadge>
-          </div>
           <p class="text-xs text-muted leading-5">
             {{ getParticipationMeta(game).description }}
-          </p>
-          <p v-if="participationMap[game.id]?.division" class="mt-2 text-xs text-muted">
-            当前分组：{{ participationMap[game.id]?.division }}
           </p>
         </div>
         <template #footer>

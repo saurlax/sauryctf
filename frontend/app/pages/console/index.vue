@@ -427,6 +427,39 @@ const consoleSummaryRows = computed(() => {
   ]
 })
 
+const consoleWorkbenchActions = computed(() => {
+  const actions: Array<{
+    label: string
+    icon: string
+    to: string
+    variant?: 'solid' | 'outline' | 'ghost' | 'soft' | 'subtle' | 'link'
+  }> = [
+    {
+      label: team.value ? '管理我的队伍' : '去准备队伍',
+      icon: 'i-lucide-users',
+      to: '/console/team',
+      variant: 'outline',
+    },
+    {
+      label: '浏览比赛',
+      icon: 'i-lucide-trophy',
+      to: '/games',
+      variant: 'outline',
+    },
+  ]
+
+  if (nextGame.value) {
+    actions.unshift({
+      label: `进入比赛：${nextGame.value.name}`,
+      icon: 'i-lucide-arrow-right',
+      to: `/games/${nextGame.value.id}`,
+      variant: 'solid',
+    })
+  }
+
+  return actions
+})
+
 const consoleNextActionMeta = computed(() => {
   const writeupGame = pendingWriteupGames.value[0]
   if (writeupGame) {
@@ -754,7 +787,7 @@ onBeforeUnmount(() => {
             </div>
           </UPageCard>
 
-          <UPageCard title="当前概览" icon="i-lucide-list-checks">
+          <UPageCard title="当前工作台" icon="i-lucide-list-checks">
             <div class="space-y-3">
               <div class="rounded-lg border border-default px-3 py-3 text-sm">
                 <div
@@ -767,35 +800,39 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
-              <UAlert
-                :color="consoleNextActionMeta.color"
-                variant="soft"
-                :title="consoleNextActionMeta.title"
-                :description="consoleNextActionMeta.description"
-              >
-                <template #actions>
+              <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="text-sm font-medium text-highlighted">
+                      {{ consoleNextActionMeta.title }}
+                    </div>
+                    <p class="mt-1 text-sm text-muted leading-6">
+                      {{ consoleNextActionMeta.description }}
+                    </p>
+                  </div>
+                  <UBadge :color="consoleNextActionMeta.color" variant="soft" size="sm">
+                    当前待办
+                  </UBadge>
+                </div>
+
+                <div class="mt-3 flex flex-col gap-3">
                   <UButton
                     size="sm"
                     :variant="consoleNextActionMeta.buttonVariant"
                     :to="consoleNextActionMeta.buttonTo"
                     :label="consoleNextActionMeta.buttonLabel"
                   />
-                </template>
-              </UAlert>
-            </div>
-          </UPageCard>
-
-          <UPageCard :title="team ? '当前入口' : '队伍入口'" icon="i-lucide-rocket">
-            <div class="flex flex-col gap-3">
-              <UButton :label="team ? '管理我的队伍' : '去准备队伍'" icon="i-lucide-users" to="/console/team" variant="outline" block />
-              <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="outline" block />
-              <UButton
-                v-if="nextGame"
-                :label="`进入比赛：${nextGame.name}`"
-                icon="i-lucide-arrow-right"
-                :to="`/games/${nextGame.id}`"
-                block
-              />
+                  <UButton
+                    v-for="action in consoleWorkbenchActions"
+                    :key="`${action.label}-${action.to}`"
+                    size="sm"
+                    :label="action.label"
+                    :icon="action.icon"
+                    :to="action.to"
+                    :variant="action.variant || 'outline'"
+                  />
+                </div>
+              </div>
             </div>
           </UPageCard>
 

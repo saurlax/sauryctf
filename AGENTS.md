@@ -108,6 +108,8 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - In public challenge cards, prefer one compact status summary block plus structured instance/attachment sections. Avoid stacking multiple `UAlert` components for the same card-level state.
 - On the public game overview sidebar, prefer one context card plus one rules/boundary card instead of splitting participant status, restrictions, and division info across too many small cards.
 - At the top of the public game detail page, keep one primary participation status block plus a compact next-step action row. Do not stack multiple large conclusion alerts for the same state.
+- On the console home page, prefer one consolidated workbench card for current summary, pending action, and common entry buttons instead of splitting overview and entry into separate cards with overlapping purpose.
+- On the public `/games` list page, prefer one compact entry banner and one combined per-card participation/rules summary. Do not split card-level context into multiple stacked status boxes.
 - In console pages, prefer neutral internal names such as `context`, `checklist`, and `entry` over `setup` for maintenance-oriented panels and computed state.
 - Challenge attachments remain a JSON string array. For local files, prefer the admin upload entry so `/attachments/**` paths stay consistent with import/export behavior.
 - If a challenge defines `flag_format`, player-facing pages should reuse it for display and submit placeholders instead of hard-coding `flag{...}`.
