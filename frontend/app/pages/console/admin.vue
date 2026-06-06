@@ -1103,7 +1103,7 @@ function parseChallengeTemplatePurpose(containerSpec?: string, fallbackTitle?: s
   }
 
   const title = fallbackTitle?.trim()
-  if (title === 'Web Dynamic Container') {
+  if (title === 'Web Dynamic Container' || title === '动态容器 Web 题') {
     return 'local-docker-web'
   }
 
@@ -1119,7 +1119,7 @@ function matchesLocalDockerLease(lease: {
     return true
   }
 
-  return lease.challenge_title === 'Web Dynamic Container'
+  return lease.challenge_title === 'Web Dynamic Container' || lease.challenge_title === '动态容器 Web 题'
 }
 
 async function loadAdminResources() {
@@ -1761,7 +1761,7 @@ function fillStarterGameTemplate() {
   const freeze = new Date(end.getTime() - 30 * 60 * 1000)
   const writeupDeadline = new Date(end.getTime() + 24 * 60 * 60 * 1000)
 
-  gameForm.name = `Starter Contest ${start.getFullYear()}`
+  gameForm.name = `${start.getFullYear()} 平台基础比赛`
   gameForm.description = '用于快速建立公开比赛基础结构的精简模板。'
   gameForm.notice = '可使用普通账号完成注册、组队、报名和提交流程，再继续补充题目与规则。'
   gameForm.divisions_text = ''
@@ -1779,7 +1779,7 @@ function fillStarterGameTemplate() {
 }
 
 function fillStarterChallengeTemplate() {
-  challengeForm.title = 'Basic Challenge'
+  challengeForm.title = '基础静态题'
   challengeForm.description = '这是一个基础静态题模板，用于补齐题面、提示、附件和计分配置。'
   challengeForm.hints = JSON.stringify([
     '请在发布前补充正式题面、提示和附件信息。',
@@ -1851,9 +1851,7 @@ function fillPwnNetcatTemplate() {
     '优先把题目附件放到 attachments 里。',
     '如果服务地址会变化，请保留一个稳定代理入口。',
   ], null, 2)
-  challengeForm.attachments = JSON.stringify([
-    'https://example.com/files/pwn.tar.gz',
-  ], null, 2)
+  challengeForm.attachments = '[]'
   challengeForm.container_spec = JSON.stringify({
     connection: {
       host: '127.0.0.1',
@@ -1876,7 +1874,7 @@ function fillPwnNetcatTemplate() {
 }
 
 function fillDynamicContainerTemplate() {
-  challengeForm.title = 'Web Dynamic Container'
+  challengeForm.title = '动态容器 Web 题'
   challengeForm.description = '这是一个动态容器题模板。启用本地 Docker provider 后，平台会按 runtime.image 与 runtime.expose 启动实例。'
   challengeForm.hints = JSON.stringify([
     '请先确认运行节点已启用对应 provider，并能拉取题目镜像。',
@@ -1923,7 +1921,7 @@ function fillDynamicContainerTemplate() {
 }
 
 function fillTeamScopedDynamicTemplate() {
-  challengeForm.title = 'Team Scoped Instance'
+  challengeForm.title = '每队独立入口题'
   challengeForm.description = '这是一个按队伍生成独立入口的动态题模板，用于需要稳定队伍级地址分发的场景。'
   challengeForm.hints = JSON.stringify([
     '请根据实际部署方式调整 runtime、connection 和 links 字段。',
@@ -1933,12 +1931,12 @@ function fillTeamScopedDynamicTemplate() {
   challengeForm.container_spec = JSON.stringify({
     runtime: {
       provider: 'docker',
-      image: 'ctf/example:latest',
+      image: 'ghcr.io/example/ctf-web:latest',
       expose: [8080],
     },
     connection: {
       url: '/local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
-      host: 'team-{{team_id}}.example.internal',
+      host: 'team-{{team_hash}}.instance.local',
       port: 443,
       command: '访问平台分配的专属入口',
       note: '每支队伍都会获得独立入口。请在上线前替换为真实的入口分发地址或代理规则。',
@@ -1973,7 +1971,7 @@ async function createStarterProvision() {
   try {
     const game = await $api('post', '/api/games', {
       body: {
-        name: `Starter Contest ${start.getFullYear()}`,
+        name: `${start.getFullYear()} 平台基础比赛`,
         description: '用于快速建立公开比赛基础结构的精简模板。',
         notice: '可使用普通账号完成注册、组队、报名和提交流程，再继续补充题目与规则。',
         divisions: [],
@@ -1991,7 +1989,7 @@ async function createStarterProvision() {
 
     const challenge = await $api('post', '/api/challenges', {
       body: {
-        title: 'Basic Challenge',
+        title: '基础静态题',
         description: '这是一个基础静态题模板，用于补齐题面、提示、附件和计分配置。',
         hints: JSON.stringify([
           '请在发布前补充正式题面、提示和附件信息。',
@@ -2001,7 +1999,7 @@ async function createStarterProvision() {
         category: 'misc',
         type: 'static',
         difficulty: 'easy',
-        flag: 'flag{replace_me}',
+        flag: 'flag{platform-baseline}',
         base_score: 100,
         min_score: 100,
         decay_rate: 0,
@@ -2046,7 +2044,7 @@ async function createDynamicProvision() {
   try {
     const game = await $api('post', '/api/games', {
       body: {
-        name: `Dynamic Instance ${start.getFullYear()}`,
+        name: `${start.getFullYear()} 动态实例比赛`,
         description: '用于快速建立动态实例流程的公开比赛模板。',
         notice: '请先确认实例状态与入口信息，再继续完成报名和解题流程。',
         divisions: [],
@@ -2064,7 +2062,7 @@ async function createDynamicProvision() {
 
     const challenge = await $api('post', '/api/challenges', {
       body: {
-        title: 'Dynamic Team Instance',
+        title: '每队独立入口题',
         description: '这是一个按队伍分配独立入口的动态题模板。',
         hints: JSON.stringify([
           '请先确认入口模板、分发规则和实例 provider 已经准备完成。',
@@ -2074,12 +2072,12 @@ async function createDynamicProvision() {
         container_spec: JSON.stringify({
           runtime: {
             provider: 'docker',
-            image: 'ctf/example:latest',
+            image: 'ghcr.io/example/ctf-web:latest',
             expose: [8080],
           },
           connection: {
             url: '/local-instance/{{game_id}}/{{challenge_id}}/{{team_hash}}?team={{team_id}}',
-            host: 'team-{{team_id}}.example.internal',
+            host: 'team-{{team_hash}}.instance.local',
             port: 443,
             command: '访问平台分配的专属入口',
             note: '每支队伍都会获得独立入口。请在上线前替换为真实的入口分发地址或代理规则。',
@@ -2094,7 +2092,7 @@ async function createDynamicProvision() {
         category: 'web',
         type: 'dynamic',
         difficulty: 'hard',
-        flag: 'flag{replace_me}',
+        flag: 'flag{dynamic-instance-baseline}',
         base_score: 300,
         min_score: 100,
         decay_rate: 0.1,
@@ -2139,7 +2137,7 @@ async function createLocalDockerProvision() {
   try {
     const game = await $api('post', '/api/games', {
       body: {
-        name: `Local Docker Web ${start.getFullYear()}`,
+        name: `${start.getFullYear()} 容器实例比赛`,
         description: '用于快速建立容器实例流程的公开比赛模板。',
         notice: '请先确认 Docker daemon 可用，再使用普通账号完成报名、启动实例和提交流程。',
         divisions: [],
@@ -2157,7 +2155,7 @@ async function createLocalDockerProvision() {
 
     const challenge = await $api('post', '/api/challenges', {
       body: {
-        title: 'Web Dynamic Container',
+        title: '动态容器 Web 题',
         description: '这是一个动态容器题模板，用于补齐镜像、端口和入口配置。',
         hints: JSON.stringify([
           '请先确认运行节点已启用本地 Docker provider，且 Docker daemon 可用。',
@@ -2188,7 +2186,7 @@ async function createLocalDockerProvision() {
         category: 'web',
         type: 'dynamic',
         difficulty: 'medium',
-        flag: 'flag{replace_me}',
+        flag: 'flag{docker-instance-baseline}',
         base_score: 300,
         min_score: 100,
         decay_rate: 0.1,
