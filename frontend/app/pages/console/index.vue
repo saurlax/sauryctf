@@ -138,10 +138,30 @@ const adminLatestAnnouncements = ref<Array<AdminAnnouncementEntry & { game: Game
 const adminRecentSubmissions = ref<Array<AdminSubmissionEntry & { game: GameSummary }>>([])
 const adminCheatClues = ref<Array<AdminCheatClueEntry & { game: GameSummary }>>([])
 const playerAnnouncements = ref<PlayerAnnouncementEntry[]>([])
+const now = ref(Date.now())
 
-const activeGames = computed(() => games.value.filter(game => game.status === 'active'))
-const upcomingGames = computed(() => games.value.filter(game => game.status === 'draft'))
-const endedGames = computed(() => games.value.filter(game => game.status === 'ended'))
+function getGamePhase(game: GameSummary): PublicGamePhase {
+  if (game.status === 'draft') {
+    return 'draft'
+  }
+
+  const startAt = new Date(game.start_time).getTime()
+  const endAt = new Date(game.end_time).getTime()
+
+  if (now.value < startAt) {
+    return 'before_start'
+  }
+
+  if (now.value > endAt || game.status === 'ended') {
+    return 'ended'
+  }
+
+  return 'active'
+}
+
+const activeGames = computed(() => games.value.filter(game => getGamePhase(game) === 'active'))
+const upcomingGames = computed(() => games.value.filter(game => ['draft', 'before_start'].includes(getGamePhase(game))))
+const endedGames = computed(() => games.value.filter(game => getGamePhase(game) === 'ended'))
 
 const recentGames = computed(() =>
   [...games.value]
@@ -150,14 +170,12 @@ const recentGames = computed(() =>
 )
 
 const nextGame = computed(() => {
-  const now = Date.now()
   return [...games.value]
-    .filter(game => new Date(game.end_time).getTime() >= now)
+    .filter(game => getGamePhase(game) !== 'ended')
     .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0] || null
 })
 
 const showPasswordSecurityNotice = computed(() => !!securityStatus.value?.password_change_recommended)
-const now = ref(Date.now())
 
 const stats = computed(() => [
   { label: '我的队伍', value: team.value?.name || '未加入', icon: 'i-lucide-users' },
@@ -434,25 +452,6 @@ const statusItems = computed(() => {
   return items
 })
 
-function getGamePhase(game: GameSummary): PublicGamePhase {
-  if (game.status === 'draft') {
-    return 'draft'
-  }
-
-  const startAt = new Date(game.start_time).getTime()
-  const endAt = new Date(game.end_time).getTime()
-
-  if (now.value < startAt) {
-    return 'before_start'
-  }
-
-  if (now.value > endAt || game.status === 'ended') {
-    return 'ended'
-  }
-
-  return 'active'
-}
-
 function getParticipationPriority(game: GameSummary, participation: GameParticipation | undefined) {
   const phase = getGamePhase(game)
 
@@ -528,13 +527,25 @@ const myGameEntries = computed(() =>
     .slice(0, 6),
 )
 
-function getStatusMeta(status: GameSummary['status']) {
+function getStatusMeta(input: GameSummary | GameSummary['status']) {
+  if (typeof input === 'string') {
+    const meta = {
+      draft: { label: '草稿', color: 'warning' as const },
+      active: { label: '已发布', color: 'info' as const },
+      ended: { label: '已结束', color: 'neutral' as const },
+    }
+    return meta[input] || meta.draft
+  }
+
+  const phase = getGamePhase(input)
   const meta = {
-    draft: { label: '未开始', color: 'warning' as const },
+    draft: { label: '草稿', color: 'warning' as const },
+    before_start: { label: '未开始', color: 'info' as const },
     active: { label: '进行中', color: 'success' as const },
     ended: { label: '已结束', color: 'neutral' as const },
   }
-  return meta[status] || meta.draft
+
+  return meta[phase]
 }
 
 const adminManagedGames = computed(() =>
@@ -543,9 +554,21 @@ const adminManagedGames = computed(() =>
     .slice(0, 5),
 )
 
+let nowTimer: ReturnType<typeof setInterval> | null = null
+
 onMounted(async () => {
   await ensureInitialized()
   await fetchConsoleData()
+  nowTimer = window.setInterval(() => {
+    now.value = Date.now()
+  }, 30000)
+})
+
+onBeforeUnmount(() => {
+  if (nowTimer) {
+    clearInterval(nowTimer)
+    nowTimer = null
+  }
 })
 </script>
 
@@ -629,8 +652,8 @@ onMounted(async () => {
                       <div class="font-medium">
                         {{ game.name }}
                       </div>
-                      <UBadge :color="getStatusMeta(game.status).color" variant="soft">
-                        {{ getStatusMeta(game.status).label }}
+                      <UBadge :color="getStatusMeta(game).color" variant="soft">
+                        {{ getStatusMeta(game).label }}
                       </UBadge>
                       <UBadge :color="game.is_public ? 'info' : 'neutral'" variant="soft">
                         {{ game.is_public ? '公开' : '私有' }}
@@ -662,7 +685,7 @@ onMounted(async () => {
                       打开
                     </UButton>
                     <UButton
-                      v-if="game.status === 'draft'"
+                      v-if="getGamePhase(game) === 'draft'"
                       size="sm"
                       icon="i-lucide-play"
                       :loading="adminActionGameId === game.id"
@@ -671,7 +694,7 @@ onMounted(async () => {
                       立即开赛
                     </UButton>
                     <UButton
-                      v-else-if="game.status === 'active'"
+                      v-else-if="getGamePhase(game) === 'active' || getGamePhase(game) === 'before_start'"
                       size="sm"
                       color="warning"
                       variant="soft"
@@ -781,8 +804,8 @@ onMounted(async () => {
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
-                  <UBadge :color="getStatusMeta(game.status).color" variant="soft">
-                    {{ getStatusMeta(game.status).label }}
+                  <UBadge :color="getStatusMeta(game).color" variant="soft">
+                    {{ getStatusMeta(game).label }}
                   </UBadge>
                   <UButton
                     size="sm"
@@ -833,7 +856,7 @@ onMounted(async () => {
 
                 <div class="mt-3 flex items-center justify-between gap-3 flex-wrap text-xs text-muted">
                   <div class="flex items-center gap-3 flex-wrap">
-                    <span>{{ getStatusMeta(entry.game.status).label }}</span>
+                    <span>{{ getStatusMeta(entry.game).label }}</span>
                     <span>{{ new Date(entry.game.start_time).toLocaleString() }}</span>
                     <span v-if="entry.participation?.division">分组：{{ entry.participation.division }}</span>
                     <span v-if="entry.participation?.team?.name">队伍：{{ entry.participation.team.name }}</span>
