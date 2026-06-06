@@ -91,6 +91,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - API requests go through `/api/**` (dev proxy via `nuxt.config.ts` `devProxy` to `localhost:8080`).
 - Preferred local frontend entry is `pnpm dev:frontend`, which binds Nuxt to `127.0.0.1:3000` for a predictable browser login flow.
 - For local auth debugging, keep the browser on `127.0.0.1:3000` and let requests stay on same-origin `/api/**` so Nuxt dev proxy can preserve the login cookie flow.
+- Frontend local dev now disables remote Google font providers in `nuxt.config.ts`, so `pnpm dev:frontend` does not depend on external font metadata fetches just to boot locally.
 - **After every frontend code change, run `cd frontend && pnpm nuxt typecheck` to ensure type safety.**
 
 ## Backend (repo root)

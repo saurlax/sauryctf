@@ -40,6 +40,7 @@ SauryCTF 是一个基于 Go + Gin + GORM + Nuxt SSG 的 CTF 平台。
 - `/login` 与 `/register` 现在都使用统一的访客中间件：
   - 未登录用户正常停留在页面
   - 已登录用户会自动回到 `redirect` 指定页面，或默认进入 `/console`
+- `/login` 页面当前只保留正式登录入口，不再承载默认管理员初始化说明
 - 前端登录态恢复现在通过 `useAuth().ensureInitialized()` 统一收口：
   - 路由中间件和关键页面会等待一次共享的会话恢复
   - 避免公开页、控制台页各自重复触发一套登录态初始化
@@ -107,6 +108,11 @@ pnpm dev:local
 ```
 
 当前仓库里 `dev:frontend` 已经固定为本地可访问的 `127.0.0.1:3000`，便于直接验证登录态和 Cookie 会话。
+
+前端开发环境当前也已经关闭远程 Google 字体 provider 依赖：
+
+- 本地 `pnpm dev:frontend` 不再因为外网字体元数据请求失败而直接报 Vite 500
+- 即使当前机器无法访问 Google Fonts，前端本地开发也应保持可打开状态
 
 本地登录调试时，有两个约束最好保持不变：
 

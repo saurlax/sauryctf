@@ -4,6 +4,12 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   modules: ['@nuxt/ui'],
   css: ['~/assets/css/main.css'],
+  fonts: {
+    providers: {
+      google: false,
+      googleicons: false,
+    },
+  },
 
   runtimeConfig: {
     apiBase: 'http://127.0.0.1:8080/api',

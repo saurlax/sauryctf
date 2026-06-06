@@ -2940,6 +2940,42 @@ onMounted(async () => {
       </div>
     </template>
 
+    <template v-else>
+      <UEmpty
+        icon="i-lucide-shield-alert"
+        title="当前比赛暂时不可用"
+        :description="pageLoadError || '当前比赛不存在，或你现在还不能访问这场比赛。'"
+        :actions="[
+          {
+            label: '返回比赛列表',
+            icon: 'i-lucide-arrow-left',
+            to: '/games',
+            color: 'neutral',
+            variant: 'outline',
+          },
+        ]"
+      >
+        <template #footer>
+          <div class="mt-4 flex flex-wrap justify-center gap-2">
+            <UButton
+              icon="i-lucide-refresh-cw"
+              variant="outline"
+              @click="fetchAll"
+            >
+              重新加载
+            </UButton>
+            <UButton
+              v-if="!authState.user"
+              :to="loginEntry"
+              icon="i-lucide-log-in"
+            >
+              先去登录
+            </UButton>
+          </div>
+        </template>
+      </UEmpty>
+    </template>
+
     <UModal v-model:open="confirmModalOpen" :title="confirmAction.title" :description="confirmAction.description">
       <template #footer>
         <div class="flex w-full justify-end gap-2">
@@ -2961,40 +2997,5 @@ onMounted(async () => {
         </div>
       </template>
     </UModal>
-
-    <UEmpty
-      v-else
-      icon="i-lucide-shield-alert"
-      title="当前比赛暂时不可用"
-      :description="pageLoadError || '当前比赛不存在，或你现在还不能访问这场比赛。'"
-      :actions="[
-        {
-          label: '返回比赛列表',
-          icon: 'i-lucide-arrow-left',
-          to: '/games',
-          color: 'neutral',
-          variant: 'outline',
-        },
-      ]"
-    >
-      <template #footer>
-        <div class="mt-4 flex flex-wrap justify-center gap-2">
-          <UButton
-            icon="i-lucide-refresh-cw"
-            variant="outline"
-            @click="fetchAll"
-          >
-            重新加载
-          </UButton>
-          <UButton
-            v-if="!authState.user"
-            :to="loginEntry"
-            icon="i-lucide-log-in"
-          >
-            先去登录
-          </UButton>
-        </div>
-      </template>
-    </UEmpty>
   </UContainer>
 </template>

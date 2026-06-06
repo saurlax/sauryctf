@@ -10,16 +10,11 @@ const { login } = useAuth()
 const router = useRouter()
 const route = useRoute()
 const toast = useToast()
-const { data: setupStatus } = await useAPI('auth-setup-status', 'get', '/api/auth/setup-status')
 
 const redirectTarget = computed(() => {
   const redirect = route.query.redirect
   if (typeof redirect === 'string' && redirect.startsWith('/')) {
     return redirect
-  }
-
-  if (setupStatus.value?.bootstrap_admin_available) {
-    return '/console/admin'
   }
 
   return '/console'
@@ -101,9 +96,6 @@ const state = reactive<Partial<LoginSchema>>({
             />
             <p class="text-sm text-muted">
               登录支持用户名或邮箱。成功后会优先返回当前请求中的目标页面；没有指定目标时，默认进入控制台。
-            </p>
-            <p v-if="setupStatus?.bootstrap_admin_available" class="text-sm text-muted">
-              当前数据库仍处于空库首次启动阶段，系统已自动创建默认管理员账号；如需使用，请查阅部署文档中的初始账号说明。
             </p>
           </div>
           <template #footer>
