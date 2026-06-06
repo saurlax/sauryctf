@@ -646,14 +646,17 @@ onMounted(async () => {
     <template v-else-if="team">
       <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
         <div v-if="inviteFlowMeta" class="xl:col-span-2">
-          <UAlert
-            :color="inviteFlowMeta.color"
-            variant="soft"
-            :icon="inviteFlowMeta.icon"
-            :title="inviteFlowMeta.title"
-            :description="inviteFlowMeta.description"
-          >
-            <template #actions>
+          <div class="rounded-lg border border-default bg-elevated/50 px-4 py-3">
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 font-medium text-highlighted">
+                  <UIcon :name="inviteFlowMeta.icon" class="size-4" />
+                  <span>{{ inviteFlowMeta.title }}</span>
+                </div>
+                <p class="mt-2 text-sm text-muted leading-6">
+                  {{ inviteFlowMeta.description }}
+                </p>
+              </div>
               <div class="flex flex-wrap gap-2">
                 <UButton
                   :label="inviteFlowMeta.actionLabel"
@@ -670,18 +673,21 @@ onMounted(async () => {
                   :to="inviteFlowMeta.secondaryTo"
                 />
               </div>
-            </template>
-          </UAlert>
+            </div>
+          </div>
         </div>
         <div v-if="teamNextStepMeta" class="xl:col-span-2">
-          <UAlert
-            :color="teamNextStepMeta.color"
-            variant="soft"
-            :icon="teamNextStepMeta.icon"
-            :title="teamNextStepMeta.title"
-            :description="teamNextStepMeta.description"
-          >
-            <template #actions>
+          <div class="rounded-lg border border-default bg-elevated/50 px-4 py-3">
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 font-medium text-highlighted">
+                  <UIcon :name="teamNextStepMeta.icon" class="size-4" />
+                  <span>{{ teamNextStepMeta.title }}</span>
+                </div>
+                <p class="mt-2 text-sm text-muted leading-6">
+                  {{ teamNextStepMeta.description }}
+                </p>
+              </div>
               <div class="flex flex-wrap gap-2">
                 <UButton
                   size="sm"
@@ -698,8 +704,8 @@ onMounted(async () => {
                   variant="ghost"
                 />
               </div>
-            </template>
-          </UAlert>
+            </div>
+          </div>
         </div>
         <div class="xl:col-span-2">
           <UPageGrid :cols="{ default: 1, sm: 3 }" class="mb-6">
@@ -733,14 +739,25 @@ onMounted(async () => {
         </template>
 
         <div class="space-y-4">
-          <UAlert
+          <div
             v-if="teamLocked"
-            color="warning"
-            variant="soft"
-            icon="i-lucide-lock"
-            title="当前队伍已被比赛锁定"
-            :description="isCaptain ? '你们已经通过至少一场仍未结束的比赛报名，当前不能加人、退队或移除成员。' : '你的队伍已经通过至少一场仍未结束的比赛报名，当前不能更改队伍成员。'"
-          />
+            class="rounded-lg border border-default bg-elevated/50 px-3 py-3"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 font-medium text-highlighted">
+                  <UIcon name="i-lucide-lock" class="size-4" />
+                  <span>当前队伍已被比赛锁定</span>
+                </div>
+                <p class="mt-2 text-sm text-muted leading-6">
+                  {{ isCaptain ? '你们已经通过至少一场仍未结束的比赛报名，当前不能加人、退队或移除成员。' : '你的队伍已经通过至少一场仍未结束的比赛报名，当前不能更改队伍成员。' }}
+                </p>
+              </div>
+              <UBadge color="warning" variant="soft">
+                锁定中
+              </UBadge>
+            </div>
+          </div>
 
           <div>
             <p class="text-sm text-muted mb-1">
@@ -900,14 +917,17 @@ onMounted(async () => {
       <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
         <UPageCard title="队伍入口" icon="i-lucide-users">
           <div class="space-y-4">
-            <UAlert
-              :color="teamEntryNoticeMeta.color"
-              variant="soft"
-              :icon="teamEntryNoticeMeta.icon"
-              :title="teamEntryNoticeMeta.title"
-              :description="teamEntryNoticeMeta.description"
-            >
-              <template #actions>
+            <div class="rounded-lg border border-default bg-elevated/50 px-4 py-3">
+              <div class="flex items-start justify-between gap-4 flex-wrap">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2 font-medium text-highlighted">
+                    <UIcon :name="teamEntryNoticeMeta.icon" class="size-4" />
+                    <span>{{ teamEntryNoticeMeta.title }}</span>
+                  </div>
+                  <p class="mt-2 text-sm text-muted leading-6">
+                    {{ teamEntryNoticeMeta.description }}
+                  </p>
+                </div>
                 <div class="flex flex-wrap gap-2">
                   <UButton
                     size="sm"
@@ -923,8 +943,8 @@ onMounted(async () => {
                     variant="ghost"
                   />
                 </div>
-              </template>
-            </UAlert>
+              </div>
+            </div>
 
             <div class="flex flex-wrap gap-2">
               <UButton icon="i-lucide-plus" @click="createTeamModalOpen = true">

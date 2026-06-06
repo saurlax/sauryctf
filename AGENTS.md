@@ -100,12 +100,14 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - Public pages, login/register pages, and console home should not carry setup-wizard or initialization-style panels. Empty-state handling should stay minimal and operational.
 - The public home page should function as a concise platform entry, not a marketing-style feature showcase; prefer direct access cards and current actions over large capability grids.
 - The no-team view at `/console/team` should keep a single primary entry card plus one concise rules/boundary card; avoid stacking multiple alerts and repeated status summaries for the same create/join flow.
+- On `/console/team`, invite-context, next-step, and no-team entry notices should prefer compact summary cards with actions instead of full-width `UAlert` blocks when they are mainly restating current state and available navigation.
 - Admin-visible page copy should also avoid temporary operator phrasing such as `使用说明` or `快速开始`; prefer formal maintenance labels like `录入约定`, `检查项`, and `概览`.
 - The top-right guest navigation keeps two distinct actions, `登录` and `注册`; do not collapse them into a merged auth button.
 - Account-related status cards should avoid `当前状态：...`-style headings; prefer direct operational titles.
 - Public game pages should prefer state summaries such as `报名状态`, `队伍状态`, and `提交权限`; avoid numbered participation steps or overly tutorial-style action labels.
 - In the public game `Writeup` tab, avoid stacking a top summary grid, a side status card, and a separate rules list for the same state. Keep one editor card plus one compact status/review side card.
 - In public challenge cards, prefer one compact status summary block plus structured instance/attachment sections. Avoid stacking multiple `UAlert` components for the same card-level state.
+- On public game tabs such as `challenges`, `scoreboard`, and `writeup`, prefer one compact status summary header instead of repeating large `UAlert` blocks for visibility, freeze, or submission state.
 - On the public game overview sidebar, prefer one context card plus one rules/boundary card instead of splitting participant status, restrictions, and division info across too many small cards.
 - At the top of the public game detail page, keep one primary participation status block plus a compact next-step action row. Do not stack multiple large conclusion alerts for the same state.
 - On the console home page, prefer one consolidated workbench card for current summary, pending action, and common entry buttons instead of splitting overview and entry into separate cards with overlapping purpose.

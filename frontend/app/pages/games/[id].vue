@@ -2015,14 +2015,22 @@ onMounted(async () => {
                   当前队伍：{{ participation.team.name }}
                 </span>
               </div>
-              <UAlert
-                class="mt-3 max-w-2xl"
-                :icon="registrationPanelSummary.icon"
-                :color="registrationPanelSummary.color"
-                variant="soft"
-                :title="registrationPanelSummary.title"
-                :description="topStatusDescription"
-              />
+              <div class="mt-3 max-w-2xl rounded-lg border border-default bg-elevated/50 px-3 py-3">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-2 font-medium text-highlighted">
+                      <UIcon :name="registrationPanelSummary.icon" class="size-4" />
+                      <span>{{ registrationPanelSummary.title }}</span>
+                    </div>
+                    <p class="mt-2 text-sm text-muted leading-6">
+                      {{ topStatusDescription }}
+                    </p>
+                  </div>
+                  <UBadge :color="registrationPanelSummary.color" variant="soft" size="sm">
+                    {{ participationSummaryLabel }}
+                  </UBadge>
+                </div>
+              </div>
             </div>
 
             <div class="flex gap-2">
@@ -2268,13 +2276,21 @@ onMounted(async () => {
 
       <!-- Challenges Tab -->
       <div v-else-if="activeTab === 'challenges'">
-        <UAlert
-          class="mb-6"
-          :color="hasVisibleChallengeContent ? 'success' : 'warning'"
-          variant="soft"
-          :title="hasVisibleChallengeContent ? '题目内容已开放' : '题目内容暂未完全开放'"
-          :description="challengeVisibilityHint"
-        />
+        <div class="mb-6 rounded-lg border border-default bg-elevated/50 px-4 py-3">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="font-medium text-highlighted">
+                {{ hasVisibleChallengeContent ? '题目内容已开放' : '题目内容暂未完全开放' }}
+              </div>
+              <p class="mt-2 text-sm text-muted leading-6">
+                {{ challengeVisibilityHint }}
+              </p>
+            </div>
+            <UBadge :color="hasVisibleChallengeContent ? 'success' : 'warning'" variant="soft">
+              {{ hasVisibleChallengeContent ? '已开放' : '受限' }}
+            </UBadge>
+          </div>
+        </div>
 
         <UEmpty
           v-if="challenges.length === 0"
@@ -2633,23 +2649,33 @@ onMounted(async () => {
                     </div>
                   </div>
 
-                  <UAlert
+                  <div
                     v-else-if="!ch.description"
-                    color="warning"
-                    variant="subtle"
-                    title="题面暂未开放"
-                    description="当前仅展示题目基础信息。"
-                  />
+                    class="rounded-lg border border-default bg-elevated/50 px-3 py-3 text-sm text-muted"
+                  >
+                    当前仅展示题目基础信息。
+                  </div>
                 </div>
 
                 <div v-if="!ch.solved" class="space-y-2">
-                  <UAlert
+                  <div
                     v-if="!canSubmitFlag"
-                    :color="challengeSubmitMeta.color"
-                    variant="subtle"
-                    :title="challengeSubmitMeta.title"
-                    :description="challengeSubmitMeta.description"
-                  />
+                    class="rounded-lg border border-default bg-elevated/50 px-3 py-3"
+                  >
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="font-medium text-highlighted">
+                          {{ challengeSubmitMeta.title }}
+                        </div>
+                        <p class="mt-2 text-sm text-muted leading-6">
+                          {{ challengeSubmitMeta.description }}
+                        </p>
+                      </div>
+                      <UBadge :color="challengeSubmitMeta.color" variant="soft" size="sm">
+                        暂不可提交
+                      </UBadge>
+                    </div>
+                  </div>
                   <div v-if="canSubmitFlag" class="flex gap-2">
                     <UInput
                       v-model="flagInputs[ch.id]"
@@ -2722,13 +2748,21 @@ onMounted(async () => {
           </UPageGrid>
 
           <UPageCard title="队伍总榜" icon="i-lucide-trophy">
-            <UAlert
-              class="mb-4"
-              :color="scoreboardFrozen ? 'warning' : 'info'"
-              variant="soft"
-              title="当前榜单视图"
-              :description="scoreboardViewDescription"
-            />
+            <div class="mb-4 rounded-lg border border-default bg-elevated/50 px-4 py-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="font-medium text-highlighted">
+                    当前榜单视图
+                  </div>
+                  <p class="mt-2 text-sm text-muted leading-6">
+                    {{ scoreboardViewDescription }}
+                  </p>
+                </div>
+                <UBadge :color="scoreboardFrozen ? 'warning' : 'info'" variant="soft">
+                  {{ scoreboardFrozen ? '已封榜' : '公开榜单' }}
+                </UBadge>
+              </div>
+            </div>
             <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <UFormField label="查看分组" name="division" class="max-w-sm">
                 <USelect
@@ -2741,14 +2775,24 @@ onMounted(async () => {
                 {{ selectedDivision ? `当前仅显示 ${selectedDivision} 的公开榜单。` : '当前显示全部公开队伍。' }}
               </p>
             </div>
-            <UAlert
+            <div
               v-if="scoreboardFrozen && scoreboardFreezeTime"
-              class="mb-4"
-              color="warning"
-              variant="soft"
-              title="排行榜已封榜"
-              :description="`公开榜单当前冻结在 ${new Date(scoreboardFreezeTime).toLocaleString()}，后续解题不会继续显示在公开排名中。`"
-            />
+              class="mb-4 rounded-lg border border-default bg-elevated/50 px-4 py-3"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="font-medium text-highlighted">
+                    排行榜已封榜
+                  </div>
+                  <p class="mt-2 text-sm text-muted leading-6">
+                    {{ `公开榜单当前冻结在 ${new Date(scoreboardFreezeTime).toLocaleString()}，后续解题不会继续显示在公开排名中。` }}
+                  </p>
+                </div>
+                <UBadge color="warning" variant="soft">
+                  冻结中
+                </UBadge>
+              </div>
+            </div>
             <UEmpty
               v-if="scoreboard.length === 0"
               icon="i-lucide-trophy"
@@ -2856,12 +2900,21 @@ onMounted(async () => {
           <div class="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
             <UPageCard title="Writeup" icon="i-lucide-file-text">
               <div class="space-y-4">
-                <UAlert
-                  :color="writeupGuide.color"
-                  variant="soft"
-                  :title="writeupGuide.title"
-                  :description="writeupGuide.description"
-                />
+                <div class="rounded-lg border border-default bg-elevated/50 px-4 py-3">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="font-medium text-highlighted">
+                        {{ writeupGuide.title }}
+                      </div>
+                      <p class="mt-2 text-sm text-muted leading-6">
+                        {{ writeupGuide.description }}
+                      </p>
+                    </div>
+                    <UBadge :color="writeupGuide.color" variant="soft">
+                      {{ canEditWriteup ? '可编辑' : '只读' }}
+                    </UBadge>
+                  </div>
+                </div>
 
                 <UForm
                   v-if="canEditWriteup"
