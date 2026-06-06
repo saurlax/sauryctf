@@ -34,6 +34,9 @@
 - 管理员从比赛详情页回到管理端时：
   - 比赛概览区的管理入口应优先带上 `game_id` 并落到 `#game-settings`
   - 题目区的管理入口应继续带上 `game_id + challenge_id` 并落到 `#attach-challenge`
+  - 如果当前需要排查提交或动态实例，也可直接从题目卡片进入：
+    - `#submissions`
+    - `#monitoring`
   - 不把管理员重新送回无上下文的 `/console/admin`
 
 ## 公开浏览边界

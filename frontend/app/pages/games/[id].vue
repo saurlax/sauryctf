@@ -121,6 +121,14 @@ function buildAdminChallengeEntry(challengeId: number) {
   return buildAdminGameSectionLink('#attach-challenge', challengeId)
 }
 
+function buildAdminChallengeSubmissionsEntry(challengeId: number) {
+  return buildAdminGameSectionLink('#submissions', challengeId)
+}
+
+function buildAdminChallengeMonitoringEntry(challengeId: number) {
+  return buildAdminGameSectionLink('#monitoring', challengeId)
+}
+
 const routeRequestedTab = computed(() => typeof route.query.tab === 'string' ? route.query.tab : '')
 const routeRequestedChallengeId = computed(() => {
   const rawValue = route.query.challenge
@@ -2565,15 +2573,36 @@ onMounted(async () => {
                   </span>
                 </div>
 
-                <div v-if="isAdmin" class="mb-3 flex justify-end">
-                  <UButton
-                    size="xs"
-                    variant="ghost"
-                    icon="i-lucide-settings-2"
-                    :to="buildAdminChallengeEntry(ch.id)"
-                  >
-                    处理这道题
-                  </UButton>
+                <div v-if="isAdmin" class="mb-3">
+                  <UFieldGroup class="justify-end">
+                    <UButton
+                      size="xs"
+                      variant="ghost"
+                      icon="i-lucide-settings-2"
+                      :to="buildAdminChallengeEntry(ch.id)"
+                    >
+                      维护
+                    </UButton>
+                    <UButton
+                      size="xs"
+                      color="neutral"
+                      variant="outline"
+                      icon="i-lucide-logs"
+                      :to="buildAdminChallengeSubmissionsEntry(ch.id)"
+                    >
+                      提交流
+                    </UButton>
+                    <UButton
+                      v-if="supportsManagedInstance(ch)"
+                      size="xs"
+                      color="neutral"
+                      variant="outline"
+                      icon="i-lucide-activity"
+                      :to="buildAdminChallengeMonitoringEntry(ch.id)"
+                    >
+                      实例监控
+                    </UButton>
+                  </UFieldGroup>
                 </div>
 
                 <div class="mb-3 text-xs text-muted">
