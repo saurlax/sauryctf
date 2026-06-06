@@ -662,6 +662,134 @@ function getInstancePolicyHint(challengeId: number) {
   return '首次启动会创建一段初始租约；之后的续期会按当前实例策略额外追加新的时长。'
 }
 
+function getManagedInstanceMeta(challenge: GameChallengeDetail) {
+  const state = instanceStates[challenge.id]
+  const hasTemplateEntry = hasChallengeInstanceTemplate(challenge.container_spec)
+  const hasResolvedEntry = !!state?.launch_url
+  const secondsLeft = getInstanceSecondsLeft(challenge.id)
+
+  if (!authState.user) {
+    return {
+      color: 'info' as const,
+      icon: 'i-lucide-log-in',
+      title: '登录后可查看当前队伍实例状态',
+      description: '实例租约按当前队伍维度管理。登录后，页面才会同步你的实例状态、可用入口与续期窗口。',
+    }
+  }
+
+  if (!participation.value?.has_team) {
+    return {
+      color: 'warning' as const,
+      icon: 'i-lucide-users',
+      title: '准备队伍后才能启动实例',
+      description: '当前比赛以内队形式分配实例。请先创建或加入队伍，再回到这里启动或查看当前队伍实例。',
+    }
+  }
+
+  if (!participation.value?.participated) {
+    return {
+      color: 'info' as const,
+      icon: 'i-lucide-badge-plus',
+      title: '报名成功后才能分配实例',
+      description: '当前队伍还没有这场比赛的报名记录。完成报名后，页面才会继续开放实例启动与状态同步。',
+    }
+  }
+
+  if (participation.value.status === 'pending') {
+    return {
+      color: 'warning' as const,
+      icon: 'i-lucide-hourglass',
+      title: '当前报名待审核，实例暂未开放',
+      description: '只有通过报名审核的队伍才能启动或续期实例。审核通过后，这里会自动切换到队伍实例视角。',
+    }
+  }
+
+  if (participation.value.status === 'rejected') {
+    return {
+      color: 'error' as const,
+      icon: 'i-lucide-badge-x',
+      title: '当前报名未通过，实例暂不可用',
+      description: '这场比赛的报名还未通过。请先重新报名或调整队伍状态，实例入口与租约操作才会重新开放。',
+    }
+  }
+
+  if (gameStatusMeta.value.label === '未开始') {
+    return {
+      color: 'info' as const,
+      icon: 'i-lucide-clock-3',
+      title: '比赛尚未开始，实例暂未开放',
+      description: '你的队伍已经具备参赛资格。开赛后，这里会自动切换为实例启动或续期状态。',
+    }
+  }
+
+  if (gameStatusMeta.value.label === '已结束' && !game.value?.practice_mode) {
+    return {
+      color: 'neutral' as const,
+      icon: 'i-lucide-flag-off',
+      title: '比赛已结束，实例租约已停止开放',
+      description: '当前比赛没有开启赛后练习模式，因此这里只保留实例记录展示，不再开放新的启动或续期操作。',
+    }
+  }
+
+  if (state?.status === 'running' && secondsLeft <= 0) {
+    return {
+      color: 'warning' as const,
+      icon: 'i-lucide-rotate-ccw',
+      title: '当前实例已过期，建议重新启动',
+      description: '这条租约已经到期。你可以直接重新启动实例，平台会为当前队伍分配一条新的有效租约。',
+    }
+  }
+
+  if (state?.status === 'running') {
+    if (state.can_renew) {
+      return {
+        color: 'success' as const,
+        icon: 'i-lucide-refresh-cw',
+        title: hasResolvedEntry ? '当前队伍实例运行中，已进入续期窗口' : '实例运行中，已进入续期窗口',
+        description: hasResolvedEntry
+          ? '当前显示的是这支队伍的真实实例入口。现在可以直接访问实例，也可以在到期前完成续期。'
+          : '实例已经运行，当前也已进入续期窗口。若入口仍未回填，可先刷新状态后再继续访问或续期。',
+      }
+    }
+
+    if (hasResolvedEntry) {
+      return {
+        color: isMockInstance(challenge) ? 'warning' as const : 'success' as const,
+        icon: isMockInstance(challenge) ? 'i-lucide-monitor-up' : 'i-lucide-box',
+        title: isMockInstance(challenge) ? '当前队伍实例运行中，入口已切换到访问页' : '当前队伍实例运行中',
+        description: isMockInstance(challenge)
+          ? '当前入口已经切换到实例访问页。你可以先进入页面核对访问地址、租约剩余时间和后续续期窗口。'
+          : '当前显示的是这支队伍的真实实例入口。实例仍在有效期内，但还没有进入可续期时间。',
+      }
+    }
+
+    return {
+      color: 'info' as const,
+      icon: 'i-lucide-box',
+      title: hasTemplateEntry ? '实例运行中，当前仍显示入口模板' : '实例运行中，等待入口信息同步',
+      description: hasTemplateEntry
+        ? '实例已经启动，但当前还没有拿到这支队伍的实际入口，页面暂时继续展示模板接入信息。可以先刷新状态，等待真实入口回填。'
+        : '实例已经启动。若运行入口尚未显示，可以先刷新状态，等待后端同步当前队伍的实际入口信息。',
+    }
+  }
+
+  if (hasTemplateEntry) {
+    return {
+      color: 'info' as const,
+      icon: 'i-lucide-layout-template',
+      title: '当前显示的是实例入口模板',
+      description: '这道题支持按队伍分配实例。启动后，这里的模板入口会优先切换成当前队伍的真实访问地址。',
+    }
+  }
+
+  return {
+    color: 'neutral' as const,
+    icon: 'i-lucide-play',
+    title: '当前还没有运行中的队伍实例',
+    description: '这道题支持实例租约。启动后，页面会同步当前队伍的运行状态、剩余时间、入口信息与续期策略。',
+  }
+}
+
 async function syncChallengeInstances() {
   for (const challenge of challenges.value) {
     if (authState.user && supportsManagedInstance(challenge)) {
@@ -2354,11 +2482,11 @@ onMounted(async () => {
                     </div>
                     <div class="space-y-2 text-muted">
                       <UAlert
-                        v-if="hasChallengeInstanceTemplate(ch.container_spec) && !instanceStates[ch.id]?.launch_url"
-                        color="info"
+                        :color="getManagedInstanceMeta(ch).color"
+                        :icon="getManagedInstanceMeta(ch).icon"
                         variant="soft"
-                        title="当前显示的是入口模板"
-                        description="这道题的接入信息包含按队伍解析的动态字段。启动实例后，这里会优先显示当前队伍的实际访问入口。"
+                        :title="getManagedInstanceMeta(ch).title"
+                        :description="getManagedInstanceMeta(ch).description"
                       />
                       <p v-if="getChallengeInstanceSpec(ch.container_spec)?.note" class="leading-6 whitespace-pre-wrap">
                         {{ getChallengeInstanceSpec(ch.container_spec)?.note }}
@@ -2466,23 +2594,6 @@ onMounted(async () => {
                           </span>
                         </div>
 
-                        <UAlert
-                          class="mb-3"
-                          :color="getInstanceStatusColor(ch.id)"
-                          variant="soft"
-                          title="当前队伍实例"
-                          :description="instanceStates[ch.id]?.message || (hasChallengeInstanceTemplate(ch.container_spec) ? '当前题目支持实例租约，并会把预设入口解析成当前队伍可用的独立地址。' : '当前题目支持实例租约，启动后会返回当前队伍的运行状态。')"
-                        />
-
-                        <UAlert
-                          v-if="instanceStates[ch.id]?.status === 'running' && !instanceStates[ch.id]?.can_renew"
-                          class="mb-3"
-                          color="info"
-                          variant="soft"
-                          title="当前还没到可续期时间"
-                          :description="instanceStates[ch.id]?.message || '当前实例只有在进入续期窗口后才开放续期。'"
-                        />
-
                         <div class="mb-3 rounded-md border border-default px-3 py-3">
                           <div class="mb-2 flex items-center justify-between gap-3 text-xs text-muted">
                             <span>租约剩余时间</span>
@@ -2499,15 +2610,6 @@ onMounted(async () => {
                             {{ getInstancePolicyHint(ch.id) }}
                           </div>
                         </div>
-
-                        <UAlert
-                          v-if="isMockInstance(ch)"
-                          class="mb-3"
-                          color="warning"
-                          variant="soft"
-                          title="当前入口已跳转到实例详情页"
-                          description="当前队伍入口已经解析完成，你可以继续在实例详情页核对访问入口、租约状态和续期策略。"
-                        />
 
                         <div class="grid gap-3 text-xs text-muted md:grid-cols-2">
                           <div class="rounded-md border border-default px-3 py-2">

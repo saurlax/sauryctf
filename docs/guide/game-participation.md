@@ -82,6 +82,7 @@
   - 对于 `dynamic` 题目，如果同时提供了 `runtime.provider` 或 `runtime.image`：
     - 当前比赛页还会额外展示一个“实例状态”区
     - 已通过报名的队伍可以主动启动实例，或在租约快结束时继续续期
+    - 实例区会明确区分“模板入口 / 当前队伍真实入口 / 未到续期窗口 / 已进入续期窗口 / 已过期待重启”等常见状态
     - 默认实现仍然是最小实例租约骨架，只负责记录运行状态、到期时间和入口信息
     - 当后端显式开启 `INSTANCE_DOCKER_PROVIDER_ENABLED=true` 后，`runtime.provider = docker` 会切换到本地真实 Docker CLI provider
     - 当前这个真实 provider 适合先跑最小 Web 容器链路，例如 `nginx:alpine + expose: [80]`
