@@ -1560,6 +1560,24 @@ const contestTeamContextRows = computed(() => [
     value: canSubmitFlag.value ? '是' : '否',
   },
 ])
+const currentActionSummaryRows = computed(() => [
+  {
+    label: '当前结论',
+    value: nextStepMeta.value.title,
+  },
+  {
+    label: '主操作',
+    value: detailPrimaryAction.value.label,
+  },
+  {
+    label: '辅助入口',
+    value: detailSecondaryAction.value?.label || '无',
+  },
+  {
+    label: '当前标签',
+    value: tabItems.find(item => item.value === activeTab.value)?.label || '概览',
+  },
+])
 
 const instanceLimitSummary = computed(() => {
   if (!hasManagedInstanceChallenges.value) {
@@ -2147,35 +2165,50 @@ onMounted(async () => {
           <div class="space-y-6">
             <UPageCard title="当前行动" icon="i-lucide-list-checks">
               <div class="space-y-4">
-                <UAlert
-                  :color="nextStepMeta.color"
-                  variant="soft"
-                  :title="nextStepMeta.title"
-                  :description="nextStepMeta.description"
-                >
-                  <template #actions>
-                    <div class="flex gap-2 flex-wrap">
-                      <UButton
-                        size="sm"
-                        :to="nextStepMeta.actionTo"
-                        :color="nextStepMeta.color === 'neutral' ? 'neutral' : 'primary'"
-                        @click="handleNextStepAction(nextStepMeta)"
-                      >
-                        {{ nextStepMeta.actionLabel }}
-                      </UButton>
-                      <UButton
-                        v-if="nextStepMeta.secondaryLabel && nextStepMeta.secondaryTo"
-                        size="sm"
-                        variant="outline"
-                        :to="nextStepMeta.secondaryTo"
-                      >
-                        {{ nextStepMeta.secondaryLabel }}
-                      </UButton>
-                    </div>
-                  </template>
-                </UAlert>
+                <div class="space-y-3 rounded-lg border border-default px-3 py-3">
+                  <div class="font-medium">
+                    当前行动摘要
+                  </div>
+                  <div
+                    v-for="row in currentActionSummaryRows"
+                    :key="row.label"
+                    class="flex items-center justify-between gap-3 rounded-md bg-elevated/60 px-3 py-2 text-sm"
+                  >
+                    <span class="text-muted">{{ row.label }}</span>
+                    <span class="text-right">{{ row.value }}</span>
+                  </div>
+                </div>
 
                 <div class="flex flex-col gap-3">
+                  <UButton
+                    v-if="detailPrimaryAction.mode === 'link'"
+                    :to="detailPrimaryAction.to"
+                    :icon="detailPrimaryAction.icon"
+                    :color="detailPrimaryAction.color"
+                    :variant="detailPrimaryAction.variant"
+                  >
+                    {{ detailPrimaryAction.label }}
+                  </UButton>
+                  <UButton
+                    v-else
+                    :icon="detailPrimaryAction.icon"
+                    :color="detailPrimaryAction.color"
+                    :variant="detailPrimaryAction.variant"
+                    :loading="detailPrimaryAction.loading"
+                    :disabled="detailPrimaryAction.disabled"
+                    :to="detailPrimaryAction.to"
+                    @click="detailPrimaryAction.onClick?.()"
+                  >
+                    {{ detailPrimaryAction.label }}
+                  </UButton>
+                  <UButton
+                    v-if="detailSecondaryAction"
+                    :to="detailSecondaryAction.to"
+                    variant="outline"
+                    :icon="detailSecondaryAction.icon"
+                  >
+                    {{ detailSecondaryAction.label }}
+                  </UButton>
                   <UButton icon="i-lucide-flag" variant="outline" @click="activeTab = 'challenges'">
                     浏览题目
                   </UButton>
