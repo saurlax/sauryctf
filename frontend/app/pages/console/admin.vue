@@ -547,6 +547,8 @@ const scoreboardFreezeTime = ref<string | null>(null)
 const selectedScoreboardDivision = ref('')
 const highlightedChallengeId = ref<number | null>(null)
 const pendingAnnouncementRouteId = ref<number | null>(null)
+const pendingParticipantRouteTeamId = ref<number | null>(null)
+const pendingWriteupRouteTeamId = ref<number | null>(null)
 type AdminGameSummary = (typeof games.value)[number]
 type ConfirmActionType =
   | 'destroy-instance'
@@ -1349,6 +1351,28 @@ function buildAdminAnnouncementEditLink(gameId: number, announcementId: number) 
     section: '#announcements',
     announcement_id: String(announcementId),
     mode: 'edit-announcement',
+  })
+
+  return `/console/admin?${query.toString()}`
+}
+
+function buildAdminParticipantReviewLink(gameId: number, teamId: number) {
+  const query = new URLSearchParams({
+    game_id: String(gameId),
+    section: '#participants',
+    team_id: String(teamId),
+    mode: 'review-participant',
+  })
+
+  return `/console/admin?${query.toString()}`
+}
+
+function buildAdminWriteupReviewLink(gameId: number, teamId: number) {
+  const query = new URLSearchParams({
+    game_id: String(gameId),
+    section: '#writeups',
+    team_id: String(teamId),
+    mode: 'review-writeup',
   })
 
   return `/console/admin?${query.toString()}`
@@ -2346,6 +2370,34 @@ function tryOpenAnnouncementFromRoute() {
 
   openEditAnnouncementModal(announcement)
   pendingAnnouncementRouteId.value = null
+}
+
+function tryOpenParticipantReviewFromRoute() {
+  if (!pendingParticipantRouteTeamId.value) {
+    return
+  }
+
+  const participant = participants.value.find(item => item.team_id === pendingParticipantRouteTeamId.value)
+  if (!participant) {
+    return
+  }
+
+  openParticipantReviewModal(participant.team_id)
+  pendingParticipantRouteTeamId.value = null
+}
+
+function tryOpenWriteupReviewFromRoute() {
+  if (!pendingWriteupRouteTeamId.value) {
+    return
+  }
+
+  const writeup = writeups.value.find(item => item.team_id === pendingWriteupRouteTeamId.value)
+  if (!writeup) {
+    return
+  }
+
+  openWriteupReviewModal(writeup.team_id)
+  pendingWriteupRouteTeamId.value = null
 }
 
 async function createAnnouncement(payload: FormSubmitEvent<z.output<typeof announcementSchema>>) {
@@ -3444,18 +3496,21 @@ async function applyRouteContext() {
   const gameIdRaw = route.query.game_id
   const challengeIdRaw = route.query.challenge_id
   const announcementIdRaw = route.query.announcement_id
+  const teamIdRaw = route.query.team_id
   const sectionRaw = route.query.section
   const modeRaw = route.query.mode
 
   const gameIdValue = typeof gameIdRaw === 'string' ? gameIdRaw : Array.isArray(gameIdRaw) ? gameIdRaw[0] : ''
   const challengeIdValue = typeof challengeIdRaw === 'string' ? challengeIdRaw : Array.isArray(challengeIdRaw) ? challengeIdRaw[0] : ''
   const announcementIdValue = typeof announcementIdRaw === 'string' ? announcementIdRaw : Array.isArray(announcementIdRaw) ? announcementIdRaw[0] : ''
+  const teamIdValue = typeof teamIdRaw === 'string' ? teamIdRaw : Array.isArray(teamIdRaw) ? teamIdRaw[0] : ''
   const sectionValue = typeof sectionRaw === 'string' ? sectionRaw : Array.isArray(sectionRaw) ? sectionRaw[0] : ''
   const modeValue = typeof modeRaw === 'string' ? modeRaw : Array.isArray(modeRaw) ? modeRaw[0] : ''
 
   const gameId = Number(gameIdValue)
   const challengeId = Number(challengeIdValue)
   const announcementId = Number(announcementIdValue)
+  const teamId = Number(teamIdValue)
 
   if (Number.isFinite(gameId) && games.value.some(game => game.id === gameId)) {
     selectGameContext(gameId)
@@ -3481,6 +3536,16 @@ async function applyRouteContext() {
   if (modeValue === 'edit-announcement' && Number.isFinite(announcementId) && announcementId > 0) {
     pendingAnnouncementRouteId.value = announcementId
     tryOpenAnnouncementFromRoute()
+  }
+
+  if (modeValue === 'review-participant' && Number.isFinite(teamId) && teamId > 0) {
+    pendingParticipantRouteTeamId.value = teamId
+    tryOpenParticipantReviewFromRoute()
+  }
+
+  if (modeValue === 'review-writeup' && Number.isFinite(teamId) && teamId > 0) {
+    pendingWriteupRouteTeamId.value = teamId
+    tryOpenWriteupReviewFromRoute()
   }
 
   if (sectionValue) {
@@ -4415,6 +4480,16 @@ watch(() => attachForm.game_id, async () => {
   await loadCheatClues()
   await loadAnnouncements()
   tryOpenAnnouncementFromRoute()
+  tryOpenParticipantReviewFromRoute()
+  tryOpenWriteupReviewFromRoute()
+})
+
+watch(() => route.query, async () => {
+  if (!isAdmin.value) {
+    return
+  }
+
+  await applyRouteContext()
 })
 
 watch(() => [submissionFilters.type, submissionFilters.count], async () => {
@@ -4916,9 +4991,10 @@ onMounted(async () => {
                     </UBadge>
                   </div>
                   <div v-if="participants.some(item => item.status === 'pending')" class="space-y-2">
-                    <div
+                    <ULink
                       v-for="participant in participants.filter(item => item.status === 'pending').slice(0, 4)"
                       :key="participant.team_id"
+                      :to="buildAdminParticipantReviewLink(attachForm.game_id!, participant.team_id)"
                       class="rounded-md bg-default px-3 py-2"
                     >
                       <div class="text-sm font-medium">
@@ -4927,7 +5003,7 @@ onMounted(async () => {
                       <div class="text-xs text-muted">
                         {{ new Date(participant.joined_at).toLocaleString() }}
                       </div>
-                    </div>
+                    </ULink>
                   </div>
                   <UEmpty
                     v-else
@@ -4954,9 +5030,10 @@ onMounted(async () => {
                     </UBadge>
                   </div>
                   <div v-if="writeups.some(item => item.status === 'submitted')" class="space-y-2">
-                    <div
+                    <ULink
                       v-for="writeup in writeups.filter(item => item.status === 'submitted').slice(0, 4)"
                       :key="writeup.team_id"
+                      :to="buildAdminWriteupReviewLink(attachForm.game_id!, writeup.team_id)"
                       class="rounded-md bg-default px-3 py-2"
                     >
                       <div class="text-sm font-medium">
@@ -4965,7 +5042,7 @@ onMounted(async () => {
                       <div class="text-xs text-muted">
                         {{ new Date(writeup.submitted_at).toLocaleString() }}
                       </div>
-                    </div>
+                    </ULink>
                   </div>
                   <UEmpty
                     v-else

@@ -383,14 +383,44 @@ function buildGameDetailLink(gameId: number, options?: {
   return `/games/${gameId}?${query.toString()}`
 }
 
+function buildAdminParticipantReviewLink(gameId: number, teamId: number) {
+  const query = new URLSearchParams({
+    game_id: String(gameId),
+    section: '#participants',
+    team_id: String(teamId),
+    mode: 'review-participant',
+  })
+
+  return `/console/admin?${query.toString()}`
+}
+
+function buildAdminWriteupReviewLink(gameId: number, teamId: number) {
+  const query = new URLSearchParams({
+    game_id: String(gameId),
+    section: '#writeups',
+    team_id: String(teamId),
+    mode: 'review-writeup',
+  })
+
+  return `/console/admin?${query.toString()}`
+}
+
 const adminParticipantSectionLink = computed(() => {
   const target = adminPendingParticipants.value[0]
-  return target ? buildAdminGameSectionLink(target.game.id, '#participants') : buildAdminSectionLink('#participants')
+  if (!target) {
+    return buildAdminSectionLink('#participants')
+  }
+
+  return buildAdminParticipantReviewLink(target.game.id, target.team_id)
 })
 
 const adminWriteupSectionLink = computed(() => {
   const target = adminPendingWriteups.value[0]
-  return target ? buildAdminGameSectionLink(target.game.id, '#writeups') : buildAdminSectionLink('#writeups')
+  if (!target) {
+    return buildAdminSectionLink('#writeups')
+  }
+
+  return buildAdminWriteupReviewLink(target.game.id, target.team_id)
 })
 
 const adminAnnouncementSectionLink = computed(() => {
@@ -1103,7 +1133,7 @@ onBeforeUnmount(() => {
                     <ULink
                       v-for="item in adminPendingParticipants"
                       :key="`${item.game.id}-${item.team_id}`"
-                      :to="buildAdminGameSectionLink(item.game.id, '#participants')"
+                      :to="buildAdminParticipantReviewLink(item.game.id, item.team_id)"
                       class="rounded-md bg-elevated/60 px-3 py-2"
                     >
                       <div class="flex items-center justify-between gap-3">
@@ -1149,7 +1179,7 @@ onBeforeUnmount(() => {
                     <ULink
                       v-for="item in adminPendingWriteups"
                       :key="`${item.game.id}-${item.team_id}`"
-                      :to="buildAdminGameSectionLink(item.game.id, '#writeups')"
+                      :to="buildAdminWriteupReviewLink(item.game.id, item.team_id)"
                       class="rounded-md bg-elevated/60 px-3 py-2"
                     >
                       <div class="flex items-center justify-between gap-3">
