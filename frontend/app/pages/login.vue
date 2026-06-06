@@ -83,29 +83,21 @@ const state = reactive<Partial<LoginSchema>>({
             前往注册
           </ULink>
         </div>
-      </UPageCard>
-
-      <div class="space-y-6">
-        <UPageCard title="登录说明" icon="i-lucide-info">
+        <template #footer>
           <div class="space-y-3">
             <UAlert
               color="info"
               variant="soft"
-              title="跳转目标"
+              title="登录后去向"
               :description="redirectTarget"
             />
-            <p class="text-sm text-muted">
-              登录支持用户名或邮箱。成功后会优先返回当前请求中的目标页面；没有指定目标时，默认进入控制台。
-            </p>
-          </div>
-          <template #footer>
             <div class="flex flex-wrap gap-2">
               <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="ghost" />
               <UButton label="前往注册" icon="i-lucide-user-round-plus" :to="registerTo" variant="outline" />
             </div>
-          </template>
-        </UPageCard>
-      </div>
+          </div>
+        </template>
+      </UPageCard>
     </div>
   </div>
 </template>

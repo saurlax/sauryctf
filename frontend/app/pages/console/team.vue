@@ -857,14 +857,14 @@ onMounted(async () => {
 
         <UPageCard title="队伍说明" icon="i-lucide-list-check">
           <div class="space-y-3">
-            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              尚未固定队伍时，建议先完成组队，再前往比赛页处理报名和提交。
-            </div>
-            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              队长创建队伍后可立即获取邀请码和邀请链接；队员只需填入邀请码即可加入。
-            </div>
+            <UAlert
+              color="info"
+              variant="soft"
+              title="先完成组队，再继续参赛"
+              description="比赛报名、Flag 提交和排行榜都按队伍进行。创建者会自动成为队长，其他成员通过邀请码加入。"
+            />
             <div v-if="contestRedirect" class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              当前来自比赛详情页，创建或加入成功后会自动返回原比赛继续操作。
+              当前来自比赛详情页。创建或加入成功后，系统会自动返回原比赛继续操作。
             </div>
           </div>
 

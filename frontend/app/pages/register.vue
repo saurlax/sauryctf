@@ -99,32 +99,21 @@ const loginTo = computed(() => {
             前往登录
           </ULink>
         </div>
-      </UPageCard>
-
-      <div class="space-y-6">
-        <UPageCard title="注册说明" icon="i-lucide-info">
+        <template #footer>
           <div class="space-y-3">
             <UAlert
               color="info"
               variant="soft"
-              title="默认去向"
+              title="注册后去向"
               :description="redirectTarget.startsWith('/games/') ? `/console/team?redirect=${redirectTarget}` : '/console/team'"
             />
-            <p class="text-sm text-muted">
-              注册成功后会自动登录，并先进入队伍页。比赛报名、题目提交和排行榜都以队伍为单位进行。
-            </p>
-            <p v-if="redirectTarget.startsWith('/games/')" class="text-sm text-muted">
-              如果当前是从比赛详情页进入注册流程，完成组队后系统会继续返回原比赛页面。
-            </p>
-          </div>
-          <template #footer>
             <div class="flex flex-wrap gap-2">
               <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="ghost" />
               <UButton label="返回登录" icon="i-lucide-log-in" :to="loginTo" variant="outline" />
             </div>
-          </template>
-        </UPageCard>
-      </div>
+          </div>
+        </template>
+      </UPageCard>
     </div>
   </div>
 </template>
