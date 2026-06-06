@@ -21,7 +21,7 @@ const redirectTarget = computed(() => {
 })
 
 const registerSchema = z.object({
-  username: z.string().min(2, '用户名至少 2 个字符'),
+  username: z.string().min(3, '用户名至少 3 个字符'),
   email: z.string().email('请输入有效邮箱'),
   password: z.string().min(6, '密码至少 6 个字符'),
 })

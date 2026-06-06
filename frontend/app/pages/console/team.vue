@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import * as z from 'zod'
+import type { FormSubmitEvent } from '@nuxt/ui'
+
 definePageMeta({
   middleware: 'auth',
 })
@@ -36,8 +39,19 @@ interface TeamInfo {
 const team = ref<TeamInfo | null>(null)
 const loading = ref(true)
 
-const createForm = reactive({ name: '' })
-const joinForm = reactive({ invite_code: '' })
+const createTeamSchema = z.object({
+  name: z.string().trim().min(2, '队伍名称至少 2 个字符').max(128, '队伍名称最多 128 个字符'),
+})
+
+const joinTeamSchema = z.object({
+  invite_code: z.string().trim().min(1, '请输入邀请码'),
+})
+
+type CreateTeamSchema = z.output<typeof createTeamSchema>
+type JoinTeamSchema = z.output<typeof joinTeamSchema>
+
+const createForm = reactive<Partial<CreateTeamSchema>>({ name: '' })
+const joinForm = reactive<Partial<JoinTeamSchema>>({ invite_code: '' })
 const createLoading = ref(false)
 const joinLoading = ref(false)
 const removingMemberId = ref<number | null>(null)
@@ -371,15 +385,13 @@ async function fetchTeam() {
   }
 }
 
-async function createTeam() {
-  if (!createForm.name.trim()) {
-    toast.add({ title: '请输入队伍名称', color: 'error' })
-    return
-  }
+async function createTeam(payload?: FormSubmitEvent<CreateTeamSchema>) {
+  const teamName = payload?.data.name ?? createForm.name ?? ''
+
   createLoading.value = true
   try {
     const res = await $api('post', '/api/teams', {
-      body: { name: createForm.name },
+      body: { name: teamName },
     })
     team.value = res.team
     createTeamModalOpen.value = false
@@ -395,15 +407,13 @@ async function createTeam() {
   }
 }
 
-async function joinTeam() {
-  if (!joinForm.invite_code.trim()) {
-    toast.add({ title: '请输入邀请码', color: 'error' })
-    return
-  }
+async function joinTeam(payload?: FormSubmitEvent<JoinTeamSchema>) {
+  const inviteCode = payload?.data.invite_code ?? joinForm.invite_code ?? ''
+
   joinLoading.value = true
   try {
     await $api('post', '/api/teams/join', {
-      body: { invite_code: joinForm.invite_code },
+      body: { invite_code: inviteCode },
     })
     await fetchTeam()
     joinTeamModalOpen.value = false
@@ -1004,12 +1014,25 @@ onMounted(async () => {
     v-model:open="createTeamModalOpen"
     title="创建队伍"
     description="录入队伍名称后立即创建，创建者会自动成为队长。"
+    :dismissible="!createLoading"
     :ui="{ body: 'space-y-4', footer: 'justify-end' }"
   >
     <template #body>
-      <UForm :state="createForm" class="space-y-4" @submit="createTeam">
-        <UFormField label="队伍名称" name="name">
-          <UInput v-model="createForm.name" placeholder="输入队伍名称" size="lg" class="w-full" />
+      <UForm
+        id="create-team-form"
+        :schema="createTeamSchema"
+        :state="createForm"
+        class="space-y-4"
+        @submit="createTeam"
+      >
+        <UFormField label="队伍名称" name="name" required>
+          <UInput
+            v-model="createForm.name"
+            placeholder="输入队伍名称"
+            size="lg"
+            class="w-full"
+            :disabled="createLoading"
+          />
         </UFormField>
       </UForm>
     </template>
@@ -1018,7 +1041,7 @@ onMounted(async () => {
       <UButton variant="ghost" :disabled="createLoading" @click="close()">
         取消
       </UButton>
-      <UButton :loading="createLoading" @click="createTeam">
+      <UButton type="submit" form="create-team-form" :loading="createLoading">
         创建队伍
       </UButton>
     </template>
@@ -1030,12 +1053,25 @@ onMounted(async () => {
     :description="joinInviteFromRoute
       ? '当前已自动带入邀请码，确认后即可加入队伍。'
       : '输入邀请码后即可加入现有队伍。'"
+    :dismissible="!joinLoading"
     :ui="{ body: 'space-y-4', footer: 'justify-end' }"
   >
     <template #body>
-      <UForm :state="joinForm" class="space-y-4" @submit="joinTeam">
-        <UFormField label="邀请码" name="invite_code">
-          <UInput v-model="joinForm.invite_code" placeholder="输入队伍邀请码" size="lg" class="w-full" />
+      <UForm
+        id="join-team-form"
+        :schema="joinTeamSchema"
+        :state="joinForm"
+        class="space-y-4"
+        @submit="joinTeam"
+      >
+        <UFormField label="邀请码" name="invite_code" required>
+          <UInput
+            v-model="joinForm.invite_code"
+            placeholder="输入队伍邀请码"
+            size="lg"
+            class="w-full"
+            :disabled="joinLoading"
+          />
         </UFormField>
       </UForm>
     </template>
@@ -1044,7 +1080,7 @@ onMounted(async () => {
       <UButton variant="ghost" :disabled="joinLoading" @click="close()">
         取消
       </UButton>
-      <UButton :loading="joinLoading" @click="joinTeam">
+      <UButton type="submit" form="join-team-form" :loading="joinLoading">
         加入队伍
       </UButton>
     </template>
