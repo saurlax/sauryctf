@@ -273,6 +273,7 @@ internal/<module>/
   - `INSTANCE_DOCKER_HOST` controls the host returned to players in `launch_url` / `host`
   - `runtime.expose` is now parsed from `container_spec.runtime.expose` and is used to publish container ports when the real Docker provider is enabled
   - `runtime.expose` accepts common Docker publish forms such as `80`, `8080:80`, and `127.0.0.1:8080:80`; instance response port matching now always keys off the container-side port reported by `docker inspect`
+  - if `docker inspect` returns a concrete published `HostIp`, instance response now prefers that real bound address over the fallback host setting; IPv6 launch URLs are normalized with `[]`
   - the admin challenge form's generic `容器 Web` entry now defaults to `nginx:alpine` with `expose: [80]`, so local operators have one default that is closer to a truly runnable Docker-backed web challenge
   - current scope is intentionally local-machine oriented: one container per team/challenge lease, no compose, no volumes, no network policy, and no registry auth management yet
 - local dynamic instance renewal now uses a clearer `defaultLifetime / extensionDuration / renewalWindow` split instead of reusing the initial lease duration for every renewal

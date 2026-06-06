@@ -243,3 +243,94 @@ func TestDockerCLIProvider_EnsureLeaseMatchesInspectPortsForPublishedMappings(t 
 	assert.Equal(t, "8080", state.Port)
 	assert.Equal(t, "http://127.0.0.1:8080", state.LaunchURL)
 }
+
+func TestDockerCLIProvider_EnsureLeasePrefersConcreteDockerHostIP(t *testing.T) {
+	req := ChallengeInstanceProviderRequest{
+		GameID:            31,
+		ChallengeID:       32,
+		TeamID:            33,
+		UserID:            34,
+		Now:               time.Date(2026, 6, 7, 9, 0, 0, 0, time.UTC),
+		LeaseDuration:     30 * time.Minute,
+		ExtensionDuration: 30 * time.Minute,
+		Runtime: ChallengeInstanceRuntimeSpec{
+			Provider: "docker",
+			Image:    "nginx:alpine",
+			Expose:   []string{"8080:80"},
+		},
+	}
+	containerName := dockerInstanceContainerName(req)
+
+	runner := &fakeDockerCommandRunner{
+		outputs: map[string]fakeDockerCommandResult{
+			strings.Join([]string{
+				"run", "-d",
+				"--name", containerName,
+				"--label", "sauryctf.managed=true",
+				"--label", "sauryctf.game_id=31",
+				"--label", "sauryctf.challenge_id=32",
+				"--label", "sauryctf.team_id=33",
+				"-p", "8080:80",
+				"nginx:alpine",
+			}, "\x00"): {
+				output: []byte("container-id\n"),
+			},
+			strings.Join([]string{"inspect", "--format", "{{json .NetworkSettings.Ports}}", containerName}, "\x00"): {
+				output: []byte(`{"80/tcp":[{"HostIp":"192.168.50.10","HostPort":"8080"}]}`),
+			},
+		},
+	}
+
+	provider := newDockerCLIProvider("127.0.0.1", runner).(*dockerCLIProvider)
+	state, err := provider.EnsureLease(req)
+	require.NoError(t, err)
+
+	assert.Equal(t, "192.168.50.10", state.Host)
+	assert.Equal(t, "8080", state.Port)
+	assert.Equal(t, "http://192.168.50.10:8080", state.LaunchURL)
+}
+
+func TestDockerCLIProvider_EnsureLeaseFormatsIPv6LaunchURL(t *testing.T) {
+	req := ChallengeInstanceProviderRequest{
+		GameID:            41,
+		ChallengeID:       42,
+		TeamID:            43,
+		UserID:            44,
+		Now:               time.Date(2026, 6, 7, 10, 0, 0, 0, time.UTC),
+		LeaseDuration:     30 * time.Minute,
+		ExtensionDuration: 30 * time.Minute,
+		Runtime: ChallengeInstanceRuntimeSpec{
+			Provider: "docker",
+			Image:    "nginx:alpine",
+			Expose:   []string{"80"},
+		},
+	}
+	containerName := dockerInstanceContainerName(req)
+
+	runner := &fakeDockerCommandRunner{
+		outputs: map[string]fakeDockerCommandResult{
+			strings.Join([]string{
+				"run", "-d",
+				"--name", containerName,
+				"--label", "sauryctf.managed=true",
+				"--label", "sauryctf.game_id=41",
+				"--label", "sauryctf.challenge_id=42",
+				"--label", "sauryctf.team_id=43",
+				"-p", "80",
+				"nginx:alpine",
+			}, "\x00"): {
+				output: []byte("container-id\n"),
+			},
+			strings.Join([]string{"inspect", "--format", "{{json .NetworkSettings.Ports}}", containerName}, "\x00"): {
+				output: []byte(`{"80/tcp":[{"HostIp":"2001:db8::10","HostPort":"49123"}]}`),
+			},
+		},
+	}
+
+	provider := newDockerCLIProvider("127.0.0.1", runner).(*dockerCLIProvider)
+	state, err := provider.EnsureLease(req)
+	require.NoError(t, err)
+
+	assert.Equal(t, "2001:db8::10", state.Host)
+	assert.Equal(t, "http://[2001:db8::10]:49123", state.LaunchURL)
+}

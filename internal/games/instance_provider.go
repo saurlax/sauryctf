@@ -175,6 +175,7 @@ func (p *dockerCLIProvider) EnsureLease(req ChallengeInstanceProviderRequest) (*
 	}
 
 	host := templateChallengeInstanceValue(req.Runtime.Host, req)
+	hostProvided := host != ""
 	if host == "" {
 		host = p.host
 	}
@@ -190,17 +191,16 @@ func (p *dockerCLIProvider) EnsureLease(req ChallengeInstanceProviderRequest) (*
 
 		primaryKey := dockerPortKey(expose[0])
 		if bindings, ok := ports[primaryKey]; ok {
-			for _, binding := range bindings {
-				if strings.TrimSpace(binding.HostPort) == "" {
-					continue
+			if resolvedHost, resolvedPort := resolveDockerBindingEndpoint(bindings); resolvedPort != "" {
+				port = resolvedPort
+				if !hostProvided && resolvedHost != "" {
+					host = resolvedHost
 				}
-				port = strings.TrimSpace(binding.HostPort)
-				break
 			}
 		}
 
 		if port != "" && (launchURL == "" || strings.HasPrefix(launchURL, "/")) {
-			launchURL = fmt.Sprintf("http://%s:%s", host, port)
+			launchURL = fmt.Sprintf("http://%s:%s", formatDockerLaunchHost(host), port)
 		}
 	}
 
@@ -302,6 +302,41 @@ func dockerPortKey(value string) string {
 	}
 
 	return containerPort + "/tcp"
+}
+
+func resolveDockerBindingEndpoint(bindings []dockerPortBinding) (string, string) {
+	for _, binding := range bindings {
+		hostPort := strings.TrimSpace(binding.HostPort)
+		if hostPort == "" {
+			continue
+		}
+
+		hostIP := normalizeDockerBindingHost(binding.HostIP)
+		return hostIP, hostPort
+	}
+
+	return "", ""
+}
+
+func normalizeDockerBindingHost(host string) string {
+	normalized := strings.TrimSpace(host)
+	switch normalized {
+	case "", "0.0.0.0", "::":
+		return ""
+	default:
+		return normalized
+	}
+}
+
+func formatDockerLaunchHost(host string) string {
+	trimmed := strings.TrimSpace(host)
+	if trimmed == "" {
+		return ""
+	}
+	if strings.Contains(trimmed, ":") && !strings.HasPrefix(trimmed, "[") && !strings.HasSuffix(trimmed, "]") {
+		return "[" + trimmed + "]"
+	}
+	return trimmed
 }
 
 func challengeInstanceTeamHash(req ChallengeInstanceProviderRequest) string {
