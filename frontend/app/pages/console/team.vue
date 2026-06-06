@@ -252,23 +252,23 @@ const teamNextStepMeta = computed(() => {
 
 const summaryCards = computed(() => [
   {
-    label: '当前成员',
+    label: '成员数',
     value: memberCount.value ? `${memberCount.value} 人` : '0 人',
-    hint: '创建者会自动成为队长，其他成员通过邀请码加入',
+    hint: '创建者自动成为队长',
     icon: 'i-lucide-users',
     color: 'info' as const,
   },
   {
     label: '队伍状态',
     value: teamLocked.value ? '已锁定' : '可调整',
-    hint: teamLocked.value ? '至少有一场未结束且已通过报名的比赛' : '当前可以继续邀请、退队或调整成员',
+    hint: teamLocked.value ? '存在未结束且已通过报名的比赛' : '当前可邀请或调整成员',
     icon: teamLocked.value ? 'i-lucide-lock' : 'i-lucide-unlock',
     color: teamLocked.value ? 'warning' as const : 'success' as const,
   },
   {
     label: '锁定比赛',
     value: String(lockedGames.value.length),
-    hint: lockedGames.value.length ? '点下面的比赛卡片可以直接回到比赛详情页' : '当前没有比赛在锁定这支队伍',
+    hint: lockedGames.value.length ? '下方可直接返回比赛页' : '当前没有比赛锁定队伍',
     icon: 'i-lucide-trophy',
     color: lockedGames.value.length ? 'warning' as const : 'neutral' as const,
   },
@@ -882,7 +882,7 @@ onMounted(async () => {
         </template>
         </UPageCard>
 
-        <UPageCard :title="isCaptain ? '队伍管理摘要' : '当前操作范围'" :icon="isCaptain ? 'i-lucide-shield-check' : 'i-lucide-info'">
+        <UPageCard :title="isCaptain ? '操作边界' : '当前操作'" :icon="isCaptain ? 'i-lucide-shield-check' : 'i-lucide-info'">
           <div class="space-y-4">
             <div class="space-y-3 text-sm">
               <div
@@ -895,12 +895,9 @@ onMounted(async () => {
               </div>
             </div>
 
-            <UAlert
-              color="info"
-              variant="soft"
-              :title="isCaptain ? '当前维护建议' : '当前参赛建议'"
-              :description="teamManagementHint"
-            />
+            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted leading-6">
+              {{ teamManagementHint }}
+            </div>
           </div>
         </UPageCard>
       </div>
@@ -965,13 +962,6 @@ onMounted(async () => {
         </div>
         <UPageCard title="队伍入口" icon="i-lucide-users">
           <div class="space-y-4">
-            <UAlert
-              color="info"
-              variant="soft"
-              title="队伍操作"
-              description="创建新队伍或通过邀请码加入现有队伍。"
-            />
-
             <div class="flex flex-wrap gap-2">
               <UButton icon="i-lucide-plus" @click="createTeamModalOpen = true">
                 创建队伍
@@ -994,16 +984,11 @@ onMounted(async () => {
                 <span class="text-right">{{ row.value }}</span>
               </div>
             </div>
-          </div>
-        </UPageCard>
 
-        <UPageCard title="队伍说明" icon="i-lucide-list-check">
-          <UAlert
-            color="info"
-            variant="soft"
-            title="队伍是比赛参与的基础单元"
-            description="比赛报名、Flag 提交和排行榜都按队伍进行。创建者会自动成为队长，其他成员可通过邀请码加入。"
-          />
+            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted leading-6">
+              比赛报名、Flag 提交和排行榜都按队伍进行。完成创建或加入后，可直接返回比赛页继续后续操作。
+            </div>
+          </div>
           <template #footer>
             <div class="flex flex-wrap items-center gap-2">
               <UButton label="浏览比赛" variant="ghost" icon="i-lucide-trophy" to="/games" />
