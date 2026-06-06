@@ -350,41 +350,29 @@ const pendingWriteupGames = computed(() =>
   games.value.filter(game => participationMap.value[game.id]?.missing_writeup),
 )
 
-const adminTodoCards = computed(() => [
+const adminPrioritySummaryRows = computed(() => [
   {
     label: '待审核报名',
-    value: String(adminPendingParticipants.value.length),
-    hint: '最近 5 场比赛里仍待审核的队伍报名',
-    icon: 'i-lucide-hourglass',
-    color: 'warning' as const,
+    value: `${adminPendingParticipants.value.length} 项`,
   },
   {
     label: '待审 Writeup',
-    value: String(adminPendingWriteups.value.length),
-    hint: '最近 5 场比赛里等待管理员处理的 Writeup',
-    icon: 'i-lucide-file-clock',
-    color: 'info' as const,
+    value: `${adminPendingWriteups.value.length} 项`,
   },
+])
+
+const adminSignalSummaryRows = computed(() => [
   {
     label: '最新公告',
-    value: String(adminLatestAnnouncements.value.length),
-    hint: '最近 5 场比赛里已发布的最新公告记录',
-    icon: 'i-lucide-megaphone',
-    color: 'success' as const,
+    value: `${adminLatestAnnouncements.value.length} 条`,
   },
   {
     label: '最近提交',
-    value: String(adminRecentSubmissions.value.length),
-    hint: '最近 5 场比赛里最新的提交记录',
-    icon: 'i-lucide-activity',
-    color: 'neutral' as const,
+    value: `${adminRecentSubmissions.value.length} 条`,
   },
   {
     label: '可疑线索',
-    value: String(adminCheatClues.value.length),
-    hint: '多队重复错误 Flag 的轻量线索',
-    icon: 'i-lucide-shield-alert',
-    color: 'error' as const,
+    value: `${adminCheatClues.value.length} 条`,
   },
 ])
 
@@ -1002,24 +990,24 @@ onBeforeUnmount(() => {
               <UIcon name="i-lucide-loader-2" class="animate-spin size-6 text-muted" />
             </div>
             <div v-else class="space-y-4">
-              <UPageGrid :cols="{ default: 1, sm: 2, xl: 5 }">
-                <UPageCard
-                  v-for="card in adminTodoCards"
-                  :key="card.label"
-                  :title="card.value"
-                  :description="card.label"
-                  :icon="card.icon"
+              <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+                <div class="flex items-center justify-between gap-3 flex-wrap">
+                  <div class="font-medium text-highlighted">
+                    当前优先处理
+                  </div>
+                  <UButton size="sm" variant="ghost" icon="i-lucide-settings-2" to="/console/admin">
+                    打开管理端
+                  </UButton>
+                </div>
+                <div
+                  v-for="row in adminPrioritySummaryRows"
+                  :key="row.label"
+                  class="flex items-center justify-between gap-3 py-2"
                 >
-                  <template #footer>
-                    <div class="flex items-center justify-between gap-2">
-                      <span class="text-xs text-muted">{{ card.hint }}</span>
-                      <UBadge :color="card.color" variant="subtle" size="sm">
-                        {{ card.label }}
-                      </UBadge>
-                    </div>
-                  </template>
-                </UPageCard>
-              </UPageGrid>
+                  <span>{{ row.label }}</span>
+                  <span class="text-right">{{ row.value }}</span>
+                </div>
+              </div>
 
               <div class="grid gap-4 xl:grid-cols-2">
                 <div class="rounded-lg border border-default px-3 py-3">
@@ -1121,6 +1109,17 @@ onBeforeUnmount(() => {
                   <UButton size="sm" variant="ghost" icon="i-lucide-settings-2" to="/console/admin">
                     打开管理端
                   </UButton>
+                </div>
+
+                <div class="mb-4 rounded-lg border border-default px-3 py-3 text-sm text-muted">
+                  <div
+                    v-for="row in adminSignalSummaryRows"
+                    :key="row.label"
+                    class="flex items-center justify-between gap-3 py-2"
+                  >
+                    <span>{{ row.label }}</span>
+                    <span class="text-right">{{ row.value }}</span>
+                  </div>
                 </div>
 
                 <div class="grid gap-4 xl:grid-cols-3">
