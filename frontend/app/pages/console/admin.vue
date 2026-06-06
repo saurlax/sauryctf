@@ -5125,77 +5125,111 @@ onMounted(async () => {
 
       <div class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <UPageCard id="attach-challenge" title="比赛挂题" icon="i-lucide-link">
-          <div class="mb-4 flex flex-wrap gap-2">
-            <UButton icon="i-lucide-link" @click="attachChallengeModalOpen = true">
-              挂载题目
-            </UButton>
-          </div>
-
-          <div class="mt-6 border-t border-default pt-4">
-            <div class="mb-2 text-sm font-medium">
-              当前比赛题目
-            </div>
-            <p v-if="selectedGame" class="mb-3 text-sm text-muted">
-              {{ selectedGame.name }} · {{ loadingGameChallenges ? '正在加载题目...' : `${selectedGameChallenges.length} 道已挂载` }}
-            </p>
-            <p v-else class="text-sm text-muted">
-              先选择比赛，再查看该比赛下已挂载的题目。
-            </p>
-
-            <div v-if="selectedGameChallenges.length" class="space-y-2">
-              <div
-                v-for="challenge in selectedGameChallenges"
-                :key="challenge.id"
-                class="flex items-start justify-between gap-3 rounded-lg border border-default px-3 py-2"
-              >
+          <div class="space-y-4">
+            <div class="rounded-lg border border-default bg-elevated/50 px-3 py-3">
+              <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
-                  <div class="font-medium">
-                    #{{ challenge.id }} {{ challenge.title }}
+                  <div class="font-medium text-highlighted">
+                    挂题通过弹层维护
                   </div>
-                  <div class="space-y-1 text-sm text-muted">
-                    <div>
-                      {{ challenge.category }} · {{ challenge.score }} 分 · {{ challenge.solve_count || 0 }} 解
-                    </div>
-                    <div v-if="challenge.flag_format">
-                      Flag 格式：{{ challenge.flag_format }}
-                    </div>
-                    <div
-                      v-for="blood in getBloodRows(challenge)"
-                      :key="`${challenge.id}-${blood.label}`"
-                      class="flex items-center gap-2"
-                    >
-                      <span>{{ blood.label }}</span>
-                      <span>{{ blood.team || '暂无' }}</span>
-                    </div>
+                  <div class="mt-2 text-sm text-muted">
+                    题目选择与分值覆盖统一在弹层内完成，页面主体只保留当前比赛上下文和已挂载列表。
                   </div>
                 </div>
-
-                <UButton
-                  color="error"
-                  variant="soft"
-                  size="sm"
-                  icon="i-lucide-trash-2"
-                  :loading="removingChallengeId === challenge.id"
-                  @click="removeChallengeFromGame(challenge.id)"
-                >
-                  移除
-                </UButton>
+                <UBadge color="info" variant="soft">
+                  弹层维护
+                </UBadge>
               </div>
             </div>
 
-            <UEmpty
-              v-else-if="selectedGame && !loadingGameChallenges"
-              icon="i-lucide-link"
-              title="这场比赛还没有挂载题目"
-              description="先把现有题目挂到当前比赛，公开页才会出现可参与题目和分题统计。"
-              :actions="[{
-                label: '挂载题目',
-                icon: 'i-lucide-plus',
-                color: 'neutral',
-                variant: 'outline',
-                onClick: () => jumpToAdminAnchor('#attach-challenge'),
-              }]"
-            />
+            <div class="flex flex-wrap gap-2">
+              <UButton icon="i-lucide-link" @click="attachChallengeModalOpen = true">
+                挂载题目
+              </UButton>
+              <UButton
+                icon="i-lucide-arrow-up-right"
+                variant="outline"
+                :disabled="!selectedGame"
+                :to="selectedGame ? `/games/${selectedGame.id}` : undefined"
+              >
+                打开公开页
+              </UButton>
+            </div>
+
+            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
+              <div class="mb-2 font-medium text-highlighted">
+                当前上下文
+              </div>
+              <div v-if="selectedGame">
+                {{ selectedGame.name }} · {{ loadingGameChallenges ? '正在加载题目...' : `${selectedGameChallenges.length} 道已挂载` }} · {{ selectedGame.divisions?.length ? `分组 ${selectedGame.divisions.join(' / ')}` : '未启用分组' }}
+              </div>
+              <div v-else>
+                还没有选中比赛。先从资源列表切换比赛上下文，再继续挂题。
+              </div>
+            </div>
+
+            <div class="border-t border-default pt-4">
+              <div class="mb-2 text-sm font-medium">
+                当前比赛题目
+              </div>
+
+              <div v-if="selectedGameChallenges.length" class="space-y-2">
+                <div
+                  v-for="challenge in selectedGameChallenges"
+                  :key="challenge.id"
+                  class="flex items-start justify-between gap-3 rounded-lg border border-default px-3 py-2"
+                >
+                  <div class="min-w-0">
+                    <div class="font-medium">
+                      #{{ challenge.id }} {{ challenge.title }}
+                    </div>
+                    <div class="space-y-1 text-sm text-muted">
+                      <div>
+                        {{ challenge.category }} · {{ challenge.score }} 分 · {{ challenge.solve_count || 0 }} 解
+                      </div>
+                      <div v-if="challenge.flag_format">
+                        Flag 格式：{{ challenge.flag_format }}
+                      </div>
+                      <div
+                        v-for="blood in getBloodRows(challenge)"
+                        :key="`${challenge.id}-${blood.label}`"
+                        class="flex items-center gap-2"
+                      >
+                        <span>{{ blood.label }}</span>
+                        <span>{{ blood.team || '暂无' }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <UButton
+                    color="error"
+                    variant="soft"
+                    size="sm"
+                    icon="i-lucide-trash-2"
+                    :loading="removingChallengeId === challenge.id"
+                    @click="removeChallengeFromGame(challenge.id)"
+                  >
+                    移除
+                  </UButton>
+                </div>
+              </div>
+
+              <UEmpty
+                v-else-if="selectedGame && !loadingGameChallenges"
+                icon="i-lucide-link"
+                title="这场比赛还没有挂载题目"
+                description="先把现有题目挂到当前比赛，公开页才会出现可参与题目和分题统计。"
+                :actions="[{
+                  label: '挂载题目',
+                  icon: 'i-lucide-plus',
+                  color: 'neutral',
+                  variant: 'outline',
+                  onClick: () => {
+                    attachChallengeModalOpen = true
+                  },
+                }]"
+              />
+            </div>
           </div>
         </UPageCard>
 
