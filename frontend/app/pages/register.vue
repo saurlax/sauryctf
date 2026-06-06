@@ -100,17 +100,9 @@ const loginTo = computed(() => {
           </ULink>
         </div>
         <template #footer>
-          <div class="space-y-3">
-            <UAlert
-              color="info"
-              variant="soft"
-              title="注册后去向"
-              :description="redirectTarget.startsWith('/games/') ? `/console/team?redirect=${redirectTarget}` : '/console/team'"
-            />
-            <div class="flex flex-wrap gap-2">
-              <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="ghost" />
-              <UButton label="返回登录" icon="i-lucide-log-in" :to="loginTo" variant="outline" />
-            </div>
+          <div class="flex flex-wrap gap-2">
+            <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="ghost" />
+            <UButton label="返回登录" icon="i-lucide-log-in" :to="loginTo" variant="outline" />
           </div>
         </template>
       </UPageCard>

@@ -84,17 +84,9 @@ const state = reactive<Partial<LoginSchema>>({
           </ULink>
         </div>
         <template #footer>
-          <div class="space-y-3">
-            <UAlert
-              color="info"
-              variant="soft"
-              title="登录后去向"
-              :description="redirectTarget"
-            />
-            <div class="flex flex-wrap gap-2">
-              <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="ghost" />
-              <UButton label="前往注册" icon="i-lucide-user-round-plus" :to="registerTo" variant="outline" />
-            </div>
+          <div class="flex flex-wrap gap-2">
+            <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="ghost" />
+            <UButton label="前往注册" icon="i-lucide-user-round-plus" :to="registerTo" variant="outline" />
           </div>
         </template>
       </UPageCard>

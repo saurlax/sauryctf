@@ -1909,7 +1909,7 @@ function fillStarterGameTemplate() {
 
   gameForm.name = `${start.getFullYear()} 平台基础比赛`
   gameForm.description = '用于快速建立公开比赛基础结构的精简模板。'
-  gameForm.notice = '可使用普通账号完成注册、组队、报名和提交流程，再继续补充题目与规则。'
+  gameForm.notice = '建议在发布前补全题面、附件、规则补充与开放设置。'
   gameForm.divisions_text = ''
   gameForm.start_time = start.toISOString().slice(0, 16)
   gameForm.end_time = end.toISOString().slice(0, 16)
@@ -1954,7 +1954,7 @@ function fillStarterChallengeTemplate() {
   challengeForm.max_attempts = 0
   challengeForm.is_visible = true
 
-  toast.add({ title: '已填充题目模板', description: '已写入一份基础题目默认值。', color: 'success' })
+  toast.add({ title: '已填充题目模板', description: '已写入一份基础题目默认配置。', color: 'success' })
 }
 
 function fillStaticWebTemplate() {
@@ -2119,7 +2119,7 @@ async function createStarterProvision() {
       body: {
         name: `${start.getFullYear()} 平台基础比赛`,
         description: '用于快速建立公开比赛基础结构的精简模板。',
-        notice: '可使用普通账号完成注册、组队、报名和提交流程，再继续补充题目与规则。',
+        notice: '建议在发布前补全题面、附件、规则补充与开放设置。',
         divisions: [],
         start_time: start.toISOString(),
         end_time: end.toISOString(),
@@ -2167,7 +2167,7 @@ async function createStarterProvision() {
     attachForm.challenge_id = challenge.id
     toast.add({
       title: '基础比赛模板已创建',
-      description: `已创建 ${game.name}，并自动挂上一道基础题目。现在可以直接去公开页继续配置或检查流程。`,
+      description: `已创建 ${game.name}，并自动挂载一道基础题目。现在可以继续补全配置并确认公开展示。`,
       color: 'success',
     })
     jumpToAdminAnchor('#attach-challenge')
@@ -2191,8 +2191,8 @@ async function createDynamicProvision() {
     const game = await $api('post', '/api/games', {
       body: {
         name: `${start.getFullYear()} 动态实例比赛`,
-        description: '用于快速建立动态实例流程的公开比赛模板。',
-        notice: '请先确认实例状态与入口信息，再继续完成报名和解题流程。',
+        description: '用于快速建立动态实例能力的公开比赛模板。',
+        notice: '发布前请确认实例入口、镜像与运行状态配置正确。',
         divisions: [],
         start_time: start.toISOString(),
         end_time: end.toISOString(),
@@ -2260,7 +2260,7 @@ async function createDynamicProvision() {
     attachForm.challenge_id = challenge.id
     toast.add({
       title: '动态实例比赛已创建',
-      description: `已创建 ${game.name}，并自动挂上一道动态实例题。现在可以直接去公开页继续配置或检查实例链路。`,
+      description: `已创建 ${game.name}，并自动挂载一道动态实例题。现在可以继续补全入口与实例配置。`,
       color: 'success',
     })
     jumpToAdminAnchor('#attach-challenge')
@@ -2284,8 +2284,8 @@ async function createLocalDockerProvision() {
     const game = await $api('post', '/api/games', {
       body: {
         name: `${start.getFullYear()} 容器实例比赛`,
-        description: '用于快速建立容器实例流程的公开比赛模板。',
-        notice: '请先确认 Docker daemon 可用，再使用普通账号完成报名、启动实例和提交流程。',
+        description: '用于快速建立容器实例能力的公开比赛模板。',
+        notice: '发布前请确认本地 Docker provider、镜像与实例入口配置正确。',
         divisions: [],
         start_time: start.toISOString(),
         end_time: end.toISOString(),
@@ -3145,13 +3145,13 @@ onMounted(async () => {
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div class="space-y-2">
             <p class="text-sm text-muted">
-              可以直接生成一套精简但完整的比赛与题目配置，用于快速建立一条可继续扩展的赛事基线。
+              可直接生成一套精简的比赛与题目配置，便于快速建立标准化赛事基础结构。
             </p>
             <UAlert
               color="info"
               variant="soft"
-              title="使用建议"
-              description="适合快速建立比赛骨架或整理标准配置；正式发布前仍应补全题面、入口、镜像、附件与规则设置。"
+              title="使用说明"
+              description="模板仅写入基础配置。正式发布前仍应补全题面、入口、镜像、附件与规则设置。"
             />
           </div>
 
@@ -3185,13 +3185,13 @@ onMounted(async () => {
         </div>
       </UPageCard>
 
-      <UPageCard title="配置步骤概览" icon="i-lucide-list-checks">
+      <UPageCard title="配置概览" icon="i-lucide-list-checks">
         <div class="space-y-3">
           <UAlert
             color="info"
             variant="soft"
-            title="推荐顺序：比赛、题目、挂载、发布检查"
-            description="这组步骤用于帮助管理员快速判断当前还缺哪一环，并减少未完成配置被提前公开的风险。"
+            title="建议顺序：比赛、题目、挂载、发布确认"
+            description="用于集中查看当前配置缺口，减少未完成内容提前公开的风险。"
           />
 
           <div class="grid gap-3 xl:grid-cols-2">
@@ -4528,7 +4528,7 @@ onMounted(async () => {
               v-else-if="selectedGame && !loadingParticipants"
               icon="i-lucide-users"
               title="这场比赛还没有参赛队伍"
-              description="当前还没有队伍完成报名或通过审核。可以先用普通账号走一遍建队、报名和审核流程。"
+              description="当前还没有队伍完成报名或通过审核。可从公开比赛页查看当前对外展示效果。"
               :actions="[{
                 label: '打开公开页',
                 icon: 'i-lucide-arrow-up-right',

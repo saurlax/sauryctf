@@ -27,49 +27,24 @@ const features = [
 const accessCards = computed(() => [
   {
     title: '管理入口',
-    description: '使用现有管理账号登录控制台，继续维护比赛、题目和参赛流程。',
+    description: '使用现有管理账号进入控制台，维护比赛、题目与平台配置。',
     icon: 'i-lucide-shield-check',
     to: '/login',
   },
   {
     title: '选手入场',
-    description: '注册账号后会先进入队伍页，创建或加入队伍后，再继续回到比赛详情完成报名、提交 Flag 或补交 Writeup。',
+    description: '创建选手账号后即可进入队伍页，继续完成组队、报名与参赛操作。',
     icon: 'i-lucide-flag',
     to: '/register',
   },
   {
     title: '先看公开比赛',
-    description: '公开比赛支持游客先浏览基础信息、题目标题和排行榜，再决定是否登录或正式参赛。',
+    description: '公开比赛页可查看基础信息、题目列表与排行榜。',
     icon: 'i-lucide-list',
     to: '/games',
   },
 ])
 
-const landingGuideMeta = computed(() => {
-  if (isLoggedIn.value) {
-    return {
-      title: '当前状态：可进入控制台继续处理',
-      description: '你已经处于登录状态。现在可以进入控制台确认队伍、比赛待办和管理入口，再决定后续操作。',
-      color: 'success' as const,
-      icon: 'i-lucide-layout-dashboard',
-      actionLabel: '进入控制台',
-      actionTo: '/console',
-      secondaryLabel: '浏览比赛',
-      secondaryTo: '/games',
-    }
-  }
-
-  return {
-    title: '当前状态：可浏览公开比赛或注册账号',
-    description: '公开比赛支持先浏览基础信息；如果准备正式参赛，可以直接注册并进入队伍流程。',
-    color: 'neutral' as const,
-    icon: 'i-lucide-rocket',
-    actionLabel: '浏览比赛',
-    actionTo: '/games',
-    secondaryLabel: '去注册',
-    secondaryTo: '/register',
-  }
-})
 
 type HeroLink = {
   label: string
@@ -109,34 +84,7 @@ const heroLinks = computed(() => {
       </template>
     </UPageHero>
 
-    <UPageSection title="主要入口" description="平台的公开访问、账号入口和管理入口都集中在这里。">
-      <UAlert
-        class="mb-6"
-        :color="landingGuideMeta.color"
-        variant="soft"
-        :icon="landingGuideMeta.icon"
-        :title="landingGuideMeta.title"
-        :description="landingGuideMeta.description"
-      >
-        <template #actions>
-          <div class="flex flex-wrap gap-2">
-            <UButton
-              size="sm"
-              :to="landingGuideMeta.actionTo"
-              :label="landingGuideMeta.actionLabel"
-              variant="outline"
-            />
-            <UButton
-              v-if="landingGuideMeta.secondaryLabel && landingGuideMeta.secondaryTo"
-              size="sm"
-              :to="landingGuideMeta.secondaryTo"
-              :label="landingGuideMeta.secondaryLabel"
-              variant="ghost"
-            />
-          </div>
-        </template>
-      </UAlert>
-
+    <UPageSection title="主要入口" description="平台的公开访问、账号入口和管理入口集中展示。">
       <UPageGrid>
         <UPageCard
           v-for="card in accessCards"
@@ -161,27 +109,11 @@ const heroLinks = computed(() => {
       </UPageGrid>
     </UPageSection>
 
-    <UPageSection title="推荐流程" description="建议先完成管理配置，再验证参赛侧链路。">
-      <UPageGrid>
-        <UPageCard
-          title="1. 管理员建赛"
-          description="登录管理账号，创建公开比赛、创建题目、挂载题目并激活比赛。"
-          icon="i-lucide-settings-2"
-          to="/console/admin"
-        />
-        <UPageCard
-          title="2. 选手参赛"
-          description="注册普通账号后先创建队伍，再进入比赛页完成报名、答题和提交 Flag。"
-          icon="i-lucide-user-round-plus"
-          to="/register"
-        />
-        <UPageCard
-          title="3. 查看排行"
-          description="回到比赛详情页确认题目状态、分数变化和公开排行榜是否同步更新。"
-          icon="i-lucide-trophy"
-          to="/games"
-        />
-      </UPageGrid>
+    <UPageSection v-if="isLoggedIn" title="常用入口" description="继续进入控制台或公开比赛页。">
+      <div class="flex flex-wrap gap-3">
+        <UButton label="进入控制台" icon="i-lucide-layout-dashboard" to="/console" />
+        <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="outline" />
+      </div>
     </UPageSection>
   </div>
 </template>
