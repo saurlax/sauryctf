@@ -34,10 +34,6 @@ func setupHTTPTestServer(t *testing.T) *httptest.Server {
 	require.NoError(t, db.Migrate(database))
 	db.CleanTables(database)
 
-	authSvc := auth.NewService(database, "test-secret")
-	_, _, err = authSvc.EnsureBootstrapAdmin()
-	require.NoError(t, err)
-
 	engine := NewServer(database, &config.Config{JWTSecret: "test-secret"})
 	return httptest.NewServer(engine)
 }
@@ -163,7 +159,7 @@ func TestServer_BootstrapAdminLoginFlow(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, meAfterLogoutResp.StatusCode)
 }
 
-func TestServer_AuthSetupStatusReflectsBootstrapAdminAvailability(t *testing.T) {
+func TestServer_EmptyDatabaseBootstrapsAdminOnStartup(t *testing.T) {
 	database, err := db.ConnectTest()
 	require.NoError(t, err)
 	require.NoError(t, db.Migrate(database))
@@ -173,37 +169,22 @@ func TestServer_AuthSetupStatusReflectsBootstrapAdminAvailability(t *testing.T) 
 	server := httptest.NewServer(engine)
 	defer server.Close()
 
-	setupResp, err := http.Get(server.URL + "/api/auth/setup-status")
+	loginBody := bytes.NewBufferString(`{"username":"admin","password":"sauryctf"}`)
+	loginReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/auth/login", loginBody)
 	require.NoError(t, err)
-	defer setupResp.Body.Close()
-	require.Equal(t, http.StatusOK, setupResp.StatusCode)
+	loginReq.Header.Set("Content-Type", "application/json")
 
-	var before struct {
-		BootstrapAdminAvailable bool `json:"bootstrap_admin_available"`
+	loginResp, err := http.DefaultClient.Do(loginReq)
+	require.NoError(t, err)
+	defer loginResp.Body.Close()
+	require.Equal(t, http.StatusOK, loginResp.StatusCode)
+
+	var payload struct {
+		User models.User `json:"user"`
 	}
-	require.NoError(t, json.NewDecoder(setupResp.Body).Decode(&before))
-	assert.True(t, before.BootstrapAdminAvailable)
-
-	registerBody := bytes.NewBufferString(`{"username":"first-user","email":"first@example.com","password":"password123"}`)
-	registerReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/auth/register", registerBody)
-	require.NoError(t, err)
-	registerReq.Header.Set("Content-Type", "application/json")
-
-	registerResp, err := http.DefaultClient.Do(registerReq)
-	require.NoError(t, err)
-	defer registerResp.Body.Close()
-	require.Equal(t, http.StatusCreated, registerResp.StatusCode)
-
-	setupRespAfter, err := http.Get(server.URL + "/api/auth/setup-status")
-	require.NoError(t, err)
-	defer setupRespAfter.Body.Close()
-	require.Equal(t, http.StatusOK, setupRespAfter.StatusCode)
-
-	var after struct {
-		BootstrapAdminAvailable bool `json:"bootstrap_admin_available"`
-	}
-	require.NoError(t, json.NewDecoder(setupRespAfter.Body).Decode(&after))
-	assert.False(t, after.BootstrapAdminAvailable)
+	require.NoError(t, json.NewDecoder(loginResp.Body).Decode(&payload))
+	assert.Equal(t, "admin", payload.User.Username)
+	assert.Equal(t, models.RoleAdmin, payload.User.Role)
 }
 
 func TestServer_BootstrapAdminPasswordRecommendationLifecycle(t *testing.T) {

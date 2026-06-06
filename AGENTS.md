@@ -214,6 +214,7 @@ internal/<module>/
 - Dynamic scoring is shared across standalone challenge submission and game-scoped submission.
 - Current blood metadata (`first`, `second`, `third`) is retained for display, but does not apply an extra score multiplier.
 - Only when the `users` table is completely empty, backend startup auto-creates the default administrator account: `admin / sauryctf`.
+- That bootstrap now runs directly during `internal/http.NewServer(...)`, so a fresh backend start is enough to make the default administrator available on an empty database.
 - Do not add a dedicated initialization, first-run, or account-setup page for this account. The only required behavior is the backend-side empty-database check above.
 - The frontend exposes separate `/login` and `/register` entries in the top-right navigation for account access.
 - `/login` and `/register` should stay as single-card form pages; do not append secondary summary panels, setup notes, or onboarding-style sidebars.

@@ -26,6 +26,9 @@ func NewServer(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 	// 初始化各模块服务和 handler
 	authSvc := auth.NewService(db, cfg.JWTSecret)
+	if _, _, err := authSvc.EnsureBootstrapAdmin(); err != nil {
+		panic(fmt.Sprintf("ensure bootstrap admin: %v", err))
+	}
 	auditSvc := audit.NewService(db)
 	gameSvc := games.NewServiceWithOptions(db, instanceProvidersFromConfig(cfg), games.InstancePolicy{
 		LeaseDuration:     cfg.InstanceLeaseDuration,
