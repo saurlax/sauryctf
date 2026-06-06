@@ -16,6 +16,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 | Start both (dev) | `pnpm dev` |
 | Start backend only | `pnpm dev:backend` |
 | Start frontend only | `pnpm dev:frontend` |
+| Check auth redirects | `pnpm check:auth-redirects` |
 | Local smoke flow | `pnpm smoke:local` |
 | Local docker smoke flow | `pnpm smoke:local:docker` |
 | Backend tests | `pnpm test:backend` (single package: `go test ./internal/auth/... -v -p 1`) |
@@ -49,6 +50,10 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
   - the instance response now includes explicit lease policy minutes for initial lease / extension / renewal window
   - a freshly started lease is not immediately renewable; local verification now checks the current renewal-window gating
   - the returned launch data no longer contains unresolved `{{team_hash}}`-style placeholders
+- `pnpm check:auth-redirects` now provides one lightweight frontend-only validation for auth entry links:
+  - checks `/login?redirect=...` and `/register?redirect=...` on `127.0.0.1:3000`
+  - verifies login/register cross-links preserve the current game redirect
+  - verifies unsafe double-slash redirects fall back to `/console` or `/console/team`
 - `pnpm smoke:local:docker` now provides an opt-in real local Docker verification path:
   - it now also self-starts an isolated backend plus temporary SQLite state, just like `pnpm smoke:local`
   - the script enables `INSTANCE_DOCKER_PROVIDER_ENABLED=true` for that temporary backend automatically

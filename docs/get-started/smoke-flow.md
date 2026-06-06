@@ -110,6 +110,19 @@ pnpm smoke:local
 
 这条脚本依然刻意要求目标数据库是“无任何用户”的状态；一旦库里已有用户，它会直接退出，而不是尝试补建 `admin`。
 
+如果你只想先确认前端认证入口的回跳链接是否正确，也可以单独运行：
+
+```bash
+pnpm dev:frontend
+pnpm check:auth-redirects
+```
+
+这条检查当前不依赖后端业务数据，主要验证：
+
+1. `/login?redirect=/games/42?tab=challenges` 会继续把这段比赛地址带给“前往注册”入口
+2. `/register?redirect=/games/42?tab=challenges` 会继续把这段比赛地址带给“返回登录”入口
+3. `//...` 这类双斜杠回跳地址不会继续透传到页面，而是回退到默认安全入口
+
 如果本机 Docker Server 可用，也可以直接运行真实 Docker 版本：
 
 ```bash

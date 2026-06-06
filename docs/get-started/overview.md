@@ -65,6 +65,10 @@ SauryCTF 是一个基于 Go + Gin + GORM + Nuxt SSG 的 CTF 平台。
 - 登录成功后，浏览器会收到 `token` Cookie；随后刷新页面或访问 `/api/auth/me` 都应仍能识别当前登录态
 - 重复登录会生成新的独立会话，不需要手动清理旧会话或重置数据库
 - 队长现在也可以直接从 `/console/team` 复制邀请链接，发给队友后会自动填入邀请码
+- 认证入口回跳也可以单独做一次前端自检：
+  - 先启动 `pnpm dev:frontend`
+  - 再运行 `pnpm check:auth-redirects`
+  - 会检查 `/login`、`/register` 对比赛 `redirect` 的保留与默认回退是否正确
 
 完整的本地运行检查步骤现在已经拆到单独文档：
 
