@@ -2180,7 +2180,7 @@ onMounted(async () => {
               <div class="space-y-3 rounded-lg border border-default px-4 py-4">
                 <div class="flex items-center justify-between gap-3">
                   <div class="font-medium">
-                    规则摘要
+                    比赛规则
                   </div>
                   <UBadge color="neutral" variant="subtle">
                     {{ contestRuleSummaryItems.length }} 条
@@ -2227,22 +2227,8 @@ onMounted(async () => {
           </UPageCard>
 
           <div class="space-y-6">
-            <UPageCard title="当前行动" icon="i-lucide-list-checks">
+            <UPageCard title="快捷入口" icon="i-lucide-list-checks">
               <div class="space-y-4">
-                <div class="space-y-3 rounded-lg border border-default px-3 py-3">
-                  <div class="font-medium">
-                    当前行动摘要
-                  </div>
-                  <div
-                    v-for="row in currentActionSummaryRows"
-                    :key="row.label"
-                    class="flex items-center justify-between gap-3 rounded-md bg-elevated/60 px-3 py-2 text-sm"
-                  >
-                    <span class="text-muted">{{ row.label }}</span>
-                    <span class="text-right">{{ row.value }}</span>
-                  </div>
-                </div>
-
                 <div class="flex flex-col gap-3">
                   <UButton
                     v-if="detailPrimaryAction.mode === 'link'"
