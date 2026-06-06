@@ -95,6 +95,7 @@ A k3s-based CTF/AWD competition platform. Go backend + Nuxt 4 SSG frontend.
 - Dialog-like interactions such as create/edit forms, delete confirmations, and destructive secondary actions should be wrapped in `UModal` instead of leaving temporary confirmation blocks in the page body.
 - Account security, enrollment confirmation, and similar low-frequency sensitive actions should prefer `UModal` entry flows so the page body stays focused on status and summary information.
 - Page-owned `UModal` declarations may be grouped near the end of a Vue template; that is acceptable as long as the visible page body does not duplicate the modal form or confirmation content.
+- In page reviews, do not treat template-bottom `UModal` declarations as "dialogs left in the page body". They are the real modal implementation and should stay there unless the interaction itself belongs inline.
 - If a page already has modal-based create/edit flows, do not keep a second full inline version of the same form in the main page body unless there is a clear operational reason.
 - User-facing page copy should stay formal and product-oriented; avoid temporary notes, onboarding-style placeholders, and testing slang in visible UI text.
 - Public pages, login/register pages, and console home should not carry setup-wizard or initialization-style panels. Empty-state handling should stay minimal and operational.
@@ -216,6 +217,7 @@ internal/<module>/
 - Only when the `users` table is completely empty, backend startup auto-creates the default administrator account: `admin / sauryctf`.
 - That bootstrap now runs directly during `internal/http.NewServer(...)`, so a fresh backend start is enough to make the default administrator available on an empty database.
 - Do not add a dedicated initialization, first-run, or account-setup page for this account. The only required behavior is the backend-side empty-database check above.
+- Do not add a separate "new user initialization" screen for empty-database handling. The product surface should continue exposing the regular `/login` and `/register` pages only.
 - The frontend exposes separate `/login` and `/register` entries in the top-right navigation for account access.
 - `/login` and `/register` should stay as single-card form pages; do not append secondary summary panels, setup notes, or onboarding-style sidebars.
 - On `/login` and `/register`, redirect behavior should be conveyed with one light footer sentence when needed; do not promote it into a top-level `UAlert` or extra guidance card.
