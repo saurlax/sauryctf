@@ -4595,12 +4595,21 @@ onMounted(async () => {
           </div>
 
           <div v-else-if="activeMonitorTab === 'scoreboard'" class="space-y-4">
-            <UAlert
-              :color="scoreboardFrozen ? 'warning' : 'info'"
-              variant="soft"
-              title="当前榜单视图"
-              :description="scoreboardViewDescription"
-            />
+            <div class="rounded-lg border border-default bg-elevated/50 px-4 py-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="font-medium text-highlighted">
+                    当前榜单视图
+                  </div>
+                  <p class="mt-2 text-sm text-muted leading-6">
+                    {{ scoreboardViewDescription }}
+                  </p>
+                </div>
+                <UBadge :color="scoreboardFrozen ? 'warning' : 'info'" variant="soft">
+                  {{ scoreboardFrozen ? '已封榜' : '公开中' }}
+                </UBadge>
+              </div>
+            </div>
 
             <UPageGrid :cols="{ default: 1, sm: 2, xl: 4 }">
               <UPageCard
@@ -4652,14 +4661,24 @@ onMounted(async () => {
                   </div>
                 </div>
 
-                <UAlert
+                <div
                   v-if="scoreboardFrozen && scoreboardFreezeTime"
-                  class="mb-4"
-                  color="warning"
-                  variant="soft"
-                  title="排行榜已封榜"
-                  :description="`公开榜单当前冻结在 ${new Date(scoreboardFreezeTime).toLocaleString()}，后续解题不会继续显示在公开排名中。`"
-                />
+                  class="mb-4 rounded-lg border border-default bg-elevated/50 px-4 py-3"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="font-medium text-highlighted">
+                        排行榜已封榜
+                      </div>
+                      <p class="mt-2 text-sm text-muted leading-6">
+                        {{ `公开榜单当前冻结在 ${new Date(scoreboardFreezeTime).toLocaleString()}，后续解题不会继续显示在公开排名中。` }}
+                      </p>
+                    </div>
+                    <UBadge color="warning" variant="soft">
+                      冻结中
+                    </UBadge>
+                  </div>
+                </div>
 
                 <UTable
                   :data="scoreboardEntries"
@@ -4789,12 +4808,21 @@ onMounted(async () => {
           </div>
 
           <div v-else-if="activeMonitorTab === 'clues'" class="space-y-3">
-            <UAlert
-              color="warning"
-              variant="soft"
-              title="当前线索仅基于跨队重复错误 Flag"
-              description="这是轻量版排查入口，先帮你定位最值得复核的题目与 Flag 传播迹象。"
-            />
+            <div class="rounded-lg border border-default bg-elevated/50 px-4 py-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="font-medium text-highlighted">
+                    当前线索仅基于跨队重复错误 Flag
+                  </div>
+                  <p class="mt-2 text-sm text-muted leading-6">
+                    这是轻量版排查入口，先帮你定位最值得复核的题目与 Flag 传播迹象。
+                  </p>
+                </div>
+                <UBadge color="warning" variant="soft">
+                  轻量排查
+                </UBadge>
+              </div>
+            </div>
 
             <div v-if="cheatClues.length" class="space-y-2">
               <div
@@ -4828,12 +4856,21 @@ onMounted(async () => {
           </div>
 
           <div v-else-if="activeMonitorTab === 'timeline'" class="space-y-3">
-            <UAlert
-              color="info"
-              variant="soft"
-              title="时间线会混合展示公告、正确提交与可疑线索"
-              description="可在赛时集中回看最近发生的关键事件，帮助管理员判断是正常比赛推进，还是需要插入运维或排查动作。"
-            />
+            <div class="rounded-lg border border-default bg-elevated/50 px-4 py-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="font-medium text-highlighted">
+                    时间线会混合展示公告、正确提交与可疑线索
+                  </div>
+                  <p class="mt-2 text-sm text-muted leading-6">
+                    可在赛时集中回看最近发生的关键事件，帮助管理员判断是正常比赛推进，还是需要插入运维或排查动作。
+                  </p>
+                </div>
+                <UBadge color="info" variant="soft">
+                  赛时回看
+                </UBadge>
+              </div>
+            </div>
 
             <div v-if="selectedMonitorTimeline.length" class="space-y-2">
               <div

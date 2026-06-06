@@ -2106,13 +2106,22 @@ onMounted(async () => {
                 {{ game.description || '当前比赛暂未填写详细信息。' }}
               </p>
 
-              <UAlert
+              <div
                 v-if="game.notice"
-                color="info"
-                variant="soft"
-                title="规则补充"
-                :description="game.notice"
-              />
+                class="rounded-lg border border-default bg-elevated/50 px-4 py-3"
+              >
+                <div class="flex items-start gap-3">
+                  <UIcon name="i-lucide-info" class="mt-0.5 size-4 shrink-0 text-info" />
+                  <div class="min-w-0">
+                    <div class="font-medium text-highlighted">
+                      规则补充
+                    </div>
+                    <p class="mt-2 whitespace-pre-wrap text-sm text-muted leading-6">
+                      {{ game.notice }}
+                    </p>
+                  </div>
+                </div>
+              </div>
 
               <div class="space-y-3 rounded-lg border border-default px-4 py-4">
                 <div class="font-medium">
