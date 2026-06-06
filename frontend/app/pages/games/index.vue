@@ -59,7 +59,7 @@ const listGuideMeta = computed(() => {
   if (firstJoinedGame.value) {
     return {
       title: '当前已经有可继续处理的比赛',
-      description: `你的队伍已经和 ${firstJoinedGame.value.name} 建立了参赛关系。现在最值得先回到比赛详情页，继续查看报名状态、题目、排行榜或 Writeup。`,
+      description: `你的队伍已经和 ${firstJoinedGame.value.name} 建立了参赛关系。现在可以返回比赛详情页，继续查看报名状态、题目、排行榜或 Writeup。`,
       color: 'success' as const,
       icon: 'i-lucide-badge-check',
       actionLabel: '打开当前比赛',
@@ -85,7 +85,7 @@ const listGuideMeta = computed(() => {
   }
 
   return {
-    title: '当前可先浏览比赛，再决定下一场要参加哪一场',
+    title: '当前状态：可继续浏览比赛',
     description: '如果暂时没有可直接报名的进行中比赛，可以先看比赛规则、分组和赛后练习配置，等目标比赛开放后再继续参赛。',
     color: 'neutral' as const,
     icon: 'i-lucide-compass',
@@ -212,7 +212,7 @@ const emptyStateMeta = computed(() => {
   if (authState.user && ['admin', 'super_admin'].includes(authState.user.role || '')) {
     return {
       title: '当前还没有公开比赛',
-      description: '这通常说明你还没有创建比赛，或者比赛仍处于 draft / 私有状态。先去管理端创建一场公开比赛并切到 active，再回这里查看公开页展示。',
+      description: '当前还没有对外开放的比赛。你可以先在管理端创建比赛，调整为公开状态后再回到这里查看展示结果。',
       icon: 'i-lucide-shield-check',
       actions: [
         {
@@ -234,7 +234,7 @@ const emptyStateMeta = computed(() => {
 
   return {
     title: '当前还没有公开比赛',
-    description: '这通常说明管理员还没有发布比赛，或者目标比赛仍在准备中。你可以稍后再来，或先登录查看自己的队伍与控制台入口。',
+    description: '当前还没有对外开放的比赛。你可以稍后再来，或先登录查看自己的队伍与控制台入口。',
     icon: 'i-lucide-trophy',
     actions: authState.user
       ? [
@@ -278,8 +278,8 @@ const filteredEmptyStateMeta = computed(() => {
   return {
     title: '当前筛选条件下没有匹配的比赛',
     description: filterSummary
-      ? `还没有比赛同时满足 ${filterSummary}。你可以先清空筛选，或直接回到全部公开比赛继续浏览。`
-      : '当前没有匹配的比赛。你可以先清空筛选，再继续浏览全部公开比赛。',
+      ? `还没有比赛同时满足 ${filterSummary}。你可以清空筛选，或继续浏览全部公开比赛。`
+      : '当前没有匹配的比赛。你可以清空筛选后继续浏览全部公开比赛。',
   }
 })
 
@@ -389,7 +389,7 @@ onMounted(async () => {
         class="py-16"
         icon="i-lucide-search-x"
         :title="filteredEmptyStateMeta?.title || '当前筛选条件下没有匹配的比赛'"
-        :description="filteredEmptyStateMeta?.description || '可以先清空筛选，再继续浏览全部公开比赛。'"
+        :description="filteredEmptyStateMeta?.description || '可以清空筛选后继续浏览全部公开比赛。'"
         :actions="[
           {
             label: '清空筛选',
