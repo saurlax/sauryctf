@@ -53,6 +53,7 @@ const registrationForm = reactive({
   invitation_code: '',
 })
 const now = ref(Date.now())
+const registrationModalOpen = ref(false)
 const confirmModalOpen = ref(false)
 const confirmActionLoading = ref(false)
 const confirmAction = reactive<{
@@ -345,6 +346,7 @@ async function joinGame() {
         : '等待管理员审核通过后即可正式参赛。',
       color: 'success',
     })
+    registrationModalOpen.value = false
     registrationForm.invitation_code = ''
     await refreshParticipationView()
   }
@@ -354,6 +356,10 @@ async function joinGame() {
   finally {
     joining.value = false
   }
+}
+
+function openRegistrationModal() {
+  registrationModalOpen.value = true
 }
 
 async function leaveGame() {
@@ -1268,7 +1274,7 @@ const detailPrimaryAction = computed(() => {
       variant: 'solid' as const,
       loading: joining.value,
       disabled: !canJoinGame.value,
-      onClick: joinGame,
+      onClick: openRegistrationModal,
     }
   }
 
@@ -1562,7 +1568,7 @@ const contestTeamContextRows = computed(() => [
 ])
 const currentActionSummaryRows = computed(() => [
   {
-    label: '当前结论',
+    label: '状态',
     value: nextStepMeta.value.title,
   },
   {
@@ -1613,15 +1619,15 @@ const divisionRuleDescription = computed(() => {
 const registrationStepCards = computed(() => [
   {
     label: '账号状态',
-    value: authState.user ? '已完成' : '待完成',
-    hint: authState.user ? `当前账号：${authState.user.username}` : '登录后才能看到你的队伍状态并提交报名',
+    value: authState.user ? '已登录' : '未登录',
+    hint: authState.user ? `当前账号：${authState.user.username}` : '登录后显示你的报名状态',
     icon: authState.user ? 'i-lucide-check-circle-2' : 'i-lucide-log-in',
     color: authState.user ? 'success' as const : 'neutral' as const,
   },
   {
     label: '队伍状态',
-    value: participation.value?.has_team ? '已完成' : '待完成',
-    hint: participation.value?.team?.name ? `当前队伍：${participation.value.team.name}` : '比赛以内队形式参赛，请先创建或加入队伍',
+    value: participation.value?.has_team ? '已加入' : '未加入',
+    hint: participation.value?.team?.name ? `当前队伍：${participation.value.team.name}` : '当前比赛按队伍参赛',
     icon: participation.value?.has_team ? 'i-lucide-users-round' : 'i-lucide-users',
     color: participation.value?.has_team ? 'success' as const : 'warning' as const,
   },
@@ -1633,12 +1639,12 @@ const registrationStepCards = computed(() => [
     hint: participation.value?.participated
       ? (
           participation.value.status === 'accepted'
-            ? '当前队伍已经具备正式参赛资格'
+            ? '当前队伍已具备参赛资格'
             : participation.value.status === 'pending'
-              ? '报名已提交，等待管理员审核'
-              : '可先撤回报名，调整后重新提交'
+              ? '等待管理员审核'
+              : '可撤回后重新提交'
         )
-      : (game.value?.registration_mode === 'auto_accept' ? '报名后会直接通过' : '报名后需等待管理员审核'),
+      : (game.value?.registration_mode === 'auto_accept' ? '报名后直接通过' : '报名后进入审核'),
     icon: participation.value?.status === 'accepted'
       ? 'i-lucide-badge-check'
       : participation.value?.status === 'pending'
@@ -1656,9 +1662,9 @@ const registrationStepCards = computed(() => [
   },
   {
     label: '提交权限',
-    value: canSubmitFlag.value ? '当前可提交' : '暂未开放',
+    value: canSubmitFlag.value ? '已开放' : '未开放',
     hint: canSubmitFlag.value
-      ? (publicGamePhase.value === 'ended' ? '当前为赛后练习提交，不计入正式榜单' : '可以直接切换到题目标签提交 Flag')
+      ? (publicGamePhase.value === 'ended' ? '当前为赛后练习提交' : '当前可直接提交 Flag')
       : submitHint.value,
     icon: canSubmitFlag.value ? 'i-lucide-flag' : 'i-lucide-lock',
     color: canSubmitFlag.value ? 'success' as const : 'neutral' as const,
@@ -1814,22 +1820,22 @@ const writeupSummaryCards = computed(() => [
 
 const writeupRuleItems = computed(() => [
   !authState.user
-    ? '先登录后才能查看你自己的队伍 Writeup 状态。'
+    ? '登录后显示当前队伍 Writeup 状态。'
     : !participation.value?.has_team
-      ? '先创建或加入队伍，再返回这里处理 Writeup。'
-      : '当前比赛以内队形式管理 Writeup，内容会绑定到你当前队伍。',
+      ? '需先加入队伍。'
+      : '按当前队伍提交。',
   game.value?.writeup_required
     ? '当前比赛要求提交 Writeup。'
-    : '当前比赛未启用 Writeup 提交，本页仅展示状态说明。',
+    : '当前比赛未启用 Writeup 提交。',
   game.value?.writeup_deadline
     ? (writeupDeadlinePassed.value
-        ? `Writeup 截止时间已于 ${new Date(game.value.writeup_deadline).toLocaleString()} 结束。`
-        : `如果需要提交，截止时间为 ${new Date(game.value.writeup_deadline).toLocaleString()}。`)
-    : '当前没有单独设置 Writeup 截止时间。',
+        ? `截止时间已过：${new Date(game.value.writeup_deadline).toLocaleString()}。`
+        : `截止时间：${new Date(game.value.writeup_deadline).toLocaleString()}。`)
+    : '当前没有单独截止时间。',
   writeup.value?.status === 'rejected'
-    ? '当前 Writeup 已被驳回，修改后重新提交会回到 submitted 状态。'
-    : '重复提交会覆盖当前内容，并重新进入 submitted 状态等待审核。',
-  'Writeup 审核结果由管理员在管理端更新，审核备注会直接展示在本页。',
+    ? '已驳回，修改后可重新提交。'
+    : '重新提交会覆盖当前内容。',
+  '审核备注会直接显示在本页。',
 ])
 const writeupStatusRows = computed(() => [
   {
@@ -2054,26 +2060,12 @@ onMounted(async () => {
                 :title="registrationPanelSummary.title"
                 :description="registrationPanelSummary.description"
               />
-              <div
+              <p
                 v-if="authState.user && participation?.has_team && !participation?.participated"
-                class="mt-3 max-w-md"
+                class="mt-3 max-w-2xl text-sm text-muted"
               >
-                <UFormField
-                  v-if="game?.invitation_required"
-                  label="比赛邀请码"
-                  name="invitation_code"
-                  :description="registrationInputHint"
-                >
-                  <UInput
-                    v-model="registrationForm.invitation_code"
-                    class="w-full"
-                    placeholder="请输入比赛邀请码"
-                  />
-                </UFormField>
-                <p v-else class="text-sm text-muted">
-                  {{ registrationInputHint }}
-                </p>
-              </div>
+                {{ registrationInputHint }}
+              </p>
             </div>
 
             <div class="flex gap-2">
@@ -2281,24 +2273,30 @@ onMounted(async () => {
             </UPageCard>
 
             <UPageCard title="参赛状态" icon="i-lucide-route">
-              <UPageGrid :cols="{ default: 1, sm: 2 }">
-                <UPageCard
+              <div class="space-y-3 text-sm">
+                <div
                   v-for="card in registrationStepCards"
                   :key="card.label"
-                  :title="card.value"
-                  :description="card.label"
-                  :icon="card.icon"
+                  class="rounded-lg border border-default px-3 py-3"
                 >
-                  <template #footer>
-                    <div class="flex items-center justify-between gap-2">
-                      <span class="text-xs text-muted">{{ card.hint }}</span>
-                      <UBadge :color="card.color" variant="subtle" size="sm">
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <div class="text-muted">
                         {{ card.label }}
-                      </UBadge>
+                      </div>
+                      <div class="mt-1 font-medium">
+                        {{ card.value }}
+                      </div>
                     </div>
-                  </template>
-                </UPageCard>
-              </UPageGrid>
+                    <UBadge :color="card.color" variant="subtle" size="sm">
+                      {{ card.label }}
+                    </UBadge>
+                  </div>
+                  <p class="mt-2 text-xs text-muted leading-6">
+                    {{ card.hint }}
+                  </p>
+                </div>
+              </div>
             </UPageCard>
 
             <UPageCard title="参赛限制" icon="i-lucide-badge-check">
@@ -3049,9 +3047,10 @@ onMounted(async () => {
                   <div
                     v-for="(item, index) in writeupRuleItems"
                     :key="`${index}-${item}`"
-                    class="rounded-md bg-elevated/60 px-3 py-3 text-muted leading-6"
+                    class="flex items-start justify-between gap-3 rounded-md bg-elevated/60 px-3 py-3 text-muted leading-6"
                   >
-                    {{ index + 1 }}. {{ item }}
+                    <span class="text-xs text-muted">{{ index + 1 }}</span>
+                    <span class="flex-1">{{ item }}</span>
                   </div>
                 </div>
               </UPageCard>
@@ -3096,6 +3095,56 @@ onMounted(async () => {
         </template>
       </UEmpty>
     </template>
+
+    <UModal
+      v-model:open="registrationModalOpen"
+      title="报名比赛"
+      :description="registrationInputHint"
+      :ui="{ body: 'space-y-4', footer: 'justify-end' }"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <div class="rounded-lg border border-default px-3 py-3 text-sm">
+            <div class="text-muted">
+              当前队伍
+            </div>
+            <div class="mt-1 font-medium">
+              {{ participation?.team?.name || '未加入队伍' }}
+            </div>
+          </div>
+
+          <UForm :state="registrationForm" class="space-y-4" @submit="joinGame">
+            <UFormField
+              v-if="game?.invitation_required"
+              label="比赛邀请码"
+              name="invitation_code"
+            >
+              <UInput
+                v-model="registrationForm.invitation_code"
+                class="w-full"
+                placeholder="请输入比赛邀请码"
+              />
+            </UFormField>
+          </UForm>
+        </div>
+      </template>
+
+      <template #footer="{ close }">
+        <UButton
+          variant="ghost"
+          :disabled="joining"
+          @click="close()"
+        >
+          取消
+        </UButton>
+        <UButton
+          :loading="joining"
+          @click="joinGame"
+        >
+          确认报名
+        </UButton>
+      </template>
+    </UModal>
 
     <UModal
       v-model:open="confirmModalOpen"
