@@ -3,6 +3,7 @@ definePageMeta({
   middleware: 'admin',
 })
 
+const router = useRouter()
 const route = useRoute()
 type AuditLog = {
   id: number
@@ -28,6 +29,8 @@ const filters = reactive({
   limit: 50,
   keyword: '',
 })
+const syncingFiltersFromRoute = ref(false)
+const syncingRouteQuery = ref(false)
 
 const targetTypeOptions = [
   { label: '全部对象', value: 'all' },
@@ -127,6 +130,85 @@ const highlightUserId = computed(() => {
 const logActionTargets = computed<Record<number, { label: string, to: string } | null>>(() =>
   Object.fromEntries(filteredLogs.value.map(log => [log.id, resolveLogTarget(log)])),
 )
+const serverFilterSignature = computed(() =>
+  JSON.stringify({
+    actorUserId: filters.actorUserId || null,
+    targetType: filters.targetType,
+    action: filters.action,
+    limit: filters.limit,
+  }),
+)
+
+function getSingleQueryValue(value: string | null | Array<string | null> | undefined) {
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (Array.isArray(value)) {
+    return typeof value[0] === 'string' ? value[0] : ''
+  }
+
+  return ''
+}
+
+function parsePositiveInteger(value: string) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+}
+
+function syncFiltersFromRoute() {
+  syncingFiltersFromRoute.value = true
+  try {
+    const actorUserId = parsePositiveInteger(getSingleQueryValue(route.query.actor_user_id))
+    const targetType = getSingleQueryValue(route.query.target_type)
+    const action = getSingleQueryValue(route.query.action)
+    const limit = parsePositiveInteger(getSingleQueryValue(route.query.limit))
+    const keyword = getSingleQueryValue(route.query.keyword)
+
+    filters.actorUserId = actorUserId
+    filters.targetType = targetTypeOptions.some(option => option.value === targetType) ? targetType : 'all'
+    filters.action = actionOptions.some(option => option.value === action) ? action : 'all'
+    filters.limit = limitOptions.some(option => option.value === limit) ? limit || 50 : 50
+    filters.keyword = keyword
+  }
+  finally {
+    syncingFiltersFromRoute.value = false
+  }
+}
+
+async function syncRouteFromFilters() {
+  const nextQuery = {
+    ...route.query,
+    actor_user_id: filters.actorUserId ? String(filters.actorUserId) : undefined,
+    target_type: filters.targetType === 'all' ? undefined : filters.targetType,
+    action: filters.action === 'all' ? undefined : filters.action,
+    limit: filters.limit === 50 ? undefined : String(filters.limit),
+    keyword: filters.keyword.trim() || undefined,
+  }
+
+  const currentQuery = {
+    ...route.query,
+    actor_user_id: getSingleQueryValue(route.query.actor_user_id) || undefined,
+    target_type: getSingleQueryValue(route.query.target_type) || undefined,
+    action: getSingleQueryValue(route.query.action) || undefined,
+    limit: getSingleQueryValue(route.query.limit) || undefined,
+    keyword: getSingleQueryValue(route.query.keyword) || undefined,
+  }
+
+  if (JSON.stringify(nextQuery) === JSON.stringify(currentQuery)) {
+    return
+  }
+
+  syncingRouteQuery.value = true
+  try {
+    await router.replace({
+      query: nextQuery,
+    })
+  }
+  finally {
+    syncingRouteQuery.value = false
+  }
+}
 
 function getActionLabel(action: string) {
   const labels: Record<string, string> = {
@@ -303,7 +385,41 @@ function toggleLogExpanded(logId: number) {
   expandedLogIds.value = [...expandedLogIds.value, logId]
 }
 
-onMounted(loadLogs)
+onMounted(async () => {
+  syncFiltersFromRoute()
+  await syncRouteFromFilters()
+  await loadLogs()
+})
+
+watch(() => route.query, async () => {
+  if (syncingRouteQuery.value) {
+    return
+  }
+
+  const previousServerFilterSignature = serverFilterSignature.value
+  syncFiltersFromRoute()
+
+  if (serverFilterSignature.value !== previousServerFilterSignature) {
+    await loadLogs()
+  }
+})
+
+watch(serverFilterSignature, async (nextSignature, previousSignature) => {
+  if (syncingFiltersFromRoute.value || nextSignature === previousSignature) {
+    return
+  }
+
+  await syncRouteFromFilters()
+  await loadLogs()
+})
+
+watch(() => filters.keyword, async () => {
+  if (syncingFiltersFromRoute.value) {
+    return
+  }
+
+  await syncRouteFromFilters()
+})
 </script>
 
 <template>

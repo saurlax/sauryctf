@@ -3255,7 +3255,7 @@ onMounted(async () => {
                       class="mt-2"
                       icon="i-lucide-message-square-text"
                       title="暂无审核备注"
-                      description="审核备注会显示在这里。"
+                      description="当前 Writeup 尚未写入审核备注。"
                       variant="naked"
                     />
                     <div v-else class="mt-2 leading-6">
@@ -3263,7 +3263,7 @@ onMounted(async () => {
                     </div>
                   </div>
                   <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted leading-6">
-                    当前页按队伍保存一份 Writeup，重新提交会覆盖已有内容；
+                    当前队伍仅保留一份有效 Writeup 记录，重新提交后将以最新内容为准。
                     {{ game?.writeup_required
                       ? game.writeup_deadline
                         ? `如需提交，请在 ${new Date(game.writeup_deadline).toLocaleString()} 前完成。`
