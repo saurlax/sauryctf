@@ -341,7 +341,9 @@ async function runIdentityOperation<T>(operation: () => Promise<T>): Promise<T> 
       throw createApiError(403, error.code, error.message)
     }
     if (!(error instanceof IdentityServiceError)) throw error
-    const statusCode = error.code === 'identity.conflict'
+    const statusCode = error.code === 'identity.registration_disabled'
+      ? 403
+      : error.code === 'identity.conflict'
       || error.code === 'identity.password_unchanged'
       || error.code === 'identity.self_management_forbidden'
       ? 409

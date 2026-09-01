@@ -4,6 +4,7 @@ import {
   IdentityMutationConflictError,
   IdentityNotFoundError,
   InvalidEmailTokenError,
+  PublicRegistrationDisabledError,
   type GlobalRole,
   type GlobalRoleMutationResult,
   type ManagedIdentityPage,
@@ -72,6 +73,12 @@ export class PostgresIdentityRepository implements IdentityRepository {
     const connection = await this.pool.connect()
     try {
       await connection.query('BEGIN')
+      const settings = await connection.query<{ public_registration_enabled: boolean }>(`
+        SELECT public_registration_enabled FROM platform_settings
+        WHERE singleton = true FOR SHARE`)
+      if (settings.rows[0]?.public_registration_enabled !== true) {
+        throw new PublicRegistrationDisabledError()
+      }
       const user = await connection.query<{ id: string, session_version: string }>(
         `INSERT INTO users (username, username_normalized, email, email_normalized)
          VALUES ($1, $2, $3, $4)

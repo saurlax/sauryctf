@@ -219,7 +219,9 @@ describeWithPostgres('content, writeup, transfer, settings, and audit authority 
   })
 
   it('rejects unimplemented or secret-shaped platform settings', async () => {
-    await database.pool.query('INSERT INTO platform_settings DEFAULT VALUES')
+    await database.pool.query(
+      'INSERT INTO platform_settings DEFAULT VALUES ON CONFLICT (singleton) DO NOTHING',
+    )
 
     await expect(database.pool.query(
       `UPDATE platform_settings SET authentication_mode = 'oidc_only' WHERE singleton = true`,

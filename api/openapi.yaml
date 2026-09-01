@@ -13677,6 +13677,315 @@ paths:
         "403": *a1
         "404": *a1
         "409": *a1
+  /api/platform/settings:
+    get:
+      operationId: getPublicPlatformSettings
+      tags:
+        - Platform
+      responses:
+        "200":
+          description: Public branding, locale, registration and implemented authentication settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  settings:
+                    type: object
+                    properties:
+                      brand_name:
+                        type: string
+                        minLength: 1
+                        maxLength: 120
+                      logo_object_id:
+                        anyOf:
+                          - type: string
+                            allOf:
+                              - type: string
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              - type: string
+                                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          - type: "null"
+                      logo_url:
+                        anyOf:
+                          - type: string
+                            pattern: ^\/.*
+                          - type: "null"
+                      theme:
+                        type: string
+                        enum:
+                          - system
+                          - light
+                          - dark
+                      default_locale:
+                        type: string
+                        enum:
+                          - zh-CN
+                          - en
+                      public_registration_enabled:
+                        type: boolean
+                      authentication_mode:
+                        type: string
+                        const: password_only
+                      version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                    required:
+                      - brand_name
+                      - logo_object_id
+                      - logo_url
+                      - theme
+                      - default_locale
+                      - public_registration_enabled
+                      - authentication_mode
+                      - version
+                    additionalProperties: false
+                required:
+                  - settings
+                additionalProperties: false
+        "503": *a1
+  /api/platform/logo:
+    get:
+      operationId: getPublicPlatformLogo
+      tags:
+        - Platform
+        - Content
+      responses:
+        "200":
+          description: Public raster platform logo with immutable digest ETag
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        "404": *a1
+        "503": *a1
+  /api/admin/platform/settings:
+    get:
+      operationId: getManagedPlatformSettings
+      tags:
+        - Administration
+        - Platform
+      security:
+        - cookieSession: []
+      responses:
+        "200":
+          description: Authoritative typed platform settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  settings:
+                    type: object
+                    properties:
+                      brand_name:
+                        type: string
+                        minLength: 1
+                        maxLength: 120
+                      logo_object_id:
+                        anyOf:
+                          - type: string
+                            allOf:
+                              - type: string
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              - type: string
+                                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          - type: "null"
+                      logo_url:
+                        anyOf:
+                          - type: string
+                            pattern: ^\/.*
+                          - type: "null"
+                      theme:
+                        type: string
+                        enum:
+                          - system
+                          - light
+                          - dark
+                      default_locale:
+                        type: string
+                        enum:
+                          - zh-CN
+                          - en
+                      public_registration_enabled:
+                        type: boolean
+                      authentication_mode:
+                        type: string
+                        const: password_only
+                      version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      updated_by:
+                        anyOf:
+                          - type: string
+                            allOf:
+                              - type: string
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              - type: string
+                                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          - type: "null"
+                      updated_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                    required:
+                      - brand_name
+                      - logo_object_id
+                      - logo_url
+                      - theme
+                      - default_locale
+                      - public_registration_enabled
+                      - authentication_mode
+                      - version
+                      - updated_by
+                      - updated_at
+                    additionalProperties: false
+                required:
+                  - settings
+                additionalProperties: false
+        "401": *a1
+        "403": *a1
+        "503": *a1
+    patch:
+      operationId: updatePlatformSettings
+      tags:
+        - Administration
+        - Platform
+      security:
+        - cookieSession: []
+      parameters:
+        - *a2
+        - *a3
+        - *a4
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                brand_name:
+                  type: string
+                  minLength: 1
+                  maxLength: 120
+                logo_object_id:
+                  anyOf:
+                    - type: string
+                      allOf:
+                        - type: string
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        - type: string
+                          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                    - type: "null"
+                theme:
+                  type: string
+                  enum:
+                    - system
+                    - light
+                    - dark
+                default_locale:
+                  type: string
+                  enum:
+                    - zh-CN
+                    - en
+                public_registration_enabled:
+                  type: boolean
+                authentication_mode:
+                  type: string
+                  const: password_only
+                reason:
+                  type: string
+                  minLength: 3
+                  maxLength: 1000
+              required:
+                - reason
+              additionalProperties: false
+      responses:
+        "200":
+          description: Typed platform settings updated with audit evidence
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  settings:
+                    type: object
+                    properties:
+                      brand_name:
+                        type: string
+                        minLength: 1
+                        maxLength: 120
+                      logo_object_id:
+                        anyOf:
+                          - type: string
+                            allOf:
+                              - type: string
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              - type: string
+                                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          - type: "null"
+                      logo_url:
+                        anyOf:
+                          - type: string
+                            pattern: ^\/.*
+                          - type: "null"
+                      theme:
+                        type: string
+                        enum:
+                          - system
+                          - light
+                          - dark
+                      default_locale:
+                        type: string
+                        enum:
+                          - zh-CN
+                          - en
+                      public_registration_enabled:
+                        type: boolean
+                      authentication_mode:
+                        type: string
+                        const: password_only
+                      version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      updated_by:
+                        anyOf:
+                          - type: string
+                            allOf:
+                              - type: string
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              - type: string
+                                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          - type: "null"
+                      updated_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                    required:
+                      - brand_name
+                      - logo_object_id
+                      - logo_url
+                      - theme
+                      - default_locale
+                      - public_registration_enabled
+                      - authentication_mode
+                      - version
+                      - updated_by
+                      - updated_at
+                    additionalProperties: false
+                required:
+                  - settings
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "404": *a1
+        "409": *a1
+        "428": *a1
 components:
   securitySchemes:
     cookieSession:

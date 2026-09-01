@@ -134,6 +134,13 @@ export class IdentityConflictError extends Error {
   }
 }
 
+export class PublicRegistrationDisabledError extends Error {
+  constructor() {
+    super('Public registration is disabled')
+    this.name = 'PublicRegistrationDisabledError'
+  }
+}
+
 export class IdentityMutationConflictError extends Error {
   constructor() {
     super('Identity changed concurrently')

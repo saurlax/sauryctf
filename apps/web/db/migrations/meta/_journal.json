@@ -134,6 +134,13 @@
       "when": 1788291000000,
       "tag": "0018_content_object_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788293700000,
+      "tag": "0019_platform_settings_default",
+      "breakpoints": true
     }
   ]
 }

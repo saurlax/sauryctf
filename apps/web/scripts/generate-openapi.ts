@@ -119,6 +119,11 @@ import {
   createContestPackageExportRequestSchema,
   importContestPackageRequestSchema,
 } from '../shared/contracts/contest-packages'
+import {
+  managedPlatformSettingsResponseSchema,
+  publicPlatformSettingsResponseSchema,
+  updatePlatformSettingsRequestSchema,
+} from '../shared/contracts/platform-settings'
 
 function openApiSchema(schema: z.ZodType): Record<string, unknown> {
   const jsonSchema = z.toJSONSchema(schema, { target: 'draft-7' }) as Record<string, unknown>
@@ -990,6 +995,59 @@ const document = {
           403: errorResponse,
           404: errorResponse,
           409: errorResponse,
+        },
+      },
+    },
+    '/api/platform/settings': {
+      get: {
+        operationId: 'getPublicPlatformSettings',
+        tags: ['Platform'],
+        responses: {
+          200: jsonResponse('Public branding, locale, registration and implemented authentication settings', publicPlatformSettingsResponseSchema),
+          503: errorResponse,
+        },
+      },
+    },
+    '/api/platform/logo': {
+      get: {
+        operationId: 'getPublicPlatformLogo',
+        tags: ['Platform', 'Content'],
+        responses: {
+          200: {
+            description: 'Public raster platform logo with immutable digest ETag',
+            content: { 'image/*': { schema: { type: 'string', format: 'binary' } } },
+          },
+          404: errorResponse,
+          503: errorResponse,
+        },
+      },
+    },
+    '/api/admin/platform/settings': {
+      get: {
+        operationId: 'getManagedPlatformSettings',
+        tags: ['Administration', 'Platform'],
+        security: [{ cookieSession: [] }],
+        responses: {
+          200: jsonResponse('Authoritative typed platform settings', managedPlatformSettingsResponseSchema),
+          401: errorResponse,
+          403: errorResponse,
+          503: errorResponse,
+        },
+      },
+      patch: {
+        operationId: 'updatePlatformSettings',
+        tags: ['Administration', 'Platform'],
+        security: [{ cookieSession: [] }],
+        parameters: [originParameter, csrfParameter, ifMatchParameter],
+        requestBody: jsonRequestBody(updatePlatformSettingsRequestSchema),
+        responses: {
+          200: jsonResponse('Typed platform settings updated with audit evidence', managedPlatformSettingsResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          428: errorResponse,
         },
       },
     },

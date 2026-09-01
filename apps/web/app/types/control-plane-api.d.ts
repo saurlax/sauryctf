@@ -222,6 +222,16 @@ export interface paths {
   "/api/admin/contest-exports/{exportId}/download": {
     get: operations["downloadContestPackageExport"];
   };
+  "/api/platform/settings": {
+    get: operations["getPublicPlatformSettings"];
+  };
+  "/api/platform/logo": {
+    get: operations["getPublicPlatformLogo"];
+  };
+  "/api/admin/platform/settings": {
+    get: operations["getManagedPlatformSettings"];
+    patch: operations["updatePlatformSettings"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -6198,6 +6208,192 @@ export interface operations {
       };
       /** @description Stable API error */
       409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  getPublicPlatformSettings: {
+    responses: {
+      /** @description Public branding, locale, registration and implemented authentication settings */
+      200: {
+        content: {
+          "application/json": {
+            settings: {
+              brand_name: string;
+              logo_object_id: string | null;
+              logo_url: string | null;
+              /** @enum {string} */
+              theme: "system" | "light" | "dark";
+              /** @enum {string} */
+              default_locale: "zh-CN" | "en";
+              public_registration_enabled: boolean;
+              /** @constant */
+              authentication_mode: "password_only";
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      503: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  getPublicPlatformLogo: {
+    responses: {
+      /** @description Public raster platform logo with immutable digest ETag */
+      200: {
+        content: {
+          "image/*": string;
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      503: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  getManagedPlatformSettings: {
+    responses: {
+      /** @description Authoritative typed platform settings */
+      200: {
+        content: {
+          "application/json": {
+            settings: {
+              brand_name: string;
+              logo_object_id: string | null;
+              logo_url: string | null;
+              /** @enum {string} */
+              theme: "system" | "light" | "dark";
+              /** @enum {string} */
+              default_locale: "zh-CN" | "en";
+              public_registration_enabled: boolean;
+              /** @constant */
+              authentication_mode: "password_only";
+              version: number;
+              updated_by: string | null;
+              /** Format: date-time */
+              updated_at: string;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      503: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  updatePlatformSettings: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+        /** @description Strong ETag containing the current resource version. */
+        "If-Match": string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          brand_name?: string;
+          logo_object_id?: string | null;
+          /** @enum {string} */
+          theme?: "system" | "light" | "dark";
+          /** @enum {string} */
+          default_locale?: "zh-CN" | "en";
+          public_registration_enabled?: boolean;
+          /** @constant */
+          authentication_mode?: "password_only";
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Typed platform settings updated with audit evidence */
+      200: {
+        content: {
+          "application/json": {
+            settings: {
+              brand_name: string;
+              logo_object_id: string | null;
+              logo_url: string | null;
+              /** @enum {string} */
+              theme: "system" | "light" | "dark";
+              /** @enum {string} */
+              default_locale: "zh-CN" | "en";
+              public_registration_enabled: boolean;
+              /** @constant */
+              authentication_mode: "password_only";
+              version: number;
+              updated_by: string | null;
+              /** Format: date-time */
+              updated_at: string;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      428: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };

@@ -6,6 +6,7 @@ import {
   IdentityMutationConflictError,
   IdentityNotFoundError,
   InvalidEmailTokenError,
+  PublicRegistrationDisabledError,
   type GlobalRole,
   type GlobalRoleMutationResult,
   type ManagedIdentityPage,
@@ -47,6 +48,7 @@ export type IdentityServiceErrorCode =
   | 'identity.invalid_credentials'
   | 'identity.not_found'
   | 'identity.password_unchanged'
+  | 'identity.registration_disabled'
   | 'identity.self_management_forbidden'
   | 'identity.token_invalid'
 
@@ -57,6 +59,7 @@ export class IdentityServiceError extends Error {
       'identity.invalid_credentials': '账号或密码错误',
       'identity.not_found': '账号不存在',
       'identity.password_unchanged': '密码已被其他请求修改，请重新登录',
+      'identity.registration_disabled': '平台当前未开放公开注册',
       'identity.self_management_forbidden': '不能在用户管理中修改当前账号',
       'identity.token_invalid': '凭证无效或已过期',
     }
@@ -106,6 +109,9 @@ export class IdentityService {
     catch (error) {
       if (error instanceof IdentityConflictError) {
         throw new IdentityServiceError('identity.conflict')
+      }
+      if (error instanceof PublicRegistrationDisabledError) {
+        throw new IdentityServiceError('identity.registration_disabled')
       }
       throw error
     }
