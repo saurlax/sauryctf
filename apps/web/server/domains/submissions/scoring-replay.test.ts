@@ -89,24 +89,33 @@ describe('deterministic contest scoring replay', () => {
       participationScores: [
         {
           participationId: 'participation-a', teamId: 'team-a', teamName: 'A',
-          divisionId: null, status: 'accepted', officialSolveCount: 2,
+          divisionId: null, status: 'accepted',
+          solves: [
+            { solveId: 'solve-decay-a', challengeId: 'challenge-decay', solvedAt: t1.toISOString() },
+            { solveId: 'solve-fixed-a', challengeId: 'challenge-fixed', solvedAt: t3.toISOString() },
+          ],
+          officialSolveCount: 2,
           solvePoints: 661, adjustmentPoints: -25, totalPoints: 636,
           lastScoringAt: t4.toISOString(),
         },
         {
           participationId: 'participation-b', teamId: 'team-b', teamName: 'B',
-          divisionId: null, status: 'accepted', officialSolveCount: 1,
+          divisionId: null, status: 'accepted',
+          solves: [
+            { solveId: 'solve-decay-b', challengeId: 'challenge-decay', solvedAt: t2.toISOString() },
+          ],
+          officialSolveCount: 1,
           solvePoints: 461, adjustmentPoints: 10, totalPoints: 471,
           lastScoringAt: t5.toISOString(),
         },
         {
           participationId: 'participation-c', teamId: 'team-c', teamName: 'C',
-          divisionId: null, status: 'accepted', officialSolveCount: 0,
+          divisionId: null, status: 'accepted', solves: [], officialSolveCount: 0,
           solvePoints: 0, adjustmentPoints: 0, totalPoints: 0, lastScoringAt: null,
         },
         {
           participationId: 'participation-d', teamId: 'team-d', teamName: 'D',
-          divisionId: null, status: 'rejected', officialSolveCount: 0,
+          divisionId: null, status: 'rejected', solves: [], officialSolveCount: 0,
           solvePoints: 0, adjustmentPoints: 1000, totalPoints: 1000,
           lastScoringAt: t6.toISOString(),
         },

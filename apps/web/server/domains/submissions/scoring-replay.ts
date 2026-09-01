@@ -79,6 +79,11 @@ export interface ReplayedParticipationScore {
   teamName: string
   divisionId: string | null
   status: ReplayParticipationStatus
+  solves: Array<{
+    solveId: string
+    challengeId: string
+    solvedAt: string
+  }>
   officialSolveCount: number
   solvePoints: number
   adjustmentPoints: number
@@ -206,6 +211,7 @@ export function replayContestScoring(facts: ContestScoringFacts): ContestScoring
     [...participations.values()].map(participation => [participation.id, {
       participation,
       officialSolveCount: 0,
+      solves: [] as ReplaySolveFact[],
       solvePoints: 0,
       adjustmentPoints: 0,
       lastScoringAt: null as Date | null,
@@ -214,6 +220,7 @@ export function replayContestScoring(facts: ContestScoringFacts): ContestScoring
   for (const solve of officialSolves) {
     const accumulator = participationAccumulators.get(solve.participationId)!
     accumulator.officialSolveCount += 1
+    accumulator.solves.push(solve)
     accumulator.solvePoints = safeAdd(
       accumulator.solvePoints,
       challengePoints.get(solve.challengeId)!,
@@ -251,6 +258,13 @@ export function replayContestScoring(facts: ContestScoringFacts): ContestScoring
         teamName: accumulator.participation.teamName,
         divisionId: accumulator.participation.divisionId,
         status: accumulator.participation.status,
+        solves: accumulator.solves
+          .toSorted((a, b) => a.challengeId.localeCompare(b.challengeId) || compareSolveFacts(a, b))
+          .map(solve => ({
+            solveId: solve.id,
+            challengeId: solve.challengeId,
+            solvedAt: solve.solvedAt.toISOString(),
+          })),
         officialSolveCount: accumulator.officialSolveCount,
         solvePoints: accumulator.solvePoints,
         adjustmentPoints: accumulator.adjustmentPoints,
@@ -262,7 +276,7 @@ export function replayContestScoring(facts: ContestScoringFacts): ContestScoring
 
   const rankingSummary = participationScores
     .filter(score => score.status === 'accepted')
-    .toSorted(compareParticipationScores)
+    .toSorted(compareReplayedParticipationScores)
     .map<ReplayedRankSummary>((score, index) => ({
       rank: index + 1,
       participationId: score.participationId,
@@ -299,12 +313,15 @@ function compareAdjustmentFacts(a: ReplayScoreAdjustmentFact, b: ReplayScoreAdju
   return a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id)
 }
 
-function compareParticipationScores(a: ReplayedParticipationScore, b: ReplayedParticipationScore) {
+export function compareReplayedParticipationScores(
+  a: ReplayedParticipationScore,
+  b: ReplayedParticipationScore,
+) {
   if (a.totalPoints !== b.totalPoints) return a.totalPoints > b.totalPoints ? -1 : 1
   const aLastScoringAt = nullableTimestamp(a.lastScoringAt)
   const bLastScoringAt = nullableTimestamp(b.lastScoringAt)
   if (aLastScoringAt !== bLastScoringAt) return aLastScoringAt < bLastScoringAt ? -1 : 1
-  return a.participationId.localeCompare(b.participationId)
+  return a.teamId.localeCompare(b.teamId) || a.participationId.localeCompare(b.participationId)
 }
 
 function nullableTimestamp(value: string | null) {
