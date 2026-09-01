@@ -76,6 +76,10 @@ if (/gin-gonic|legacy\/go-monolith/mu.test(workerGoMod)) {
   violations.push('apps/worker must not depend on the legacy public monolith')
 }
 
+if (!existsSync(resolve(root, 'apps/worker/cmd/worker/main.go'))) {
+  violations.push('apps/worker must expose its process only through cmd/worker')
+}
+
 inspect('Worker legacy/business import', ['apps/worker'], [
   /github\.com\/saurlax\/sauryctf\/(?:cmd|internal|legacy)(?:\/|['"])/gu,
   /legacy\/go-monolith/gu,
@@ -84,6 +88,23 @@ inspect('Worker legacy/business import', ['apps/worker'], [
 inspect('Worker public business route', ['apps/worker'], [
   /['"]\/api\/(?:auth|users|teams|contests|games|challenges|submissions|scoreboards|admin)(?:\/|['"])/gu,
 ], new Set(['.go']))
+
+inspect('Worker control-plane database identity', ['apps/worker'], [
+  /['"]DATABASE_URL['"]/gu,
+], new Set(['.go']))
+
+const workerRolePath = resolve(root, 'deploy/postgres/worker-role.sql')
+if (!existsSync(workerRolePath)) {
+  violations.push('Worker database role: deploy/postgres/worker-role.sql is missing')
+} else {
+  const workerRoleSQL = readFileSync(workerRolePath, 'utf8')
+  if (!/CREATE ROLE sauryctf_worker[\s\S]*NOLOGIN/mu.test(workerRoleSQL)) {
+    violations.push('Worker database role must be an independent NOLOGIN role')
+  }
+  if (!/REVOKE ALL ON ALL TABLES IN SCHEMA public FROM sauryctf_worker/mu.test(workerRoleSQL)) {
+    violations.push('Worker database role must revoke inherited table grants before applying its allowlist')
+  }
+}
 
 for (const file of sourceFiles('apps/worker', new Set(['.go']))) {
   const normalized = relative(root, file).split(sep).join('/')

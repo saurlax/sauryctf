@@ -82,7 +82,7 @@
 
 ## 8. 抽取 Go 实例 Worker
 
-- [ ] 8.1 新建 `apps/worker/cmd/worker` 入口及独立配置、数据库角色和健康检查，验证 Worker 不注册任何公网业务路由
+- [x] 8.1 新建 `apps/worker/cmd/worker` 入口及独立配置、数据库角色和健康检查，验证 Worker 不注册任何公网业务路由
 - [ ] 8.2 定义 `instance_jobs` 版本化载荷与 TypeScript/Go JSON 夹具，验证 ensure、inspect、destroy、reconcile 双向兼容并拒绝未知操作
 - [ ] 8.3 实现 `SKIP LOCKED` 批量领取、租约续约、fencing token 和优雅停止，使用两个 Worker 并发验证单次有效完成
 - [ ] 8.4 实现任务尝试、错误分类、指数退避、取消、superseded 和死信，使用故障注入验证每种最终状态
