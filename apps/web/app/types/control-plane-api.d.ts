@@ -72,6 +72,9 @@ export interface paths {
   "/api/teams/members/{userId}": {
     delete: operations["removeTeamMember"];
   };
+  "/api/admin/teams/{teamId}/corrections": {
+    post: operations["correctTeamMembership"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -797,6 +800,17 @@ export interface operations {
                   joined_at: string;
                 })[];
               invite_code: string | null;
+              lock: {
+                locked: boolean;
+                contests: {
+                    id: string;
+                    title: string;
+                    /** Format: date-time */
+                    start_at: string;
+                    /** Format: date-time */
+                    end_at: string;
+                  }[];
+              };
             }) | null;
           };
         };
@@ -849,6 +863,17 @@ export interface operations {
                   joined_at: string;
                 })[];
               invite_code: string | null;
+              lock: {
+                locked: boolean;
+                contests: {
+                    id: string;
+                    title: string;
+                    /** Format: date-time */
+                    start_at: string;
+                    /** Format: date-time */
+                    end_at: string;
+                  }[];
+              };
             };
           };
         };
@@ -913,6 +938,17 @@ export interface operations {
                   joined_at: string;
                 })[];
               invite_code: string | null;
+              lock: {
+                locked: boolean;
+                contests: {
+                    id: string;
+                    title: string;
+                    /** Format: date-time */
+                    start_at: string;
+                    /** Format: date-time */
+                    end_at: string;
+                  }[];
+              };
             };
           };
         };
@@ -1054,6 +1090,17 @@ export interface operations {
                   joined_at: string;
                 })[];
               invite_code: string | null;
+              lock: {
+                locked: boolean;
+                contests: {
+                    id: string;
+                    title: string;
+                    /** Format: date-time */
+                    start_at: string;
+                    /** Format: date-time */
+                    end_at: string;
+                  }[];
+              };
             };
           };
         };
@@ -1120,6 +1167,95 @@ export interface operations {
       };
       /** @description Stable API error */
       404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  correctTeamMembership: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+      path: {
+        teamId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          operation: "add_member" | "remove_member" | "transfer_captain";
+          user_id: string;
+          reason: string;
+          /** @constant */
+          confirm: true;
+        };
+      };
+    };
+    responses: {
+      /** @description Team membership corrected with audit evidence */
+      200: {
+        content: {
+          "application/json": {
+            team: {
+              id: string;
+              name: string;
+              version: number;
+              members: ({
+                  user_id: string;
+                  username: string;
+                  /** @enum {string} */
+                  role: "member" | "captain";
+                  /** Format: date-time */
+                  joined_at: string;
+                })[];
+              invite_code: string | null;
+              lock: {
+                locked: boolean;
+                contests: {
+                    id: string;
+                    title: string;
+                    /** Format: date-time */
+                    start_at: string;
+                    /** Format: date-time */
+                    end_at: string;
+                  }[];
+              };
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };

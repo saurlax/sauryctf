@@ -31,6 +31,7 @@ import {
 } from '../shared/contracts/identity'
 import { csrfTokenResponseSchema } from '../shared/contracts/request-security'
 import {
+  adminTeamCorrectionRequestSchema,
   createTeamRequestSchema,
   inviteRotatedResponseSchema,
   joinTeamRequestSchema,
@@ -372,6 +373,7 @@ const document = {
     '/api/teams/invite/rotate': { post: { operationId: 'rotateTeamInvite', tags: ['Teams'], security: [{ cookieSession: [] }], parameters: [originParameter, csrfParameter], responses: { 200: jsonResponse('Invite rotated', inviteRotatedResponseSchema), 401: errorResponse, 403: errorResponse, 404: errorResponse } } },
     '/api/teams/captain/transfer': { post: { operationId: 'transferTeamCaptain', tags: ['Teams'], security: [{ cookieSession: [] }], parameters: [originParameter, csrfParameter], requestBody: jsonRequestBody(transferCaptainRequestSchema), responses: { 200: jsonResponse('Captain transferred', teamMutationResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse } } },
     '/api/teams/members/{userId}': { delete: { operationId: 'removeTeamMember', tags: ['Teams'], security: [{ cookieSession: [] }], parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], responses: { 200: jsonResponse('Member removed', memberRemovedResponseSchema), 401: errorResponse, 403: errorResponse, 404: errorResponse } } },
+    '/api/admin/teams/{teamId}/corrections': { post: { operationId: 'correctTeamMembership', tags: ['Administration', 'Teams'], security: [{ cookieSession: [] }], parameters: [{ name: 'teamId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], requestBody: jsonRequestBody(adminTeamCorrectionRequestSchema), responses: { 200: jsonResponse('Team membership corrected with audit evidence', teamMutationResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse } } },
   },
   components: {
     securitySchemes: {

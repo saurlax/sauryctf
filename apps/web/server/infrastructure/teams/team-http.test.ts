@@ -14,6 +14,7 @@ import { normalizeApiError } from '../http/errors'
 import { MemoryRateLimitStore } from '../security/rate-limit'
 import {
   handleCreateTeam,
+  handleCorrectTeamMembership,
   handleJoinTeam,
   handleRemoveMember,
   handleRotateInvite,
@@ -49,6 +50,7 @@ const teamRecord = {
     role: 'captain' as const,
     joinedAt: new Date('2026-09-01T07:10:00.000Z'),
   }],
+  locks: [],
 }
 
 type TeamHandler = (event: H3Event, dependencies: TeamHttpDependencies) => Promise<unknown>
@@ -77,6 +79,7 @@ function createDependencies(
       remove: vi.fn(async () => undefined),
       rotateInvite: vi.fn(async () => 'r'.repeat(43)),
       transfer: vi.fn(async () => undefined),
+      correctMembership: vi.fn(async () => teamRecord),
       ...overrides,
     },
   }
@@ -89,6 +92,7 @@ async function invoke(
 ): Promise<Response> {
   const app = createApp()
   app.use(eventHandler(async (event) => {
+    event.context.requestId = requestId
     try {
       return await handler(event, dependencies)
     }
@@ -159,5 +163,45 @@ describe('team HTTP adapters', () => {
         invite_code: 'i'.repeat(43),
       },
     })
+  })
+
+  it('allows only an admin to submit a confirmed membership correction with a reason', async () => {
+    const organizerDependencies = createDependencies({ ...verifiedSubject, role: 'organizer' })
+    const handler: TeamHandler = (event, dependencies) => handleCorrectTeamMembership(
+      event,
+      teamRecord.id,
+      dependencies,
+    )
+    const input = {
+      operation: 'remove_member',
+      user_id: targetUserId,
+      reason: 'Remove an ineligible registered member',
+      confirm: true,
+    }
+    const forbidden = await invoke(handler, organizerDependencies, input)
+
+    expect(forbidden.status).toBe(403)
+    await expect(forbidden.json()).resolves.toMatchObject({
+      error: { code: 'identity.capability_forbidden' },
+    })
+    expect(organizerDependencies.teams.correctMembership).not.toHaveBeenCalled()
+
+    const adminDependencies = createDependencies({ ...verifiedSubject, role: 'admin' })
+    const unconfirmed = await invoke(handler, adminDependencies, { ...input, confirm: false })
+    expect(unconfirmed.status).toBe(400)
+    expect(adminDependencies.teams.correctMembership).not.toHaveBeenCalled()
+
+    const corrected = await invoke(handler, adminDependencies, input)
+    expect(corrected.status).toBe(200)
+    expect(adminDependencies.teams.correctMembership).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'admin' }),
+      {
+        requestId,
+        teamId: teamRecord.id,
+        operation: 'remove_member',
+        targetUserId,
+        reason: input.reason,
+      },
+    )
   })
 })

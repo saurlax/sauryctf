@@ -64,6 +64,13 @@
       "when": 1788264000000,
       "tag": "0008_content_writeups_administration",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788266700000,
+      "tag": "0009_team_locking",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import { setResponseStatus } from 'h3'
 import {
+  adminTeamCorrectionRequestSchema,
   createTeamRequestSchema,
   inviteRotatedResponseSchema,
   joinTeamRequestSchema,
@@ -11,6 +12,7 @@ import {
   transferCaptainRequestSchema,
   type Team,
 } from '../../../shared/contracts/teams'
+import { requestIdSchema } from '../../../shared/contracts/http'
 import { identityCapability } from '../../domains/identity/capabilities'
 import type { TeamRecord } from '../../domains/teams/repository'
 import { TeamServiceError, type TeamService } from '../../domains/teams/service'
@@ -24,6 +26,7 @@ import { createApiError } from '../http/errors'
 
 type TeamCommands = Pick<TeamService,
   | 'create'
+  | 'correctMembership'
   | 'current'
   | 'join'
   | 'leave'
@@ -58,7 +61,25 @@ function projection(record: TeamRecord, inviteCode: string | null = null): Team 
       role: member.role,
       joined_at: member.joinedAt.toISOString(),
     })),
+    lock: {
+      locked: record.locks.length > 0,
+      contests: record.locks.map(lock => ({
+        id: lock.id,
+        title: lock.title,
+        start_at: lock.startAt.toISOString(),
+        end_at: lock.endAt.toISOString(),
+      })),
+    },
   }
+}
+
+async function administrator(event: H3Event, dependencies: TeamHttpDependencies) {
+  const context = await requireProtectedCapability(
+    event,
+    identityCapability.globalOperationsManage,
+    dependencies.identity,
+  )
+  return context.subject
 }
 
 async function actor(event: H3Event, dependencies: TeamHttpDependencies) {
@@ -80,9 +101,15 @@ async function runTeamOperation<T>(operation: () => Promise<T>): Promise<T> {
       'team.conflict': 409,
       'team.forbidden': 403,
       'team.invite_invalid': 400,
+      'team.locked': 409,
+      'team.member_ineligible': 409,
       'team.not_found': 404,
+      'team.reason_required': 400,
     }[error.code]
-    throw createApiError(statusCode, error.code, error.message)
+    const fields: Record<string, string[]> = error.code === 'team.locked'
+      ? { contests: error.locks.map(lock => `${lock.title} · ${lock.endAt.toISOString()}`) }
+      : {}
+    throw createApiError(statusCode, error.code, error.message, fields)
   }
 }
 
@@ -155,5 +182,22 @@ export async function handleTransferCaptain(
   await runTeamOperation(() => dependencies.teams.transfer(subject, input.user_id))
   const team = await runTeamOperation(() => dependencies.teams.current(subject))
   if (!team) throw createApiError(404, 'team.not_found', '当前队伍或成员不存在')
+  return teamMutationResponseSchema.parse({ team: projection(team) })
+}
+
+export async function handleCorrectTeamMembership(
+  event: H3Event,
+  teamId: string,
+  dependencies = teamHttpDependencies(event),
+) {
+  const subject = await administrator(event, dependencies)
+  const input = await readValidatedJsonBody(event, adminTeamCorrectionRequestSchema)
+  const team = await runTeamOperation(() => dependencies.teams.correctMembership(subject, {
+    requestId: requestIdSchema.parse(event.context.requestId),
+    teamId,
+    operation: input.operation,
+    targetUserId: input.user_id,
+    reason: input.reason,
+  }))
   return teamMutationResponseSchema.parse({ team: projection(team) })
 }

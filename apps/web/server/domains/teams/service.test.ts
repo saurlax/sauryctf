@@ -33,6 +33,32 @@ describeWithPostgres('team membership transactions', () => {
     return { userId:result.rows[0]!.id,username,email,emailVerified:true,status:'active',role:'user',sessionVersion:1,mustChangePassword:false }
   }
 
+  async function acceptTeamForContest(
+    teamId: string,
+    reviewerId: string,
+    phase: 'active' | 'ended' = 'active',
+  ) {
+    sequence++
+    const now = Date.now()
+    const startAt = new Date(now - (phase === 'active' ? 60_000 : 7_200_000))
+    const endAt = new Date(now + (phase === 'active' ? 3_600_000 : -3_600_000))
+    const title = phase === 'active' ? `Locked Contest ${sequence}` : `Ended Contest ${sequence}`
+    const contest = await database.pool.query<{ id: string }>(
+      `INSERT INTO contests
+         (title, slug, publication_status, start_at, end_at, published_at, created_by)
+       VALUES ($1, $2, 'published', $3, $4, $3, $5)
+       RETURNING id`,
+      [title, `team-lock-${sequence}`, startAt, endAt, reviewerId],
+    )
+    await database.pool.query(
+      `INSERT INTO participations
+         (contest_id, team_id, status, registered_by, reviewed_by, reviewed_at)
+       VALUES ($1, $2, 'accepted', $3, $3, now())`,
+      [contest.rows[0]!.id, teamId, reviewerId],
+    )
+    return { id: contest.rows[0]!.id, title, startAt, endAt }
+  }
+
   it('creates, joins, removes, leaves and rotates an unenumerable invite', async () => {
     const captain=await user(); const member=await user(); const leaving=await user()
     const created=await teams.create(captain,'Blue Team')
@@ -57,6 +83,102 @@ describeWithPostgres('team membership transactions', () => {
     const current=await teams.current(captain)
     expect(current?.members).toHaveLength(3)
     expect(current?.members.find(candidate=>candidate.role==='captain')?.userId).toBe(captain.userId)
+  })
+
+  it('locks every ordinary membership mutation while an accepted contest has not ended', async () => {
+    const captain=await user(); const member=await user(); const target=await user(); const newcomer=await user()
+    const created=await teams.create(captain,'Locked Team')
+    await teams.join(member,created.inviteCode); await teams.join(target,created.inviteCode)
+    const contest=await acceptTeamForContest(created.team.id,captain.userId)
+
+    const current=await teams.current(captain)
+    expect(current?.locks).toEqual([expect.objectContaining({id:contest.id,title:contest.title})])
+    await expect(teams.join(newcomer,created.inviteCode)).rejects.toMatchObject({code:'team.locked'})
+    await expect(teams.leave(member)).rejects.toMatchObject({code:'team.locked'})
+    await expect(teams.remove(captain,target.userId)).rejects.toMatchObject({code:'team.locked'})
+    await expect(teams.transfer(captain,target.userId)).rejects.toMatchObject({code:'team.locked'})
+    await expect(teams.rotateInvite(captain)).resolves.toHaveLength(43)
+  })
+
+  it('unlocks ordinary membership mutations after every accepted contest ends', async () => {
+    const captain=await user(); const member=await user()
+    const created=await teams.create(captain,'Ended Lock Team')
+    await teams.join(member,created.inviteCode)
+    await acceptTeamForContest(created.team.id,captain.userId,'ended')
+
+    await expect(teams.leave(member)).resolves.toBeUndefined()
+    await expect(teams.current(captain)).resolves.toMatchObject({locks:[]})
+  })
+
+  it('serializes participation acceptance on the same team row used by membership changes', async () => {
+    const captain=await user(); const created=await teams.create(captain,'Acceptance Lock Team')
+    sequence++
+    const contest=await database.pool.query<{id:string}>(
+      `INSERT INTO contests
+         (title,slug,publication_status,start_at,end_at,published_at,created_by)
+       VALUES($1,$2,'published',now()-interval '1 minute',now()+interval '1 hour',now(),$3)
+       RETURNING id`,[`Acceptance Lock ${sequence}`,`acceptance-lock-${sequence}`,captain.userId],
+    )
+    const blocker=await database.pool.connect(); const contender=await database.pool.connect()
+    try {
+      await blocker.query('BEGIN')
+      await blocker.query('SELECT 1 FROM teams WHERE id=$1 FOR UPDATE',[created.team.id])
+      await contender.query('BEGIN')
+      await contender.query("SET LOCAL lock_timeout='100ms'")
+      await expect(contender.query(
+        `INSERT INTO participations
+           (contest_id,team_id,status,registered_by,reviewed_by,reviewed_at)
+         VALUES($1,$2,'accepted',$3,$3,now())`,[contest.rows[0]!.id,created.team.id,captain.userId],
+      )).rejects.toMatchObject({code:'55P03'})
+    }
+    finally {
+      await contender.query('ROLLBACK').catch(()=>undefined)
+      await blocker.query('ROLLBACK').catch(()=>undefined)
+      blocker.release(); contender.release()
+    }
+  })
+
+  it('lets an admin correct a locked team with a reason and writes audit evidence atomically', async () => {
+    const captain=await user(); const member=await user(); const replacement=await user(); const adminUser=await user()
+    const admin={...adminUser,role:'admin' as const}
+    const created=await teams.create(captain,'Corrected Team')
+    await teams.join(member,created.inviteCode)
+    const contest=await acceptTeamForContest(created.team.id,admin.userId)
+
+    await teams.correctMembership(admin,{
+      requestId:randomUUID(),teamId:created.team.id,operation:'remove_member',targetUserId:member.userId,reason:'Remove an ineligible registered member',
+    })
+    await teams.correctMembership(admin,{
+      requestId:randomUUID(),teamId:created.team.id,operation:'add_member',targetUserId:replacement.userId,reason:'Restore the approved replacement member',
+    })
+    const corrected=await teams.correctMembership(admin,{
+      requestId:randomUUID(),teamId:created.team.id,operation:'transfer_captain',targetUserId:replacement.userId,reason:'Transfer captaincy after identity review',
+    })
+
+    expect(corrected.members.find(candidate=>candidate.role==='captain')?.userId).toBe(replacement.userId)
+    expect(corrected.locks).toEqual([expect.objectContaining({id:contest.id})])
+    const audit=await database.pool.query<{reason:string,changes:{operation:string},metadata:{locked_contests:Array<{id:string}>}}>(
+      `SELECT reason,changes,metadata FROM audit_events
+       WHERE target_id=$1 AND action='team.membership.corrected'
+       ORDER BY occurred_at,id`,[created.team.id],
+    )
+    expect(audit.rows).toHaveLength(3)
+    expect(audit.rows.map(row=>row.changes.operation)).toEqual(['remove_member','add_member','transfer_captain'])
+    expect(audit.rows.every(row=>row.reason.length>=10)).toBe(true)
+    expect(audit.rows.every(row=>row.metadata.locked_contests[0]?.id===contest.id)).toBe(true)
+  })
+
+  it('rolls back audit evidence when an administrative correction fails', async () => {
+    const captain=await user(); const adminUser=await user(); const admin={...adminUser,role:'admin' as const}
+    const created=await teams.create(captain,'Failed Correction')
+    await acceptTeamForContest(created.team.id,admin.userId)
+    const requestId=randomUUID()
+
+    await expect(teams.correctMembership(admin,{
+      requestId,teamId:created.team.id,operation:'remove_member',targetUserId:captain.userId,reason:'Invalid attempt to remove the captain',
+    })).rejects.toMatchObject({code:'team.forbidden'})
+    const audit=await database.pool.query('SELECT 1 FROM audit_events WHERE request_id=$1',[requestId])
+    expect(audit.rows).toHaveLength(0)
   })
 
   it('allows only one concurrent team join for the same user', async () => {

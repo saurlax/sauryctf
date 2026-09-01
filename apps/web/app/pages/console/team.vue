@@ -45,6 +45,7 @@ const currentUserId = computed(() => authState.user?.id)
 const emailVerified = computed(() => authState.user?.email_verified === true)
 const currentMember = computed(() => team.value?.members.find(member => member.user_id === currentUserId.value))
 const isCaptain = computed(() => currentMember.value?.role === 'captain')
+const teamLocked = computed(() => team.value?.lock.locked === true)
 const contestRedirect = computed(() => resolveOptionalAuthRedirect(route.query.redirect))
 const routeInvite = computed(() => typeof route.query.invite === 'string' ? route.query.invite.trim() : '')
 
@@ -322,6 +323,29 @@ onMounted(async () => {
 
           <div class="space-y-3">
             <div
+              v-if="teamLocked"
+              class="rounded-lg border border-warning/40 bg-warning/5 px-4 py-3"
+            >
+              <div class="flex items-center gap-2 font-medium text-highlighted">
+                <UIcon name="i-lucide-lock" class="size-4" />
+                <span>队伍成员已锁定</span>
+              </div>
+              <p class="mt-2 text-sm leading-6 text-muted">
+                队伍已通过下列未结束比赛的报名。比赛结束前，普通成员操作不能改变队伍结构。
+              </p>
+              <div class="mt-3 space-y-2">
+                <div
+                  v-for="contest in team.lock.contests"
+                  :key="contest.id"
+                  class="flex flex-wrap items-center justify-between gap-2 rounded-md border border-default px-3 py-2 text-sm"
+                >
+                  <span class="font-medium text-highlighted">{{ contest.title }}</span>
+                  <span class="text-muted">结束于 {{ new Date(contest.end_at).toLocaleString() }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div
               v-for="member in team.members"
               :key="member.user_id"
               class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-default px-4 py-3"
@@ -343,6 +367,7 @@ onMounted(async () => {
                     size="xs"
                     variant="ghost"
                     icon="i-lucide-crown"
+                    :disabled="teamLocked"
                     :loading="memberBusyId === member.user_id"
                     @click="openConfirmation({ type: 'transfer', member })"
                   >
@@ -353,6 +378,7 @@ onMounted(async () => {
                     color="error"
                     variant="ghost"
                     icon="i-lucide-user-round-minus"
+                    :disabled="teamLocked"
                     :loading="memberBusyId === member.user_id"
                     @click="openConfirmation({ type: 'remove', member })"
                   >
@@ -368,7 +394,9 @@ onMounted(async () => {
           <UPageCard title="队伍操作" icon="i-lucide-settings-2">
             <div class="space-y-3 text-sm text-muted">
               <p v-if="isCaptain">
-                队长可以移除成员、轮换邀请码并将队长身份移交给其他成员。
+                {{ teamLocked
+                  ? '锁定期间不能移除成员或移交队长；邀请码仍可轮换，但新成员需等待相关比赛结束后加入。'
+                  : '队长可以移除成员、轮换邀请码并将队长身份移交给其他成员。' }}
               </p>
               <p v-else>
                 普通队员可以退出队伍；成员管理和邀请码轮换由队长负责。
@@ -390,6 +418,7 @@ onMounted(async () => {
                   color="error"
                   variant="outline"
                   icon="i-lucide-log-out"
+                  :disabled="teamLocked"
                   @click="openConfirmation({ type: 'leave' })"
                 >
                   退出队伍
@@ -462,6 +491,7 @@ onMounted(async () => {
           <p>每个账号同时只能属于一支队伍。</p>
           <p>邀请码不可查询历史明文，队长可以随时轮换并撤销旧邀请码。</p>
           <p>队长退出前需要先将队长身份移交给其他成员。</p>
+          <p>队伍通过未结束比赛的报名后，成员结构会自动锁定。</p>
         </div>
       </UPageCard>
     </div>

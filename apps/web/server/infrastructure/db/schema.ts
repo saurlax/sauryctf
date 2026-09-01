@@ -349,6 +349,7 @@ export const participations = pgTable('participations', {
   uniqueIndex('participations_contest_team_unique').on(table.contestId, table.teamId),
   uniqueIndex('participations_contest_id_id_unique').on(table.contestId, table.id),
   index('participations_contest_status').on(table.contestId, table.status, table.registeredAt),
+  index('participations_team_status').on(table.teamId, table.status),
   foreignKey({
     name: 'participations_contest_division_fk',
     columns: [table.contestId, table.divisionId],
