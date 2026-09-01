@@ -99,6 +99,10 @@ import {
   publicRealtimeEventSchema,
   publicRealtimeResetSchema,
 } from '../shared/contracts/public-realtime'
+import {
+  commitContentUploadRequestSchema,
+  contentObjectResponseSchema,
+} from '../shared/contracts/content'
 
 function openApiSchema(schema: z.ZodType): Record<string, unknown> {
   const jsonSchema = z.toJSONSchema(schema, { target: 'draft-7' }) as Record<string, unknown>
@@ -655,6 +659,62 @@ const document = {
     '/api/admin/contests/{contestId}/participations': { get: { operationId: 'listParticipations', tags: ['Administration', 'Contests', 'Participations'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, { name: 'cursor', in: 'query', required: false, schema: openApiSchema(adminParticipationListRequestSchema.shape.cursor) }, { name: 'limit', in: 'query', required: false, schema: openApiSchema(adminParticipationListRequestSchema.shape.limit) }, { name: 'status', in: 'query', required: false, schema: openApiSchema(adminParticipationListRequestSchema.shape.status) }], responses: { 200: jsonResponse('Cursor-paginated participation management projection', adminParticipationListResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse } } },
     '/api/admin/contests/{contestId}/participations/{participationId}/review': { post: { operationId: 'reviewParticipation', tags: ['Administration', 'Contests', 'Participations'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, { name: 'participationId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], requestBody: jsonRequestBody(reviewParticipationRequestSchema), responses: { 200: jsonResponse('Participation reviewed with audit evidence', participationMutationResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse } } },
     '/api/admin/contests/{contestId}/participations/{participationId}/division': { patch: { operationId: 'assignParticipationDivision', tags: ['Administration', 'Contests', 'Participations'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, { name: 'participationId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], requestBody: jsonRequestBody(assignParticipationDivisionRequestSchema), responses: { 200: jsonResponse('Participation division assigned with audit evidence', participationMutationResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse } } },
+    '/api/content/uploads': {
+      post: {
+        operationId: 'createContentUpload',
+        tags: ['Content'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          originParameter,
+          csrfParameter,
+          {
+            name: 'X-Content-Filename',
+            in: 'header',
+            required: true,
+            schema: { type: 'string', minLength: 1, maxLength: 1024 },
+            description: 'Percent-encoded original display filename. Storage keys are always server generated.',
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            '*/*': {
+              schema: { type: 'string', format: 'binary', maxLength: 67_108_864 },
+            },
+          },
+        },
+        responses: {
+          200: jsonResponse('Existing committed object reused by digest', contentObjectResponseSchema),
+          201: jsonResponse('Temporary content object uploaded', contentObjectResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          409: errorResponse,
+          413: errorResponse,
+        },
+      },
+    },
+    '/api/content/uploads/{contentObjectId}/commit': {
+      post: {
+        operationId: 'commitContentUpload',
+        tags: ['Content'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'contentObjectId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          originParameter,
+          csrfParameter,
+        ],
+        requestBody: jsonRequestBody(commitContentUploadRequestSchema),
+        responses: {
+          200: jsonResponse('Temporary upload committed after digest and object metadata verification', contentObjectResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+        },
+      },
+    },
   },
   components: {
     securitySchemes: {

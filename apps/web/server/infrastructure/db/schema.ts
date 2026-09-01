@@ -408,16 +408,19 @@ export const contentObjects = pgTable('content_objects', {
   status: contentObjectStatus().notNull().default('temporary'),
   createdBy: uuid('created_by').notNull().references(() => users.id),
   committedAt: timestamp('committed_at', { withTimezone: true, mode: 'date' }),
+  deletionClaimedAt: timestamp('deletion_claimed_at', { withTimezone: true, mode: 'date' }),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex('content_objects_storage_key_unique').on(table.storageKey),
-  uniqueIndex('content_objects_digest_size_unique').on(table.sha256Digest, table.sizeBytes),
+  uniqueIndex('content_objects_digest_size_unique').on(table.sha256Digest, table.sizeBytes).where(sql`${table.status} <> 'deleted'`),
+  index('content_objects_garbage_collection').on(table.status, table.createdAt, table.id).where(sql`${table.status} IN ('temporary', 'committed', 'quarantined')`),
   check('content_objects_storage_key_not_empty', sql`length(btrim(${table.storageKey})) > 0`),
   check('content_objects_sha256_length', sql`octet_length(${table.sha256Digest}) = 32`),
   check('content_objects_size_nonnegative', sql`${table.sizeBytes} >= 0`),
   check('content_objects_media_type_not_empty', sql`length(btrim(${table.mediaType})) > 0`),
   check('content_objects_filename_not_empty', sql`length(btrim(${table.originalFilename})) > 0`),
   check('content_objects_commit_state', sql`(${table.status} = 'temporary' AND ${table.committedAt} IS NULL) OR (${table.status} = 'committed' AND ${table.committedAt} IS NOT NULL) OR ${table.status} IN ('quarantined', 'deleted')`),
+  check('content_objects_deletion_claim_state', sql`${table.deletionClaimedAt} IS NULL OR ${table.status} = 'quarantined'`),
 ])
 
 export const challengeTemplates = pgTable('challenge_templates', {

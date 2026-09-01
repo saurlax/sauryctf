@@ -44,12 +44,21 @@ import { PostgresScoreboardViewRepository } from '../infrastructure/db/scoreboar
 import { PostgresDomainOutboxRepository } from '../infrastructure/db/domain-outbox-repository'
 import { RedisDomainEventPublisher } from '../infrastructure/events/redis-domain-event-publisher'
 import { RedisPublicRealtimeLog } from '../infrastructure/events/redis-public-realtime-log'
+import { ContentObjectService } from '../domains/content/service'
+import { PostgresContentObjectRepository } from '../infrastructure/db/content-object-repository'
+import { S3ContentObjectStore } from '../infrastructure/storage/s3-content-object-store'
 
 export default defineNitroPlugin(async (nitroApp) => {
   const databaseUrl = process.env.DATABASE_URL
   const sessionPassword = process.env.NUXT_SESSION_PASSWORD
   const submissionAnswerKey = process.env.SUBMISSION_ANSWER_KEY
-  if (!databaseUrl || !sessionPassword || !submissionAnswerKey) return
+  const s3Endpoint = process.env.S3_ENDPOINT
+  const s3Region = process.env.S3_REGION
+  const s3Bucket = process.env.S3_BUCKET
+  const s3AccessKeyId = process.env.S3_ACCESS_KEY_ID
+  const s3SecretAccessKey = process.env.S3_SECRET_ACCESS_KEY
+  if (!databaseUrl || !sessionPassword || !submissionAnswerKey
+    || !s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey) return
 
   const database = createDatabaseClient({
     connectionString: databaseUrl,
@@ -61,6 +70,18 @@ export default defineNitroPlugin(async (nitroApp) => {
   const scoreboardBuildLock = new ResilientRedisScoreboardBuildLock(process.env.REDIS_URL)
   const domainEventPublisher = new RedisDomainEventPublisher(process.env.REDIS_URL)
   const publicRealtime = new RedisPublicRealtimeLog(process.env.REDIS_URL)
+  const contentStore = new S3ContentObjectStore({
+    endpoint: s3Endpoint,
+    region: s3Region,
+    bucket: s3Bucket,
+    accessKeyId: s3AccessKeyId,
+    secretAccessKey: s3SecretAccessKey,
+    forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
+  })
+  const content = new ContentObjectService(
+    new PostgresContentObjectRepository(database.pool),
+    contentStore,
+  )
   const humanVerification = process.env.TURNSTILE_SECRET_KEY
     ? new TurnstileHumanVerificationProvider(process.env.TURNSTILE_SECRET_KEY)
     : new DisabledHumanVerificationProvider()
@@ -103,6 +124,7 @@ export default defineNitroPlugin(async (nitroApp) => {
       new ScoreboardBuildCoordinator(scoreboardBuildLock),
     ),
     publicRealtime,
+    content,
   }
 
   const smtpHost = process.env.MAIL_SMTP_HOST
@@ -110,6 +132,7 @@ export default defineNitroPlugin(async (nitroApp) => {
   const publicOrigin = process.env.PUBLIC_ORIGIN
   let dispatchTimer: ReturnType<typeof setInterval> | undefined
   let domainEventTimer: ReturnType<typeof setInterval> | undefined
+  let contentCleanupTimer: ReturnType<typeof setInterval> | undefined
   if (smtpHost && mailFrom && publicOrigin) {
     const smtpPort = Number.parseInt(process.env.MAIL_SMTP_PORT ?? '25', 10)
     const dispatcher = new MailOutboxDispatcher(
@@ -168,17 +191,37 @@ export default defineNitroPlugin(async (nitroApp) => {
     domainEventTimer.unref()
   }
 
+  let contentCleanupRun: Promise<void> | undefined
+  const collectContent = () => {
+    if (contentCleanupRun) return contentCleanupRun
+    contentCleanupRun = content.collectGarbage()
+      .then(() => undefined)
+      .catch((error) => {
+        console.error(structuredLog('error', 'content.garbage_collection_failed', { error }))
+      })
+      .finally(() => {
+        contentCleanupRun = undefined
+      })
+    return contentCleanupRun
+  }
+  void collectContent()
+  contentCleanupTimer = setInterval(() => void collectContent(), 15 * 60_000)
+  contentCleanupTimer.unref()
+
   nitroApp.hooks.hook('request', (event) => {
     event.context.services = services
   })
   nitroApp.hooks.hook('close', async () => {
     if (dispatchTimer) clearInterval(dispatchTimer)
     if (domainEventTimer) clearInterval(domainEventTimer)
+    if (contentCleanupTimer) clearInterval(contentCleanupTimer)
+    await contentCleanupRun
     await rateLimits.close()
     await scoreboardCache.close()
     await scoreboardBuildLock.close()
     await domainEventPublisher.close()
     await publicRealtime.close()
+    contentStore.close()
     await database.pool.end()
   })
 })

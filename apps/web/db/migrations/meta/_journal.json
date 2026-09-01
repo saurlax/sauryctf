@@ -127,6 +127,13 @@
       "when": 1788288300000,
       "tag": "0017_instance_orphan_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788291000000,
+      "tag": "0018_content_object_lifecycle",
+      "breakpoints": true
     }
   ]
 }

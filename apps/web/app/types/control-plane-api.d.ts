@@ -182,6 +182,12 @@ export interface paths {
   "/api/admin/contests/{contestId}/participations/{participationId}/division": {
     patch: operations["assignParticipationDivision"];
   };
+  "/api/content/uploads": {
+    post: operations["createContentUpload"];
+  };
+  "/api/content/uploads/{contentObjectId}/commit": {
+    post: operations["commitContentUpload"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -4965,6 +4971,161 @@ export interface operations {
               withdrawn_at: string | null;
               version: number;
             };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  createContentUpload: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+        /** @description Percent-encoded original display filename. Storage keys are always server generated. */
+        "X-Content-Filename": string;
+      };
+    };
+    requestBody: {
+      content: {
+        "*/*": string;
+      };
+    };
+    responses: {
+      /** @description Existing committed object reused by digest */
+      200: {
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            sha256: string;
+            size_bytes: number;
+            media_type: string;
+            original_filename: string;
+            /** @enum {string} */
+            status: "temporary" | "committed";
+            committed_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+          };
+        };
+      };
+      /** @description Temporary content object uploaded */
+      201: {
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            sha256: string;
+            size_bytes: number;
+            media_type: string;
+            original_filename: string;
+            /** @enum {string} */
+            status: "temporary" | "committed";
+            committed_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      413: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  commitContentUpload: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+      path: {
+        contentObjectId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          sha256: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Temporary upload committed after digest and object metadata verification */
+      200: {
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            sha256: string;
+            size_bytes: number;
+            media_type: string;
+            original_filename: string;
+            /** @enum {string} */
+            status: "temporary" | "committed";
+            committed_at: string | null;
+            /** Format: date-time */
+            created_at: string;
           };
         };
       };

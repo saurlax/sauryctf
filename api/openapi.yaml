@@ -11149,6 +11149,226 @@ paths:
         "403": *a1
         "404": *a1
         "409": *a1
+  /api/content/uploads:
+    post:
+      operationId: createContentUpload
+      tags:
+        - Content
+      security:
+        - cookieSession: []
+      parameters:
+        - *a2
+        - *a3
+        - name: X-Content-Filename
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 1024
+          description: Percent-encoded original display filename. Storage keys are always server generated.
+      requestBody:
+        required: true
+        content:
+          "*/*":
+            schema:
+              type: string
+              format: binary
+              maxLength: 67108864
+      responses:
+        "200":
+          description: Existing committed object reused by digest
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  sha256:
+                    type: string
+                    pattern: ^[a-f0-9]{64}$
+                  size_bytes:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 67108864
+                  media_type:
+                    type: string
+                    minLength: 3
+                    maxLength: 255
+                  original_filename:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+                  status:
+                    type: string
+                    enum:
+                      - temporary
+                      - committed
+                  committed_at:
+                    anyOf:
+                      - type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+                      - type: "null"
+                  created_at:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+                required:
+                  - id
+                  - sha256
+                  - size_bytes
+                  - media_type
+                  - original_filename
+                  - status
+                  - committed_at
+                  - created_at
+                additionalProperties: false
+        "201":
+          description: Temporary content object uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  sha256:
+                    type: string
+                    pattern: ^[a-f0-9]{64}$
+                  size_bytes:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 67108864
+                  media_type:
+                    type: string
+                    minLength: 3
+                    maxLength: 255
+                  original_filename:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+                  status:
+                    type: string
+                    enum:
+                      - temporary
+                      - committed
+                  committed_at:
+                    anyOf:
+                      - type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+                      - type: "null"
+                  created_at:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+                required:
+                  - id
+                  - sha256
+                  - size_bytes
+                  - media_type
+                  - original_filename
+                  - status
+                  - committed_at
+                  - created_at
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "409": *a1
+        "413": *a1
+  /api/content/uploads/{contentObjectId}/commit:
+    post:
+      operationId: commitContentUpload
+      tags:
+        - Content
+      security:
+        - cookieSession: []
+      parameters:
+        - name: contentObjectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - *a2
+        - *a3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sha256:
+                  type: string
+                  pattern: ^[a-f0-9]{64}$
+              required:
+                - sha256
+              additionalProperties: false
+      responses:
+        "200":
+          description: Temporary upload committed after digest and object metadata verification
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  sha256:
+                    type: string
+                    pattern: ^[a-f0-9]{64}$
+                  size_bytes:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 67108864
+                  media_type:
+                    type: string
+                    minLength: 3
+                    maxLength: 255
+                  original_filename:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+                  status:
+                    type: string
+                    enum:
+                      - temporary
+                      - committed
+                  committed_at:
+                    anyOf:
+                      - type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+                      - type: "null"
+                  created_at:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+                required:
+                  - id
+                  - sha256
+                  - size_bytes
+                  - media_type
+                  - original_filename
+                  - status
+                  - committed_at
+                  - created_at
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "404": *a1
+        "409": *a1
 components:
   securitySchemes:
     cookieSession:
