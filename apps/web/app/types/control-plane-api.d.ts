@@ -85,6 +85,9 @@ export interface paths {
   "/api/admin/contests/{contestId}/publish": {
     post: operations["publishContest"];
   };
+  "/api/admin/contests/{contestId}/publication-check": {
+    get: operations["checkContestPublication"];
+  };
   "/api/admin/contests/{contestId}/archive": {
     post: operations["archiveContest"];
   };
@@ -1706,6 +1709,51 @@ export interface operations {
       };
       /** @description Stable API error */
       409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  checkContestPublication: {
+    parameters: {
+      path: {
+        contestId: string;
+      };
+    };
+    responses: {
+      /** @description Contest publication preflight result */
+      200: {
+        content: {
+          "application/json": {
+            ready: boolean;
+            issues: ({
+                /** @enum {string} */
+                code: "contest.challenge_required" | "challenge.title_missing" | "challenge.description_missing" | "challenge.publication_time_invalid" | "challenge.flag_policy_invalid" | "challenge.scoring_policy_invalid" | "challenge.asset_unavailable" | "challenge.instance_policy_invalid";
+                message: string;
+                /** @enum {string} */
+                resource_type: "contest" | "challenge" | "asset";
+                resource_id: string;
+                resource_title: string | null;
+                field: string;
+              })[];
+          };
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };

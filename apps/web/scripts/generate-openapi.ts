@@ -52,6 +52,7 @@ import {
 } from '../shared/contracts/participations'
 import {
   contestLifecycleRequestSchema,
+  contestPublicationCheckResponseSchema,
   contestResponseSchema,
   createContestDraftRequestSchema,
   updateContestDraftRequestSchema,
@@ -415,6 +416,7 @@ const document = {
       patch: { operationId: 'updateContestDraft', tags: ['Administration', 'Contests'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter, ifMatchParameter], requestBody: jsonRequestBody(updateContestDraftRequestSchema), responses: { 200: jsonResponse('Contest draft configuration updated', contestResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse, 428: errorResponse } },
     },
     '/api/admin/contests/{contestId}/publish': { post: { operationId: 'publishContest', tags: ['Administration', 'Contests'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], requestBody: jsonRequestBody(contestLifecycleRequestSchema), responses: { 200: jsonResponse('Contest published', contestResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse } } },
+    '/api/admin/contests/{contestId}/publication-check': { get: { operationId: 'checkContestPublication', tags: ['Administration', 'Contests'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }], responses: { 200: jsonResponse('Contest publication preflight result', contestPublicationCheckResponseSchema), 401: errorResponse, 403: errorResponse, 404: errorResponse } } },
     '/api/admin/contests/{contestId}/archive': { post: { operationId: 'archiveContest', tags: ['Administration', 'Contests'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], requestBody: jsonRequestBody(contestLifecycleRequestSchema), responses: { 200: jsonResponse('Ended contest archived', contestResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse } } },
     '/api/admin/contests/{contestId}/announcements': {
       get: {

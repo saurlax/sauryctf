@@ -8,6 +8,7 @@ import {
   ContestSlugConflictError,
   ContestTransitionInvalidError,
   ContestVersionConflictError,
+  ContestPublicationCheckFailedError,
   type ContestRecord,
   type ContestRepository,
 } from './repository'
@@ -19,6 +20,7 @@ export type ContestServiceErrorCode =
   | 'contest.not_found'
   | 'contest.slug_conflict'
   | 'contest.transition_invalid'
+  | 'contest.publication_check_failed'
   | 'resource.version_conflict'
 
 export class ContestServiceError extends Error {
@@ -33,6 +35,7 @@ export class ContestServiceError extends Error {
       'contest.not_found': '比赛不存在或当前不可访问',
       'contest.slug_conflict': '比赛路径标识已被使用',
       'contest.transition_invalid': '当前比赛发布状态不允许此操作',
+      'contest.publication_check_failed': '比赛未通过发布前完整性检查',
       'resource.version_conflict': '资源版本冲突，请刷新后重试',
     }[code])
     this.name = 'ContestServiceError'
@@ -215,6 +218,11 @@ export class ContestService {
     return this.map(() => this.repository.readPublic(contestId))
   }
 
+  async checkPublication(actor: SessionSubject, contestId: string) {
+    requireIdentityCapability(actor, identityCapability.contestManage)
+    return this.map(() => this.repository.checkPublication(contestId))
+  }
+
   async publish(actor: SessionSubject, input: {
     requestId: string
     contestId: string
@@ -326,6 +334,13 @@ export class ContestService {
       if (error instanceof ContestSlugConflictError) throw new ContestServiceError('contest.slug_conflict')
       if (error instanceof ContestTransitionInvalidError) throw new ContestServiceError('contest.transition_invalid')
       if (error instanceof ContestVersionConflictError) throw new ContestServiceError('resource.version_conflict')
+      if (error instanceof ContestPublicationCheckFailedError) {
+        const fields: Record<string, string[]> = {}
+        for (const issue of error.check.issues) {
+          (fields[issue.field] ??= []).push(issue.message)
+        }
+        throw new ContestServiceError('contest.publication_check_failed', fields)
+      }
       throw error
     }
   }

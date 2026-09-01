@@ -3,6 +3,7 @@ import { getHeader, setResponseHeader, setResponseStatus } from 'h3'
 import {
   contestLifecycleRequestSchema,
   contestResponseSchema,
+  contestPublicationCheckResponseSchema,
   createContestDraftRequestSchema,
   updateContestDraftRequestSchema,
   type Contest,
@@ -28,7 +29,7 @@ import { readJsonBody, readValidatedJsonBody } from '../http/body'
 import { createApiError } from '../http/errors'
 
 type ContestCommands = Pick<ContestService,
-  'archive' | 'createDraft' | 'publish' | 'readManaged' | 'readPublic' | 'updateDraft'>
+  'archive' | 'checkPublication' | 'createDraft' | 'publish' | 'readManaged' | 'readPublic' | 'updateDraft'>
 
 export interface ContestHttpDependencies {
   identity: IdentityHttpDependencies
@@ -98,6 +99,7 @@ async function runContestOperation<T>(operation: () => Promise<T>): Promise<T> {
       'contest.not_found': 404,
       'contest.slug_conflict': 409,
       'contest.transition_invalid': 409,
+      'contest.publication_check_failed': 409,
       'resource.version_conflict': 409,
     }[error.code]
     throw createApiError(statusCode, error.code, error.message, error.fields)
@@ -226,6 +228,26 @@ export async function handlePublishContest(
     reason: input.reason,
   }))
   return respond(event, result)
+}
+
+export async function handleContestPublicationCheck(
+  event: H3Event,
+  contestId: string,
+  dependencies = contestHttpDependencies(event),
+) {
+  const subject = await manager(event, dependencies)
+  const result = await runContestOperation(() => dependencies.contests.checkPublication(subject, contestId))
+  return contestPublicationCheckResponseSchema.parse({
+    ready: result.ready,
+    issues: result.issues.map(issue => ({
+      code: issue.code,
+      message: issue.message,
+      resource_type: issue.resourceType,
+      resource_id: issue.resourceId,
+      resource_title: issue.resourceTitle,
+      field: issue.field,
+    })),
+  })
 }
 
 export async function handleArchiveContest(

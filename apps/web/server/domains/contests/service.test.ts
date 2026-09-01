@@ -9,6 +9,7 @@ import { runMigrations } from '../../infrastructure/db/migrate'
 import { PostgresContestRepository } from '../../infrastructure/db/contest-repository'
 import { PostgresParticipationRepository } from '../../infrastructure/db/participation-repository'
 import { PostgresTeamRepository } from '../../infrastructure/db/team-repository'
+import { createPublishableChallenge } from '../../test-support/publishable-challenge'
 import { ContestService } from './service'
 
 const adminConnectionString = process.env.TEST_DATABASE_ADMIN_URL
@@ -88,7 +89,7 @@ describeWithPostgres('contest lifecycle and shared UTC phase', () => {
       running: [now - 3_600_000, now + 3_600_000],
       ended: [now - 7_200_000, now - 3_600_000],
     } as const
-    return contests.createDraft(organizer, {
+    const created = await contests.createDraft(organizer, {
       requestId: randomUUID(),
       title: `Contest Lifecycle ${sequence}`,
       slug: `contest-lifecycle-${sequence}`,
@@ -96,6 +97,8 @@ describeWithPostgres('contest lifecycle and shared UTC phase', () => {
       startAt: new Date(windows[timing][0]),
       endAt: new Date(windows[timing][1]),
     })
+    await createPublishableChallenge(database.pool, created.id, organizer.userId)
+    return created
   }
 
   it('creates a hidden draft with audit evidence and only organizer capabilities', async () => {
@@ -308,6 +311,7 @@ describeWithPostgres('contest lifecycle and shared UTC phase', () => {
     expect(privateWithoutInvite).toMatchObject({
       visibility: 'private', inviteRequired: false, inviteConfigured: false,
     })
+    await createPublishableChallenge(database.pool, privateWithoutInvite.id, organizer.userId)
     await contests.publish(organizer, {
       requestId: randomUUID(),
       contestId: privateWithoutInvite.id,

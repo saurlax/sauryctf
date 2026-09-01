@@ -7,6 +7,7 @@ import { createDatabaseClient, type DatabaseClient } from '../../infrastructure/
 import { runMigrations } from '../../infrastructure/db/migrate'
 import { PostgresAnnouncementRepository } from '../../infrastructure/db/announcement-repository'
 import { PostgresContestRepository } from '../../infrastructure/db/contest-repository'
+import { createPublishableChallenge } from '../../test-support/publishable-challenge'
 import { AnnouncementService } from './service'
 
 const adminConnectionString = process.env.TEST_DATABASE_ADMIN_URL
@@ -91,6 +92,7 @@ describeWithPostgres('announcement publication lifecycle', () => {
       startAt: new Date(ended ? now - 7_200_000 : now + 3_600_000),
       endAt: new Date(ended ? now - 3_600_000 : now + 7_200_000),
     })
+    await createPublishableChallenge(database.pool, created.id, organizer.userId)
     if (options.publish === false) return created
     return contests.publish(organizer, {
       requestId: randomUUID(),

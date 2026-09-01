@@ -8,6 +8,7 @@ import { normalizeApiError } from '../http/errors'
 import { MemoryRateLimitStore } from '../security/rate-limit'
 import {
   handleArchiveContest,
+  handleContestPublicationCheck,
   handleCreateContestDraft,
   handlePublicContest,
   handlePublishContest,
@@ -44,6 +45,7 @@ function dependencies(subject: SessionSubject = organizer, overrides: Partial<Co
     },
     contests: {
       createDraft: vi.fn(async () => record), readManaged: vi.fn(async () => record), readPublic: vi.fn(async () => record),
+      checkPublication: vi.fn(async () => ({ ready: true, issues: [] })),
       updateDraft: vi.fn(async () => ({ ...record, version: 2 })),
       publish: vi.fn(async () => ({ ...record, publicationStatus: 'published' as const, phase: 'upcoming' as const, publishedAt: new Date(), version: 2 })),
       archive: vi.fn(async () => ({ ...record, publicationStatus: 'archived' as const, phase: 'ended' as const, publishedAt: new Date(), archivedAt: new Date(), version: 3 })),
@@ -209,6 +211,61 @@ describe('contest HTTP adapters', () => {
     expect(deps.contests.publish).toHaveBeenCalledWith(organizer, { requestId, contestId, reason: 'Open scheduled contest' })
     const archived = await invoke(event => handleArchiveContest(event, contestId, deps), { reason: 'Archive completed contest' })
     expect(archived.status).toBe(200)
+  })
+
+  it('returns structured publication issues that locate the affected resource', async () => {
+    const challengeId = '018f47a2-4ef8-7e2c-9c24-6d68b7451f31'
+    const deps = dependencies(organizer, {
+      checkPublication: vi.fn(async () => ({
+        ready: false,
+        issues: [{
+          code: 'challenge.instance_policy_invalid' as const,
+          message: '动态实例缺少运行镜像',
+          resourceType: 'challenge' as const,
+          resourceId: challengeId,
+          resourceTitle: 'Dynamic Web',
+          field: `challenges.${challengeId}.instance_policy.image`,
+        }],
+      })),
+    })
+    const response = await invoke(event => handleContestPublicationCheck(event, contestId, deps))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      ready: false,
+      issues: [{
+        code: 'challenge.instance_policy_invalid',
+        message: '动态实例缺少运行镜像',
+        resource_type: 'challenge',
+        resource_id: challengeId,
+        resource_title: 'Dynamic Web',
+        field: `challenges.${challengeId}.instance_policy.image`,
+      }],
+    })
+    expect(deps.contests.checkPublication).toHaveBeenCalledWith(organizer, contestId)
+  })
+
+  it('maps failed publication preflight to conflict with field details', async () => {
+    const field = `challenges.${contestId}.flag_policy.digest`
+    const deps = dependencies(organizer, {
+      publish: vi.fn(async () => {
+        throw new ContestServiceError('contest.publication_check_failed', {
+          [field]: ['静态 Flag 策略缺少答案摘要'],
+        })
+      }),
+    })
+    const response = await invoke(
+      event => handlePublishContest(event, contestId, deps),
+      { reason: 'Attempt incomplete publication' },
+    )
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({
+      error: {
+        code: 'contest.publication_check_failed',
+        fields: { [field]: ['静态 Flag 策略缺少答案摘要'] },
+      },
+    })
   })
 
   it('maps an early archive to the stable lifecycle error', async () => {

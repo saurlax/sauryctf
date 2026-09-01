@@ -9,6 +9,7 @@ import { runMigrations } from '../../infrastructure/db/migrate'
 import { PostgresAnnouncementRepository } from '../../infrastructure/db/announcement-repository'
 import { PostgresContestRepository } from '../../infrastructure/db/contest-repository'
 import { PostgresPublicTimelineRepository } from '../../infrastructure/db/public-timeline-repository'
+import { createPublishableChallenge } from '../../test-support/publishable-challenge'
 import { PublicTimelineService } from './service'
 
 const adminConnectionString = process.env.TEST_DATABASE_ADMIN_URL
@@ -104,6 +105,7 @@ describeWithPostgres('selected public contest timeline', () => {
       endAt: new Date(windows[phase][1]),
       scoreboardFreezeAt: options.freeze ? new Date(now - 3_600_000) : null,
     })
+    await createPublishableChallenge(database.pool, created.id, organizer.userId)
     if (options.publish === false) return created
     return contests.publish(organizer, {
       requestId: randomUUID(),

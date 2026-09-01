@@ -2578,6 +2578,89 @@ paths:
         "403": *a1
         "404": *a1
         "409": *a1
+  /api/admin/contests/{contestId}/publication-check:
+    get:
+      operationId: checkContestPublication
+      tags:
+        - Administration
+        - Contests
+      security:
+        - cookieSession: []
+      parameters:
+        - name: contestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Contest publication preflight result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready:
+                    type: boolean
+                  issues:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code:
+                          type: string
+                          enum:
+                            - contest.challenge_required
+                            - challenge.title_missing
+                            - challenge.description_missing
+                            - challenge.publication_time_invalid
+                            - challenge.flag_policy_invalid
+                            - challenge.scoring_policy_invalid
+                            - challenge.asset_unavailable
+                            - challenge.instance_policy_invalid
+                        message:
+                          type: string
+                          minLength: 1
+                          maxLength: 500
+                        resource_type:
+                          type: string
+                          enum:
+                            - contest
+                            - challenge
+                            - asset
+                        resource_id:
+                          type: string
+                          allOf:
+                            - type: string
+                              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                            - type: string
+                              pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                        resource_title:
+                          anyOf:
+                            - type: string
+                              minLength: 1
+                              maxLength: 255
+                            - type: "null"
+                        field:
+                          type: string
+                          minLength: 1
+                          maxLength: 500
+                      required:
+                        - code
+                        - message
+                        - resource_type
+                        - resource_id
+                        - resource_title
+                        - field
+                      additionalProperties: false
+                required:
+                  - ready
+                  - issues
+                additionalProperties: false
+        "401": *a1
+        "403": *a1
+        "404": *a1
   /api/admin/contests/{contestId}/archive:
     post:
       operationId: archiveContest

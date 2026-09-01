@@ -79,11 +79,36 @@ export interface ContestLifecycleCommand {
   reason: string
 }
 
+export type ContestPublicationCheckIssueCode =
+  | 'contest.challenge_required'
+  | 'challenge.title_missing'
+  | 'challenge.description_missing'
+  | 'challenge.publication_time_invalid'
+  | 'challenge.flag_policy_invalid'
+  | 'challenge.scoring_policy_invalid'
+  | 'challenge.asset_unavailable'
+  | 'challenge.instance_policy_invalid'
+
+export interface ContestPublicationCheckIssue {
+  code: ContestPublicationCheckIssueCode
+  message: string
+  resourceType: 'contest' | 'challenge' | 'asset'
+  resourceId: string
+  resourceTitle: string | null
+  field: string
+}
+
+export interface ContestPublicationCheck {
+  ready: boolean
+  issues: ContestPublicationCheckIssue[]
+}
+
 export interface ContestRepository {
   createDraft(command: CreateContestDraftCommand): Promise<ContestRecord>
   updateDraft(command: UpdateContestDraftCommand): Promise<ContestRecord>
   readManaged(contestId: string): Promise<ContestRecord>
   readPublic(contestId: string): Promise<ContestRecord>
+  checkPublication(contestId: string): Promise<ContestPublicationCheck>
   publish(command: ContestLifecycleCommand): Promise<ContestRecord>
   archive(command: ContestLifecycleCommand): Promise<ContestRecord>
 }
@@ -94,3 +119,8 @@ export class ContestTransitionInvalidError extends Error {}
 export class ContestNotEndedError extends Error {}
 export class ContestConfigurationLockedError extends Error {}
 export class ContestVersionConflictError extends Error {}
+export class ContestPublicationCheckFailedError extends Error {
+  constructor(readonly check: ContestPublicationCheck) {
+    super('Contest publication preflight failed')
+  }
+}

@@ -154,6 +154,31 @@ export const contestLifecycleRequestSchema = z.strictObject({
 
 export const contestResponseSchema = z.strictObject({ contest: contestSchema })
 
+export const contestPublicationCheckIssueCodeSchema = z.enum([
+  'contest.challenge_required',
+  'challenge.title_missing',
+  'challenge.description_missing',
+  'challenge.publication_time_invalid',
+  'challenge.flag_policy_invalid',
+  'challenge.scoring_policy_invalid',
+  'challenge.asset_unavailable',
+  'challenge.instance_policy_invalid',
+])
+
+export const contestPublicationCheckIssueSchema = z.strictObject({
+  code: contestPublicationCheckIssueCodeSchema,
+  message: z.string().min(1).max(500),
+  resource_type: z.enum(['contest', 'challenge', 'asset']),
+  resource_id: uuidSchema,
+  resource_title: z.string().min(1).max(255).nullable(),
+  field: z.string().min(1).max(500),
+})
+
+export const contestPublicationCheckResponseSchema = z.strictObject({
+  ready: z.boolean(),
+  issues: z.array(contestPublicationCheckIssueSchema),
+})
+
 export type Contest = z.infer<typeof contestSchema>
 export type CreateContestDraftRequest = z.infer<typeof createContestDraftRequestSchema>
 export type UpdateContestDraftRequest = z.infer<typeof updateContestDraftRequestSchema>

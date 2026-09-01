@@ -6,6 +6,7 @@ import {
   ContestTransitionInvalidError,
   ContestConfigurationLockedError,
   ContestVersionConflictError,
+  ContestPublicationCheckFailedError,
   type ContestLifecycleCommand,
   type ContestRecord,
   type ContestRepository,
@@ -13,6 +14,8 @@ import {
   type UpdateContestDraftCommand,
   type ContestPublicationStatus,
   type ContestTimePhase,
+  type ContestPublicationCheck,
+  type ContestPublicationCheckIssue,
 } from '../../domains/contests/repository'
 
 interface ContestRow {
@@ -38,6 +41,24 @@ interface ContestRow {
   published_at: Date | null
   archived_at: Date | null
   version: string
+}
+
+interface PublicationChallengeRow {
+  id: string
+  title: string
+  description: string
+  publish_at: Date | null
+  flag_policy: unknown
+  scoring_policy: unknown
+  instance_policy: unknown
+}
+
+interface PublicationAssetRow {
+  id: string
+  contest_challenge_id: string
+  display_name: string
+  status: 'temporary' | 'committed' | 'quarantined' | 'deleted'
+  committed_at: Date | null
 }
 
 function isSlugConflict(error: unknown) {
@@ -219,6 +240,10 @@ export class PostgresContestRepository implements ContestRepository {
     return this.record(result.rows[0])
   }
 
+  async checkPublication(contestId: string): Promise<ContestPublicationCheck> {
+    return this.publicationCheck(this.pool, contestId)
+  }
+
   async publish(command: ContestLifecycleCommand): Promise<ContestRecord> {
     return this.transition(command, 'published')
   }
@@ -248,6 +273,11 @@ export class PostgresContestRepository implements ContestRepository {
       const expected = target === 'published' ? 'draft' : 'published'
       if (current.publication_status !== expected) throw new ContestTransitionInvalidError()
       if (target === 'archived' && current.phase !== 'ended') throw new ContestNotEndedError()
+
+      if (target === 'published') {
+        const check = await this.publicationCheck(connection, command.contestId)
+        if (!check.ready) throw new ContestPublicationCheckFailedError(check)
+      }
 
       if (target === 'published') {
         await connection.query(
@@ -348,6 +378,184 @@ export class PostgresContestRepository implements ContestRepository {
       throw new TypeError('Contest allowed email domains are invalid')
     }
     return { allowedEmailDomains: domains }
+  }
+
+  private async publicationCheck(
+    connection: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>,
+    contestId: string,
+  ): Promise<ContestPublicationCheck> {
+    const contest = await connection.query<{ start_at: Date, end_at: Date }>(
+      'SELECT start_at, end_at FROM contests WHERE id = $1',
+      [contestId],
+    )
+    if (!contest.rows[0]) throw new ContestNotFoundError()
+
+    const challenges = await connection.query<PublicationChallengeRow>(
+      `SELECT id, title, description, publish_at,
+              flag_policy, scoring_policy, instance_policy
+       FROM contest_challenges
+       WHERE contest_id = $1 AND enabled = true
+       ORDER BY sort_order, id`,
+      [contestId],
+    )
+    const issues: ContestPublicationCheckIssue[] = []
+    const add = (issue: ContestPublicationCheckIssue) => issues.push(issue)
+    if (challenges.rows.length === 0) {
+      add({
+        code: 'contest.challenge_required',
+        message: '发布比赛前至少需要启用一道比赛题目',
+        resourceType: 'contest',
+        resourceId: contestId,
+        resourceTitle: null,
+        field: 'challenges',
+      })
+      return { ready: false, issues }
+    }
+
+    for (const challenge of challenges.rows) {
+      const prefix = `challenges.${challenge.id}`
+      const resource = {
+        resourceType: 'challenge' as const,
+        resourceId: challenge.id,
+        resourceTitle: challenge.title.trim() || null,
+      }
+      if (!challenge.title.trim()) {
+        add({
+          code: 'challenge.title_missing',
+          message: '题目标题不能为空',
+          ...resource,
+          field: `${prefix}.title`,
+        })
+      }
+      if (!challenge.description.trim()) {
+        add({
+          code: 'challenge.description_missing',
+          message: '题目说明不能为空',
+          ...resource,
+          field: `${prefix}.description`,
+        })
+      }
+      if (challenge.publish_at
+        && (challenge.publish_at < contest.rows[0].start_at || challenge.publish_at > contest.rows[0].end_at)) {
+        add({
+          code: 'challenge.publication_time_invalid',
+          message: '题目发布时间必须位于比赛时间窗口内',
+          ...resource,
+          field: `${prefix}.publish_at`,
+        })
+      }
+      const flagIssue = this.flagPolicyIssue(challenge.flag_policy)
+      if (flagIssue) {
+        add({
+          code: 'challenge.flag_policy_invalid',
+          message: flagIssue.message,
+          ...resource,
+          field: `${prefix}.flag_policy.${flagIssue.field}`,
+        })
+      }
+      const scoringIssue = this.scoringPolicyIssue(challenge.scoring_policy)
+      if (scoringIssue) {
+        add({
+          code: 'challenge.scoring_policy_invalid',
+          message: scoringIssue.message,
+          ...resource,
+          field: `${prefix}.scoring_policy.${scoringIssue.field}`,
+        })
+      }
+      const instanceIssue = this.instancePolicyIssue(challenge.instance_policy)
+      if (instanceIssue) {
+        add({
+          code: 'challenge.instance_policy_invalid',
+          message: instanceIssue.message,
+          ...resource,
+          field: `${prefix}.instance_policy.${instanceIssue.field}`,
+        })
+      }
+    }
+
+    const assets = await connection.query<PublicationAssetRow>(
+      `SELECT asset.id, asset.contest_challenge_id, asset.display_name,
+              object.status::text, object.committed_at
+       FROM challenge_assets asset
+       JOIN contest_challenges challenge ON challenge.id = asset.contest_challenge_id
+       JOIN content_objects object ON object.id = asset.content_object_id
+       WHERE challenge.contest_id = $1 AND challenge.enabled = true
+       ORDER BY challenge.sort_order, asset.sort_order, asset.id`,
+      [contestId],
+    )
+    for (const asset of assets.rows) {
+      if (asset.status === 'committed' && asset.committed_at) continue
+      add({
+        code: 'challenge.asset_unavailable',
+        message: '题目附件未处于可发布的已提交状态',
+        resourceType: 'asset',
+        resourceId: asset.id,
+        resourceTitle: asset.display_name,
+        field: `challenges.${asset.contest_challenge_id}.assets.${asset.id}`,
+      })
+    }
+    return { ready: issues.length === 0, issues }
+  }
+
+  private flagPolicyIssue(value: unknown): { field: string, message: string } | null {
+    if (!this.isObject(value) || typeof value.type !== 'string') {
+      return { field: 'type', message: 'Flag 策略必须声明受支持的类型' }
+    }
+    if (value.type === 'static') {
+      return typeof value.digest === 'string' && value.digest.trim()
+        ? null
+        : { field: 'digest', message: '静态 Flag 策略缺少答案摘要' }
+    }
+    if (value.type === 'team-derived') {
+      return Number.isInteger(value.key_version) && Number(value.key_version) > 0
+        ? null
+        : { field: 'key_version', message: '每队派生 Flag 策略缺少有效密钥版本' }
+    }
+    if (value.type === 'synchronous') {
+      return typeof value.validator === 'string' && value.validator.trim()
+        ? null
+        : { field: 'validator', message: '同步校验策略缺少校验器标识' }
+    }
+    return { field: 'type', message: 'Flag 策略类型不受首期平台支持' }
+  }
+
+  private scoringPolicyIssue(value: unknown): { field: string, message: string } | null {
+    if (!this.isObject(value) || typeof value.type !== 'string') {
+      return { field: 'type', message: '计分策略必须声明受支持的类型' }
+    }
+    if (value.type === 'fixed-v1') {
+      return Number.isInteger(value.points) && Number(value.points) > 0
+        ? null
+        : { field: 'points', message: '固定计分策略缺少正整数分值' }
+    }
+    if (value.type === 'decay-v1') return null
+    return { field: 'type', message: '计分策略类型不受首期平台支持' }
+  }
+
+  private instancePolicyIssue(value: unknown): { field: string, message: string } | null {
+    if (!this.isObject(value) || typeof value.type !== 'string') {
+      return { field: 'type', message: '实例策略必须声明受支持的类型' }
+    }
+    if (value.type === 'none') return null
+    if (value.type !== 'dynamic') {
+      return { field: 'type', message: '实例策略类型不受首期平台支持' }
+    }
+    if (!['docker', 'kubernetes'].includes(String(value.provider))) {
+      return { field: 'provider', message: '动态实例缺少受支持的 Provider' }
+    }
+    if (typeof value.image !== 'string' || !value.image.trim()) {
+      return { field: 'image', message: '动态实例缺少运行镜像' }
+    }
+    if (!Number.isInteger(value.entry_port)
+      || Number(value.entry_port) < 1
+      || Number(value.entry_port) > 65_535) {
+      return { field: 'entry_port', message: '动态实例缺少有效入口端口' }
+    }
+    return null
+  }
+
+  private isObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value)
   }
 
   private async writeAudit(
