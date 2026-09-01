@@ -12,6 +12,7 @@ import {
   assertCsrfProof,
   assertSameOrigin,
   enforceNetworkRateLimits,
+  enforceFlagSubmissionNetworkRateLimits,
   enforceUserRateLimit,
 } from './request-security'
 
@@ -120,6 +121,28 @@ describe('layered request limits', () => {
     const request = () => webHandler(new Request('https://ctf.example.test/api/auth/email/verification/request'))
     expect((await request()).status).toBe(200)
     expect((await request()).status).toBe(200)
+    expect((await request()).status).toBe(429)
+  })
+
+  it('isolates network submission limits per challenge', async () => {
+    const store = new MemoryRateLimitStore()
+    const app = createApp()
+    app.use(eventHandler(async (event) => {
+      try {
+        await enforceFlagSubmissionNetworkRateLimits(event, store, 'challenge-a')
+        return { ok: true }
+      }
+      catch (error) {
+        const response = normalizeApiError(error, '018f47a2-4ef8-7e2c-9c24-6d68b7451f2c')
+        setResponseStatus(event, response.statusCode)
+        return response.body
+      }
+    }))
+    const webHandler = toWebHandler(app)
+    const request = () => webHandler(new Request('https://ctf.example.test/api/contests/x/challenges/y/submissions', {
+      method: 'POST',
+    }))
+    for (let attempt = 0; attempt < 30; attempt += 1) expect((await request()).status).toBe(200)
     expect((await request()).status).toBe(429)
   })
 })

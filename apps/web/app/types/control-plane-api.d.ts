@@ -136,6 +136,9 @@ export interface paths {
   "/api/contests/{contestId}/challenges/{challengeId}": {
     get: operations["getPlayerContestChallenge"];
   };
+  "/api/contests/{contestId}/challenges/{challengeId}/submissions": {
+    post: operations["submitContestChallengeFlag"];
+  };
   "/api/contests/{contestId}/announcements": {
     get: operations["listPublicAnnouncements"];
   };
@@ -3580,6 +3583,80 @@ export interface operations {
       };
       /** @description Stable API error */
       404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  submitContestChallengeFlag: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+      path: {
+        contestId: string;
+        challengeId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          flag: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Synchronous redacted Flag verdict after authoritative eligibility and layered rate-limit checks */
+      200: {
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            result: "correct" | "incorrect";
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      429: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      503: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };

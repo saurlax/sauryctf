@@ -28,6 +28,10 @@ import { ChallengeTemplateService } from '../domains/challenges/service'
 import { PostgresChallengeTemplateRepository } from '../infrastructure/db/challenge-template-repository'
 import { ContestChallengeService } from '../domains/challenges/contest-challenge-service'
 import { PostgresContestChallengeRepository } from '../infrastructure/db/contest-challenge-repository'
+import { FlagVerifier, VersionedFlagKeyring } from '../domains/challenges/flag-verifier'
+import { SubmissionService } from '../domains/submissions/service'
+import { PostgresSubmissionRepository } from '../infrastructure/db/submission-repository'
+import { RateLimitStoreSubmissionLimiter } from '../infrastructure/security/submission-rate-limiter'
 
 export default defineNitroPlugin(async (nitroApp) => {
   const databaseUrl = process.env.DATABASE_URL
@@ -64,6 +68,11 @@ export default defineNitroPlugin(async (nitroApp) => {
     timeline: new PublicTimelineService(new PostgresPublicTimelineRepository(database.pool)),
     challengeTemplates: new ChallengeTemplateService(new PostgresChallengeTemplateRepository(database.pool)),
     contestChallenges: new ContestChallengeService(new PostgresContestChallengeRepository(database.pool)),
+    submissions: new SubmissionService(
+      new PostgresSubmissionRepository(database.pool),
+      new FlagVerifier(new VersionedFlagKeyring({})),
+      new RateLimitStoreSubmissionLimiter(rateLimits),
+    ),
   }
 
   const smtpHost = process.env.MAIL_SMTP_HOST

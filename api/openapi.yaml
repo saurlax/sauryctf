@@ -7537,6 +7537,67 @@ paths:
         "401": *a1
         "403": *a1
         "404": *a1
+  /api/contests/{contestId}/challenges/{challengeId}/submissions:
+    post:
+      operationId: submitContestChallengeFlag
+      tags:
+        - Contests
+        - Challenges
+        - Submissions
+      security:
+        - cookieSession: []
+      parameters:
+        - name: contestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: challengeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - *a2
+        - *a3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                flag:
+                  type: string
+                  minLength: 1
+                  maxLength: 1024
+              required:
+                - flag
+              additionalProperties: false
+      responses:
+        "200":
+          description: Synchronous redacted Flag verdict after authoritative eligibility and layered rate-limit checks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: string
+                    enum:
+                      - correct
+                      - incorrect
+                required:
+                  - result
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "404": *a1
+        "409": *a1
+        "429": *a1
+        "503": *a1
   /api/contests/{contestId}/announcements:
     get:
       operationId: listPublicAnnouncements

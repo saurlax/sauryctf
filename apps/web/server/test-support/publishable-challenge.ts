@@ -6,6 +6,8 @@ export interface PublishableChallengeOptions {
   description?: string
   enabled?: boolean
   publishAt?: Date | null
+  closeAt?: Date | null
+  submissionLimit?: number | null
   flagPolicy?: Record<string, unknown>
   scoringPolicy?: Record<string, unknown>
   instancePolicy?: Record<string, unknown>
@@ -41,8 +43,8 @@ export async function createPublishableChallenge(
     `INSERT INTO contest_challenges
        (contest_id, source_template_id, source_version_id, title, category,
         description, flag_format, flag_policy, scoring_policy, instance_policy,
-        enabled, publish_at)
-     VALUES ($1, $2, $3, $4, 'web', $5, 'flag{...}', $6, $7, $8, $9, $10)
+        enabled, publish_at, close_at, submission_limit)
+     VALUES ($1, $2, $3, $4, 'web', $5, 'flag{...}', $6, $7, $8, $9, $10, $11, $12)
      RETURNING id`,
     [
       contestId,
@@ -55,6 +57,8 @@ export async function createPublishableChallenge(
       instancePolicy,
       options.enabled ?? true,
       options.publishAt ?? null,
+      options.closeAt ?? null,
+      options.submissionLimit ?? null,
     ],
   )
   return {

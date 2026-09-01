@@ -94,6 +94,28 @@ export async function enforceUserRateLimit(
   await enforceRateLimit(event, store, rateLimitBucket('user', userId, action), limit, windowMs)
 }
 
+export async function enforceFlagSubmissionNetworkRateLimits(
+  event: H3Event,
+  store: RateLimitStore,
+  challengeId: string,
+): Promise<void> {
+  const ip = getClientIp(event)
+  await enforceRateLimit(
+    event,
+    store,
+    rateLimitBucket('network', ip, 'submission.flag'),
+    120,
+    60_000,
+  )
+  await enforceRateLimit(
+    event,
+    store,
+    rateLimitBucket('network', `${ip}\0${challengeId}`, 'submission.flag.challenge'),
+    30,
+    60_000,
+  )
+}
+
 async function enforceRateLimit(
   event: H3Event,
   store: RateLimitStore,
