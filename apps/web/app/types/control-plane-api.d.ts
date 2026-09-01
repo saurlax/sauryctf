@@ -104,6 +104,9 @@ export interface paths {
   "/api/contests/{contestId}/announcements": {
     get: operations["listPublicAnnouncements"];
   };
+  "/api/contests/{contestId}/timeline": {
+    get: operations["listPublicContestTimeline"];
+  };
   "/api/contests/{contestId}/participation": {
     get: operations["getCurrentParticipation"];
     post: operations["registerParticipation"];
@@ -2199,6 +2202,115 @@ export interface operations {
                 updated_at: string;
                 version: number;
               })[];
+            page: {
+              next_cursor: string | null;
+              has_more: boolean;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  listPublicContestTimeline: {
+    parameters: {
+      query?: {
+        cursor?: string;
+        limit?: number;
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    responses: {
+      /** @description Selected public contest events with stable cursor pagination */
+      200: {
+        content: {
+          "application/json": {
+            items: ({
+                id: string;
+                /** Format: date-time */
+                occurred_at: string;
+                /** Format: date-time */
+                visible_at: string;
+                /** @constant */
+                type: "announcement_published";
+                payload: {
+                  announcement_id: string;
+                  title: string;
+                };
+              } | ({
+                id: string;
+                /** Format: date-time */
+                occurred_at: string;
+                /** Format: date-time */
+                visible_at: string;
+                /** @constant */
+                type: "challenge_published";
+                payload: {
+                  challenge_id: string;
+                  title: string;
+                  /** @enum {string} */
+                  category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
+                };
+              }) | {
+                id: string;
+                /** Format: date-time */
+                occurred_at: string;
+                /** Format: date-time */
+                visible_at: string;
+                /** @constant */
+                type: "hint_published";
+                payload: {
+                  challenge_id: string;
+                  hint_id: string;
+                };
+              } | {
+                id: string;
+                /** Format: date-time */
+                occurred_at: string;
+                /** Format: date-time */
+                visible_at: string;
+                /** @constant */
+                type: "first_solve";
+                payload: {
+                  challenge_id: string;
+                  team_id: string;
+                  team_name: string;
+                };
+              } | {
+                id: string;
+                /** Format: date-time */
+                occurred_at: string;
+                /** Format: date-time */
+                visible_at: string;
+                /** @constant */
+                type: "scoreboard_frozen";
+                payload: Record<string, never>;
+              } | ({
+                id: string;
+                /** Format: date-time */
+                occurred_at: string;
+                /** Format: date-time */
+                visible_at: string;
+                /** @constant */
+                type: "contest_phase_changed";
+                payload: {
+                  /** @enum {string} */
+                  phase: "upcoming" | "running" | "ended";
+                };
+              }))[];
             page: {
               next_cursor: string | null;
               has_more: boolean;

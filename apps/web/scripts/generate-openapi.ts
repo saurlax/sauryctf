@@ -64,6 +64,10 @@ import {
   updateAnnouncementRequestSchema,
   withdrawAnnouncementRequestSchema,
 } from '../shared/contracts/announcements'
+import {
+  publicTimelineListRequestSchema,
+  publicTimelineListResponseSchema,
+} from '../shared/contracts/timeline'
 
 function openApiSchema(schema: z.ZodType): Record<string, unknown> {
   const jsonSchema = z.toJSONSchema(schema, { target: 'draft-7' }) as Record<string, unknown>
@@ -510,6 +514,22 @@ const document = {
         ],
         responses: {
           200: jsonResponse('Published, non-withdrawn announcements for a public contest', announcementListResponseSchema),
+          400: errorResponse,
+          404: errorResponse,
+        },
+      },
+    },
+    '/api/contests/{contestId}/timeline': {
+      get: {
+        operationId: 'listPublicContestTimeline',
+        tags: ['Contests', 'Timeline'],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          { name: 'cursor', in: 'query', required: false, schema: openApiSchema(publicTimelineListRequestSchema.shape.cursor) },
+          { name: 'limit', in: 'query', required: false, schema: openApiSchema(publicTimelineListRequestSchema.shape.limit) },
+        ],
+        responses: {
+          200: jsonResponse('Selected public contest events with stable cursor pagination', publicTimelineListResponseSchema),
           400: errorResponse,
           404: errorResponse,
         },

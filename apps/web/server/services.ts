@@ -6,6 +6,7 @@ import type { TeamService } from './domains/teams/service'
 import type { ParticipationService } from './domains/participations/service'
 import type { ContestService } from './domains/contests/service'
 import type { AnnouncementService } from './domains/announcements/service'
+import type { PublicTimelineService } from './domains/timeline/service'
 
 export interface ControlPlaneServices {
   identity: IdentityService
@@ -16,4 +17,5 @@ export interface ControlPlaneServices {
   participations: ParticipationService
   contests: ContestService
   announcements: AnnouncementService
+  timeline: PublicTimelineService
 }
