@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   changeGlobalRoleRequestSchema,
+  changeEmailRequestSchema,
   changePasswordRequestSchema,
   emailVerificationConfirmRequestSchema,
+  emailChangedSchema,
   emailVerifiedSchema,
   globalRoleChangedSchema,
   globalRoleSchema,
@@ -33,6 +35,9 @@ describe('password reset anti-enumeration response', () => {
       new_password: 'new password',
     })).toBeTruthy()
     expect(emailVerificationConfirmRequestSchema.parse({ token: 'b'.repeat(43) })).toBeTruthy()
+    expect(changeEmailRequestSchema.parse({ email: 'operator@example.test' }))
+      .toEqual({ email: 'operator@example.test' })
+    expect(() => changeEmailRequestSchema.parse({ email: 'not-an-email' })).toThrow()
     expect(() => passwordResetRequestSchema.parse({
       email: 'player@example.test',
       disclose_account: true,
@@ -42,6 +47,7 @@ describe('password reset anti-enumeration response', () => {
   it('keeps mutation responses free of session and token material', () => {
     expect(passwordChangedSchema.parse({ changed: true })).toEqual({ changed: true })
     expect(emailVerifiedSchema.parse({ verified: true })).toEqual({ verified: true })
+    expect(emailChangedSchema.parse({ changed: true })).toEqual({ changed: true })
     expect(() => passwordChangedSchema.parse({ changed: true, session_version: 2 })).toThrow()
     expect(() => emailVerifiedSchema.parse({ verified: true, token: 'secret' })).toThrow()
   })

@@ -6,6 +6,7 @@ import {
   InvalidEmailTokenError,
   type GlobalRole,
   type GlobalRoleMutationResult,
+  type DefaultAdministratorBootstrapResult,
   type IdentityRepository,
   type NewEmailToken,
   type NewIdentity,
@@ -56,6 +57,50 @@ export class PostgresIdentityRepository implements IdentityRepository {
     catch (error) {
       await connection.query('ROLLBACK')
       if (isUniqueViolation(error)) throw new IdentityConflictError()
+      throw error
+    }
+    finally {
+      connection.release()
+    }
+  }
+
+  async bootstrapDefaultAdministrator(identity: NewIdentity): Promise<DefaultAdministratorBootstrapResult> {
+    const connection = await this.pool.connect()
+    try {
+      await connection.query('BEGIN')
+      await connection.query('LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE')
+      const existing = await connection.query('SELECT 1 FROM users LIMIT 1')
+      if (existing.rowCount !== 0) {
+        await connection.query('COMMIT')
+        return { created: false, identity: null }
+      }
+
+      const user = await connection.query<{ id: string, session_version: string }>(
+        `INSERT INTO users
+           (username, username_normalized, email, email_normalized, must_change_password)
+         VALUES ($1, $2, $3, $4, true)
+         RETURNING id, session_version::text`,
+        [identity.username, identity.usernameNormalized, identity.email, identity.emailNormalized],
+      )
+      const created = user.rows[0]!
+      await connection.query(
+        `INSERT INTO credentials (user_id, algorithm, password_hash)
+         VALUES ($1, 'scrypt', $2)`,
+        [created.id, identity.passwordHash],
+      )
+      await connection.query(
+        `INSERT INTO user_roles (user_id, role)
+         VALUES ($1, 'admin')`,
+        [created.id],
+      )
+      await connection.query('COMMIT')
+      return {
+        created: true,
+        identity: { userId: created.id, sessionVersion: Number(created.session_version) },
+      }
+    }
+    catch (error) {
+      await connection.query('ROLLBACK')
       throw error
     }
     finally {
@@ -381,6 +426,45 @@ export class PostgresIdentityRepository implements IdentityRepository {
     }
     catch (error) {
       await connection.query('ROLLBACK')
+      throw error
+    }
+    finally {
+      connection.release()
+    }
+  }
+
+  async changeEmail(
+    userId: string,
+    email: string,
+    emailNormalized: string,
+    changedAt: Date,
+  ): Promise<PasswordMutationResult> {
+    const connection = await this.pool.connect()
+    try {
+      await connection.query('BEGIN')
+      const user = await connection.query<{ session_version: string }>(
+        `UPDATE users
+         SET email = $2,
+             email_normalized = $3,
+             email_verified_at = NULL,
+             session_version = session_version + 1,
+             version = version + 1,
+             updated_at = $4
+         WHERE id = $1
+         RETURNING session_version::text`,
+        [userId, email, emailNormalized, changedAt],
+      )
+      if (!user.rows[0]) throw new IdentityNotFoundError()
+      await connection.query(
+        `UPDATE email_tokens SET used_at = $2 WHERE user_id = $1 AND used_at IS NULL`,
+        [userId, changedAt],
+      )
+      await connection.query('COMMIT')
+      return { userId, sessionVersion: Number(user.rows[0].session_version) }
+    }
+    catch (error) {
+      await connection.query('ROLLBACK')
+      if (isUniqueViolation(error)) throw new IdentityConflictError()
       throw error
     }
     finally {

@@ -7,6 +7,7 @@ import {
   InvalidEmailTokenError,
   type GlobalRole,
   type GlobalRoleMutationResult,
+  type DefaultAdministratorBootstrapResult,
   type IdentityRepository,
   type PasswordMutationResult,
   type RegisteredIdentity,
@@ -30,6 +31,12 @@ export interface LoginIdentityResult {
   sessionVersion: number
   passwordHashUpgraded: boolean
 }
+
+export const defaultAdministrator = {
+  username: 'admin',
+  password: 'sauryctf',
+  placeholderEmail: 'admin@bootstrap.invalid',
+} as const
 
 export type IdentityServiceErrorCode =
   | 'identity.conflict'
@@ -97,6 +104,17 @@ export class IdentityService {
     }
   }
 
+  async bootstrapDefaultAdministrator(): Promise<DefaultAdministratorBootstrapResult> {
+    const passwordHash = await this.passwords.hash(defaultAdministrator.password)
+    return this.repository.bootstrapDefaultAdministrator({
+      username: defaultAdministrator.username,
+      usernameNormalized: normalizeUsername(defaultAdministrator.username),
+      email: defaultAdministrator.placeholderEmail,
+      emailNormalized: normalizeEmail(defaultAdministrator.placeholderEmail),
+      passwordHash,
+    })
+  }
+
   async login(input: LoginIdentityInput): Promise<LoginIdentityResult> {
     assertPasswordInput(input.password)
     const identity = await this.repository.findByLoginIdentifier(normalizeEmail(input.identifier))
@@ -136,6 +154,18 @@ export class IdentityService {
       if (error instanceof IdentityMutationConflictError) {
         throw new IdentityServiceError('identity.password_unchanged')
       }
+      throw error
+    }
+  }
+
+  async changeEmail(userId: string, nextEmail: string): Promise<PasswordMutationResult> {
+    const email = nextEmail.normalize('NFKC').trim()
+    try {
+      return await this.repository.changeEmail(userId, email, normalizeEmail(email), this.now())
+    }
+    catch (error) {
+      if (error instanceof IdentityConflictError) throw new IdentityServiceError('identity.conflict')
+      if (error instanceof IdentityNotFoundError) throw new IdentityServiceError('identity.not_found')
       throw error
     }
   }

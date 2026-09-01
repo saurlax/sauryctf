@@ -23,6 +23,9 @@ export interface paths {
   "/api/auth/email/verification/request": {
     post: operations["requestEmailVerification"];
   };
+  "/api/auth/email/change": {
+    post: operations["changeEmail"];
+  };
   "/api/auth/email/verification/confirm": {
     post: operations["confirmEmailVerification"];
   };
@@ -262,6 +265,59 @@ export interface operations {
       };
       /** @description Stable API error */
       401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      429: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  changeEmail: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: email */
+          email: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Email changed, verification reset, and current session refreshed */
+      200: {
+        content: {
+          "application/json": {
+            /** @constant */
+            changed: true;
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };

@@ -10,7 +10,7 @@ import { PostgresIdentityRepository } from '../infrastructure/db/identity-reposi
 import { ResilientRedisRateLimitStore } from '../infrastructure/security/rate-limit'
 import type { ControlPlaneServices } from '../services'
 
-export default defineNitroPlugin((nitroApp) => {
+export default defineNitroPlugin(async (nitroApp) => {
   const databaseUrl = process.env.DATABASE_URL
   if (!databaseUrl) return
 
@@ -23,8 +23,10 @@ export default defineNitroPlugin((nitroApp) => {
   const humanVerification = process.env.TURNSTILE_SECRET_KEY
     ? new TurnstileHumanVerificationProvider(process.env.TURNSTILE_SECRET_KEY)
     : new DisabledHumanVerificationProvider()
+  const identity = new IdentityService(identityRepository, nuxtPasswordHasher, identityTokenCodec)
+  await identity.bootstrapDefaultAdministrator()
   const services: ControlPlaneServices = {
-    identity: new IdentityService(identityRepository, nuxtPasswordHasher, identityTokenCodec),
+    identity,
     identitySessions: new IdentitySessionService(identityRepository),
     identityTokenDelivery: new DeferredIdentityTokenDelivery(),
     humanVerification,

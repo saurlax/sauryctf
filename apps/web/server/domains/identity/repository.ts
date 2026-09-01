@@ -19,6 +19,11 @@ export interface RegisteredIdentity {
   sessionVersion: number
 }
 
+export interface DefaultAdministratorBootstrapResult {
+  created: boolean
+  identity: RegisteredIdentity | null
+}
+
 export type EmailTokenPurpose = 'verify_email' | 'reset_password'
 
 export interface StoredCredential {
@@ -68,6 +73,7 @@ export interface SessionSubject {
 
 export interface IdentityRepository {
   createIdentity(identity: NewIdentity): Promise<RegisteredIdentity>
+  bootstrapDefaultAdministrator(identity: NewIdentity): Promise<DefaultAdministratorBootstrapResult>
   findByLoginIdentifier(identifierNormalized: string): Promise<StoredIdentity | null>
   findCredential(userId: string): Promise<StoredCredential | null>
   findPasswordResetRecipient(emailNormalized: string): Promise<PasswordResetRecipient | null>
@@ -78,6 +84,12 @@ export interface IdentityRepository {
   issueEmailToken(token: NewEmailToken): Promise<void>
   verifyEmail(tokenDigest: Buffer, consumedAt: Date): Promise<PasswordMutationResult>
   changeGlobalRole(userId: string, role: GlobalRole, changedAt: Date): Promise<GlobalRoleMutationResult>
+  changeEmail(
+    userId: string,
+    email: string,
+    emailNormalized: string,
+    changedAt: Date,
+  ): Promise<PasswordMutationResult>
 }
 
 export class IdentityConflictError extends Error {

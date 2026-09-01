@@ -29,6 +29,7 @@ class SessionRepository implements IdentityRepository {
 
   async findSessionSubject(): Promise<SessionSubject | null> { return this.subject }
   async createIdentity(_identity: NewIdentity): Promise<RegisteredIdentity> { throw new Error('not used') }
+  async bootstrapDefaultAdministrator(): Promise<never> { throw new Error('not used') }
   async findByLoginIdentifier(_identifier: string): Promise<StoredIdentity | null> { throw new Error('not used') }
   async findCredential(): Promise<never> { throw new Error('not used') }
   async findPasswordResetRecipient(): Promise<never> { throw new Error('not used') }
@@ -38,6 +39,7 @@ class SessionRepository implements IdentityRepository {
   async issueEmailToken(): Promise<never> { throw new Error('not used') }
   async verifyEmail(): Promise<never> { throw new Error('not used') }
   async changeGlobalRole(): Promise<never> { throw new Error('not used') }
+  async changeEmail(): Promise<never> { throw new Error('not used') }
 }
 
 describe('protected identity session validation', () => {

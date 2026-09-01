@@ -24,6 +24,10 @@ export const emailVerificationConfirmRequestSchema = z.strictObject({
   token: identityTokenSchema,
 })
 
+export const changeEmailRequestSchema = z.strictObject({
+  email: emailSchema,
+})
+
 export const passwordResetAcceptedSchema = z.strictObject({
   accepted: z.literal(true),
 })
@@ -34,6 +38,10 @@ export const passwordChangedSchema = z.strictObject({
 
 export const emailVerifiedSchema = z.strictObject({
   verified: z.literal(true),
+})
+
+export const emailChangedSchema = z.strictObject({
+  changed: z.literal(true),
 })
 
 export const globalRoleSchema = z.enum(['user', 'organizer', 'admin'])
@@ -54,9 +62,11 @@ export type ChangePasswordRequest = z.infer<typeof changePasswordRequestSchema>
 export type PasswordResetRequest = z.infer<typeof passwordResetRequestSchema>
 export type PasswordResetConfirmRequest = z.infer<typeof passwordResetConfirmRequestSchema>
 export type EmailVerificationConfirmRequest = z.infer<typeof emailVerificationConfirmRequestSchema>
+export type ChangeEmailRequest = z.infer<typeof changeEmailRequestSchema>
 export type PasswordResetAccepted = z.infer<typeof passwordResetAcceptedSchema>
 export type PasswordChanged = z.infer<typeof passwordChangedSchema>
 export type EmailVerified = z.infer<typeof emailVerifiedSchema>
+export type EmailChanged = z.infer<typeof emailChangedSchema>
 export type GlobalRole = z.infer<typeof globalRoleSchema>
 export type ChangeGlobalRoleRequest = z.infer<typeof changeGlobalRoleRequestSchema>
 export type GlobalRoleChanged = z.infer<typeof globalRoleChangedSchema>

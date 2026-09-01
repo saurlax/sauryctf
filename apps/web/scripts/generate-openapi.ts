@@ -10,8 +10,10 @@ import {
 } from '../shared/contracts/http'
 import {
   changeGlobalRoleRequestSchema,
+  changeEmailRequestSchema,
   changePasswordRequestSchema,
   emailVerificationConfirmRequestSchema,
+  emailChangedSchema,
   emailVerifiedSchema,
   globalRoleChangedSchema,
   passwordChangedSchema,
@@ -171,6 +173,22 @@ const document = {
         responses: {
           202: jsonResponse('Verification request accepted', passwordResetAcceptedSchema),
           401: errorResponse,
+          429: errorResponse,
+        },
+      },
+    },
+    '/api/auth/email/change': {
+      post: {
+        operationId: 'changeEmail',
+        tags: ['Identity'],
+        security: [{ cookieSession: [] }],
+        parameters: [originParameter, csrfParameter],
+        requestBody: jsonRequestBody(changeEmailRequestSchema),
+        responses: {
+          200: jsonResponse('Email changed, verification reset, and current session refreshed', emailChangedSchema),
+          400: errorResponse,
+          401: errorResponse,
+          409: errorResponse,
           429: errorResponse,
         },
       },

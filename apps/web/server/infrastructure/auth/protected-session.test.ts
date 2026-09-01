@@ -6,6 +6,7 @@ import { resolveProtectedIdentity } from './protected-session'
 function repositoryFor(subject: SessionSubject | null): IdentityRepository {
   return {
     createIdentity: vi.fn(),
+    bootstrapDefaultAdministrator: vi.fn(),
     findByLoginIdentifier: vi.fn(),
     findCredential: vi.fn(),
     findPasswordResetRecipient: vi.fn(),
@@ -16,6 +17,7 @@ function repositoryFor(subject: SessionSubject | null): IdentityRepository {
     issueEmailToken: vi.fn(),
     verifyEmail: vi.fn(),
     changeGlobalRole: vi.fn(),
+    changeEmail: vi.fn(),
   }
 }
 

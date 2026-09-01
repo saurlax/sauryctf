@@ -234,6 +234,49 @@ paths:
                 additionalProperties: false
         "401": *a1
         "429": *a1
+  /api/auth/email/change:
+    post:
+      operationId: changeEmail
+      tags:
+        - Identity
+      security:
+        - cookieSession: []
+      parameters:
+        - *a2
+        - *a3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  maxLength: 320
+                  format: email
+                  pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+              required:
+                - email
+              additionalProperties: false
+      responses:
+        "200":
+          description: Email changed, verification reset, and current session refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  changed:
+                    type: boolean
+                    const: true
+                required:
+                  - changed
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "409": *a1
+        "429": *a1
   /api/auth/email/verification/confirm:
     post:
       operationId: confirmEmailVerification

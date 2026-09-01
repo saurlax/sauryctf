@@ -2,8 +2,10 @@ import type { H3Event } from 'h3'
 import { setResponseStatus } from 'h3'
 import {
   changeGlobalRoleRequestSchema,
+  changeEmailRequestSchema,
   changePasswordRequestSchema,
   emailVerificationConfirmRequestSchema,
+  emailChangedSchema,
   emailVerifiedSchema,
   globalRoleChangedSchema,
   passwordChangedSchema,
@@ -38,6 +40,7 @@ import { resolveProtectedIdentitySession } from './protected-session'
 
 type IdentityCommands = Pick<IdentityService,
   | 'changeGlobalRole'
+  | 'changeEmail'
   | 'changePassword'
   | 'requestPasswordReset'
   | 'resetPassword'
@@ -144,6 +147,29 @@ export async function handleChangeGlobalRole(
     session_version: result.sessionVersion,
     changed: result.changed,
   })
+}
+
+export async function handleChangeEmail(event: H3Event, dependencies: IdentityHttpDependencies) {
+  const context = await requireProtectedCapability(event, identityCapability.accountWrite, dependencies)
+  await enforceUserRateLimit(
+    event,
+    dependencies.rateLimits,
+    context.subject.userId,
+    'identity.email.change',
+    3,
+    15 * 60_000,
+  )
+  const input = await readValidatedJsonBody(event, changeEmailRequestSchema)
+  const result = await runIdentityOperation(() => dependencies.identity.changeEmail(
+    context.subject.userId,
+    input.email,
+  ))
+  await dependencies.browserSession.replace(event, {
+    user_id: result.userId,
+    session_version: result.sessionVersion,
+    logged_in_at: context.session.logged_in_at,
+  })
+  return emailChangedSchema.parse({ changed: true })
 }
 
 export async function handlePasswordResetRequest(event: H3Event, dependencies: IdentityHttpDependencies) {

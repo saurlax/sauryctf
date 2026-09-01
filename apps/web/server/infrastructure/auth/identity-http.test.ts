@@ -16,6 +16,7 @@ import { DisabledHumanVerificationProvider } from '../../domains/identity/human-
 import { normalizeApiError } from '../http/errors'
 import { MemoryRateLimitStore } from '../security/rate-limit'
 import {
+  handleChangeEmail,
   handleChangeGlobalRole,
   handleChangePassword,
   handleEmailVerificationConfirm,
@@ -59,6 +60,10 @@ function createDependencies(overrides: Partial<IdentityHttpDependencies['identit
   })
   const dependencies: IdentityHttpDependencies = {
     identity: {
+      changeEmail: vi.fn(async () => {
+        authoritativeVersion += 1
+        return { userId, sessionVersion: authoritativeVersion }
+      }),
       changeGlobalRole: vi.fn(async (_actor, targetUserId, role) => ({
         userId: targetUserId,
         previousRole: 'user' as const,
@@ -151,6 +156,29 @@ describe('identity HTTP adapters', () => {
     }, dependencies)
     expect(stale.status).toBe(401)
     expect(clear).toHaveBeenCalled()
+  })
+
+  it('lets a restricted bootstrap account set its email and refreshes only the current session', async () => {
+    const { dependencies, replace } = createDependencies()
+    dependencies.sessions.validate = vi.fn(async (candidate: AuthSessionData) => ({
+      ...verifiedSubject,
+      emailVerified: false,
+      mustChangePassword: true,
+      role: 'admin' as const,
+      sessionVersion: candidate.session_version,
+    }))
+    const response = await invoke(handleChangeEmail, dependencies, {
+      email: 'operator@example.test',
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ changed: true })
+    expect(dependencies.identity.changeEmail).toHaveBeenCalledWith(userId, 'operator@example.test')
+    expect(replace).toHaveBeenCalledWith(expect.anything(), {
+      user_id: userId,
+      session_version: 2,
+      logged_in_at: originalSession.logged_in_at,
+    })
   })
 
   it('returns an identical public reset response for existing and missing email addresses', async () => {
