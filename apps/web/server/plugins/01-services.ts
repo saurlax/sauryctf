@@ -43,6 +43,7 @@ import { PostgresScoringReplayRepository } from '../infrastructure/db/scoring-re
 import { PostgresScoreboardViewRepository } from '../infrastructure/db/scoreboard-view-repository'
 import { PostgresDomainOutboxRepository } from '../infrastructure/db/domain-outbox-repository'
 import { RedisDomainEventPublisher } from '../infrastructure/events/redis-domain-event-publisher'
+import { RedisPublicRealtimeLog } from '../infrastructure/events/redis-public-realtime-log'
 
 export default defineNitroPlugin(async (nitroApp) => {
   const databaseUrl = process.env.DATABASE_URL
@@ -59,6 +60,7 @@ export default defineNitroPlugin(async (nitroApp) => {
   const scoreboardCache = new ResilientRedisScoreboardCache(process.env.REDIS_URL)
   const scoreboardBuildLock = new ResilientRedisScoreboardBuildLock(process.env.REDIS_URL)
   const domainEventPublisher = new RedisDomainEventPublisher(process.env.REDIS_URL)
+  const publicRealtime = new RedisPublicRealtimeLog(process.env.REDIS_URL)
   const humanVerification = process.env.TURNSTILE_SECRET_KEY
     ? new TurnstileHumanVerificationProvider(process.env.TURNSTILE_SECRET_KEY)
     : new DisabledHumanVerificationProvider()
@@ -100,6 +102,7 @@ export default defineNitroPlugin(async (nitroApp) => {
       scoreboardCache,
       new ScoreboardBuildCoordinator(scoreboardBuildLock),
     ),
+    publicRealtime,
   }
 
   const smtpHost = process.env.MAIL_SMTP_HOST
@@ -175,6 +178,7 @@ export default defineNitroPlugin(async (nitroApp) => {
     await scoreboardCache.close()
     await scoreboardBuildLock.close()
     await domainEventPublisher.close()
+    await publicRealtime.close()
     await database.pool.end()
   })
 })

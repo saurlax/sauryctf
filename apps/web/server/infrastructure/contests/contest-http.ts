@@ -30,6 +30,7 @@ import { createApiError } from '../http/errors'
 
 type ContestCommands = Pick<ContestService,
   'archive' | 'checkPublication' | 'createDraft' | 'publish' | 'readManaged' | 'readPublic' | 'updateDraft'>
+type PublicContestQueries = Pick<ContestService, 'readPublic'>
 
 export interface ContestHttpDependencies {
   identity: IdentityHttpDependencies
@@ -209,10 +210,17 @@ export async function handleManagedContest(
 export async function handlePublicContest(
   _event: H3Event,
   contestId: string,
-  dependencies: Pick<ContestHttpDependencies, 'contests'>,
+  dependencies: { contests: PublicContestQueries },
 ) {
-  const result = await runContestOperation(() => dependencies.contests.readPublic(contestId))
+  const result = await readPublicContest(contestId, dependencies)
   return respond(_event, result)
+}
+
+export async function readPublicContest(
+  contestId: string,
+  dependencies: { contests: PublicContestQueries },
+) {
+  return runContestOperation(() => dependencies.contests.readPublic(contestId))
 }
 
 export async function handlePublishContest(

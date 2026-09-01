@@ -95,6 +95,10 @@ import {
   scoreboardQuerySchema,
   scoreboardResponseSchema,
 } from '../shared/contracts/scoreboards'
+import {
+  publicRealtimeEventSchema,
+  publicRealtimeResetSchema,
+} from '../shared/contracts/public-realtime'
 
 function openApiSchema(schema: z.ZodType): Record<string, unknown> {
   const jsonSchema = z.toJSONSchema(schema, { target: 'draft-7' }) as Record<string, unknown>
@@ -587,6 +591,39 @@ const document = {
         ],
         responses: {
           200: jsonResponse('Public live, frozen, or settled deterministic scoreboard projection', scoreboardResponseSchema),
+          400: errorResponse,
+          404: errorResponse,
+        },
+      },
+    },
+    '/api/contests/{contestId}/events': {
+      get: {
+        operationId: 'streamPublicContestEvents',
+        tags: ['Contests', 'Scoreboards'],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          {
+            name: 'Last-Event-ID',
+            in: 'header',
+            required: false,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'Stable event id used to replay events still present in the recovery window.',
+          },
+        ],
+        responses: {
+          200: {
+            description: 'Contest-scoped SSE refresh signals. A reset event requires a full read-model refresh.',
+            content: {
+              'text/event-stream': {
+                schema: {
+                  oneOf: [
+                    openApiSchema(publicRealtimeEventSchema),
+                    openApiSchema(publicRealtimeResetSchema),
+                  ],
+                },
+              },
+            },
+          },
           400: errorResponse,
           404: errorResponse,
         },

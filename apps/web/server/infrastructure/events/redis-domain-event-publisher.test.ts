@@ -3,6 +3,8 @@ import { createClient } from 'redis'
 import { describe, expect, it } from 'vitest'
 import type { DomainEvent } from '../../domains/events/domain-outbox'
 import {
+  contestRealtimeLogKey,
+  domainEventChannel,
   RedisDomainEventPublisher,
   RedisDomainEventsUnavailableError,
   scoreboardVersionKey,
@@ -63,6 +65,70 @@ describeWithRedis('Redis domain event publication', () => {
       await publisher.publish(newer)
       await publisher.publish(older)
       await expect(inspector.get(scoreboardVersionKey(newer.aggregateId))).resolves.toBe('8')
+    }
+    finally {
+      if (inspector.isOpen) inspector.destroy()
+      await publisher.close()
+    }
+  })
+
+  it('stores one safe public refresh signal for a retried outbox event', async () => {
+    const publisher = new RedisDomainEventPublisher(redisUrl)
+    const inspector = createClient({ url: redisUrl })
+    const subscriber = inspector.duplicate()
+    const event = scoreboardEvent(11)
+    event.payload = { ...event.payload, submitted_answer: 'flag{must-not-leak}' }
+    try {
+      await inspector.connect()
+      await subscriber.connect()
+      await inspector.del(contestRealtimeLogKey(event.aggregateId))
+      let receiveInternal!: (message: string) => void
+      const internalMessage = new Promise<string>((resolve) => { receiveInternal = resolve })
+      await subscriber.subscribe(domainEventChannel, receiveInternal)
+      await publisher.publish(event)
+      await publisher.publish(event)
+
+      const messages = await inspector.lRange(contestRealtimeLogKey(event.aggregateId), 0, -1)
+      expect(messages).toHaveLength(1)
+      expect(messages[0]).not.toContain('submitted_answer')
+      expect(messages[0]).not.toContain('flag{must-not-leak}')
+      expect(JSON.parse(messages[0]!)).toEqual({
+        schema: 'public-realtime-event.v1',
+        id: event.id,
+        contestId: event.aggregateId,
+        type: 'scoreboard.refresh',
+        version: 11,
+        occurredAt: event.occurredAt,
+      })
+      await expect(internalMessage).resolves.toContain('flag{must-not-leak}')
+    }
+    finally {
+      if (subscriber.isOpen) subscriber.destroy()
+      if (inspector.isOpen) inspector.destroy()
+      await publisher.close()
+    }
+  })
+
+  it('bounds each contest recovery log and applies an expiry', async () => {
+    const publisher = new RedisDomainEventPublisher(redisUrl)
+    const inspector = createClient({ url: redisUrl })
+    const contestId = randomUUID()
+    const key = contestRealtimeLogKey(contestId)
+    try {
+      await inspector.connect()
+      await inspector.del(key)
+      for (let version = 1; version <= 1_001; version += 1) {
+        const event = scoreboardEvent(version)
+        event.aggregateId = contestId
+        event.payload = { contest_id: contestId, version }
+        await publisher.publish(event)
+      }
+      expect(await inspector.lLen(key)).toBe(1_000)
+      const firstRetained = JSON.parse((await inspector.lIndex(key, 0))!)
+      expect(firstRetained.version).toBe(2)
+      const ttl = await inspector.ttl(key)
+      expect(ttl).toBeGreaterThan(0)
+      expect(ttl).toBeLessThanOrEqual(24 * 60 * 60)
     }
     finally {
       if (inspector.isOpen) inspector.destroy()

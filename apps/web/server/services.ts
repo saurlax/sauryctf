@@ -11,6 +11,7 @@ import type { ChallengeTemplateService } from './domains/challenges/service'
 import type { ContestChallengeService } from './domains/challenges/contest-challenge-service'
 import type { SubmissionService } from './domains/submissions/service'
 import type { ScoreboardViewService } from './domains/scoreboards/view-service'
+import type { PublicRealtimeLog } from './domains/events/public-realtime'
 
 export interface ControlPlaneServices {
   identity: IdentityService
@@ -26,4 +27,5 @@ export interface ControlPlaneServices {
   contestChallenges: ContestChallengeService
   submissions: SubmissionService
   scoreboards: ScoreboardViewService
+  publicRealtime: PublicRealtimeLog
 }

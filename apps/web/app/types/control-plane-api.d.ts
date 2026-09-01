@@ -160,6 +160,9 @@ export interface paths {
   "/api/contests/{contestId}/scoreboard": {
     get: operations["getPublicContestScoreboard"];
   };
+  "/api/contests/{contestId}/events": {
+    get: operations["streamPublicContestEvents"];
+  };
   "/api/admin/contests/{contestId}/scoreboard": {
     get: operations["getInternalContestScoreboard"];
   };
@@ -4416,6 +4419,50 @@ export interface operations {
                 })[];
             };
           };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  streamPublicContestEvents: {
+    parameters: {
+      header?: {
+        /** @description Stable event id used to replay events still present in the recovery window. */
+        "Last-Event-ID"?: string;
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    responses: {
+      /** @description Contest-scoped SSE refresh signals. A reset event requires a full read-model refresh. */
+      200: {
+        content: {
+          "text/event-stream": OneOf<[{
+            /** @constant */
+            schema: "public-realtime-event.v1";
+            id: string;
+            contestId: string;
+            /** @constant */
+            type: "scoreboard.refresh";
+            version: number;
+            /** Format: date-time */
+            occurredAt: string;
+          }, {
+            /** @constant */
+            reason: "recovery_window_unavailable";
+          }]>;
         };
       };
       /** @description Stable API error */
