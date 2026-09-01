@@ -51,6 +51,7 @@ function admissionRepository() {
       challengeId,
       participationId,
       teamId,
+      teamName: 'Blue Team',
       flagFormat: 'flag{...}',
       flagPolicy: { type: 'static' as const, digest: 'a'.repeat(64) },
     })),
@@ -88,6 +89,7 @@ describe('submission eligibility pipeline', () => {
         challengeId,
         participationId,
         teamId,
+        teamName: 'Blue Team',
         flagFormat: 'flag{...}',
         flagPolicy: { type: 'static' as const, digest: 'a'.repeat(64) },
       }
@@ -120,7 +122,7 @@ describe('submission eligibility pipeline', () => {
       challengeId,
       submittedFlag: 'flag{correct}',
       requestId,
-    })).resolves.toEqual({ correct: true })
+    })).resolves.toEqual({ correct: true, result: 'correct' })
 
     expect(order).toEqual([
       'user:submission.flag',

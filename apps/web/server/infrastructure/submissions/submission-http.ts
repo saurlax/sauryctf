@@ -55,14 +55,14 @@ export async function handleSubmitFlag(
     dependencies.identity,
   )
   const input = await readValidatedJsonBody(event, submitFlagRequestSchema)
-  const verdict = await runOperation(event, () => dependencies.submissions.verifyFlag(context.subject, {
+  const outcome = await runOperation(event, () => dependencies.submissions.verifyFlag(context.subject, {
     contestId,
     challengeId,
     submittedFlag: input.flag,
     requestId: requestIdSchema.parse(event.context.requestId),
   }))
   return submitFlagResponseSchema.parse({
-    result: verdict.correct ? 'correct' : 'incorrect',
+    result: outcome.result,
   })
 }
 

@@ -7,7 +7,7 @@ export const submitFlagRequestSchema = z.strictObject({
 })
 
 export const submitFlagResponseSchema = z.strictObject({
-  result: z.enum(['correct', 'incorrect']),
+  result: z.enum(['correct', 'incorrect', 'already_solved']),
 })
 
 export const managedSubmissionSchema = z.strictObject({
@@ -17,7 +17,7 @@ export const managedSubmissionSchema = z.strictObject({
   participation_id: uuidSchema,
   user_id: uuidSchema,
   mode: z.literal('official'),
-  result: z.enum(['correct', 'incorrect']),
+  result: z.enum(['correct', 'incorrect', 'already_solved']),
   answer_masked: z.literal('••••••••'),
   submitted_at: utcTimestampSchema,
 })

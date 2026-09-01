@@ -91,7 +91,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
         )
         captainId = captain.rows[0]!.id
       }
-      const team = await connection.query<{ id: string }>(
+    const team = await connection.query<{ id: string }>(
         `INSERT INTO teams (name, name_normalized, created_by)
          VALUES ($1, $2, $3)
          RETURNING id`,
@@ -161,9 +161,73 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     return {
       userId,
       teamId,
+      teamName: `Team-${suffix}`,
       contestId,
       challengeId: challenge.challengeId,
       participationId: participation.rows[0]!.id,
+    }
+  }
+
+  async function addParticipant(
+    input: Awaited<ReturnType<typeof fixture>>,
+    sameTeam = false,
+  ) {
+    const suffix = randomUUID()
+    const user = await database.pool.query<{ id: string }>(
+      `INSERT INTO users
+         (username, username_normalized, email, email_normalized, email_verified_at)
+       VALUES ($1, $2, $3, $3, $4)
+       RETURNING id`,
+      [`Player-${suffix}`, `player-${suffix}`, `player-${suffix}@example.test`, at],
+    )
+    const userId = user.rows[0]!.id
+    if (sameTeam) {
+      await database.pool.query(
+        `INSERT INTO team_members (team_id, user_id, role)
+         VALUES ($1, $2, 'member')`,
+        [input.teamId, userId],
+      )
+      return { ...input, userId }
+    }
+
+    const teamName = `Team-${suffix}`
+    const connection = await database.pool.connect()
+    try {
+      await connection.query('BEGIN')
+      const team = await connection.query<{ id: string }>(
+        `INSERT INTO teams (name, name_normalized, created_by)
+         VALUES ($1, $2, $3)
+         RETURNING id`,
+        [teamName, teamName.toLowerCase(), userId],
+      )
+      const teamId = team.rows[0]!.id
+      await connection.query(
+        `INSERT INTO team_members (team_id, user_id, role)
+         VALUES ($1, $2, 'captain')`,
+        [teamId, userId],
+      )
+      const participation = await connection.query<{ id: string }>(
+        `INSERT INTO participations
+           (contest_id, team_id, status, registered_by, reviewed_by, reviewed_at)
+         VALUES ($1, $2, 'accepted', $3, $3, $4)
+         RETURNING id`,
+        [input.contestId, teamId, userId, at],
+      )
+      await connection.query('COMMIT')
+      return {
+        ...input,
+        userId,
+        teamId,
+        teamName,
+        participationId: participation.rows[0]!.id,
+      }
+    }
+    catch (error) {
+      await connection.query('ROLLBACK')
+      throw error
+    }
+    finally {
+      connection.release()
     }
   }
 
@@ -188,6 +252,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       challengeId: input.challengeId,
       participationId: input.participationId,
       teamId: input.teamId,
+      teamName: input.teamName,
       userId: input.userId,
       requestId,
     }
@@ -214,6 +279,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       challengeId: input.challengeId,
       participationId: input.participationId,
       teamId: input.teamId,
+      teamName: input.teamName,
       flagFormat: 'flag{...}',
       flagPolicy: { type: 'static', digest: staticFlagDigest('flag{correct}') },
     })
@@ -319,6 +385,69 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       ...protectedInput.command,
       result: 'correct',
     })).rejects.toBeInstanceOf(SubmissionRequestConflictError)
+  })
+
+  it('creates one official solve when two teammates submit the correct Flag concurrently', async () => {
+    const captain = await fixture()
+    const teammate = await addParticipant(captain, true)
+    const outcomes = await Promise.all([
+      repository.append(appendCommand(captain, 'flag{correct}', 'correct').command),
+      repository.append(appendCommand(teammate, 'flag{correct}', 'correct').command),
+    ])
+
+    expect(outcomes.map(item => item.result).sort()).toEqual(['already_solved', 'correct'])
+    const facts = await database.pool.query<{ result: string }>(
+      `SELECT result::text
+       FROM submissions
+       WHERE participation_id = $1 AND contest_challenge_id = $2
+       ORDER BY submitted_at, id`,
+      [captain.participationId, captain.challengeId],
+    )
+    expect(facts.rows.map(row => row.result).sort()).toEqual(['already_solved', 'correct'])
+    const solves = await database.pool.query<{ count: string, first_count: string }>(
+      `SELECT count(*)::text AS count,
+              count(*) FILTER (WHERE solve_order = 1)::text AS first_count
+       FROM solves
+       WHERE participation_id = $1 AND contest_challenge_id = $2 AND mode = 'official'`,
+      [captain.participationId, captain.challengeId],
+    )
+    expect(solves.rows[0]).toEqual({ count: '1', first_count: '1' })
+  })
+
+  it('assigns one stable first and consecutive solve order under concurrent teams', async () => {
+    const firstTeam = await fixture()
+    const secondTeam = await addParticipant(firstTeam)
+    const thirdTeam = await addParticipant(firstTeam)
+    await Promise.all([firstTeam, secondTeam, thirdTeam].map(input => repository.append(
+      appendCommand(input, 'flag{correct}', 'correct').command,
+    )))
+
+    const ordered = await database.pool.query<{
+      participation_id: string
+      team_id: string
+      solve_order: number
+      solved_at: Date
+    }>(
+      `SELECT s.participation_id, p.team_id, s.solve_order, s.solved_at
+       FROM solves s
+       JOIN participations p ON p.id = s.participation_id
+       WHERE s.contest_challenge_id = $1 AND s.mode = 'official'
+       ORDER BY s.solve_order`,
+      [firstTeam.challengeId],
+    )
+    expect(ordered.rows.map(row => row.solve_order)).toEqual([1, 2, 3])
+    expect(new Set(ordered.rows.map(row => row.participation_id)).size).toBe(3)
+    expect(ordered.rows.every(row => row.solved_at.toISOString() === at.toISOString())).toBe(true)
+
+    const timeline = await database.pool.query<{ count: string, payload: { team_id: string } }>(
+      `SELECT (count(*) OVER ())::text AS count, payload
+       FROM contest_events
+       WHERE contest_id = $1 AND event_type = 'first_solve'`,
+      [firstTeam.contestId],
+    )
+    expect(timeline.rows).toHaveLength(1)
+    expect(timeline.rows[0]!.count).toBe('1')
+    expect(timeline.rows[0]!.payload.team_id).toBe(ordered.rows[0]!.team_id)
   })
 
   it('paginates a management projection that never selects answer protection material', async () => {

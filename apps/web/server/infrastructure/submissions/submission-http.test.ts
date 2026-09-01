@@ -38,7 +38,7 @@ function dependencies(options: {
   subject?: SessionSubject
   sessionFailure?: Error
   serviceFailure?: SubmissionServiceError
-  correct?: boolean
+  result?: 'correct' | 'incorrect' | 'already_solved'
   rateLimits?: MemoryRateLimitStore
   managedItems?: Awaited<ReturnType<SubmissionHttpDependencies['submissions']['listManaged']>>['items']
 } = {}): SubmissionHttpDependencies {
@@ -59,7 +59,8 @@ function dependencies(options: {
     submissions: {
       verifyFlag: vi.fn(async () => {
         if (options.serviceFailure) throw options.serviceFailure
-        return { correct: options.correct ?? true }
+        const result = options.result ?? 'correct'
+        return { correct: result !== 'incorrect', result }
       }),
       listManaged: vi.fn(async () => ({
         items: options.managedItems ?? [],
@@ -113,10 +114,11 @@ async function invoke(deps: SubmissionHttpDependencies, flag = 'flag{correct}') 
 
 describe('Flag submission HTTP admission', () => {
   it.each([
-    [true, 'correct'],
-    [false, 'incorrect'],
-  ] as const)('returns only a redacted verdict after successful admission', async (correct, result) => {
-    const deps = dependencies({ correct })
+    'correct',
+    'incorrect',
+    'already_solved',
+  ] as const)('returns only the redacted %s verdict after successful admission', async (result) => {
+    const deps = dependencies({ result })
     const response = await invoke(deps)
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ result })

@@ -5212,6 +5212,7 @@ paths:
                           enum:
                             - correct
                             - incorrect
+                            - already_solved
                         answer_masked:
                           type: string
                           const: ••••••••
@@ -7717,6 +7718,7 @@ paths:
                     enum:
                       - correct
                       - incorrect
+                      - already_solved
                 required:
                   - result
                 additionalProperties: false

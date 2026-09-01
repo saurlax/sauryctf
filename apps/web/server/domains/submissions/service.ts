@@ -89,7 +89,7 @@ export class SubmissionService {
     challengeId: string
     submittedFlag: string
     requestId: string
-  }): Promise<{ correct: boolean }> {
+  }): Promise<{ correct: boolean, result: 'correct' | 'incorrect' | 'already_solved' }> {
     requireIdentityCapability(actor, identityCapability.flagSubmit)
 
     await this.enforceLimits([
@@ -157,7 +157,7 @@ export class SubmissionService {
         userId: actor.userId,
         requestId: input.requestId,
       })
-      await this.mapRepository(() => this.repository.append({
+      const submission = await this.mapRepository(() => this.repository.append({
         userId: actor.userId,
         contestId: admission.contestId,
         challengeId: admission.challengeId,
@@ -167,7 +167,7 @@ export class SubmissionService {
         answerDigest: protectedAnswer.digest,
         answerCiphertext: protectedAnswer.ciphertext,
       }))
-      return verdict
+      return { correct: verdict.correct, result: submission.result }
     }
     catch (error) {
       if (error instanceof FlagVerificationConfigurationError) {

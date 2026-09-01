@@ -14,6 +14,7 @@ describe('submission contracts', () => {
 
   it('exposes only the redacted synchronous verdict', () => {
     expect(submitFlagResponseSchema.parse({ result: 'correct' })).toEqual({ result: 'correct' })
+    expect(submitFlagResponseSchema.parse({ result: 'already_solved' })).toEqual({ result: 'already_solved' })
     expect(() => submitFlagResponseSchema.parse({ result: 'correct', submitted_flag: 'flag{answer}' })).toThrow()
   })
 

@@ -12,6 +12,7 @@ export interface SubmissionAdmission {
   challengeId: string
   participationId: string
   teamId: string
+  teamName: string
   flagFormat: string | null
   flagPolicy: ChallengeFlagPolicy
 }
@@ -22,11 +23,12 @@ export interface SubmissionRepository {
   listManaged(contestId: string, cursor: string | undefined, limit: number): Promise<ManagedSubmissionPage>
 }
 
-export type SubmissionResult = 'correct' | 'incorrect'
+export type VerifiedSubmissionResult = 'correct' | 'incorrect'
+export type SubmissionResult = VerifiedSubmissionResult | 'already_solved'
 
 export interface AppendSubmissionCommand extends SubmissionAdmissionCommand {
   requestId: string
-  result: SubmissionResult
+  result: VerifiedSubmissionResult
   answerDigest: Buffer
   answerCiphertext: Buffer
 }

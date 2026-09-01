@@ -2606,7 +2606,7 @@ export interface operations {
                 /** @constant */
                 mode: "official";
                 /** @enum {string} */
-                result: "correct" | "incorrect";
+                result: "correct" | "incorrect" | "already_solved";
                 /** @constant */
                 answer_masked: "••••••••";
                 /** Format: date-time */
@@ -3681,7 +3681,7 @@ export interface operations {
         content: {
           "application/json": {
             /** @enum {string} */
-            result: "correct" | "incorrect";
+            result: "correct" | "incorrect" | "already_solved";
           };
         };
       };
