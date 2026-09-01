@@ -104,6 +104,7 @@ function response(projection: ScoreboardProjection) {
       contest_id: projection.contestId,
       view: projection.view,
       state: projection.state,
+      freshness: projection.freshness,
       version: projection.version,
       frozen_at: projection.frozenAt,
       built_at: projection.builtAt,

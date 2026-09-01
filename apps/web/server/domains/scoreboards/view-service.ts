@@ -4,7 +4,15 @@ import {
   type ScoreboardReadModel,
   type ScoreboardScope,
 } from './builder'
-import type { ScoreboardProjectionCache } from './cache'
+import {
+  scoreboardBuildKey,
+  type ScoreboardCacheDescriptor,
+  type ScoreboardProjectionCache,
+} from './cache'
+import {
+  ScoreboardBuildCoordinator,
+  type ScoreboardBuildMode,
+} from './build-coordinator'
 
 export type ScoreboardView = 'public' | 'internal'
 export type ScoreboardViewerRole = 'user' | 'organizer' | 'admin'
@@ -70,6 +78,7 @@ export interface ScoreboardProjection {
   contestId: string
   view: ScoreboardView
   state: ScoreboardProjectionState
+  freshness: 'current' | 'stale'
   version: number
   frozenAt: string | null
   builtAt: string
@@ -99,6 +108,7 @@ export class ScoreboardViewService {
     private readonly builder = new ScoreboardBuilder(),
     private readonly now: () => Date = () => new Date(),
     private readonly cache?: ScoreboardProjectionCache,
+    private readonly builds = new ScoreboardBuildCoordinator(),
   ) {}
 
   async read(input: ReadScoreboardInput): Promise<ScoreboardProjection> {
@@ -185,18 +195,34 @@ export class ScoreboardViewService {
           return value
         }
       }
-      const value = await this.materialize({
-        contest,
-        scope: input.scope,
+      const buildDescriptor: ScoreboardCacheDescriptor = {
+        contestId: contest.contestId,
         view: 'public',
+        scopeKey,
+        version: version ?? 0,
         state: 'frozen',
-        now,
-        factsBefore: contest.freezeAt,
-        persist: true,
-        preferLatestExisting: true,
-      })
-      await this.writeCache(value)
-      return value
+        frozenAt: contest.freezeAt.toISOString(),
+      }
+      return this.builds.run(
+        scoreboardBuildKey(buildDescriptor),
+        () => this.readLatestFrozen(contest, input.scope),
+        async () => {
+          const winner = await this.readLatestFrozen(contest, input.scope)
+          if (winner) return winner
+          const value = await this.materialize({
+            contest,
+            scope: input.scope,
+            view: 'public',
+            state: 'frozen',
+            now,
+            factsBefore: contest.freezeAt!,
+            persist: true,
+            preferLatestExisting: true,
+          })
+          await this.writeCache(value)
+          return value
+        },
+      )
     }
 
     return this.cachedMaterialize({
@@ -206,7 +232,7 @@ export class ScoreboardViewService {
       state: 'live',
       version: contest.currentVersion,
       now,
-      persist: false,
+      persist: true,
     })
   }
 
@@ -219,7 +245,7 @@ export class ScoreboardViewService {
     now: Date
     persist: boolean
   }): Promise<ScoreboardProjection> {
-    const descriptor = {
+    const descriptor: ScoreboardCacheDescriptor = {
       contestId: input.contest.contestId,
       view: input.view,
       scopeKey: scopeKeyFor(input.scope),
@@ -229,7 +255,102 @@ export class ScoreboardViewService {
     }
     const cached = await this.readCache(descriptor)
     if (cached) return cached
-    const value = await this.materialize(input)
+    const stored = await this.readStoredProjection(descriptor, input.contest.freezeAt)
+    if (stored) {
+      await this.writeCache(stored)
+      return stored
+    }
+    return this.builds.run(
+      scoreboardBuildKey(descriptor),
+      async () => {
+        const winner = await this.readCache(descriptor)
+          ?? await this.readStoredProjection(descriptor, input.contest.freezeAt)
+        if (winner) await this.writeCache(winner)
+        return winner
+      },
+      async mode => this.rebuildOrFallback(input, descriptor, mode),
+    )
+  }
+
+  private async rebuildOrFallback(
+    input: {
+      contest: ScoreboardContestState
+      scope: ScoreboardScope
+      view: 'public'
+      state: 'live' | 'settled'
+      version: number
+      now: Date
+      persist: boolean
+    },
+    descriptor: ScoreboardCacheDescriptor,
+    mode: ScoreboardBuildMode,
+  ): Promise<ScoreboardProjection> {
+    const winner = await this.readCache(descriptor)
+      ?? await this.readStoredProjection(descriptor, input.contest.freezeAt)
+    if (winner) return winner
+    if (mode === 'contention_timeout') {
+      const stale = await this.readStaleProjection(input)
+      if (stale) return stale
+    }
+    try {
+      const value = await this.materialize(input)
+      await this.writeCache(value)
+      return value
+    }
+    catch (error) {
+      const stale = await this.readStaleProjection(input)
+      if (stale) return stale
+      throw error
+    }
+  }
+
+  private async readStoredProjection(
+    descriptor: ScoreboardCacheDescriptor,
+    freezeAt: Date | null,
+  ): Promise<ScoreboardProjection | null> {
+    const stored = await this.repository.readSnapshot({
+      contestId: descriptor.contestId,
+      view: descriptor.view,
+      scopeKey: descriptor.scopeKey,
+      version: descriptor.version,
+    })
+    return stored ? projection(stored, descriptor.state, freezeAt) : null
+  }
+
+  private async readStaleProjection(input: {
+    contest: ScoreboardContestState
+    scope: ScoreboardScope
+    state: 'live' | 'settled'
+  }): Promise<ScoreboardProjection | null> {
+    const stored = await this.repository.readLatestSnapshot({
+      contestId: input.contest.contestId,
+      view: 'public',
+      scopeKey: scopeKeyFor(input.scope),
+    })
+    if (!stored || stored.version >= input.contest.currentVersion) return null
+    return projection(stored, input.state, input.contest.freezeAt, 'stale')
+  }
+
+  private async readLatestFrozen(
+    contest: ScoreboardContestState,
+    scope: ScoreboardScope,
+  ): Promise<ScoreboardProjection | null> {
+    const stored = await this.repository.readLatestSnapshot({
+      contestId: contest.contestId,
+      view: 'public',
+      scopeKey: scopeKeyFor(scope),
+    })
+    if (!stored) return null
+    const value = projection(stored, 'frozen', contest.freezeAt)
+    const cached = await this.readCache({
+      contestId: value.contestId,
+      view: 'public',
+      scopeKey: value.board.scopeKey,
+      version: value.version,
+      state: 'frozen',
+      frozenAt: value.frozenAt,
+    })
+    if (cached) return cached
     await this.writeCache(value)
     return value
   }
@@ -244,6 +365,7 @@ export class ScoreboardViewService {
   }
 
   private async writeCache(value: ScoreboardProjection): Promise<void> {
+    if (value.freshness !== 'current') return
     try {
       await this.cache?.set(value)
     }
@@ -320,12 +442,14 @@ function projection(
   snapshot: ScoreboardSnapshotRecord,
   state: ScoreboardProjectionState,
   freezeAt: Date | null,
+  freshness: ScoreboardProjection['freshness'] = 'current',
 ): ScoreboardProjection {
   return {
     schema: 'scoreboard-projection.v1',
     contestId: snapshot.contestId,
     view: snapshot.view,
     state,
+    freshness,
     version: snapshot.version,
     frozenAt: state === 'frozen' ? freezeAt?.toISOString() ?? null : null,
     builtAt: snapshot.builtAt.toISOString(),

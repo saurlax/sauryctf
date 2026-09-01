@@ -9697,6 +9697,11 @@ paths:
                           - live
                           - frozen
                           - settled
+                      freshness:
+                        type: string
+                        enum:
+                          - current
+                          - stale
                       version:
                         type: integer
                         minimum: 0
@@ -9876,6 +9881,7 @@ paths:
                       - contest_id
                       - view
                       - state
+                      - freshness
                       - version
                       - frozen_at
                       - built_at
@@ -9946,6 +9952,11 @@ paths:
                           - live
                           - frozen
                           - settled
+                      freshness:
+                        type: string
+                        enum:
+                          - current
+                          - stale
                       version:
                         type: integer
                         minimum: 0
@@ -10125,6 +10136,7 @@ paths:
                       - contest_id
                       - view
                       - state
+                      - freshness
                       - version
                       - frozen_at
                       - built_at

@@ -53,6 +53,7 @@ export const scoreboardResponseSchema = z.strictObject({
     contest_id: uuidSchema,
     view: z.enum(['public', 'internal']),
     state: z.enum(['live', 'frozen', 'settled']),
+    freshness: z.enum(['current', 'stale']),
     version: scoreboardVersionSchema,
     frozen_at: utcTimestampSchema.nullable(),
     built_at: utcTimestampSchema,

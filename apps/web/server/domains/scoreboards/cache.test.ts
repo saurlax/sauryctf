@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   cacheDescriptor,
   parseScoreboardCacheValue,
+  scoreboardBuildKey,
   scoreboardCacheKey,
   scoreboardProjectionCacheSchema,
   serializeScoreboardCacheValue,
@@ -15,6 +16,7 @@ function projection(overrides: Partial<ScoreboardProjection> = {}): ScoreboardPr
     contestId: 'contest/one',
     view: 'public',
     state: 'frozen',
+    freshness: 'current',
     version: 7,
     frozenAt: '2026-09-01T08:10:00.000Z',
     builtAt: '2026-09-01T08:10:01.000Z',
@@ -56,6 +58,9 @@ describe('scoreboard projection cache contract', () => {
     expect(scoreboardCacheKey(descriptor)).toBe(
       `sauryctf:scoreboard:${scoreboardProjectionCacheSchema}:contest=contest%2Fone:view=public:scope=division%3Ablue:version=7`,
     )
+    expect(scoreboardBuildKey(descriptor)).toContain(
+      ':state=frozen:frozen-at=2026-09-01T08%3A10%3A00.000Z',
+    )
   })
 
   it('accepts only an envelope matching every descriptor dimension and state', () => {
@@ -92,5 +97,9 @@ describe('scoreboard projection cache contract', () => {
 
   it('refuses to serialize internal privileged projections', () => {
     expect(() => serializeScoreboardCacheValue(projection({ view: 'internal' }))).toThrow()
+  })
+
+  it('refuses to put stale PostgreSQL fallback projections into Redis', () => {
+    expect(() => serializeScoreboardCacheValue(projection({ freshness: 'stale' }))).toThrow()
   })
 })

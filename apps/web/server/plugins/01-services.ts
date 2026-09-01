@@ -35,7 +35,9 @@ import { PostgresSubmissionRepository } from '../infrastructure/db/submission-re
 import { RateLimitStoreSubmissionLimiter } from '../infrastructure/security/submission-rate-limiter'
 import { AesGcmSubmissionAnswerProtector } from '../infrastructure/security/submission-answer-protector'
 import { ContestScoringReplayService } from '../domains/submissions/scoring-replay'
+import { ScoreboardBuildCoordinator } from '../domains/scoreboards/build-coordinator'
 import { ScoreboardViewService } from '../domains/scoreboards/view-service'
+import { ResilientRedisScoreboardBuildLock } from '../infrastructure/cache/redis-scoreboard-build-lock'
 import { ResilientRedisScoreboardCache } from '../infrastructure/cache/redis-scoreboard-cache'
 import { PostgresScoringReplayRepository } from '../infrastructure/db/scoring-replay-repository'
 import { PostgresScoreboardViewRepository } from '../infrastructure/db/scoreboard-view-repository'
@@ -55,6 +57,7 @@ export default defineNitroPlugin(async (nitroApp) => {
   const identityRepository = new PostgresIdentityRepository(database.pool)
   const rateLimits = new ResilientRedisRateLimitStore(process.env.REDIS_URL)
   const scoreboardCache = new ResilientRedisScoreboardCache(process.env.REDIS_URL)
+  const scoreboardBuildLock = new ResilientRedisScoreboardBuildLock(process.env.REDIS_URL)
   const domainEventPublisher = new RedisDomainEventPublisher(process.env.REDIS_URL)
   const humanVerification = process.env.TURNSTILE_SECRET_KEY
     ? new TurnstileHumanVerificationProvider(process.env.TURNSTILE_SECRET_KEY)
@@ -95,6 +98,7 @@ export default defineNitroPlugin(async (nitroApp) => {
       undefined,
       undefined,
       scoreboardCache,
+      new ScoreboardBuildCoordinator(scoreboardBuildLock),
     ),
   }
 
@@ -169,6 +173,7 @@ export default defineNitroPlugin(async (nitroApp) => {
     if (domainEventTimer) clearInterval(domainEventTimer)
     await rateLimits.close()
     await scoreboardCache.close()
+    await scoreboardBuildLock.close()
     await domainEventPublisher.close()
     await database.pool.end()
   })

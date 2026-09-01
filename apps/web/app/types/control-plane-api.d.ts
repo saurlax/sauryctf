@@ -4376,6 +4376,8 @@ export interface operations {
               view: "public" | "internal";
               /** @enum {string} */
               state: "live" | "frozen" | "settled";
+              /** @enum {string} */
+              freshness: "current" | "stale";
               version: number;
               frozen_at: string | null;
               /** Format: date-time */
@@ -4452,6 +4454,8 @@ export interface operations {
               view: "public" | "internal";
               /** @enum {string} */
               state: "live" | "frozen" | "settled";
+              /** @enum {string} */
+              freshness: "current" | "stale";
               version: number;
               frozen_at: string | null;
               /** Format: date-time */

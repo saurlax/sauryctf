@@ -76,7 +76,7 @@
 - [x] 7.2 实现公共封榜快照和 organizer/admin 实时榜，验证封榜后提交只改变内部视图直到公开结算
 - [x] 7.3 实现包含 schema、比赛、视图、分组和版本的 Redis cache-aside，验证错误角色或旧版本缓存不会命中
 - [x] 7.4 实现 outbox dispatcher、事件去重和缓存版本失效，验证发布失败可重试且不会重复推进业务事实
-- [ ] 7.5 实现排行榜 single-flight、短锁和 PostgreSQL 持久快照降级，验证 Redis 断开时不会逐请求全量查询
+- [x] 7.5 实现排行榜 single-flight、短锁和 PostgreSQL 持久快照降级，验证 Redis 断开时不会逐请求全量查询
 - [ ] 7.6 实现带稳定事件 ID、恢复窗口和 reset 语义的 SSE，验证 `Last-Event-ID` 可补发或触发完整刷新
 - [ ] 7.7 验证 Redis 被清空时可重建公开列表、排行榜和实时状态，且权限、成绩和实例所有权保持不变
 

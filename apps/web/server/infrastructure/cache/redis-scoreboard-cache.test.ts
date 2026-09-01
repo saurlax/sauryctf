@@ -14,6 +14,7 @@ function projection(contestId: string): ScoreboardProjection {
     contestId,
     view: 'public',
     state: 'live',
+    freshness: 'current',
     version: 3,
     frozenAt: null,
     builtAt: '2026-09-01T08:05:00.000Z',

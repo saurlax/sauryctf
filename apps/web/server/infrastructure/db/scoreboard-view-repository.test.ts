@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto'
 import { Client } from 'pg'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { ScoreboardViewService } from '../../domains/scoreboards/view-service'
 import { ContestScoringReplayService } from '../../domains/submissions/scoring-replay'
 import { createDatabaseClient, type DatabaseClient } from './client'
@@ -251,5 +251,26 @@ describeWithPostgres('PostgreSQL role-aware scoreboard snapshots', () => {
       { view: 'public', version: '1' },
       { view: 'public', version: '2' },
     ])
+
+    const replayAfterRestart = vi.fn(async () => {
+      throw new Error('persistent snapshot should avoid replay')
+    })
+    const restarted = new ScoreboardViewService(
+      repository,
+      { replay: replayAfterRestart },
+      undefined,
+      () => currentTime,
+      {
+        get: async () => null,
+        set: async () => { throw new Error('redis unavailable') },
+      },
+    )
+    await expect(restarted.read({
+      contestId,
+      view: 'public',
+      viewerRole: 'user',
+      scope: { type: 'overall' },
+    })).resolves.toEqual(settled)
+    expect(replayAfterRestart).not.toHaveBeenCalled()
   })
 })

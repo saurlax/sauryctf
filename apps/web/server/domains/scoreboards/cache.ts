@@ -58,6 +58,7 @@ const projection = z.strictObject({
   contestId: stableId,
   view: z.literal('public'),
   state: z.enum(['live', 'frozen', 'settled']),
+  freshness: z.enum(['current', 'stale']),
   version: nonnegativeInteger,
   frozenAt: timestamp.nullable(),
   builtAt: timestamp,
@@ -80,7 +81,16 @@ export function scoreboardCacheKey(descriptor: ScoreboardCacheDescriptor): strin
   ].join(':')
 }
 
+export function scoreboardBuildKey(descriptor: ScoreboardCacheDescriptor): string {
+  return [
+    scoreboardCacheKey(descriptor),
+    `state=${descriptor.state}`,
+    `frozen-at=${encodeURIComponent(descriptor.frozenAt ?? 'none')}`,
+  ].join(':')
+}
+
 export function serializeScoreboardCacheValue(value: ScoreboardProjection): string {
+  if (value.freshness !== 'current') throw new TypeError('Stale scoreboards must not enter Redis')
   return JSON.stringify(cacheEnvelope.parse({
     cacheSchema: scoreboardProjectionCacheSchema,
     projection: value,
