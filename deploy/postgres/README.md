@@ -26,6 +26,7 @@ connection that does not use or inherit the restricted role, or whose instance
 job tables have not been migrated.
 
 The role script revokes any existing table grants from the group role before
-granting access only to `instances`, `instance_jobs`, and
-`instance_job_attempts`. It intentionally grants no access to identity, team,
-contest, Flag, submission, solve, or scoreboard tables.
+granting access only to `instances`, `instance_jobs`,
+`instance_job_attempts`, and `instance_orphan_reports`. It intentionally grants
+no access to identity, team, contest, Flag, submission, solve, or scoreboard
+tables.

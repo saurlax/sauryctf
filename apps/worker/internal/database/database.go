@@ -67,6 +67,7 @@ func (readiness *Readiness) Ready(ctx context.Context) error {
 	var instancesReady bool
 	var jobsReady bool
 	var attemptsReady bool
+	var orphanReportsReady bool
 	query := `
 		SELECT
 			EXISTS (
@@ -86,19 +87,21 @@ func (readiness *Readiness) Ready(ctx context.Context) error {
 			),
 			to_regclass('public.instances') IS NOT NULL,
 			to_regclass('public.instance_jobs') IS NOT NULL,
-			to_regclass('public.instance_job_attempts') IS NOT NULL`
+			to_regclass('public.instance_job_attempts') IS NOT NULL,
+			to_regclass('public.instance_orphan_reports') IS NOT NULL`
 	if err := readiness.connection.QueryRow(ctx, query, readiness.expectedRole).Scan(
 		&roleAccepted,
 		&instancesReady,
 		&jobsReady,
 		&attemptsReady,
+		&orphanReportsReady,
 	); err != nil {
 		return ErrUnavailable
 	}
 	if !roleAccepted {
 		return ErrUnexpectedRole
 	}
-	if !instancesReady || !jobsReady || !attemptsReady {
+	if !instancesReady || !jobsReady || !attemptsReady || !orphanReportsReady {
 		return fmt.Errorf("%w: required instance tables are missing", ErrInstanceSchema)
 	}
 	return nil

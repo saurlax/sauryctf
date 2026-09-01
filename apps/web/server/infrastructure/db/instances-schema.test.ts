@@ -92,4 +92,38 @@ describeWithPostgres('instance orchestration authority schema', () => {
     )
     expect(columns.rows).toHaveLength(7)
   })
+
+  it('persists deduplicated orphan reports for manual disposition', async () => {
+    const columns = await database.pool.query<{ column_name: string }>(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'instance_orphan_reports'
+       ORDER BY column_name`,
+    )
+    expect(columns.rows.map(row => row.column_name)).toEqual([
+      'claimed_generation',
+      'claimed_instance_id',
+      'first_seen_at',
+      'id',
+      'last_seen_at',
+      'occurrences',
+      'ownership_labels',
+      'provider',
+      'provider_resource_id',
+      'reason',
+      'resolved_at',
+    ])
+
+    await database.pool.query(
+      `INSERT INTO instance_orphan_reports (
+         provider, provider_resource_id, claimed_instance_id, claimed_generation,
+         reason, ownership_labels
+       ) VALUES ('docker', 'container/orphan', $1, 7, 'unknown_instance', $2::jsonb)`,
+      ['018f47a2-4ef8-7e2c-9c24-000000000099', JSON.stringify({ 'sauryctf.io/managed-by': 'sauryctf' })],
+    )
+    await expect(database.pool.query(
+      `INSERT INTO instance_orphan_reports (
+         provider, provider_resource_id, reason, ownership_labels
+       ) VALUES ('docker', 'container/orphan', 'unknown_instance', '{}'::jsonb)`,
+    )).rejects.toMatchObject({ code: '23505' })
+  })
 })

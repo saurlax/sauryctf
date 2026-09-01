@@ -23,19 +23,22 @@ const (
 	defaultLeaseDuration        = 30 * time.Second
 	defaultLeaseRenewInterval   = 10 * time.Second
 	defaultPollInterval         = time.Second
+	defaultReconcileInterval    = 30 * time.Second
 	defaultRetryInitialDelay    = time.Second
 	defaultRetryMaxDelay        = time.Minute
 )
 
 var (
-	workerIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
-	rolePattern     = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,62}$`)
+	workerIDPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
+	platformIDPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9.-]{0,61}[a-z0-9])?$`)
+	rolePattern       = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,62}$`)
 )
 
 // Config is the complete process configuration for the private instance worker.
 // It deliberately uses a dedicated database URL instead of the control-plane URL.
 type Config struct {
 	WorkerID               string
+	PlatformID             string
 	DatabaseURL            string
 	ExpectedDatabaseRole   string
 	DatabaseMaxConnections int32
@@ -48,6 +51,7 @@ type Config struct {
 	LeaseDuration          time.Duration
 	LeaseRenewInterval     time.Duration
 	PollInterval           time.Duration
+	ReconcileInterval      time.Duration
 	RetryInitialDelay      time.Duration
 	RetryMaxDelay          time.Duration
 }
@@ -55,6 +59,7 @@ type Config struct {
 // Load reads and validates Worker configuration without opening external connections.
 func Load(getenv func(string) string) (Config, error) {
 	workerID := strings.TrimSpace(getenv("WORKER_ID"))
+	platformID := valueOrDefault(getenv("WORKER_PLATFORM_ID"), "sauryctf")
 	databaseURL := strings.TrimSpace(getenv("WORKER_DATABASE_URL"))
 	expectedRole := valueOrDefault(getenv("WORKER_DATABASE_EXPECTED_ROLE"), defaultExpectedDatabaseRole)
 	healthAddress := valueOrDefault(getenv("WORKER_HEALTH_ADDRESS"), defaultHealthAddress)
@@ -62,6 +67,9 @@ func Load(getenv func(string) string) (Config, error) {
 	var problems []error
 	if !workerIDPattern.MatchString(workerID) {
 		problems = append(problems, errors.New("WORKER_ID must contain 1-128 safe identifier characters"))
+	}
+	if !platformIDPattern.MatchString(platformID) {
+		problems = append(problems, errors.New("WORKER_PLATFORM_ID must be a lowercase label value of at most 63 characters"))
 	}
 	if err := validateDatabaseURL(databaseURL); err != nil {
 		problems = append(problems, err)
@@ -109,6 +117,10 @@ func Load(getenv func(string) string) (Config, error) {
 	if err != nil {
 		problems = append(problems, fmt.Errorf("WORKER_POLL_INTERVAL: %w", err))
 	}
+	reconcileInterval, err := boundedDuration(getenv("WORKER_RECONCILE_INTERVAL"), defaultReconcileInterval, time.Second, 10*time.Minute)
+	if err != nil {
+		problems = append(problems, fmt.Errorf("WORKER_RECONCILE_INTERVAL: %w", err))
+	}
 	retryInitialDelay, err := boundedDuration(getenv("WORKER_RETRY_INITIAL_DELAY"), defaultRetryInitialDelay, 100*time.Millisecond, 5*time.Minute)
 	if err != nil {
 		problems = append(problems, fmt.Errorf("WORKER_RETRY_INITIAL_DELAY: %w", err))
@@ -129,6 +141,7 @@ func Load(getenv func(string) string) (Config, error) {
 
 	return Config{
 		WorkerID:               workerID,
+		PlatformID:             platformID,
 		DatabaseURL:            databaseURL,
 		ExpectedDatabaseRole:   expectedRole,
 		DatabaseMaxConnections: maxConnections,
@@ -141,6 +154,7 @@ func Load(getenv func(string) string) (Config, error) {
 		LeaseDuration:          leaseDuration,
 		LeaseRenewInterval:     leaseRenewInterval,
 		PollInterval:           pollInterval,
+		ReconcileInterval:      reconcileInterval,
 		RetryInitialDelay:      retryInitialDelay,
 		RetryMaxDelay:          retryMaxDelay,
 	}, nil

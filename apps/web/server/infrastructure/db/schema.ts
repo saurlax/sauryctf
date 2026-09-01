@@ -747,6 +747,28 @@ export const instanceJobAttempts = pgTable('instance_job_attempts', {
   check('instance_job_attempts_finish_state', sql`(${table.outcome} = 'running' AND ${table.finishedAt} IS NULL) OR (${table.outcome} <> 'running' AND ${table.finishedAt} IS NOT NULL)`),
 ])
 
+export const instanceOrphanReports = pgTable('instance_orphan_reports', {
+  id: uuid().primaryKey().defaultRandom(),
+  provider: instanceProvider().notNull(),
+  providerResourceId: varchar('provider_resource_id', { length: 255 }).notNull(),
+  claimedInstanceId: uuid('claimed_instance_id'),
+  claimedGeneration: bigint('claimed_generation', { mode: 'number' }),
+  reason: varchar({ length: 64 }).notNull(),
+  ownershipLabels: jsonb('ownership_labels').notNull(),
+  occurrences: integer().notNull().default(1),
+  firstSeenAt: timestamp('first_seen_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true, mode: 'date' }),
+}, (table) => [
+  uniqueIndex('instance_orphan_reports_resource_unique').on(table.provider, table.providerResourceId),
+  index('instance_orphan_reports_open').on(table.resolvedAt, table.lastSeenAt),
+  check('instance_orphan_reports_resource_id_not_empty', sql`length(${table.providerResourceId}) > 0`),
+  check('instance_orphan_reports_generation_positive', sql`${table.claimedGeneration} IS NULL OR ${table.claimedGeneration} > 0`),
+  check('instance_orphan_reports_reason_supported', sql`${table.reason} IN ('unknown_instance', 'identity_mismatch', 'provider_mismatch', 'future_generation', 'duplicate_identity')`),
+  check('instance_orphan_reports_labels_object', sql`jsonb_typeof(${table.ownershipLabels}) = 'object'`),
+  check('instance_orphan_reports_occurrences_positive', sql`${table.occurrences} > 0`),
+])
+
 export const writeups = pgTable('writeups', {
   id: uuid().primaryKey().defaultRandom(),
   contestId: uuid('contest_id').notNull().references(() => contests.id),

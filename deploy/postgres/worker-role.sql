@@ -29,7 +29,8 @@ GRANT USAGE ON SCHEMA public TO sauryctf_worker;
 GRANT SELECT ON TABLE
   public.instances,
   public.instance_jobs,
-  public.instance_job_attempts
+  public.instance_job_attempts,
+  public.instance_orphan_reports
 TO sauryctf_worker;
 
 GRANT UPDATE (
@@ -70,6 +71,29 @@ GRANT INSERT (
   started_at,
   finished_at
 ) ON public.instance_job_attempts TO sauryctf_worker;
+
+GRANT INSERT (
+  provider,
+  provider_resource_id,
+  claimed_instance_id,
+  claimed_generation,
+  reason,
+  ownership_labels,
+  occurrences,
+  first_seen_at,
+  last_seen_at,
+  resolved_at
+) ON public.instance_orphan_reports TO sauryctf_worker;
+
+GRANT UPDATE (
+  claimed_instance_id,
+  claimed_generation,
+  reason,
+  ownership_labels,
+  occurrences,
+  last_seen_at,
+  resolved_at
+) ON public.instance_orphan_reports TO sauryctf_worker;
 
 GRANT UPDATE (
   outcome,

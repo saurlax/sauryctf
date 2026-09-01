@@ -21,6 +21,7 @@ Required configuration:
 Optional configuration:
 
 - `WORKER_DATABASE_EXPECTED_ROLE` (default `sauryctf_worker`)
+- `WORKER_PLATFORM_ID` (default `sauryctf`; scopes resource ownership labels)
 - `WORKER_DATABASE_MAX_CONNECTIONS` (default `10`)
 - `WORKER_DATABASE_CONNECT_TIMEOUT` (default `5s`)
 - `WORKER_HEALTH_ADDRESS` (default `:8081`)
@@ -31,6 +32,7 @@ Optional configuration:
 - `WORKER_LEASE_DURATION` (default `30s`)
 - `WORKER_LEASE_RENEW_INTERVAL` (default `10s`, must be shorter than the lease)
 - `WORKER_POLL_INTERVAL` (default `1s`)
+- `WORKER_RECONCILE_INTERVAL` (default `30s`)
 - `WORKER_RETRY_INITIAL_DELAY` (default `1s`)
 - `WORKER_RETRY_MAX_DELAY` (default `1m`)
 
@@ -62,5 +64,15 @@ advance `observed_generation` and the instance version together, so an expired
 Worker or a job from an older desired generation cannot overwrite a newer
 resource observation. Only validated ready entrypoints and sealed access bytes
 may be stored for a `running` instance.
+
+The periodic reconciler compares PostgreSQL intent with provider inventory.
+It only calls a provider for resources carrying the complete deployment,
+contest, mounted-challenge, team, instance, and generation label set. Foreign,
+missing, or malformed ownership labels produce structured warnings and are
+never adopted or deleted. Clearly stale generations and current resources that
+are stopped or expired are converged idempotently; ambiguous, future, duplicate,
+or unknown identities are upserted into `instance_orphan_reports` for manual
+disposition. Concrete Docker and Kubernetes adapters are wired into this loop
+by the provider implementation tasks.
 
 Run locally with `pnpm dev:worker` after configuring the Worker variables.

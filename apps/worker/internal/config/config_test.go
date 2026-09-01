@@ -27,7 +27,7 @@ func TestLoadAppliesPrivateWorkerDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if config.ExpectedDatabaseRole != "sauryctf_worker" || config.HealthAddress != ":8081" {
+	if config.PlatformID != "sauryctf" || config.ExpectedDatabaseRole != "sauryctf_worker" || config.HealthAddress != ":8081" {
 		t.Fatalf("unexpected defaults: %+v", config)
 	}
 	if config.DatabaseMaxConnections != 10 || config.DatabaseConnectTimeout != 5*time.Second {
@@ -36,7 +36,7 @@ func TestLoadAppliesPrivateWorkerDefaults(t *testing.T) {
 	if config.ReadinessTimeout != 2*time.Second || config.ShutdownTimeout != 15*time.Second {
 		t.Fatalf("unexpected lifecycle defaults: %+v", config)
 	}
-	if config.ClaimBatchSize != 16 || config.JobConcurrency != 16 || config.LeaseDuration != 30*time.Second || config.LeaseRenewInterval != 10*time.Second || config.PollInterval != time.Second || config.RetryInitialDelay != time.Second || config.RetryMaxDelay != time.Minute {
+	if config.ClaimBatchSize != 16 || config.JobConcurrency != 16 || config.LeaseDuration != 30*time.Second || config.LeaseRenewInterval != 10*time.Second || config.PollInterval != time.Second || config.ReconcileInterval != 30*time.Second || config.RetryInitialDelay != time.Second || config.RetryMaxDelay != time.Minute {
 		t.Fatalf("unexpected job defaults: %+v", config)
 	}
 }
@@ -44,6 +44,7 @@ func TestLoadAppliesPrivateWorkerDefaults(t *testing.T) {
 func TestLoadRejectsUnsafeOrUnboundedValues(t *testing.T) {
 	environment := map[string]string{
 		"WORKER_ID":                       "worker id with spaces",
+		"WORKER_PLATFORM_ID":              "Wrong Platform!",
 		"WORKER_DATABASE_URL":             "https://example.test/database",
 		"WORKER_DATABASE_EXPECTED_ROLE":   "Admin; DROP ROLE",
 		"WORKER_DATABASE_MAX_CONNECTIONS": "101",
@@ -56,6 +57,7 @@ func TestLoadRejectsUnsafeOrUnboundedValues(t *testing.T) {
 		"WORKER_LEASE_DURATION":           "4s",
 		"WORKER_LEASE_RENEW_INTERVAL":     "61s",
 		"WORKER_POLL_INTERVAL":            "40ms",
+		"WORKER_RECONCILE_INTERVAL":       "500ms",
 		"WORKER_RETRY_INITIAL_DELAY":      "50ms",
 		"WORKER_RETRY_MAX_DELAY":          "61m",
 	}
@@ -65,6 +67,7 @@ func TestLoadRejectsUnsafeOrUnboundedValues(t *testing.T) {
 	}
 	for _, expected := range []string{
 		"WORKER_ID",
+		"WORKER_PLATFORM_ID",
 		"WORKER_DATABASE_URL",
 		"WORKER_DATABASE_EXPECTED_ROLE",
 		"WORKER_DATABASE_MAX_CONNECTIONS",
@@ -77,6 +80,7 @@ func TestLoadRejectsUnsafeOrUnboundedValues(t *testing.T) {
 		"WORKER_LEASE_DURATION",
 		"WORKER_LEASE_RENEW_INTERVAL",
 		"WORKER_POLL_INTERVAL",
+		"WORKER_RECONCILE_INTERVAL",
 		"WORKER_RETRY_INITIAL_DELAY",
 		"WORKER_RETRY_MAX_DELAY",
 	} {

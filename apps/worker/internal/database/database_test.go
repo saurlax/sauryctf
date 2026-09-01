@@ -56,7 +56,7 @@ func (connection testConnection) QueryRow(ctx context.Context, query string, arg
 }
 
 func TestReadinessAcceptsRestrictedRoleAndInstanceSchema(t *testing.T) {
-	connection := &fakeConnection{values: []bool{true, true, true, true}}
+	connection := &fakeConnection{values: []bool{true, true, true, true, true}}
 	readiness := NewReadiness(testConnection{connection}, "sauryctf_worker")
 	if err := readiness.Ready(context.Background()); err != nil {
 		t.Fatalf("Ready() error = %v", err)
@@ -64,7 +64,7 @@ func TestReadinessAcceptsRestrictedRoleAndInstanceSchema(t *testing.T) {
 	if len(connection.args) != 1 || connection.args[0] != "sauryctf_worker" {
 		t.Fatalf("unexpected role arguments: %#v", connection.args)
 	}
-	for _, table := range []string{"public.instances", "public.instance_jobs", "public.instance_job_attempts"} {
+	for _, table := range []string{"public.instances", "public.instance_jobs", "public.instance_job_attempts", "public.instance_orphan_reports"} {
 		if !strings.Contains(connection.query, table) {
 			t.Fatalf("readiness query does not check %s", table)
 		}
@@ -98,8 +98,9 @@ func TestReadinessRejectsBroadRoleAndIncompleteSchema(t *testing.T) {
 		values []bool
 		want   error
 	}{
-		{name: "role", values: []bool{false, true, true, true}, want: ErrUnexpectedRole},
-		{name: "schema", values: []bool{true, true, false, true}, want: ErrInstanceSchema},
+		{name: "role", values: []bool{false, true, true, true, true}, want: ErrUnexpectedRole},
+		{name: "schema", values: []bool{true, true, false, true, true}, want: ErrInstanceSchema},
+		{name: "orphan reports", values: []bool{true, true, true, true, false}, want: ErrInstanceSchema},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
