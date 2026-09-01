@@ -1691,6 +1691,928 @@ paths:
         "403": *a1
         "404": *a1
         "409": *a1
+  /api/contests/{contestId}/participation:
+    get:
+      operationId: getCurrentParticipation
+      tags:
+        - Contests
+        - Participations
+      security:
+        - cookieSession: []
+      parameters:
+        - name: contestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Current team participation projection
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  team:
+                    anyOf:
+                      - type: object
+                        properties:
+                          id:
+                            type: string
+                            allOf:
+                              - type: string
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              - type: string
+                                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          name:
+                            type: string
+                            minLength: 1
+                            maxLength: 80
+                          role:
+                            type: string
+                            enum:
+                              - member
+                              - captain
+                        required:
+                          - id
+                          - name
+                          - role
+                        additionalProperties: false
+                      - type: "null"
+                  participation:
+                    anyOf:
+                      - type: object
+                        properties:
+                          id:
+                            type: string
+                            allOf:
+                              - type: string
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              - type: string
+                                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          contest_id:
+                            type: string
+                            allOf:
+                              - type: string
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              - type: string
+                                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          team:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                                allOf:
+                                  - type: string
+                                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                  - type: string
+                                    pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                              name:
+                                type: string
+                                minLength: 1
+                                maxLength: 80
+                            required:
+                              - id
+                              - name
+                            additionalProperties: false
+                          division:
+                            anyOf:
+                              - type: object
+                                properties:
+                                  id:
+                                    type: string
+                                    allOf:
+                                      - type: string
+                                        pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                      - type: string
+                                        pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                                  name:
+                                    type: string
+                                    minLength: 1
+                                    maxLength: 80
+                                required:
+                                  - id
+                                  - name
+                                additionalProperties: false
+                              - type: "null"
+                          status:
+                            type: string
+                            enum:
+                              - pending
+                              - accepted
+                              - rejected
+                              - withdrawn
+                          registered_at:
+                            type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          reviewed_at:
+                            anyOf:
+                              - type: string
+                                format: date-time
+                                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                              - type: "null"
+                          review_reason:
+                            anyOf:
+                              - type: string
+                              - type: "null"
+                          withdrawn_at:
+                            anyOf:
+                              - type: string
+                                format: date-time
+                                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                              - type: "null"
+                          version:
+                            type: integer
+                            exclusiveMinimum: 0
+                            maximum: 9007199254740991
+                        required:
+                          - id
+                          - contest_id
+                          - team
+                          - division
+                          - status
+                          - registered_at
+                          - reviewed_at
+                          - review_reason
+                          - withdrawn_at
+                          - version
+                        additionalProperties: false
+                      - type: "null"
+                required:
+                  - team
+                  - participation
+                additionalProperties: false
+        "401": *a1
+        "404": *a1
+    post:
+      operationId: registerParticipation
+      tags:
+        - Contests
+        - Participations
+      security:
+        - cookieSession: []
+      parameters:
+        - name: contestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - *a2
+        - *a3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                invite_code:
+                  type: string
+                  minLength: 32
+                  maxLength: 512
+              additionalProperties: false
+      responses:
+        "201":
+          description: Team registration created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  participation:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      contest_id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      team:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            allOf:
+                              - type: string
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              - type: string
+                                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          name:
+                            type: string
+                            minLength: 1
+                            maxLength: 80
+                        required:
+                          - id
+                          - name
+                        additionalProperties: false
+                      division:
+                        anyOf:
+                          - type: object
+                            properties:
+                              id:
+                                type: string
+                                allOf:
+                                  - type: string
+                                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                  - type: string
+                                    pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                              name:
+                                type: string
+                                minLength: 1
+                                maxLength: 80
+                            required:
+                              - id
+                              - name
+                            additionalProperties: false
+                          - type: "null"
+                      status:
+                        type: string
+                        enum:
+                          - pending
+                          - accepted
+                          - rejected
+                          - withdrawn
+                      registered_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      reviewed_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      review_reason:
+                        anyOf:
+                          - type: string
+                          - type: "null"
+                      withdrawn_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                    required:
+                      - id
+                      - contest_id
+                      - team
+                      - division
+                      - status
+                      - registered_at
+                      - reviewed_at
+                      - review_reason
+                      - withdrawn_at
+                      - version
+                    additionalProperties: false
+                required:
+                  - participation
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "404": *a1
+        "409": *a1
+  /api/contests/{contestId}/participation/withdraw:
+    post:
+      operationId: withdrawParticipation
+      tags:
+        - Contests
+        - Participations
+      security:
+        - cookieSession: []
+      parameters:
+        - name: contestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - *a2
+        - *a3
+      responses:
+        "200":
+          description: Team registration withdrawn
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  participation:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      contest_id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      team:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            allOf:
+                              - type: string
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              - type: string
+                                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          name:
+                            type: string
+                            minLength: 1
+                            maxLength: 80
+                        required:
+                          - id
+                          - name
+                        additionalProperties: false
+                      division:
+                        anyOf:
+                          - type: object
+                            properties:
+                              id:
+                                type: string
+                                allOf:
+                                  - type: string
+                                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                  - type: string
+                                    pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                              name:
+                                type: string
+                                minLength: 1
+                                maxLength: 80
+                            required:
+                              - id
+                              - name
+                            additionalProperties: false
+                          - type: "null"
+                      status:
+                        type: string
+                        enum:
+                          - pending
+                          - accepted
+                          - rejected
+                          - withdrawn
+                      registered_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      reviewed_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      review_reason:
+                        anyOf:
+                          - type: string
+                          - type: "null"
+                      withdrawn_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                    required:
+                      - id
+                      - contest_id
+                      - team
+                      - division
+                      - status
+                      - registered_at
+                      - reviewed_at
+                      - review_reason
+                      - withdrawn_at
+                      - version
+                    additionalProperties: false
+                required:
+                  - participation
+                additionalProperties: false
+        "401": *a1
+        "403": *a1
+        "404": *a1
+        "409": *a1
+  /api/admin/contests/{contestId}/participations:
+    get:
+      operationId: listParticipations
+      tags:
+        - Administration
+        - Contests
+        - Participations
+      security:
+        - cookieSession: []
+      parameters:
+        - name: contestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+            allOf:
+              - type: string
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              - type: string
+                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+        - name: limit
+          in: query
+          required: false
+          schema:
+            default: 50
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - accepted
+              - rejected
+              - withdrawn
+      responses:
+        "200":
+          description: Cursor-paginated participation management projection
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          allOf:
+                            - type: string
+                              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                            - type: string
+                              pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                        contest_id:
+                          type: string
+                          allOf:
+                            - type: string
+                              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                            - type: string
+                              pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                        team:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                            name:
+                              type: string
+                              minLength: 1
+                              maxLength: 80
+                          required:
+                            - id
+                            - name
+                          additionalProperties: false
+                        division:
+                          anyOf:
+                            - type: object
+                              properties:
+                                id:
+                                  type: string
+                                  allOf:
+                                    - type: string
+                                      pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                    - type: string
+                                      pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                                name:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 80
+                              required:
+                                - id
+                                - name
+                              additionalProperties: false
+                            - type: "null"
+                        status:
+                          type: string
+                          enum:
+                            - pending
+                            - accepted
+                            - rejected
+                            - withdrawn
+                        registered_at:
+                          type: string
+                          format: date-time
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                        reviewed_at:
+                          anyOf:
+                            - type: string
+                              format: date-time
+                              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                            - type: "null"
+                        review_reason:
+                          anyOf:
+                            - type: string
+                            - type: "null"
+                        withdrawn_at:
+                          anyOf:
+                            - type: string
+                              format: date-time
+                              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                            - type: "null"
+                        version:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 9007199254740991
+                      required:
+                        - id
+                        - contest_id
+                        - team
+                        - division
+                        - status
+                        - registered_at
+                        - reviewed_at
+                        - review_reason
+                        - withdrawn_at
+                        - version
+                      additionalProperties: false
+                  page:
+                    type: object
+                    properties:
+                      next_cursor:
+                        anyOf:
+                          - type: string
+                            minLength: 1
+                            maxLength: 512
+                            pattern: ^[A-Za-z0-9_-]+$
+                          - type: "null"
+                      has_more:
+                        type: boolean
+                    required:
+                      - next_cursor
+                      - has_more
+                    additionalProperties: false
+                required:
+                  - items
+                  - page
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "404": *a1
+  /api/admin/contests/{contestId}/participations/{participationId}/review:
+    post:
+      operationId: reviewParticipation
+      tags:
+        - Administration
+        - Contests
+        - Participations
+      security:
+        - cookieSession: []
+      parameters:
+        - name: contestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: participationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - *a2
+        - *a3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                decision:
+                  type: string
+                  enum:
+                    - accepted
+                    - rejected
+                reason:
+                  type: string
+                  minLength: 3
+                  maxLength: 1000
+              required:
+                - decision
+                - reason
+              additionalProperties: false
+      responses:
+        "200":
+          description: Participation reviewed with audit evidence
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  participation:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      contest_id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      team:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            allOf:
+                              - type: string
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              - type: string
+                                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          name:
+                            type: string
+                            minLength: 1
+                            maxLength: 80
+                        required:
+                          - id
+                          - name
+                        additionalProperties: false
+                      division:
+                        anyOf:
+                          - type: object
+                            properties:
+                              id:
+                                type: string
+                                allOf:
+                                  - type: string
+                                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                  - type: string
+                                    pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                              name:
+                                type: string
+                                minLength: 1
+                                maxLength: 80
+                            required:
+                              - id
+                              - name
+                            additionalProperties: false
+                          - type: "null"
+                      status:
+                        type: string
+                        enum:
+                          - pending
+                          - accepted
+                          - rejected
+                          - withdrawn
+                      registered_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      reviewed_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      review_reason:
+                        anyOf:
+                          - type: string
+                          - type: "null"
+                      withdrawn_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                    required:
+                      - id
+                      - contest_id
+                      - team
+                      - division
+                      - status
+                      - registered_at
+                      - reviewed_at
+                      - review_reason
+                      - withdrawn_at
+                      - version
+                    additionalProperties: false
+                required:
+                  - participation
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "404": *a1
+        "409": *a1
+  /api/admin/contests/{contestId}/participations/{participationId}/division:
+    patch:
+      operationId: assignParticipationDivision
+      tags:
+        - Administration
+        - Contests
+        - Participations
+      security:
+        - cookieSession: []
+      parameters:
+        - name: contestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: participationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - *a2
+        - *a3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                division_id:
+                  anyOf:
+                    - type: string
+                      allOf:
+                        - type: string
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        - type: string
+                          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                    - type: "null"
+                reason:
+                  type: string
+                  minLength: 3
+                  maxLength: 1000
+              required:
+                - division_id
+              additionalProperties: false
+      responses:
+        "200":
+          description: Participation division assigned with audit evidence
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  participation:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      contest_id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      team:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            allOf:
+                              - type: string
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              - type: string
+                                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          name:
+                            type: string
+                            minLength: 1
+                            maxLength: 80
+                        required:
+                          - id
+                          - name
+                        additionalProperties: false
+                      division:
+                        anyOf:
+                          - type: object
+                            properties:
+                              id:
+                                type: string
+                                allOf:
+                                  - type: string
+                                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                  - type: string
+                                    pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                              name:
+                                type: string
+                                minLength: 1
+                                maxLength: 80
+                            required:
+                              - id
+                              - name
+                            additionalProperties: false
+                          - type: "null"
+                      status:
+                        type: string
+                        enum:
+                          - pending
+                          - accepted
+                          - rejected
+                          - withdrawn
+                      registered_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      reviewed_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      review_reason:
+                        anyOf:
+                          - type: string
+                          - type: "null"
+                      withdrawn_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                    required:
+                      - id
+                      - contest_id
+                      - team
+                      - division
+                      - status
+                      - registered_at
+                      - reviewed_at
+                      - review_reason
+                      - withdrawn_at
+                      - version
+                    additionalProperties: false
+                required:
+                  - participation
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "404": *a1
+        "409": *a1
 components:
   securitySchemes:
     cookieSession:

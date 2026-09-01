@@ -340,6 +340,7 @@ export const participations = pgTable('participations', {
   registeredBy: uuid('registered_by').notNull().references(() => users.id),
   reviewedBy: uuid('reviewed_by').references(() => users.id),
   reviewReason: text('review_reason'),
+  inviteDigestVerified: bytea('invite_digest_verified'),
   registeredAt: timestamp('registered_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   reviewedAt: timestamp('reviewed_at', { withTimezone: true, mode: 'date' }),
   withdrawnAt: timestamp('withdrawn_at', { withTimezone: true, mode: 'date' }),
@@ -357,6 +358,7 @@ export const participations = pgTable('participations', {
   }),
   check('participations_review_state', sql`(${table.status} IN ('accepted', 'rejected') AND ${table.reviewedAt} IS NOT NULL AND ${table.reviewedBy} IS NOT NULL) OR (${table.status} IN ('pending', 'withdrawn'))`),
   check('participations_withdrawn_state', sql`(${table.status} = 'withdrawn' AND ${table.withdrawnAt} IS NOT NULL) OR (${table.status} <> 'withdrawn' AND ${table.withdrawnAt} IS NULL)`),
+  check('participations_invite_digest_length', sql`${table.inviteDigestVerified} IS NULL OR octet_length(${table.inviteDigestVerified}) = 32`),
   check('participations_version_positive', sql`${table.version} > 0`),
 ])
 

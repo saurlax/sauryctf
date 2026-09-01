@@ -41,6 +41,15 @@ import {
   teamResponseSchema,
   transferCaptainRequestSchema,
 } from '../shared/contracts/teams'
+import {
+  adminParticipationListRequestSchema,
+  adminParticipationListResponseSchema,
+  assignParticipationDivisionRequestSchema,
+  currentParticipationResponseSchema,
+  participationMutationResponseSchema,
+  registerParticipationRequestSchema,
+  reviewParticipationRequestSchema,
+} from '../shared/contracts/participations'
 
 function openApiSchema(schema: z.ZodType): Record<string, unknown> {
   const jsonSchema = z.toJSONSchema(schema, { target: 'draft-7' }) as Record<string, unknown>
@@ -374,6 +383,14 @@ const document = {
     '/api/teams/captain/transfer': { post: { operationId: 'transferTeamCaptain', tags: ['Teams'], security: [{ cookieSession: [] }], parameters: [originParameter, csrfParameter], requestBody: jsonRequestBody(transferCaptainRequestSchema), responses: { 200: jsonResponse('Captain transferred', teamMutationResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse } } },
     '/api/teams/members/{userId}': { delete: { operationId: 'removeTeamMember', tags: ['Teams'], security: [{ cookieSession: [] }], parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], responses: { 200: jsonResponse('Member removed', memberRemovedResponseSchema), 401: errorResponse, 403: errorResponse, 404: errorResponse } } },
     '/api/admin/teams/{teamId}/corrections': { post: { operationId: 'correctTeamMembership', tags: ['Administration', 'Teams'], security: [{ cookieSession: [] }], parameters: [{ name: 'teamId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], requestBody: jsonRequestBody(adminTeamCorrectionRequestSchema), responses: { 200: jsonResponse('Team membership corrected with audit evidence', teamMutationResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse } } },
+    '/api/contests/{contestId}/participation': {
+      get: { operationId: 'getCurrentParticipation', tags: ['Contests', 'Participations'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }], responses: { 200: jsonResponse('Current team participation projection', currentParticipationResponseSchema), 401: errorResponse, 404: errorResponse } },
+      post: { operationId: 'registerParticipation', tags: ['Contests', 'Participations'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], requestBody: jsonRequestBody(registerParticipationRequestSchema), responses: { 201: jsonResponse('Team registration created', participationMutationResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse } },
+    },
+    '/api/contests/{contestId}/participation/withdraw': { post: { operationId: 'withdrawParticipation', tags: ['Contests', 'Participations'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], responses: { 200: jsonResponse('Team registration withdrawn', participationMutationResponseSchema), 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse } } },
+    '/api/admin/contests/{contestId}/participations': { get: { operationId: 'listParticipations', tags: ['Administration', 'Contests', 'Participations'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, { name: 'cursor', in: 'query', required: false, schema: openApiSchema(adminParticipationListRequestSchema.shape.cursor) }, { name: 'limit', in: 'query', required: false, schema: openApiSchema(adminParticipationListRequestSchema.shape.limit) }, { name: 'status', in: 'query', required: false, schema: openApiSchema(adminParticipationListRequestSchema.shape.status) }], responses: { 200: jsonResponse('Cursor-paginated participation management projection', adminParticipationListResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse } } },
+    '/api/admin/contests/{contestId}/participations/{participationId}/review': { post: { operationId: 'reviewParticipation', tags: ['Administration', 'Contests', 'Participations'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, { name: 'participationId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], requestBody: jsonRequestBody(reviewParticipationRequestSchema), responses: { 200: jsonResponse('Participation reviewed with audit evidence', participationMutationResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse } } },
+    '/api/admin/contests/{contestId}/participations/{participationId}/division': { patch: { operationId: 'assignParticipationDivision', tags: ['Administration', 'Contests', 'Participations'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, { name: 'participationId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], requestBody: jsonRequestBody(assignParticipationDivisionRequestSchema), responses: { 200: jsonResponse('Participation division assigned with audit evidence', participationMutationResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse } } },
   },
   components: {
     securitySchemes: {

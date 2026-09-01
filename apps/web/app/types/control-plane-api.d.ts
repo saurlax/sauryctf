@@ -75,6 +75,22 @@ export interface paths {
   "/api/admin/teams/{teamId}/corrections": {
     post: operations["correctTeamMembership"];
   };
+  "/api/contests/{contestId}/participation": {
+    get: operations["getCurrentParticipation"];
+    post: operations["registerParticipation"];
+  };
+  "/api/contests/{contestId}/participation/withdraw": {
+    post: operations["withdrawParticipation"];
+  };
+  "/api/admin/contests/{contestId}/participations": {
+    get: operations["listParticipations"];
+  };
+  "/api/admin/contests/{contestId}/participations/{participationId}/review": {
+    post: operations["reviewParticipation"];
+  };
+  "/api/admin/contests/{contestId}/participations/{participationId}/division": {
+    patch: operations["assignParticipationDivision"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -1226,6 +1242,437 @@ export interface operations {
                     end_at: string;
                   }[];
               };
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  getCurrentParticipation: {
+    parameters: {
+      path: {
+        contestId: string;
+      };
+    };
+    responses: {
+      /** @description Current team participation projection */
+      200: {
+        content: {
+          "application/json": {
+            team: ({
+              id: string;
+              name: string;
+              /** @enum {string} */
+              role: "member" | "captain";
+            }) | null;
+            participation: ({
+              id: string;
+              contest_id: string;
+              team: {
+                id: string;
+                name: string;
+              };
+              division: {
+                id: string;
+                name: string;
+              } | null;
+              /** @enum {string} */
+              status: "pending" | "accepted" | "rejected" | "withdrawn";
+              /** Format: date-time */
+              registered_at: string;
+              reviewed_at: string | null;
+              review_reason: string | null;
+              withdrawn_at: string | null;
+              version: number;
+            }) | null;
+          };
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  registerParticipation: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          invite_code?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Team registration created */
+      201: {
+        content: {
+          "application/json": {
+            participation: {
+              id: string;
+              contest_id: string;
+              team: {
+                id: string;
+                name: string;
+              };
+              division: {
+                id: string;
+                name: string;
+              } | null;
+              /** @enum {string} */
+              status: "pending" | "accepted" | "rejected" | "withdrawn";
+              /** Format: date-time */
+              registered_at: string;
+              reviewed_at: string | null;
+              review_reason: string | null;
+              withdrawn_at: string | null;
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  withdrawParticipation: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    responses: {
+      /** @description Team registration withdrawn */
+      200: {
+        content: {
+          "application/json": {
+            participation: {
+              id: string;
+              contest_id: string;
+              team: {
+                id: string;
+                name: string;
+              };
+              division: {
+                id: string;
+                name: string;
+              } | null;
+              /** @enum {string} */
+              status: "pending" | "accepted" | "rejected" | "withdrawn";
+              /** Format: date-time */
+              registered_at: string;
+              reviewed_at: string | null;
+              review_reason: string | null;
+              withdrawn_at: string | null;
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  listParticipations: {
+    parameters: {
+      query?: {
+        cursor?: string;
+        limit?: number;
+        status?: "pending" | "accepted" | "rejected" | "withdrawn";
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    responses: {
+      /** @description Cursor-paginated participation management projection */
+      200: {
+        content: {
+          "application/json": {
+            items: ({
+                id: string;
+                contest_id: string;
+                team: {
+                  id: string;
+                  name: string;
+                };
+                division: {
+                  id: string;
+                  name: string;
+                } | null;
+                /** @enum {string} */
+                status: "pending" | "accepted" | "rejected" | "withdrawn";
+                /** Format: date-time */
+                registered_at: string;
+                reviewed_at: string | null;
+                review_reason: string | null;
+                withdrawn_at: string | null;
+                version: number;
+              })[];
+            page: {
+              next_cursor: string | null;
+              has_more: boolean;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  reviewParticipation: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+      path: {
+        contestId: string;
+        participationId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          decision: "accepted" | "rejected";
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Participation reviewed with audit evidence */
+      200: {
+        content: {
+          "application/json": {
+            participation: {
+              id: string;
+              contest_id: string;
+              team: {
+                id: string;
+                name: string;
+              };
+              division: {
+                id: string;
+                name: string;
+              } | null;
+              /** @enum {string} */
+              status: "pending" | "accepted" | "rejected" | "withdrawn";
+              /** Format: date-time */
+              registered_at: string;
+              reviewed_at: string | null;
+              review_reason: string | null;
+              withdrawn_at: string | null;
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  assignParticipationDivision: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+      path: {
+        contestId: string;
+        participationId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          division_id: string | null;
+          reason?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Participation division assigned with audit evidence */
+      200: {
+        content: {
+          "application/json": {
+            participation: {
+              id: string;
+              contest_id: string;
+              team: {
+                id: string;
+                name: string;
+              };
+              division: {
+                id: string;
+                name: string;
+              } | null;
+              /** @enum {string} */
+              status: "pending" | "accepted" | "rejected" | "withdrawn";
+              /** Format: date-time */
+              registered_at: string;
+              reviewed_at: string | null;
+              review_reason: string | null;
+              withdrawn_at: string | null;
+              version: number;
             };
           };
         };
