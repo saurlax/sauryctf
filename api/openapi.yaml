@@ -886,6 +886,483 @@ paths:
         "403": *a1
         "404": *a1
         "409": *a1
+  /api/teams:
+    get:
+      operationId: getCurrentTeam
+      tags:
+        - Teams
+      security:
+        - cookieSession: []
+      responses:
+        "200":
+          description: Current team or null
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  team:
+                    anyOf:
+                      - type: object
+                        properties:
+                          id:
+                            type: string
+                            allOf:
+                              - type: string
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              - type: string
+                                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          name:
+                            type: string
+                            minLength: 1
+                            maxLength: 80
+                          version:
+                            type: integer
+                            exclusiveMinimum: 0
+                            maximum: 9007199254740991
+                          members:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                user_id:
+                                  type: string
+                                  allOf:
+                                    - type: string
+                                      pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                    - type: string
+                                      pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                                username:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 64
+                                role:
+                                  type: string
+                                  enum:
+                                    - member
+                                    - captain
+                                joined_at:
+                                  type: string
+                                  format: date-time
+                                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                              required:
+                                - user_id
+                                - username
+                                - role
+                                - joined_at
+                              additionalProperties: false
+                          invite_code:
+                            anyOf:
+                              - type: string
+                                minLength: 32
+                                maxLength: 512
+                              - type: "null"
+                        required:
+                          - id
+                          - name
+                          - version
+                          - members
+                          - invite_code
+                        additionalProperties: false
+                      - type: "null"
+                required:
+                  - team
+                additionalProperties: false
+        "401": *a1
+        "403": *a1
+    post:
+      operationId: createTeam
+      tags:
+        - Teams
+      security:
+        - cookieSession: []
+      parameters:
+        - *a2
+        - *a3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 80
+              required:
+                - name
+              additionalProperties: false
+      responses:
+        "201":
+          description: Team created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  team:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      name:
+                        type: string
+                        minLength: 1
+                        maxLength: 80
+                      version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      members:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            user_id:
+                              type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                            username:
+                              type: string
+                              minLength: 1
+                              maxLength: 64
+                            role:
+                              type: string
+                              enum:
+                                - member
+                                - captain
+                            joined_at:
+                              type: string
+                              format: date-time
+                              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          required:
+                            - user_id
+                            - username
+                            - role
+                            - joined_at
+                          additionalProperties: false
+                      invite_code:
+                        anyOf:
+                          - type: string
+                            minLength: 32
+                            maxLength: 512
+                          - type: "null"
+                    required:
+                      - id
+                      - name
+                      - version
+                      - members
+                      - invite_code
+                    additionalProperties: false
+                required:
+                  - team
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "409": *a1
+  /api/teams/join:
+    post:
+      operationId: joinTeam
+      tags:
+        - Teams
+      security:
+        - cookieSession: []
+      parameters:
+        - *a2
+        - *a3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                invite_code:
+                  type: string
+                  minLength: 32
+                  maxLength: 512
+              required:
+                - invite_code
+              additionalProperties: false
+      responses:
+        "200":
+          description: Joined team
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  team:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      name:
+                        type: string
+                        minLength: 1
+                        maxLength: 80
+                      version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      members:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            user_id:
+                              type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                            username:
+                              type: string
+                              minLength: 1
+                              maxLength: 64
+                            role:
+                              type: string
+                              enum:
+                                - member
+                                - captain
+                            joined_at:
+                              type: string
+                              format: date-time
+                              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          required:
+                            - user_id
+                            - username
+                            - role
+                            - joined_at
+                          additionalProperties: false
+                      invite_code:
+                        anyOf:
+                          - type: string
+                            minLength: 32
+                            maxLength: 512
+                          - type: "null"
+                    required:
+                      - id
+                      - name
+                      - version
+                      - members
+                      - invite_code
+                    additionalProperties: false
+                required:
+                  - team
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "409": *a1
+  /api/teams/leave:
+    post:
+      operationId: leaveTeam
+      tags:
+        - Teams
+      security:
+        - cookieSession: []
+      parameters:
+        - *a2
+        - *a3
+      responses:
+        "200":
+          description: Left team
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  left:
+                    type: boolean
+                    const: true
+                required:
+                  - left
+                additionalProperties: false
+        "401": *a1
+        "403": *a1
+        "404": *a1
+  /api/teams/invite/rotate:
+    post:
+      operationId: rotateTeamInvite
+      tags:
+        - Teams
+      security:
+        - cookieSession: []
+      parameters:
+        - *a2
+        - *a3
+      responses:
+        "200":
+          description: Invite rotated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invite_code:
+                    type: string
+                    minLength: 32
+                    maxLength: 512
+                required:
+                  - invite_code
+                additionalProperties: false
+        "401": *a1
+        "403": *a1
+        "404": *a1
+  /api/teams/captain/transfer:
+    post:
+      operationId: transferTeamCaptain
+      tags:
+        - Teams
+      security:
+        - cookieSession: []
+      parameters:
+        - *a2
+        - *a3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                  allOf:
+                    - type: string
+                      pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                    - type: string
+                      pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+              required:
+                - user_id
+              additionalProperties: false
+      responses:
+        "200":
+          description: Captain transferred
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  team:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      name:
+                        type: string
+                        minLength: 1
+                        maxLength: 80
+                      version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      members:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            user_id:
+                              type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                            username:
+                              type: string
+                              minLength: 1
+                              maxLength: 64
+                            role:
+                              type: string
+                              enum:
+                                - member
+                                - captain
+                            joined_at:
+                              type: string
+                              format: date-time
+                              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          required:
+                            - user_id
+                            - username
+                            - role
+                            - joined_at
+                          additionalProperties: false
+                      invite_code:
+                        anyOf:
+                          - type: string
+                            minLength: 32
+                            maxLength: 512
+                          - type: "null"
+                    required:
+                      - id
+                      - name
+                      - version
+                      - members
+                      - invite_code
+                    additionalProperties: false
+                required:
+                  - team
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "404": *a1
+  /api/teams/members/{userId}:
+    delete:
+      operationId: removeTeamMember
+      tags:
+        - Teams
+      security:
+        - cookieSession: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - *a2
+        - *a3
+      responses:
+        "200":
+          description: Member removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  removed:
+                    type: boolean
+                    const: true
+                required:
+                  - removed
+                additionalProperties: false
+        "401": *a1
+        "403": *a1
+        "404": *a1
 components:
   securitySchemes:
     cookieSession:

@@ -14,6 +14,8 @@ import { SmtpMailTransport } from '../infrastructure/mail/smtp-mail-transport'
 import { ResilientRedisRateLimitStore } from '../infrastructure/security/rate-limit'
 import { structuredLog } from '../infrastructure/telemetry/logging'
 import type { ControlPlaneServices } from '../services'
+import { TeamService } from '../domains/teams/service'
+import { PostgresTeamRepository } from '../infrastructure/db/team-repository'
 
 export default defineNitroPlugin(async (nitroApp) => {
   const databaseUrl = process.env.DATABASE_URL
@@ -43,6 +45,7 @@ export default defineNitroPlugin(async (nitroApp) => {
     identitySessions: new IdentitySessionService(identityRepository),
     humanVerification,
     rateLimits,
+    teams: new TeamService(new PostgresTeamRepository(database.pool)),
   }
 
   const smtpHost = process.env.MAIL_SMTP_HOST

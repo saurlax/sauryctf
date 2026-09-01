@@ -30,6 +30,16 @@ import {
   userStatusChangedSchema,
 } from '../shared/contracts/identity'
 import { csrfTokenResponseSchema } from '../shared/contracts/request-security'
+import {
+  createTeamRequestSchema,
+  inviteRotatedResponseSchema,
+  joinTeamRequestSchema,
+  memberRemovedResponseSchema,
+  teamLeftResponseSchema,
+  teamMutationResponseSchema,
+  teamResponseSchema,
+  transferCaptainRequestSchema,
+} from '../shared/contracts/teams'
 
 function openApiSchema(schema: z.ZodType): Record<string, unknown> {
   const jsonSchema = z.toJSONSchema(schema, { target: 'draft-7' }) as Record<string, unknown>
@@ -353,6 +363,15 @@ const document = {
         },
       },
     },
+    '/api/teams': {
+      get: { operationId: 'getCurrentTeam', tags: ['Teams'], security: [{ cookieSession: [] }], responses: { 200: jsonResponse('Current team or null', teamResponseSchema), 401: errorResponse, 403: errorResponse } },
+      post: { operationId: 'createTeam', tags: ['Teams'], security: [{ cookieSession: [] }], parameters: [originParameter, csrfParameter], requestBody: jsonRequestBody(createTeamRequestSchema), responses: { 201: jsonResponse('Team created', teamMutationResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 409: errorResponse } },
+    },
+    '/api/teams/join': { post: { operationId: 'joinTeam', tags: ['Teams'], security: [{ cookieSession: [] }], parameters: [originParameter, csrfParameter], requestBody: jsonRequestBody(joinTeamRequestSchema), responses: { 200: jsonResponse('Joined team', teamMutationResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 409: errorResponse } } },
+    '/api/teams/leave': { post: { operationId: 'leaveTeam', tags: ['Teams'], security: [{ cookieSession: [] }], parameters: [originParameter, csrfParameter], responses: { 200: jsonResponse('Left team', teamLeftResponseSchema), 401: errorResponse, 403: errorResponse, 404: errorResponse } } },
+    '/api/teams/invite/rotate': { post: { operationId: 'rotateTeamInvite', tags: ['Teams'], security: [{ cookieSession: [] }], parameters: [originParameter, csrfParameter], responses: { 200: jsonResponse('Invite rotated', inviteRotatedResponseSchema), 401: errorResponse, 403: errorResponse, 404: errorResponse } } },
+    '/api/teams/captain/transfer': { post: { operationId: 'transferTeamCaptain', tags: ['Teams'], security: [{ cookieSession: [] }], parameters: [originParameter, csrfParameter], requestBody: jsonRequestBody(transferCaptainRequestSchema), responses: { 200: jsonResponse('Captain transferred', teamMutationResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse } } },
+    '/api/teams/members/{userId}': { delete: { operationId: 'removeTeamMember', tags: ['Teams'], security: [{ cookieSession: [] }], parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], responses: { 200: jsonResponse('Member removed', memberRemovedResponseSchema), 401: errorResponse, 403: errorResponse, 404: errorResponse } } },
   },
   components: {
     securitySchemes: {

@@ -53,6 +53,25 @@ export interface paths {
   "/api/admin/users/{userId}/status": {
     patch: operations["changeUserStatus"];
   };
+  "/api/teams": {
+    get: operations["getCurrentTeam"];
+    post: operations["createTeam"];
+  };
+  "/api/teams/join": {
+    post: operations["joinTeam"];
+  };
+  "/api/teams/leave": {
+    post: operations["leaveTeam"];
+  };
+  "/api/teams/invite/rotate": {
+    post: operations["rotateTeamInvite"];
+  };
+  "/api/teams/captain/transfer": {
+    post: operations["transferTeamCaptain"];
+  };
+  "/api/teams/members/{userId}": {
+    delete: operations["removeTeamMember"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -753,6 +772,354 @@ export interface operations {
       };
       /** @description Stable API error */
       409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  getCurrentTeam: {
+    responses: {
+      /** @description Current team or null */
+      200: {
+        content: {
+          "application/json": {
+            team: ({
+              id: string;
+              name: string;
+              version: number;
+              members: ({
+                  user_id: string;
+                  username: string;
+                  /** @enum {string} */
+                  role: "member" | "captain";
+                  /** Format: date-time */
+                  joined_at: string;
+                })[];
+              invite_code: string | null;
+            }) | null;
+          };
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  createTeam: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          name: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Team created */
+      201: {
+        content: {
+          "application/json": {
+            team: {
+              id: string;
+              name: string;
+              version: number;
+              members: ({
+                  user_id: string;
+                  username: string;
+                  /** @enum {string} */
+                  role: "member" | "captain";
+                  /** Format: date-time */
+                  joined_at: string;
+                })[];
+              invite_code: string | null;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  joinTeam: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          invite_code: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Joined team */
+      200: {
+        content: {
+          "application/json": {
+            team: {
+              id: string;
+              name: string;
+              version: number;
+              members: ({
+                  user_id: string;
+                  username: string;
+                  /** @enum {string} */
+                  role: "member" | "captain";
+                  /** Format: date-time */
+                  joined_at: string;
+                })[];
+              invite_code: string | null;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  leaveTeam: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+    };
+    responses: {
+      /** @description Left team */
+      200: {
+        content: {
+          "application/json": {
+            /** @constant */
+            left: true;
+          };
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  rotateTeamInvite: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+    };
+    responses: {
+      /** @description Invite rotated */
+      200: {
+        content: {
+          "application/json": {
+            invite_code: string;
+          };
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  transferTeamCaptain: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          user_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Captain transferred */
+      200: {
+        content: {
+          "application/json": {
+            team: {
+              id: string;
+              name: string;
+              version: number;
+              members: ({
+                  user_id: string;
+                  username: string;
+                  /** @enum {string} */
+                  role: "member" | "captain";
+                  /** Format: date-time */
+                  joined_at: string;
+                })[];
+              invite_code: string | null;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  removeTeamMember: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+      path: {
+        userId: string;
+      };
+    };
+    responses: {
+      /** @description Member removed */
+      200: {
+        content: {
+          "application/json": {
+            /** @constant */
+            removed: true;
+          };
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };

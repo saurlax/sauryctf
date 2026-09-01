@@ -38,8 +38,8 @@ async function securedRequest(path: string, options: RequestInit = {}): Promise<
 }
 
 describe('Origin and CSRF enforcement', () => {
-  it('accepts a same-origin protected write with matching double-submit proof', async () => {
-    const response = await securedRequest('/api/auth/password/change', {
+  it.each(['/api/auth/password/change', '/api/teams'])('accepts a same-origin protected write to %s with matching double-submit proof', async (path) => {
+    const response = await securedRequest(path, {
       headers: {
         origin: 'https://ctf.example.test',
         cookie: `${csrfCookieName}=${token}`,
@@ -49,8 +49,8 @@ describe('Origin and CSRF enforcement', () => {
     expect(response.status).toBe(200)
   })
 
-  it('rejects missing CSRF proof before a protected write executes', async () => {
-    const response = await securedRequest('/api/auth/password/change', {
+  it.each(['/api/auth/password/change', '/api/teams'])('rejects missing CSRF proof before a protected write to %s executes', async (path) => {
+    const response = await securedRequest(path, {
       headers: { origin: 'https://ctf.example.test' },
     })
     expect(response.status).toBe(403)
