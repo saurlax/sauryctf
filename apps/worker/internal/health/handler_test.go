@@ -104,6 +104,24 @@ func TestHealthRoutesRejectStateChangingMethods(t *testing.T) {
 	}
 }
 
+func TestPrivateMetricsRouteIsReadOnlyAndDoesNotChangeHealthPayloads(t *testing.T) {
+	metrics := http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "text/plain")
+		_, _ = writer.Write([]byte("sauryctf_worker_instance_job_attempts_total 1\n"))
+	})
+	handler := NewHandler(readinessStub{}, time.Second, metrics)
+	response := performRequest(handler, http.MethodGet, "/metrics")
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "instance_job_attempts") {
+		t.Fatalf("unexpected metrics response: %d %s", response.Code, response.Body.String())
+	}
+	if response.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("metrics Cache-Control = %q", response.Header().Get("Cache-Control"))
+	}
+	if response := performRequest(handler, http.MethodPost, "/metrics"); response.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("POST /metrics returned %d", response.Code)
+	}
+}
+
 func performRequest(handler http.Handler, method, route string) *httptest.ResponseRecorder {
 	request := httptest.NewRequest(method, route, nil)
 	response := httptest.NewRecorder()

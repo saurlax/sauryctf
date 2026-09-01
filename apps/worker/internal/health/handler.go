@@ -20,7 +20,7 @@ type response struct {
 	Component string `json:"component"`
 }
 
-func NewHandler(readiness Readiness, readinessTimeout time.Duration) http.Handler {
+func NewHandler(readiness Readiness, readinessTimeout time.Duration, metricsHandlers ...http.Handler) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/health/live", getOnly(func(writer http.ResponseWriter, _ *http.Request) {
 		writeJSON(writer, http.StatusOK, "ok")
@@ -34,6 +34,12 @@ func NewHandler(readiness Readiness, readinessTimeout time.Duration) http.Handle
 		}
 		writeJSON(writer, http.StatusOK, "ready")
 	}))
+	if len(metricsHandlers) > 0 && metricsHandlers[0] != nil {
+		mux.Handle("/metrics", getOnly(func(writer http.ResponseWriter, request *http.Request) {
+			writer.Header().Set("Cache-Control", "no-store")
+			metricsHandlers[0].ServeHTTP(writer, request)
+		}))
+	}
 	return mux
 }
 

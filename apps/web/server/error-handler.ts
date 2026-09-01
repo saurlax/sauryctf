@@ -13,12 +13,20 @@ const handler: NitroErrorHandler = async (error, event) => {
   setResponseHeader(event, 'x-request-id', requestId)
   setResponseStatus(event, response.statusCode)
 
+  if (response.body.error.code === 'identity.invalid_credentials') {
+    event.context.telemetry?.recordLoginFailure(response.body.error.code)
+  }
+  const spanContext = event.context.requestTelemetry?.span.spanContext()
+
   console.error(structuredLog('error', 'request.failed', {
     request_id: requestId,
+    trace_id: spanContext?.traceId,
+    span_id: spanContext?.spanId,
     error_code: response.body.error.code,
     error_type: error.name,
   }))
 
+  event.context.telemetry?.finishRequest(event)
   event.res.end(JSON.stringify(response.body))
 }
 

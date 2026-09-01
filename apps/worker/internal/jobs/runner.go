@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/saurlax/sauryctf/apps/worker/internal/contracts"
+	"github.com/saurlax/sauryctf/apps/worker/internal/telemetry"
 )
 
 type Processor interface {
@@ -32,10 +33,15 @@ type Runner struct {
 	processor  Processor
 	config     RunnerConfig
 	logger     *slog.Logger
+	telemetry  *telemetry.Worker
 }
 
-func NewRunner(repository Repository, processor Processor, config RunnerConfig, logger *slog.Logger) *Runner {
-	return &Runner{repository: repository, processor: processor, config: config, logger: logger}
+func NewRunner(repository Repository, processor Processor, config RunnerConfig, logger *slog.Logger, instruments ...*telemetry.Worker) *Runner {
+	var workerTelemetry *telemetry.Worker
+	if len(instruments) > 0 {
+		workerTelemetry = instruments[0]
+	}
+	return &Runner{repository: repository, processor: processor, config: config, logger: logger, telemetry: workerTelemetry}
 }
 
 func (runner *Runner) Run(ctx context.Context) error {
@@ -83,7 +89,13 @@ func (runner *Runner) Run(ctx context.Context) error {
 }
 
 func (runner *Runner) process(parent context.Context, lease Lease) {
-	jobContext, cancelJob := context.WithTimeout(parent, runner.config.OperationTimeout)
+	jobParent := parent
+	var jobSpan *telemetry.JobSpan
+	if runner.telemetry != nil {
+		jobParent, jobSpan = runner.telemetry.StartJob(parent, lease.Job, runner.config.WorkerID, lease.AttemptNumber)
+	}
+	jobContext, cancelJob := context.WithTimeout(jobParent, runner.config.OperationTimeout)
+	runner.logger.InfoContext(jobContext, "instance job started", runner.jobLogFields(lease, jobSpan, "instance.job_started", "", "")...)
 	renewContext, cancelRenew := context.WithCancel(jobContext)
 	renewed := make(chan error, 1)
 	go func() {
@@ -103,20 +115,78 @@ func (runner *Runner) process(parent context.Context, lease Lease) {
 	defer cancelOperation()
 	if renewError != nil || parent.Err() != nil {
 		reason := "Lease renewal failure interrupted the worker operation"
+		errorCode := "worker.lease_renewal_failed"
 		if parent.Err() != nil {
 			reason = "Worker shutdown interrupted the worker operation"
+			errorCode = "worker.interrupted"
 		}
-		_, err := runner.repository.Interrupt(operationContext, lease, reason)
+		status, err := runner.repository.Interrupt(operationContext, lease, reason)
 		runner.logFinalizationError("interrupt", lease, err)
+		outcome := string(status)
+		if err != nil {
+			outcome = "finalization_error"
+		}
+		runner.finishJob(operationContext, lease, jobSpan, outcome, errorCode)
 		return
 	}
 	if processError != nil {
-		_, err := runner.repository.Fail(operationContext, lease, ClassifyFailure(processError), runner.config.RetryPolicy)
+		failure := ClassifyFailure(processError)
+		status, err := runner.repository.Fail(operationContext, lease, failure, runner.config.RetryPolicy)
 		runner.logFinalizationError("fail", lease, err)
+		outcome := string(status)
+		if err != nil {
+			outcome = "finalization_error"
+		}
+		runner.finishJob(operationContext, lease, jobSpan, outcome, failure.Code)
 		return
 	}
-	_, err := runner.repository.Complete(operationContext, lease)
+	status, err := runner.repository.Complete(operationContext, lease)
 	runner.logFinalizationError("complete", lease, err)
+	outcome := string(status)
+	if err != nil {
+		outcome = "finalization_error"
+	}
+	runner.finishJob(operationContext, lease, jobSpan, outcome, "")
+}
+
+func (runner *Runner) finishJob(ctx context.Context, lease Lease, jobSpan *telemetry.JobSpan, outcome, errorCode string) {
+	fields := runner.jobLogFields(lease, jobSpan, "instance.job_finished", outcome, errorCode)
+	if runner.telemetry != nil {
+		runner.telemetry.EndJob(jobSpan, outcome, errorCode)
+	}
+	level := slog.LevelInfo
+	if outcome == "dead" || outcome == "finalization_error" {
+		level = slog.LevelError
+	} else if outcome != "succeeded" && outcome != "superseded" {
+		level = slog.LevelWarn
+	}
+	runner.logger.Log(ctx, level, "instance job finished", fields...)
+}
+
+func (runner *Runner) jobLogFields(lease Lease, jobSpan *telemetry.JobSpan, event, outcome, errorCode string) []any {
+	correlation := telemetry.CorrelateJob(lease.Job)
+	fields := []any{
+		"event", event,
+		"worker_id", runner.config.WorkerID,
+		"job_id", correlation.JobID,
+		"instance_id", correlation.InstanceID,
+		"contest_id", correlation.ContestID,
+		"challenge_id", correlation.ChallengeID,
+		"participation_id", correlation.ParticipationID,
+		"team_id", correlation.TeamID,
+		"operation", correlation.Operation,
+		"provider", correlation.Provider,
+		"attempt_number", lease.AttemptNumber,
+		"fencing_token", lease.FencingToken,
+	}
+	fields = append(fields, jobSpan.TraceFields()...)
+	if outcome != "" {
+		fields = append(fields, "outcome", outcome)
+	}
+	if errorCode != "" {
+		fields = append(fields, "error_code", errorCode)
+	}
+	return fields
 }
 
 func (runner *Runner) logFinalizationError(action string, lease Lease, err error) {

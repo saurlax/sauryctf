@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { Client } from 'pg'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import type { InstanceJobCorrelation } from '../telemetry/telemetry'
 import { createPublishableChallenge } from '../../test-support/publishable-challenge'
 import {
   InstanceChallengeNotAvailableError,
@@ -31,6 +32,7 @@ describeWithPostgres('PostgreSQL instance control plane', () => {
   let admin: Client
   let database: DatabaseClient
   let repository: PostgresInstanceRepository
+  const correlations: InstanceJobCorrelation[] = []
 
   beforeAll(async () => {
     admin = new Client({ connectionString: adminConnectionString })
@@ -40,7 +42,15 @@ describeWithPostgres('PostgreSQL instance control plane', () => {
     url.pathname = `/${databaseName}`
     database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 8 })
     await runMigrations(database)
-    repository = new PostgresInstanceRepository(database.pool)
+    repository = new PostgresInstanceRepository(database.pool, {
+      instanceJobQueued(correlation) {
+        correlations.push(structuredClone(correlation))
+      },
+    })
+  })
+
+  beforeEach(() => {
+    correlations.length = 0
   })
 
   afterAll(async () => {
@@ -166,9 +176,10 @@ describeWithPostgres('PostgreSQL instance control plane', () => {
 
   it('serializes duplicate starts into one desired generation, task, and audit event', async () => {
     const input = await fixture()
+    const startCommand = command(input)
     const [first, second] = await Promise.all([
-      repository.start(command(input)),
-      repository.start(command(input)),
+      repository.start(startCommand),
+      repository.start(startCommand),
     ])
     expect(first.id).toBe(second.id)
     expect(first.desiredGeneration).toBe(1)
@@ -177,12 +188,14 @@ describeWithPostgres('PostgreSQL instance control plane', () => {
       instances: string
       jobs: string
       audits: string
+      job_id: string
       payload: Record<string, unknown>
     }>(`
       SELECT
         (SELECT count(*)::text FROM instances WHERE participation_id = $1) AS instances,
         (SELECT count(*)::text FROM instance_jobs job JOIN instances instance ON instance.id = job.instance_id WHERE instance.participation_id = $1) AS jobs,
         (SELECT count(*)::text FROM audit_events WHERE target_type = 'instance' AND action = 'instance.started' AND metadata->>'contest_id' = $2) AS audits,
+        (SELECT job.id::text FROM instance_jobs job JOIN instances instance ON instance.id = job.instance_id WHERE instance.participation_id = $1 LIMIT 1) AS job_id,
         (SELECT payload FROM instance_jobs job JOIN instances instance ON instance.id = job.instance_id WHERE instance.participation_id = $1 LIMIT 1) AS payload`,
     [input.participationId, input.contestId])
     expect(facts.rows[0]).toMatchObject({ instances: '1', jobs: '1', audits: '1' })
@@ -197,6 +210,16 @@ describeWithPostgres('PostgreSQL instance control plane', () => {
       },
       spec: { image: 'nginx:alpine', secret_envelope: null },
     })
+    expect(correlations).toEqual([{
+      requestId: startCommand.requestId,
+      jobId: facts.rows[0]!.job_id,
+      instanceId: first.id,
+      contestId: input.contestId,
+      challengeId: input.challengeId,
+      teamId: input.teamId,
+      operation: 'ensure',
+      provider: 'docker',
+    }])
   })
 
   it('enforces the team quota under the participation lock', async () => {
@@ -254,5 +277,6 @@ describeWithPostgres('PostgreSQL instance control plane', () => {
         (SELECT count(*)::text FROM audit_events WHERE metadata->>'contest_id' = $2) AS audits`,
     [input.participationId, input.contestId])
     expect(facts.rows[0]).toEqual({ instances: '0', jobs: '0', audits: '0' })
+    expect(correlations).toEqual([])
   })
 })

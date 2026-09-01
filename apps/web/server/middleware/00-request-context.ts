@@ -13,6 +13,7 @@ export default defineEventHandler((event) => {
 
   event.context.requestId = requestId
   setResponseHeader(event, 'x-request-id', requestId)
+  event.context.telemetry?.beginRequest(event)
 
   if (!methodsWithBodies.has(event.method)) return
   const contentLength = Number(getRequestHeader(event, 'content-length'))

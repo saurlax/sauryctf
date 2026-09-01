@@ -72,6 +72,7 @@ export async function handleSubmitFlag(
     submittedFlag: input.flag,
     requestId: requestIdSchema.parse(event.context.requestId),
   }))
+  event.context.telemetry?.recordSubmission(outcome.result, outcome.mode)
   return submitFlagResponseSchema.parse({
     result: outcome.result,
     mode: outcome.mode,

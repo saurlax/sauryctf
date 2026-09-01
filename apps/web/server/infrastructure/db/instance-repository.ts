@@ -23,6 +23,7 @@ import {
   type InstanceRecord,
   type InstanceRepository,
 } from '../../domains/instances/repository'
+import type { ControlPlaneTelemetry, InstanceJobCorrelation } from '../telemetry/telemetry'
 
 interface CommandContextRow {
   participation_id: string
@@ -62,7 +63,10 @@ const instanceProjection = `
   last_observed_at, last_error_code, last_error_summary, version::text`
 
 export class PostgresInstanceRepository implements InstanceRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(
+    private readonly pool: Pool,
+    private readonly telemetry?: Pick<ControlPlaneTelemetry, 'instanceJobQueued'>,
+  ) {}
 
   async read(command: Omit<InstanceCommand, 'requestId'>): Promise<InstanceRecord | null> {
     const connection = await this.pool.connect()
@@ -91,7 +95,7 @@ export class PostgresInstanceRepository implements InstanceRepository {
   }
 
   async start(command: InstanceCommand): Promise<InstanceRecord> {
-    return this.transaction(async (connection) => {
+    const completed = await this.transaction(async (connection) => {
       const context = await this.commandContext(connection, command, true)
       this.assertCanOperate(context, command.at)
       const policy = this.dynamicPolicy(context)
@@ -99,7 +103,7 @@ export class PostgresInstanceRepository implements InstanceRepository {
       if (current?.desired_state === 'running'
         && current.expires_at !== null
         && current.expires_at.getTime() > command.at.getTime()) {
-        return record(current)
+        return { instance: record(current), correlation: null }
       }
 
       const active = await connection.query<{ count: string }>(`
@@ -143,17 +147,22 @@ export class PostgresInstanceRepository implements InstanceRepository {
         ])
         row = inserted.rows[0]!
       }
-      await this.enqueueEnsure(connection, row, context, policy, expiresAt)
+      const jobId = await this.enqueueEnsure(connection, row, context, policy, expiresAt)
       await this.writeAudit(connection, command, row, 'instance.started', '选手启动题目实例', {
         expires_at: expiresAt.toISOString(),
         desired_generation: Number(row.desired_generation),
       })
-      return record(row)
+      return {
+        instance: record(row),
+        correlation: jobCorrelation(command, row, context, 'ensure', jobId),
+      }
     })
+    if (completed.correlation) this.telemetry?.instanceJobQueued(completed.correlation)
+    return completed.instance
   }
 
   async renew(command: InstanceCommand): Promise<InstanceRecord> {
-    return this.transaction(async (connection) => {
+    const completed = await this.transaction(async (connection) => {
       const context = await this.commandContext(connection, command, true)
       this.assertCanOperate(context, command.at)
       const policy = this.dynamicPolicy(context)
@@ -178,22 +187,27 @@ export class PostgresInstanceRepository implements InstanceRepository {
         WHERE id = $1
         RETURNING ${instanceProjection}`, [current.id, expiresAt])
       const row = updated.rows[0]!
-      await this.enqueueEnsure(connection, row, context, policy, expiresAt)
+      const jobId = await this.enqueueEnsure(connection, row, context, policy, expiresAt)
       await this.writeAudit(connection, command, row, 'instance.renewed', '选手续期题目实例', {
         previous_expires_at: current.expires_at.toISOString(),
         expires_at: expiresAt.toISOString(),
         desired_generation: Number(row.desired_generation),
       })
-      return record(row)
+      return {
+        instance: record(row),
+        correlation: jobCorrelation(command, row, context, 'ensure', jobId),
+      }
     })
+    this.telemetry?.instanceJobQueued(completed.correlation)
+    return completed.instance
   }
 
   async destroy(command: InstanceCommand): Promise<InstanceRecord> {
-    return this.transaction(async (connection) => {
+    const completed = await this.transaction(async (connection) => {
       const context = await this.commandContext(connection, command, true)
       const current = await this.lockInstance(connection, context.participation_id, command.challengeId)
       if (!current) throw new InstanceUnavailableError()
-      if (current.desired_state === 'stopped') return record(current)
+      if (current.desired_state === 'stopped') return { instance: record(current), correlation: null }
 
       const generation = Number(current.desired_generation) + 1
       const updated = await connection.query<InstanceRow>(`
@@ -207,12 +221,17 @@ export class PostgresInstanceRepository implements InstanceRepository {
         RETURNING ${instanceProjection}`, [current.id, generation])
       const row = updated.rows[0]!
       const payload = destroyPayload(row, context)
-      await this.enqueue(connection, row, 'destroy', payload)
+      const jobId = await this.enqueue(connection, row, 'destroy', payload)
       await this.writeAudit(connection, command, row, 'instance.destroyed', '选手销毁题目实例', {
         desired_generation: generation,
       })
-      return record(row)
+      return {
+        instance: record(row),
+        correlation: jobCorrelation(command, row, context, 'destroy', jobId),
+      }
     })
+    if (completed.correlation) this.telemetry?.instanceJobQueued(completed.correlation)
+    return completed.instance
   }
 
   private async transaction<T>(operation: (connection: PoolClient) => Promise<T>): Promise<T> {
@@ -314,9 +333,9 @@ export class PostgresInstanceRepository implements InstanceRepository {
     context: CommandContextRow,
     policy: ReturnType<typeof dynamicInstancePolicySchema.parse>,
     expiresAt: Date,
-  ) {
+  ): Promise<string> {
     const payload = ensurePayload(row, context, policy, expiresAt)
-    await this.enqueue(connection, row, 'ensure', payload)
+    return this.enqueue(connection, row, 'ensure', payload)
   }
 
   private async enqueue(
@@ -324,13 +343,14 @@ export class PostgresInstanceRepository implements InstanceRepository {
     row: InstanceRow,
     operation: 'ensure' | 'destroy',
     payload: EnsureInstanceJobPayload | DestroyInstanceJobPayload,
-  ) {
+  ): Promise<string> {
     const generation = Number(row.desired_generation)
-    await connection.query(`
+    const result = await connection.query<{ id: string }>(`
       INSERT INTO instance_jobs
         (instance_id, operation, payload_version, payload,
          desired_generation, idempotency_key)
-      VALUES ($1, $2, $3, $4, $5, $6)`, [
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id::text AS id`, [
       row.id,
       operation,
       instanceJobPayloadVersion,
@@ -338,6 +358,7 @@ export class PostgresInstanceRepository implements InstanceRepository {
       generation,
       `instance:${row.id}:${generation}:${operation}`,
     ])
+    return result.rows[0]!.id
   }
 
   private async writeAudit(
@@ -361,6 +382,25 @@ export class PostgresInstanceRepository implements InstanceRepository {
       changes,
       { contest_id: command.contestId, contest_challenge_id: command.challengeId },
     ])
+  }
+}
+
+function jobCorrelation(
+  command: InstanceCommand,
+  row: InstanceRow,
+  context: CommandContextRow,
+  operation: InstanceJobCorrelation['operation'],
+  jobId: string,
+): InstanceJobCorrelation {
+  return {
+    requestId: command.requestId,
+    jobId,
+    instanceId: row.id,
+    contestId: command.contestId,
+    challengeId: command.challengeId,
+    teamId: context.team_id,
+    operation,
+    provider: row.provider,
   }
 }
 

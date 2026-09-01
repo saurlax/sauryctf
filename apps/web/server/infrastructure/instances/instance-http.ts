@@ -59,11 +59,13 @@ export async function handleStartPlayerInstance(
     identityCapability.instanceOperate,
     dependencies.identity,
   )
-  const result = await runOperation(() => dependencies.instances.start(context.subject, {
-    requestId: requestIdSchema.parse(event.context.requestId),
-    contestId,
-    challengeId,
-  }))
+  const result = await runInstanceCommand(event, 'start', contestId, challengeId, () => runOperation(
+    () => dependencies.instances.start(context.subject, {
+      requestId: requestIdSchema.parse(event.context.requestId),
+      contestId,
+      challengeId,
+    }),
+  ))
   setResponseStatus(event, 202)
   if (result.instance) setResponseHeader(event, 'etag', entityTagForVersion(result.instance.version))
   return playerInstanceResponseSchema.parse(result)
@@ -80,11 +82,13 @@ export async function handleRenewPlayerInstance(
     identityCapability.instanceOperate,
     dependencies.identity,
   )
-  const result = await runOperation(() => dependencies.instances.renew(context.subject, {
-    requestId: requestIdSchema.parse(event.context.requestId),
-    contestId,
-    challengeId,
-  }))
+  const result = await runInstanceCommand(event, 'renew', contestId, challengeId, () => runOperation(
+    () => dependencies.instances.renew(context.subject, {
+      requestId: requestIdSchema.parse(event.context.requestId),
+      contestId,
+      challengeId,
+    }),
+  ))
   setResponseStatus(event, 202)
   if (result.instance) setResponseHeader(event, 'etag', entityTagForVersion(result.instance.version))
   return playerInstanceResponseSchema.parse(result)
@@ -101,11 +105,13 @@ export async function handleDestroyPlayerInstance(
     identityCapability.instanceOperate,
     dependencies.identity,
   )
-  const result = await runOperation(() => dependencies.instances.destroy(context.subject, {
-    requestId: requestIdSchema.parse(event.context.requestId),
-    contestId,
-    challengeId,
-  }))
+  const result = await runInstanceCommand(event, 'destroy', contestId, challengeId, () => runOperation(
+    () => dependencies.instances.destroy(context.subject, {
+      requestId: requestIdSchema.parse(event.context.requestId),
+      contestId,
+      challengeId,
+    }),
+  ))
   setResponseStatus(event, 202)
   if (result.instance) setResponseHeader(event, 'etag', entityTagForVersion(result.instance.version))
   return playerInstanceResponseSchema.parse(result)
@@ -129,5 +135,30 @@ async function runOperation<T>(operation: () => Promise<T>): Promise<T> {
       'instance.renewal_too_early': 409,
     }[error.code]
     throw createApiError(statusCode, error.code, error.message, error.fields)
+  }
+}
+
+async function runInstanceCommand<T>(
+  event: H3Event,
+  command: 'start' | 'renew' | 'destroy',
+  contestId: string,
+  challengeId: string,
+  operation: () => Promise<T>,
+) {
+  const telemetry = event.context.telemetry
+  try {
+    const result = telemetry
+      ? await telemetry.withSpan(event, `instance.${command}`, {
+          'sauryctf.contest.id': contestId,
+          'sauryctf.challenge.id': challengeId,
+          'sauryctf.request.id': event.context.requestId ?? '',
+        }, operation)
+      : await operation()
+    telemetry?.recordInstanceCommand(command, 'accepted')
+    return result
+  }
+  catch (error) {
+    telemetry?.recordInstanceCommand(command, 'rejected')
+    throw error
   }
 }

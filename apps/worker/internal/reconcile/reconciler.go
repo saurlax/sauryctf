@@ -11,6 +11,7 @@ import (
 	"github.com/saurlax/sauryctf/apps/worker/internal/contracts"
 	"github.com/saurlax/sauryctf/apps/worker/internal/jobs"
 	"github.com/saurlax/sauryctf/apps/worker/internal/providers"
+	"github.com/saurlax/sauryctf/apps/worker/internal/telemetry"
 )
 
 type DesiredInstance struct {
@@ -117,14 +118,19 @@ type Reconciler struct {
 	store      Store
 	backend    providers.Backend
 	logger     *slog.Logger
+	telemetry  *telemetry.Worker
 	now        func() time.Time
 }
 
-func New(platformID string, interval time.Duration, store Store, backend providers.Backend, logger *slog.Logger) (*Reconciler, error) {
+func New(platformID string, interval time.Duration, store Store, backend providers.Backend, logger *slog.Logger, instruments ...*telemetry.Worker) (*Reconciler, error) {
 	if platformID == "" || interval <= 0 || store == nil || backend == nil || logger == nil {
 		return nil, errors.New("reconciler requires platform id, positive interval, store, backend, and logger")
 	}
-	return &Reconciler{platformID: platformID, interval: interval, store: store, backend: backend, logger: logger, now: time.Now}, nil
+	var workerTelemetry *telemetry.Worker
+	if len(instruments) > 0 {
+		workerTelemetry = instruments[0]
+	}
+	return &Reconciler{platformID: platformID, interval: interval, store: store, backend: backend, logger: logger, telemetry: workerTelemetry, now: time.Now}, nil
 }
 
 func (reconciler *Reconciler) Run(ctx context.Context) error {
@@ -144,7 +150,10 @@ func (reconciler *Reconciler) Run(ctx context.Context) error {
 func (reconciler *Reconciler) runCycle(ctx context.Context) {
 	result, err := reconciler.Cycle(ctx)
 	if err != nil {
-		reconciler.logger.WarnContext(ctx, "instance reconciliation completed with failures", "failures", result.Failures, "error", err)
+		reconciler.logger.WarnContext(ctx, "instance reconciliation completed with failures",
+			"failures", result.Failures,
+			"error_code", providerErrorCode(err),
+		)
 		return
 	}
 	reconciler.logger.InfoContext(ctx, "instance reconciliation completed",
@@ -160,13 +169,22 @@ type managedResource struct {
 	ownership Ownership
 }
 
-func (reconciler *Reconciler) Cycle(ctx context.Context) (Result, error) {
-	result := Result{}
+func (reconciler *Reconciler) Cycle(ctx context.Context) (result Result, cycleError error) {
+	var reconcileSpan *telemetry.ReconcileSpan
+	if reconciler.telemetry != nil {
+		ctx, reconcileSpan = reconciler.telemetry.StartReconcile(ctx)
+		defer func() {
+			reconciler.telemetry.EndReconcile(reconcileSpan, telemetry.ReconcileResult{
+				Orphans: result.Orphans, Unmanaged: result.Unmanaged, Failures: result.Failures,
+				Ensured: result.Ensured, Destroyed: result.Destroyed,
+			}, cycleError)
+		}()
+	}
 	desired, err := reconciler.store.ListDesiredInstances(ctx)
 	if err != nil {
 		return result, fmt.Errorf("list desired instances: %w", err)
 	}
-	resources, err := reconciler.backend.ListResources(ctx)
+	resources, err := reconciler.listResources(ctx)
 	if err != nil {
 		return result, fmt.Errorf("list provider resources: %w", err)
 	}
@@ -229,7 +247,9 @@ func (reconciler *Reconciler) Cycle(ctx context.Context) (Result, error) {
 			continue
 		}
 		if candidate.ownership.Generation < instance.DesiredGeneration {
-			observation, destroyErr := reconciler.backend.Destroy(ctx, providers.InstanceKey(candidate.ownership))
+			observation, destroyErr := reconciler.providerOperation(ctx, string(instance.Provider), "destroy", func(providerContext context.Context) (jobs.Observation, error) {
+				return reconciler.backend.Destroy(providerContext, providers.InstanceKey(candidate.ownership))
+			})
 			if destroyErr != nil {
 				failures = append(failures, fmt.Errorf("destroy stale resource %s: %w", candidate.resource.ResourceID, destroyErr))
 				result.Failures++
@@ -244,7 +264,9 @@ func (reconciler *Reconciler) Cycle(ctx context.Context) (Result, error) {
 
 		handled[instance.ID] = true
 		if instance.shouldStop(cycleTime) {
-			observation, destroyErr := reconciler.backend.Destroy(ctx, providers.InstanceKey(candidate.ownership))
+			observation, destroyErr := reconciler.providerOperation(ctx, string(instance.Provider), "destroy", func(providerContext context.Context) (jobs.Observation, error) {
+				return reconciler.backend.Destroy(providerContext, providers.InstanceKey(candidate.ownership))
+			})
 			if destroyErr != nil {
 				failures = append(failures, fmt.Errorf("destroy resource %s: %w", candidate.resource.ResourceID, destroyErr))
 				result.Failures++
@@ -263,7 +285,9 @@ func (reconciler *Reconciler) Cycle(ctx context.Context) (Result, error) {
 			result.Destroyed++
 			continue
 		}
-		observation, inspectErr := reconciler.backend.Inspect(ctx, providers.InstanceKey(candidate.ownership))
+		observation, inspectErr := reconciler.providerOperation(ctx, string(instance.Provider), "inspect", func(providerContext context.Context) (jobs.Observation, error) {
+			return reconciler.backend.Inspect(providerContext, providers.InstanceKey(candidate.ownership))
+		})
 		if inspectErr != nil {
 			failures = append(failures, fmt.Errorf("inspect resource %s: %w", candidate.resource.ResourceID, inspectErr))
 			result.Failures++
@@ -291,10 +315,12 @@ func (reconciler *Reconciler) Cycle(ctx context.Context) (Result, error) {
 			}
 			continue
 		}
-		observation, ensureErr := reconciler.backend.Ensure(ctx, providers.InstanceSpec{
-			Key:       providers.InstanceKey(instance.ownership(reconciler.platformID)),
-			Runtime:   *instance.RuntimeSpec,
-			ExpiresAt: instance.ExpiresAt,
+		observation, ensureErr := reconciler.providerOperation(ctx, string(instance.Provider), "ensure", func(providerContext context.Context) (jobs.Observation, error) {
+			return reconciler.backend.Ensure(providerContext, providers.InstanceSpec{
+				Key:       providers.InstanceKey(instance.ownership(reconciler.platformID)),
+				Runtime:   *instance.RuntimeSpec,
+				ExpiresAt: instance.ExpiresAt,
+			})
 		})
 		if ensureErr != nil {
 			failures = append(failures, fmt.Errorf("ensure instance %s: %w", instance.ID, ensureErr))
@@ -309,6 +335,45 @@ func (reconciler *Reconciler) Cycle(ctx context.Context) (Result, error) {
 		result.Ensured++
 	}
 	return result, errors.Join(failures...)
+}
+
+func (reconciler *Reconciler) listResources(ctx context.Context) ([]Resource, error) {
+	if reconciler.telemetry == nil {
+		return reconciler.backend.ListResources(ctx)
+	}
+	providerContext, providerSpan := reconciler.telemetry.StartProvider(ctx, "registry", "list")
+	resources, err := reconciler.backend.ListResources(providerContext)
+	reconciler.telemetry.EndProvider(providerSpan, providerOutcome(err), providerErrorCode(err))
+	return resources, err
+}
+
+func (reconciler *Reconciler) providerOperation(
+	ctx context.Context,
+	provider string,
+	operation string,
+	invoke func(context.Context) (jobs.Observation, error),
+) (jobs.Observation, error) {
+	if reconciler.telemetry == nil {
+		return invoke(ctx)
+	}
+	providerContext, providerSpan := reconciler.telemetry.StartProvider(ctx, provider, operation)
+	observation, err := invoke(providerContext)
+	reconciler.telemetry.EndProvider(providerSpan, providerOutcome(err), providerErrorCode(err))
+	return observation, err
+}
+
+func providerOutcome(err error) string {
+	if err != nil {
+		return "failed"
+	}
+	return "succeeded"
+}
+
+func providerErrorCode(err error) string {
+	if err == nil {
+		return ""
+	}
+	return jobs.ClassifyFailure(err).Code
 }
 
 func (reconciler *Reconciler) report(ctx context.Context, result *Result, failures []error, candidate managedResource, reason OrphanReason) []error {

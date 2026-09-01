@@ -11,6 +11,7 @@ import (
 
 	"github.com/saurlax/sauryctf/apps/worker/internal/config"
 	"github.com/saurlax/sauryctf/apps/worker/internal/health"
+	"github.com/saurlax/sauryctf/apps/worker/internal/telemetry"
 )
 
 type Database interface {
@@ -19,13 +20,18 @@ type Database interface {
 }
 
 type App struct {
-	config   config.Config
-	database Database
-	logger   *slog.Logger
+	config    config.Config
+	database  Database
+	logger    *slog.Logger
+	telemetry *telemetry.Worker
 }
 
-func New(workerConfig config.Config, database Database, logger *slog.Logger) *App {
-	return &App{config: workerConfig, database: database, logger: logger}
+func New(workerConfig config.Config, database Database, logger *slog.Logger, instruments ...*telemetry.Worker) *App {
+	var workerTelemetry *telemetry.Worker
+	if len(instruments) > 0 {
+		workerTelemetry = instruments[0]
+	}
+	return &App{config: workerConfig, database: database, logger: logger, telemetry: workerTelemetry}
 }
 
 // Run serves only private health probes and closes all process resources during
@@ -38,8 +44,12 @@ func (app *App) Run(ctx context.Context) error {
 		return fmt.Errorf("listen on worker health address: %w", err)
 	}
 
+	var metricsHandler http.Handler
+	if app.telemetry != nil {
+		metricsHandler = app.telemetry.MetricsHandler()
+	}
 	server := &http.Server{
-		Handler:           health.NewHandler(app.database, app.config.ReadinessTimeout),
+		Handler:           health.NewHandler(app.database, app.config.ReadinessTimeout, metricsHandler),
 		ReadHeaderTimeout: app.config.ReadinessTimeout,
 	}
 	serverErrors := make(chan error, 1)

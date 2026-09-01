@@ -1,18 +1,22 @@
 package jobs
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/saurlax/sauryctf/apps/worker/internal/contracts"
+	"github.com/saurlax/sauryctf/apps/worker/internal/telemetry"
 )
 
 type fakeRepository struct {
@@ -223,6 +227,84 @@ func TestRunnerGracefulStopWaitsForActiveJobRelease(t *testing.T) {
 	waitRunner(t, stopped)
 }
 
+func TestRunnerLogsCorrelatedJobLifecycleWithoutSensitivePayloadValues(t *testing.T) {
+	repository := newFakeRepository(t)
+	repository.lease.Job = loadJobFixture(t, "ensure.json")
+	var logs bytes.Buffer
+	logger := telemetry.NewJSONLogger(&logs)
+	observability, err := telemetry.New(context.Background(), telemetry.Options{
+		WorkerID: "worker-test-1",
+		Getenv:   func(string) string { return "" },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := observability.Shutdown(ctx); err != nil {
+			t.Errorf("Shutdown() error = %v", err)
+		}
+	}()
+
+	runner := NewRunner(repository, processorFunc(func(context.Context, contracts.InstanceJob) error {
+		return PermanentError(
+			"provider.image_missing",
+			"Configured image does not exist",
+			errors.New("registry rejected flag{sensitive-value} with Bearer sensitive-token"),
+		)
+	}), testRunnerConfig(), logger, observability)
+
+	cancel, stopped := runRunner(t, runner)
+	waitClosed(t, repository.failed, "job failure")
+	cancel()
+	waitRunner(t, stopped)
+
+	lines := strings.Split(strings.TrimSpace(logs.String()), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("structured job log lines = %d, want 2:\n%s", len(lines), logs.String())
+	}
+	records := make(map[string]map[string]any, len(lines))
+	for _, line := range lines {
+		var record map[string]any
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			t.Fatalf("job log is not JSON: %v", err)
+		}
+		event, _ := record["event"].(string)
+		records[event] = record
+	}
+	for _, event := range []string{"instance.job_started", "instance.job_finished"} {
+		record := records[event]
+		if record == nil {
+			t.Fatalf("missing %s record: %s", event, logs.String())
+		}
+		for key, expected := range map[string]string{
+			"job_id":       "018f47a2-4ef8-7e2c-9c24-6d68b7451001",
+			"instance_id":  "018f47a2-4ef8-7e2c-9c24-6d68b7451011",
+			"contest_id":   "018f47a2-4ef8-7e2c-9c24-6d68b7451021",
+			"challenge_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451031",
+			"team_id":      "018f47a2-4ef8-7e2c-9c24-6d68b7451051",
+			"worker_id":    "worker-test-1",
+		} {
+			if record[key] != expected {
+				t.Errorf("%s %s = %v, want %s", event, key, record[key], expected)
+			}
+		}
+		if record["trace_id"] == "" || record["span_id"] == "" {
+			t.Errorf("%s omitted OpenTelemetry trace identifiers: %+v", event, record)
+		}
+	}
+	if records["instance.job_finished"]["outcome"] != string(StatusRetryWait) || records["instance.job_finished"]["error_code"] != "provider.image_missing" {
+		t.Fatalf("unexpected final job record: %+v", records["instance.job_finished"])
+	}
+	serialized := logs.String()
+	for _, forbidden := range []string{"ciphertext_base64", "U0NURgF3cmFw", "flag{sensitive-value}", "sensitive-token"} {
+		if strings.Contains(serialized, forbidden) {
+			t.Fatalf("job lifecycle log leaked %q: %s", forbidden, serialized)
+		}
+	}
+}
+
 func newFakeRepository(t *testing.T) *fakeRepository {
 	t.Helper()
 	return &fakeRepository{
@@ -240,7 +322,11 @@ func newFakeRepository(t *testing.T) *fakeRepository {
 }
 
 func newTestRunner(repository Repository, processor Processor) *Runner {
-	return NewRunner(repository, processor, RunnerConfig{
+	return NewRunner(repository, processor, testRunnerConfig(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+}
+
+func testRunnerConfig() RunnerConfig {
+	return RunnerConfig{
 		WorkerID:         "worker-test-1",
 		BatchSize:        1,
 		Concurrency:      1,
@@ -249,7 +335,7 @@ func newTestRunner(repository Repository, processor Processor) *Runner {
 		PollInterval:     5 * time.Millisecond,
 		OperationTimeout: time.Second,
 		RetryPolicy:      RetryPolicy{InitialDelay: time.Second, MaxDelay: time.Minute},
-	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	}
 }
 
 func runRunner(t *testing.T, runner *Runner) (context.CancelFunc, <-chan error) {
@@ -290,12 +376,16 @@ func closeOnce(channel chan struct{}) {
 }
 
 func loadInspectFixture(t *testing.T) contracts.InstanceJob {
+	return loadJobFixture(t, "inspect.json")
+}
+
+func loadJobFixture(t *testing.T, name string) contracts.InstanceJob {
 	t.Helper()
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("cannot resolve test source path")
 	}
-	path := filepath.Clean(filepath.Join(filepath.Dir(filename), "../../../../contracts/fixtures/instance-jobs/v1/inspect.json"))
+	path := filepath.Clean(filepath.Join(filepath.Dir(filename), "../../../../contracts/fixtures/instance-jobs/v1", name))
 	source, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)

@@ -70,12 +70,14 @@ async function handleRead(
     ? { type: 'division', divisionId: input.division_id }
     : { type: 'overall' }
   try {
-    return response(await dependencies.scoreboards.read({
+    const projection = await dependencies.scoreboards.read({
       contestId,
       view,
       viewerRole: subject.role,
       scope,
-    }))
+    })
+    event.context.telemetry?.recordScoreboard(view, projection.freshness)
+    return response(projection)
   }
   catch (error) {
     if (error instanceof ScoringReplayContestNotFoundError) {

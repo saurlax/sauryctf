@@ -14,6 +14,7 @@ import { PostgresMailOutboxRepository } from '../infrastructure/mail/postgres-ma
 import { SmtpMailTransport } from '../infrastructure/mail/smtp-mail-transport'
 import { ResilientRedisRateLimitStore } from '../infrastructure/security/rate-limit'
 import { structuredLog } from '../infrastructure/telemetry/logging'
+import { activeControlPlaneTelemetry } from '../infrastructure/telemetry/telemetry'
 import type { ControlPlaneServices } from '../services'
 import { TeamService } from '../domains/teams/service'
 import { PostgresTeamRepository } from '../infrastructure/db/team-repository'
@@ -156,7 +157,7 @@ export default defineNitroPlugin(async (nitroApp) => {
     ),
     platformSettings,
     instances: new InstanceService(
-      new PostgresInstanceRepository(database.pool),
+      new PostgresInstanceRepository(database.pool, activeControlPlaneTelemetry()),
       instanceLeasePolicy(process.env),
     ),
   }
@@ -167,6 +168,7 @@ export default defineNitroPlugin(async (nitroApp) => {
   let dispatchTimer: ReturnType<typeof setInterval> | undefined
   let domainEventTimer: ReturnType<typeof setInterval> | undefined
   let contentCleanupTimer: ReturnType<typeof setInterval> | undefined
+  let telemetryTimer: ReturnType<typeof setInterval> | undefined
   if (smtpHost && mailFrom && publicOrigin) {
     const smtpPort = Number.parseInt(process.env.MAIL_SMTP_PORT ?? '25', 10)
     const dispatcher = new MailOutboxDispatcher(
@@ -191,9 +193,11 @@ export default defineNitroPlugin(async (nitroApp) => {
       if (dispatching) return
       dispatching = true
       try {
-        await dispatcher.runOnce()
+        const processed = await dispatcher.runOnce()
+        activeControlPlaneTelemetry()?.recordMailDispatch('processed', processed)
       }
       catch (error) {
+        activeControlPlaneTelemetry()?.recordMailDispatch('failed')
         console.error(structuredLog('error', 'mail.dispatch_failed', { error }))
       }
       finally {
@@ -246,6 +250,30 @@ export default defineNitroPlugin(async (nitroApp) => {
   contentCleanupTimer = setInterval(() => void collectContent(), 15 * 60_000)
   contentCleanupTimer.unref()
 
+  let telemetryRefresh: Promise<void> | undefined
+  const refreshOperationalMetrics = () => {
+    const telemetry = activeControlPlaneTelemetry()
+    if (!telemetry || telemetryRefresh) return telemetryRefresh
+    telemetryRefresh = Promise.all([
+      groupedCounts(database.pool, 'mail_deliveries', 'status'),
+      groupedCounts(database.pool, 'instance_jobs', 'status'),
+      groupedCounts(database.pool, 'instances', 'observed_state'),
+    ])
+      .then(([mailDeliveries, instanceJobs, instances]) => {
+        telemetry.updateOperationalSnapshot({ mailDeliveries, instanceJobs, instances })
+      })
+      .catch((error) => {
+        telemetry.emit('warn', 'telemetry.snapshot_failed', { error_type: errorName(error) })
+      })
+      .finally(() => {
+        telemetryRefresh = undefined
+      })
+    return telemetryRefresh
+  }
+  void refreshOperationalMetrics()
+  telemetryTimer = setInterval(() => void refreshOperationalMetrics(), 15_000)
+  telemetryTimer.unref()
+
   nitroApp.hooks.hook('request', (event) => {
     event.context.services = services
   })
@@ -253,7 +281,9 @@ export default defineNitroPlugin(async (nitroApp) => {
     if (dispatchTimer) clearInterval(dispatchTimer)
     if (domainEventTimer) clearInterval(domainEventTimer)
     if (contentCleanupTimer) clearInterval(contentCleanupTimer)
+    if (telemetryTimer) clearInterval(telemetryTimer)
     await contentCleanupRun
+    await telemetryRefresh
     await rateLimits.close()
     await scoreboardCache.close()
     await scoreboardBuildLock.close()
@@ -263,6 +293,21 @@ export default defineNitroPlugin(async (nitroApp) => {
     await database.pool.end()
   })
 })
+
+async function groupedCounts(
+  pool: ReturnType<typeof createDatabaseClient>['pool'],
+  table: 'mail_deliveries' | 'instance_jobs' | 'instances',
+  column: 'status' | 'observed_state',
+) {
+  const result = await pool.query<{ label: string, count: string }>(
+    `SELECT ${column}::text AS label, count(*)::text AS count FROM ${table} GROUP BY ${column}`,
+  )
+  return Object.fromEntries(result.rows.map(row => [row.label, Number(row.count)]))
+}
+
+function errorName(error: unknown) {
+  return error instanceof Error ? error.name : 'UnknownError'
+}
 
 function instanceLeasePolicy(environment: NodeJS.ProcessEnv) {
   return {
