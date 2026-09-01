@@ -92,6 +92,13 @@
       "when": 1788274800000,
       "tag": "0012_challenge_template_assets",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788277500000,
+      "tag": "0013_contest_challenge_snapshots",
+      "breakpoints": true
     }
   ]
 }

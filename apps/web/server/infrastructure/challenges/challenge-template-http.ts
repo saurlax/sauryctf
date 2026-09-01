@@ -92,6 +92,13 @@ function projection(detail: ChallengeTemplateDetail): {
         display_name: asset.displayName,
         sort_order: asset.sortOrder,
       })),
+      hints: detail.challengeVersion.hints.map(hint => ({
+        id: hint.id,
+        title: hint.title,
+        content: hint.content,
+        release_after_seconds: hint.releaseAfterSeconds,
+        sort_order: hint.sortOrder,
+      })),
       created_by: detail.challengeVersion.createdBy,
       created_at: detail.challengeVersion.createdAt.toISOString(),
     },
@@ -135,6 +142,12 @@ export async function handleCreateChallengeTemplate(
       displayName: asset.display_name,
       sortOrder: asset.sort_order,
     })),
+    hints: input.hints.map(hint => ({
+      title: hint.title,
+      content: hint.content,
+      releaseAfterSeconds: hint.release_after_seconds,
+      sortOrder: hint.sort_order,
+    })),
   }))
   setResponseStatus(event, 201)
   return respond(event, detail)
@@ -177,6 +190,12 @@ export async function handleCreateChallengeTemplateVersion(
       contentObjectId: asset.content_object_id,
       displayName: asset.display_name,
       sortOrder: asset.sort_order,
+    })),
+    hints: input.hints?.map(hint => ({
+      title: hint.title,
+      content: hint.content,
+      releaseAfterSeconds: hint.release_after_seconds,
+      sortOrder: hint.sort_order,
     })),
   }))
   setResponseStatus(event, 201)

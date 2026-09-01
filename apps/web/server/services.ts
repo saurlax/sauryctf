@@ -8,6 +8,7 @@ import type { ContestService } from './domains/contests/service'
 import type { AnnouncementService } from './domains/announcements/service'
 import type { PublicTimelineService } from './domains/timeline/service'
 import type { ChallengeTemplateService } from './domains/challenges/service'
+import type { ContestChallengeService } from './domains/challenges/contest-challenge-service'
 
 export interface ControlPlaneServices {
   identity: IdentityService
@@ -20,4 +21,5 @@ export interface ControlPlaneServices {
   announcements: AnnouncementService
   timeline: PublicTimelineService
   challengeTemplates: ChallengeTemplateService
+  contestChallenges: ContestChallengeService
 }

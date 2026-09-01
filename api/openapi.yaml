@@ -2060,6 +2060,39 @@ paths:
                       - display_name
                       - sort_order
                     additionalProperties: false
+                hints:
+                  default: []
+                  maxItems: 100
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      title:
+                        type: string
+                        minLength: 1
+                        maxLength: 160
+                      content:
+                        type: string
+                        minLength: 1
+                        maxLength: 100000
+                      release_after_seconds:
+                        default: null
+                        anyOf:
+                          - type: integer
+                            minimum: 0
+                            maximum: 31536000
+                          - type: "null"
+                      sort_order:
+                        default: 0
+                        type: integer
+                        minimum: 0
+                        maximum: 10000
+                    required:
+                      - title
+                      - content
+                      - release_after_seconds
+                      - sort_order
+                    additionalProperties: false
               required:
                 - name
                 - slug
@@ -2071,6 +2104,7 @@ paths:
                 - scoring_policy
                 - instance_policy
                 - assets
+                - hints
               additionalProperties: false
       responses:
         "201":
@@ -2216,6 +2250,45 @@ paths:
                             - sort_order
                             - id
                           additionalProperties: false
+                      hints:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            title:
+                              type: string
+                              minLength: 1
+                              maxLength: 160
+                            content:
+                              type: string
+                              minLength: 1
+                              maxLength: 100000
+                            release_after_seconds:
+                              default: null
+                              anyOf:
+                                - type: integer
+                                  minimum: 0
+                                  maximum: 31536000
+                                - type: "null"
+                            sort_order:
+                              default: 0
+                              type: integer
+                              minimum: 0
+                              maximum: 10000
+                            id:
+                              type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          required:
+                            - title
+                            - content
+                            - release_after_seconds
+                            - sort_order
+                            - id
+                          additionalProperties: false
                       created_by:
                         type: string
                         allOf:
@@ -2239,6 +2312,7 @@ paths:
                       - scoring_policy
                       - instance_policy
                       - assets
+                      - hints
                       - created_by
                       - created_at
                     additionalProperties: false
@@ -2409,6 +2483,45 @@ paths:
                             - sort_order
                             - id
                           additionalProperties: false
+                      hints:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            title:
+                              type: string
+                              minLength: 1
+                              maxLength: 160
+                            content:
+                              type: string
+                              minLength: 1
+                              maxLength: 100000
+                            release_after_seconds:
+                              default: null
+                              anyOf:
+                                - type: integer
+                                  minimum: 0
+                                  maximum: 31536000
+                                - type: "null"
+                            sort_order:
+                              default: 0
+                              type: integer
+                              minimum: 0
+                              maximum: 10000
+                            id:
+                              type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          required:
+                            - title
+                            - content
+                            - release_after_seconds
+                            - sort_order
+                            - id
+                          additionalProperties: false
                       created_by:
                         type: string
                         allOf:
@@ -2432,6 +2545,7 @@ paths:
                       - scoring_policy
                       - instance_policy
                       - assets
+                      - hints
                       - created_by
                       - created_at
                     additionalProperties: false
@@ -2537,6 +2651,38 @@ paths:
                     required:
                       - content_object_id
                       - display_name
+                      - sort_order
+                    additionalProperties: false
+                hints:
+                  maxItems: 100
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      title:
+                        type: string
+                        minLength: 1
+                        maxLength: 160
+                      content:
+                        type: string
+                        minLength: 1
+                        maxLength: 100000
+                      release_after_seconds:
+                        default: null
+                        anyOf:
+                          - type: integer
+                            minimum: 0
+                            maximum: 31536000
+                          - type: "null"
+                      sort_order:
+                        default: 0
+                        type: integer
+                        minimum: 0
+                        maximum: 10000
+                    required:
+                      - title
+                      - content
+                      - release_after_seconds
                       - sort_order
                     additionalProperties: false
                 reason:
@@ -2690,6 +2836,45 @@ paths:
                             - sort_order
                             - id
                           additionalProperties: false
+                      hints:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            title:
+                              type: string
+                              minLength: 1
+                              maxLength: 160
+                            content:
+                              type: string
+                              minLength: 1
+                              maxLength: 100000
+                            release_after_seconds:
+                              default: null
+                              anyOf:
+                                - type: integer
+                                  minimum: 0
+                                  maximum: 31536000
+                                - type: "null"
+                            sort_order:
+                              default: 0
+                              type: integer
+                              minimum: 0
+                              maximum: 10000
+                            id:
+                              type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          required:
+                            - title
+                            - content
+                            - release_after_seconds
+                            - sort_order
+                            - id
+                          additionalProperties: false
                       created_by:
                         type: string
                         allOf:
@@ -2713,6 +2898,7 @@ paths:
                       - scoring_policy
                       - instance_policy
                       - assets
+                      - hints
                       - created_by
                       - created_at
                     additionalProperties: false
@@ -2891,6 +3077,45 @@ paths:
                             - sort_order
                             - id
                           additionalProperties: false
+                      hints:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            title:
+                              type: string
+                              minLength: 1
+                              maxLength: 160
+                            content:
+                              type: string
+                              minLength: 1
+                              maxLength: 100000
+                            release_after_seconds:
+                              default: null
+                              anyOf:
+                                - type: integer
+                                  minimum: 0
+                                  maximum: 31536000
+                                - type: "null"
+                            sort_order:
+                              default: 0
+                              type: integer
+                              minimum: 0
+                              maximum: 10000
+                            id:
+                              type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          required:
+                            - title
+                            - content
+                            - release_after_seconds
+                            - sort_order
+                            - id
+                          additionalProperties: false
                       created_by:
                         type: string
                         allOf:
@@ -2914,6 +3139,7 @@ paths:
                       - scoring_policy
                       - instance_policy
                       - assets
+                      - hints
                       - created_by
                       - created_at
                     additionalProperties: false
@@ -2925,6 +3151,930 @@ paths:
         "401": *a1
         "403": *a1
         "404": *a1
+  /api/admin/contests/{contestId}/challenges:
+    post:
+      operationId: mountContestChallenge
+      tags:
+        - Administration
+        - Challenges
+      security:
+        - cookieSession: []
+      parameters:
+        - name: contestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - *a2
+        - *a3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                template_version_id:
+                  type: string
+                  allOf:
+                    - type: string
+                      pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                    - type: string
+                      pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                enabled:
+                  default: false
+                  type: boolean
+                publish_at:
+                  default: null
+                  anyOf:
+                    - type: string
+                      format: date-time
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                    - type: "null"
+                close_at:
+                  default: null
+                  anyOf:
+                    - type: string
+                      format: date-time
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                    - type: "null"
+                submission_limit:
+                  default: null
+                  anyOf:
+                    - type: integer
+                      exclusiveMinimum: 0
+                      maximum: 1000000
+                    - type: "null"
+                sort_order:
+                  default: 0
+                  type: integer
+                  minimum: 0
+                  maximum: 10000
+              required:
+                - template_version_id
+                - enabled
+                - publish_at
+                - close_at
+                - submission_limit
+                - sort_order
+              additionalProperties: false
+      responses:
+        "201":
+          description: Independent contest challenge snapshot mounted from one immutable template version
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  challenge:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      contest_id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      source_template_id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      source_version_id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      source_version_number:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      snapshot_revision:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      title:
+                        type: string
+                        minLength: 1
+                        maxLength: 160
+                      category:
+                        type: string
+                        enum:
+                          - web
+                          - pwn
+                          - crypto
+                          - reverse
+                          - misc
+                          - forensics
+                      description:
+                        type: string
+                        minLength: 1
+                        maxLength: 100000
+                      flag_format:
+                        anyOf:
+                          - type: string
+                            minLength: 1
+                            maxLength: 160
+                          - type: "null"
+                      flag_policy:
+                        type: object
+                        propertyNames:
+                          type: string
+                        additionalProperties: {}
+                      scoring_policy:
+                        type: object
+                        propertyNames:
+                          type: string
+                        additionalProperties: {}
+                      instance_policy:
+                        type: object
+                        propertyNames:
+                          type: string
+                        additionalProperties: {}
+                      assets:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            content_object_id:
+                              type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                            display_name:
+                              type: string
+                              minLength: 1
+                              maxLength: 255
+                            sort_order:
+                              default: 0
+                              type: integer
+                              minimum: 0
+                              maximum: 10000
+                            id:
+                              type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          required:
+                            - content_object_id
+                            - display_name
+                            - sort_order
+                            - id
+                          additionalProperties: false
+                      hints:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            title:
+                              type: string
+                              minLength: 1
+                              maxLength: 160
+                            content:
+                              type: string
+                              minLength: 1
+                              maxLength: 100000
+                            release_at:
+                              anyOf:
+                                - type: string
+                                  format: date-time
+                                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                                - type: "null"
+                            sort_order:
+                              default: 0
+                              type: integer
+                              minimum: 0
+                              maximum: 10000
+                            id:
+                              type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          required:
+                            - title
+                            - content
+                            - release_at
+                            - sort_order
+                            - id
+                          additionalProperties: false
+                      enabled:
+                        type: boolean
+                      publish_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      close_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      submission_limit:
+                        anyOf:
+                          - type: integer
+                            exclusiveMinimum: 0
+                            maximum: 1000000
+                          - type: "null"
+                      sort_order:
+                        type: integer
+                        minimum: 0
+                        maximum: 10000
+                      version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      created_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      updated_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                    required:
+                      - id
+                      - contest_id
+                      - source_template_id
+                      - source_version_id
+                      - source_version_number
+                      - snapshot_revision
+                      - title
+                      - category
+                      - description
+                      - flag_format
+                      - flag_policy
+                      - scoring_policy
+                      - instance_policy
+                      - assets
+                      - hints
+                      - enabled
+                      - publish_at
+                      - close_at
+                      - submission_limit
+                      - sort_order
+                      - version
+                      - created_at
+                      - updated_at
+                    additionalProperties: false
+                required:
+                  - challenge
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "404": *a1
+        "409": *a1
+  /api/admin/contests/{contestId}/challenges/{challengeId}:
+    get:
+      operationId: getManagedContestChallenge
+      tags:
+        - Administration
+        - Challenges
+      security:
+        - cookieSession: []
+      parameters:
+        - name: contestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: challengeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Managed contest challenge snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  challenge:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      contest_id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      source_template_id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      source_version_id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      source_version_number:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      snapshot_revision:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      title:
+                        type: string
+                        minLength: 1
+                        maxLength: 160
+                      category:
+                        type: string
+                        enum:
+                          - web
+                          - pwn
+                          - crypto
+                          - reverse
+                          - misc
+                          - forensics
+                      description:
+                        type: string
+                        minLength: 1
+                        maxLength: 100000
+                      flag_format:
+                        anyOf:
+                          - type: string
+                            minLength: 1
+                            maxLength: 160
+                          - type: "null"
+                      flag_policy:
+                        type: object
+                        propertyNames:
+                          type: string
+                        additionalProperties: {}
+                      scoring_policy:
+                        type: object
+                        propertyNames:
+                          type: string
+                        additionalProperties: {}
+                      instance_policy:
+                        type: object
+                        propertyNames:
+                          type: string
+                        additionalProperties: {}
+                      assets:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            content_object_id:
+                              type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                            display_name:
+                              type: string
+                              minLength: 1
+                              maxLength: 255
+                            sort_order:
+                              default: 0
+                              type: integer
+                              minimum: 0
+                              maximum: 10000
+                            id:
+                              type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          required:
+                            - content_object_id
+                            - display_name
+                            - sort_order
+                            - id
+                          additionalProperties: false
+                      hints:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            title:
+                              type: string
+                              minLength: 1
+                              maxLength: 160
+                            content:
+                              type: string
+                              minLength: 1
+                              maxLength: 100000
+                            release_at:
+                              anyOf:
+                                - type: string
+                                  format: date-time
+                                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                                - type: "null"
+                            sort_order:
+                              default: 0
+                              type: integer
+                              minimum: 0
+                              maximum: 10000
+                            id:
+                              type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          required:
+                            - title
+                            - content
+                            - release_at
+                            - sort_order
+                            - id
+                          additionalProperties: false
+                      enabled:
+                        type: boolean
+                      publish_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      close_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      submission_limit:
+                        anyOf:
+                          - type: integer
+                            exclusiveMinimum: 0
+                            maximum: 1000000
+                          - type: "null"
+                      sort_order:
+                        type: integer
+                        minimum: 0
+                        maximum: 10000
+                      version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      created_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      updated_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                    required:
+                      - id
+                      - contest_id
+                      - source_template_id
+                      - source_version_id
+                      - source_version_number
+                      - snapshot_revision
+                      - title
+                      - category
+                      - description
+                      - flag_format
+                      - flag_policy
+                      - scoring_policy
+                      - instance_policy
+                      - assets
+                      - hints
+                      - enabled
+                      - publish_at
+                      - close_at
+                      - submission_limit
+                      - sort_order
+                      - version
+                      - created_at
+                      - updated_at
+                    additionalProperties: false
+                required:
+                  - challenge
+                additionalProperties: false
+        "401": *a1
+        "403": *a1
+        "404": *a1
+  /api/admin/contests/{contestId}/challenges/{challengeId}/revisions:
+    post:
+      operationId: reviseContestChallengeSnapshot
+      tags:
+        - Administration
+        - Challenges
+      security:
+        - cookieSession: []
+      parameters:
+        - name: contestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: challengeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - *a2
+        - *a3
+        - *a4
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 160
+                category:
+                  type: string
+                  enum:
+                    - web
+                    - pwn
+                    - crypto
+                    - reverse
+                    - misc
+                    - forensics
+                description:
+                  type: string
+                  minLength: 1
+                  maxLength: 100000
+                flag_format:
+                  anyOf:
+                    - type: string
+                      minLength: 1
+                      maxLength: 160
+                    - type: "null"
+                flag_policy:
+                  type: object
+                  propertyNames:
+                    type: string
+                  additionalProperties: {}
+                scoring_policy:
+                  type: object
+                  propertyNames:
+                    type: string
+                  additionalProperties: {}
+                instance_policy:
+                  type: object
+                  propertyNames:
+                    type: string
+                  additionalProperties: {}
+                assets:
+                  maxItems: 100
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      content_object_id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      display_name:
+                        type: string
+                        minLength: 1
+                        maxLength: 255
+                      sort_order:
+                        default: 0
+                        type: integer
+                        minimum: 0
+                        maximum: 10000
+                    required:
+                      - content_object_id
+                      - display_name
+                      - sort_order
+                    additionalProperties: false
+                hints:
+                  maxItems: 100
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      title:
+                        type: string
+                        minLength: 1
+                        maxLength: 160
+                      content:
+                        type: string
+                        minLength: 1
+                        maxLength: 100000
+                      release_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      sort_order:
+                        default: 0
+                        type: integer
+                        minimum: 0
+                        maximum: 10000
+                    required:
+                      - title
+                      - content
+                      - release_at
+                      - sort_order
+                    additionalProperties: false
+                enabled:
+                  type: boolean
+                publish_at:
+                  anyOf:
+                    - type: string
+                      format: date-time
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                    - type: "null"
+                close_at:
+                  anyOf:
+                    - type: string
+                      format: date-time
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                    - type: "null"
+                submission_limit:
+                  anyOf:
+                    - type: integer
+                      exclusiveMinimum: 0
+                      maximum: 1000000
+                    - type: "null"
+                sort_order:
+                  type: integer
+                  minimum: 0
+                  maximum: 10000
+                reason:
+                  type: string
+                  minLength: 3
+                  maxLength: 1000
+              required:
+                - reason
+              additionalProperties: false
+      responses:
+        "200":
+          description: Published contest challenge snapshot explicitly revised with a new revision and resource version
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  challenge:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      contest_id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      source_template_id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      source_version_id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      source_version_number:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      snapshot_revision:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      title:
+                        type: string
+                        minLength: 1
+                        maxLength: 160
+                      category:
+                        type: string
+                        enum:
+                          - web
+                          - pwn
+                          - crypto
+                          - reverse
+                          - misc
+                          - forensics
+                      description:
+                        type: string
+                        minLength: 1
+                        maxLength: 100000
+                      flag_format:
+                        anyOf:
+                          - type: string
+                            minLength: 1
+                            maxLength: 160
+                          - type: "null"
+                      flag_policy:
+                        type: object
+                        propertyNames:
+                          type: string
+                        additionalProperties: {}
+                      scoring_policy:
+                        type: object
+                        propertyNames:
+                          type: string
+                        additionalProperties: {}
+                      instance_policy:
+                        type: object
+                        propertyNames:
+                          type: string
+                        additionalProperties: {}
+                      assets:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            content_object_id:
+                              type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                            display_name:
+                              type: string
+                              minLength: 1
+                              maxLength: 255
+                            sort_order:
+                              default: 0
+                              type: integer
+                              minimum: 0
+                              maximum: 10000
+                            id:
+                              type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          required:
+                            - content_object_id
+                            - display_name
+                            - sort_order
+                            - id
+                          additionalProperties: false
+                      hints:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            title:
+                              type: string
+                              minLength: 1
+                              maxLength: 160
+                            content:
+                              type: string
+                              minLength: 1
+                              maxLength: 100000
+                            release_at:
+                              anyOf:
+                                - type: string
+                                  format: date-time
+                                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                                - type: "null"
+                            sort_order:
+                              default: 0
+                              type: integer
+                              minimum: 0
+                              maximum: 10000
+                            id:
+                              type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          required:
+                            - title
+                            - content
+                            - release_at
+                            - sort_order
+                            - id
+                          additionalProperties: false
+                      enabled:
+                        type: boolean
+                      publish_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      close_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      submission_limit:
+                        anyOf:
+                          - type: integer
+                            exclusiveMinimum: 0
+                            maximum: 1000000
+                          - type: "null"
+                      sort_order:
+                        type: integer
+                        minimum: 0
+                        maximum: 10000
+                      version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      created_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      updated_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                    required:
+                      - id
+                      - contest_id
+                      - source_template_id
+                      - source_version_id
+                      - source_version_number
+                      - snapshot_revision
+                      - title
+                      - category
+                      - description
+                      - flag_format
+                      - flag_policy
+                      - scoring_policy
+                      - instance_policy
+                      - assets
+                      - hints
+                      - enabled
+                      - publish_at
+                      - close_at
+                      - submission_limit
+                      - sort_order
+                      - version
+                      - created_at
+                      - updated_at
+                    additionalProperties: false
+                required:
+                  - challenge
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "404": *a1
+        "409": *a1
+        "428": *a1
   /api/admin/contests/{contestId}:
     get:
       operationId: getManagedContest

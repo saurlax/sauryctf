@@ -54,6 +54,7 @@ const detail = {
     scoringPolicy: { type: 'fixed-v1', points: 500 },
     instancePolicy: { type: 'none' },
     assets: [],
+    hints: [],
     createdBy: userId,
     createdAt: new Date('2026-09-01T00:00:00.000Z'),
   },
@@ -117,6 +118,7 @@ const createInput = {
   scoring_policy: { type: 'fixed-v1', points: 500 },
   instance_policy: { type: 'none' },
   assets: [],
+  hints: [],
 }
 
 describe('challenge template HTTP adapters', () => {

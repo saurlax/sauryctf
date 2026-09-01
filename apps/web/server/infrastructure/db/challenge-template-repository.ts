@@ -5,7 +5,7 @@ import {
   ChallengeTemplateSlugConflictError,
   ChallengeTemplateVersionConflictError,
   type ChallengeTemplateAssetCommand,
-  type ChallengeTemplateAssetRecord,
+  type ChallengeTemplateHintRecord,
   type ChallengeTemplateDetail,
   type ChallengeTemplateRepository,
   type CreateChallengeTemplateCommand,
@@ -59,6 +59,7 @@ export class PostgresChallengeTemplateRepository implements ChallengeTemplateRep
       )
       await this.insertVersion(connection, command.versionId, command.templateId, 1, command.actorId, command)
       await this.insertAssets(connection, command.versionId, command.assets)
+      await this.insertHints(connection, command.versionId, command.hints)
       await this.writeAudit(connection, command.actorId, command.requestId, 'challenge.template.created',
         'challenge_template', command.templateId, null, {
           slug: command.slug,
@@ -102,6 +103,7 @@ export class PostgresChallengeTemplateRepository implements ChallengeTemplateRep
         command,
       )
       await this.insertAssets(connection, command.versionId, command.assets)
+      await this.insertHints(connection, command.versionId, command.hints)
       const updated = await connection.query(
         `UPDATE challenge_templates
          SET latest_version = $2, version = version + 1, updated_at = CURRENT_TIMESTAMP
@@ -171,6 +173,19 @@ export class PostgresChallengeTemplateRepository implements ChallengeTemplateRep
        ORDER BY sort_order, id`,
       [row.challenge_version_id],
     )
+    const hints = await connection.query<{
+      id: string
+      title: string
+      content: string
+      release_after_seconds: number | null
+      sort_order: number
+    }>(
+      `SELECT id, title, content, release_after_seconds, sort_order
+       FROM challenge_template_hints
+       WHERE template_version_id = $1
+       ORDER BY sort_order, id`,
+      [row.challenge_version_id],
+    )
     return {
       template: {
         id: row.template_id,
@@ -197,6 +212,13 @@ export class PostgresChallengeTemplateRepository implements ChallengeTemplateRep
           contentObjectId: asset.content_object_id,
           displayName: asset.display_name,
           sortOrder: asset.sort_order,
+        })),
+        hints: hints.rows.map((hint): ChallengeTemplateHintRecord => ({
+          id: hint.id,
+          title: hint.title,
+          content: hint.content,
+          releaseAfterSeconds: hint.release_after_seconds,
+          sortOrder: hint.sort_order,
         })),
         createdBy: row.created_by,
         createdAt: row.version_created_at,
@@ -258,6 +280,21 @@ export class PostgresChallengeTemplateRepository implements ChallengeTemplateRep
            (template_version_id, content_object_id, display_name, sort_order)
          VALUES ($1, $2, $3, $4)`,
         [versionId, asset.contentObjectId, asset.displayName, asset.sortOrder],
+      )
+    }
+  }
+
+  private async insertHints(
+    connection: PoolClient,
+    versionId: string,
+    hints: CreateChallengeTemplateCommand['hints'],
+  ) {
+    for (const hint of hints) {
+      await connection.query(
+        `INSERT INTO challenge_template_hints
+           (template_version_id, title, content, release_after_seconds, sort_order)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [versionId, hint.title, hint.content, hint.releaseAfterSeconds, hint.sortOrder],
       )
     }
   }

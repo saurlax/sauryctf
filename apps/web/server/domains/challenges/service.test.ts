@@ -100,6 +100,12 @@ describeWithPostgres('challenge template immutable version maintenance', () => {
       scoringPolicy: { type: 'fixed-v1', points: 500 },
       instancePolicy: { type: 'none' },
       assets,
+      hints: [{
+        title: 'Starter hint',
+        content: 'Look at the response headers',
+        releaseAfterSeconds: 900,
+        sortOrder: 0,
+      }],
     })
   }
 
@@ -116,6 +122,7 @@ describeWithPostgres('challenge template immutable version maintenance', () => {
         versionNumber: 1,
         description: 'Original immutable statement',
         assets: [expect.objectContaining({ contentObjectId: objectId, displayName: 'starter.zip' })],
+        hints: [expect.objectContaining({ title: 'Starter hint', releaseAfterSeconds: 900 })],
       },
     })
     const audit = await database.pool.query<{ action: string, target_id: string }>(
@@ -186,6 +193,10 @@ describeWithPostgres('challenge template immutable version maintenance', () => {
     await expect(database.pool.query(
       `UPDATE challenge_template_assets SET display_name = 'overwrite.zip' WHERE id = $1`,
       [historical.challengeVersion.assets[0]!.id],
+    )).rejects.toMatchObject({ code: '55000' })
+    await expect(database.pool.query(
+      `UPDATE challenge_template_hints SET content = 'overwrite' WHERE id = $1`,
+      [historical.challengeVersion.hints[0]!.id],
     )).rejects.toMatchObject({ code: '55000' })
   })
 

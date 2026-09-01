@@ -7,6 +7,14 @@ export interface ChallengeTemplateAssetRecord {
   sortOrder: number
 }
 
+export interface ChallengeTemplateHintRecord {
+  id: string
+  title: string
+  content: string
+  releaseAfterSeconds: number | null
+  sortOrder: number
+}
+
 export interface ChallengeTemplateVersionRecord {
   id: string
   templateId: string
@@ -19,6 +27,7 @@ export interface ChallengeTemplateVersionRecord {
   scoringPolicy: Record<string, unknown>
   instancePolicy: Record<string, unknown>
   assets: ChallengeTemplateAssetRecord[]
+  hints: ChallengeTemplateHintRecord[]
   createdBy: string
   createdAt: Date
 }
@@ -44,6 +53,13 @@ export interface ChallengeTemplateAssetCommand {
   sortOrder: number
 }
 
+export interface ChallengeTemplateHintCommand {
+  title: string
+  content: string
+  releaseAfterSeconds: number | null
+  sortOrder: number
+}
+
 export interface ChallengeVersionSnapshotCommand {
   title: string
   category: ChallengeCategory
@@ -53,6 +69,7 @@ export interface ChallengeVersionSnapshotCommand {
   scoringPolicy: Record<string, unknown>
   instancePolicy: Record<string, unknown>
   assets: ChallengeTemplateAssetCommand[]
+  hints: ChallengeTemplateHintCommand[]
 }
 
 export interface CreateChallengeTemplateCommand extends ChallengeVersionSnapshotCommand {

@@ -9,6 +9,7 @@ import {
   ChallengeTemplateSlugConflictError,
   ChallengeTemplateVersionConflictError,
   type ChallengeTemplateAssetCommand,
+  type ChallengeTemplateHintCommand,
   type ChallengeTemplateDetail,
   type ChallengeTemplateRepository,
   type ChallengeVersionSnapshotCommand,
@@ -46,6 +47,7 @@ interface VersionInput {
   scoringPolicy: Record<string, unknown>
   instancePolicy: Record<string, unknown>
   assets: ChallengeTemplateAssetCommand[]
+  hints: ChallengeTemplateHintCommand[]
 }
 
 export class ChallengeTemplateService {
@@ -86,6 +88,7 @@ export class ChallengeTemplateService {
     scoringPolicy?: Record<string, unknown>
     instancePolicy?: Record<string, unknown>
     assets?: ChallengeTemplateAssetCommand[]
+    hints?: ChallengeTemplateHintCommand[]
   }): Promise<ChallengeTemplateDetail> {
     requireIdentityCapability(actor, identityCapability.contestManage)
     const current = await this.map(() => this.repository.read(input.templateId))
@@ -104,6 +107,12 @@ export class ChallengeTemplateService {
         contentObjectId: asset.contentObjectId,
         displayName: asset.displayName,
         sortOrder: asset.sortOrder,
+      })),
+      hints: input.hints ?? current.challengeVersion.hints.map(hint => ({
+        title: hint.title,
+        content: hint.content,
+        releaseAfterSeconds: hint.releaseAfterSeconds,
+        sortOrder: hint.sortOrder,
       })),
     })
     if (isDeepStrictEqual(this.snapshot(current.challengeVersion), next)) {
@@ -133,6 +142,12 @@ export class ChallengeTemplateService {
         contentObjectId: asset.contentObjectId,
         displayName: asset.displayName.trim(),
         sortOrder: asset.sortOrder,
+      })),
+      hints: input.hints.map(hint => ({
+        title: hint.title.trim(),
+        content: hint.content.trim(),
+        releaseAfterSeconds: hint.releaseAfterSeconds,
+        sortOrder: hint.sortOrder,
       })),
     }
   }

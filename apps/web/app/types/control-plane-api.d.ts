@@ -90,6 +90,15 @@ export interface paths {
   "/api/admin/challenge-templates/{templateId}/versions/{versionNumber}": {
     get: operations["getChallengeTemplateVersion"];
   };
+  "/api/admin/contests/{contestId}/challenges": {
+    post: operations["mountContestChallenge"];
+  };
+  "/api/admin/contests/{contestId}/challenges/{challengeId}": {
+    get: operations["getManagedContestChallenge"];
+  };
+  "/api/admin/contests/{contestId}/challenges/{challengeId}/revisions": {
+    post: operations["reviseContestChallengeSnapshot"];
+  };
   "/api/admin/contests/{contestId}": {
     get: operations["getManagedContest"];
     patch: operations["updateContestDraft"];
@@ -1489,6 +1498,15 @@ export interface operations {
               /** @default 0 */
               sort_order: number;
             }[];
+          /** @default [] */
+          hints: ({
+              title: string;
+              content: string;
+              /** @default null */
+              release_after_seconds: number | null;
+              /** @default 0 */
+              sort_order: number;
+            })[];
         };
       };
     };
@@ -1533,6 +1551,15 @@ export interface operations {
                   sort_order: number;
                   id: string;
                 }[];
+              hints: ({
+                  title: string;
+                  content: string;
+                  /** @default null */
+                  release_after_seconds: number | null;
+                  /** @default 0 */
+                  sort_order: number;
+                  id: string;
+                })[];
               created_by: string;
               /** Format: date-time */
               created_at: string;
@@ -1613,6 +1640,15 @@ export interface operations {
                   sort_order: number;
                   id: string;
                 }[];
+              hints: ({
+                  title: string;
+                  content: string;
+                  /** @default null */
+                  release_after_seconds: number | null;
+                  /** @default 0 */
+                  sort_order: number;
+                  id: string;
+                })[];
               created_by: string;
               /** Format: date-time */
               created_at: string;
@@ -1677,6 +1713,14 @@ export interface operations {
               /** @default 0 */
               sort_order: number;
             }[];
+          hints?: ({
+              title: string;
+              content: string;
+              /** @default null */
+              release_after_seconds: number | null;
+              /** @default 0 */
+              sort_order: number;
+            })[];
           reason: string;
         };
       };
@@ -1722,6 +1766,15 @@ export interface operations {
                   sort_order: number;
                   id: string;
                 }[];
+              hints: ({
+                  title: string;
+                  content: string;
+                  /** @default null */
+                  release_after_seconds: number | null;
+                  /** @default 0 */
+                  sort_order: number;
+                  id: string;
+                })[];
               created_by: string;
               /** Format: date-time */
               created_at: string;
@@ -1815,6 +1868,15 @@ export interface operations {
                   sort_order: number;
                   id: string;
                 }[];
+              hints: ({
+                  title: string;
+                  content: string;
+                  /** @default null */
+                  release_after_seconds: number | null;
+                  /** @default 0 */
+                  sort_order: number;
+                  id: string;
+                })[];
               created_by: string;
               /** Format: date-time */
               created_at: string;
@@ -1842,6 +1904,351 @@ export interface operations {
       };
       /** @description Stable API error */
       404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  mountContestChallenge: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          template_version_id: string;
+          /** @default false */
+          enabled: boolean;
+          /** @default null */
+          publish_at: string | null;
+          /** @default null */
+          close_at: string | null;
+          /** @default null */
+          submission_limit: number | null;
+          /** @default 0 */
+          sort_order: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Independent contest challenge snapshot mounted from one immutable template version */
+      201: {
+        content: {
+          "application/json": {
+            challenge: {
+              id: string;
+              contest_id: string;
+              source_template_id: string;
+              source_version_id: string;
+              source_version_number: number;
+              snapshot_revision: number;
+              title: string;
+              /** @enum {string} */
+              category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
+              description: string;
+              flag_format: string | null;
+              flag_policy: {
+                [key: string]: unknown;
+              };
+              scoring_policy: {
+                [key: string]: unknown;
+              };
+              instance_policy: {
+                [key: string]: unknown;
+              };
+              assets: {
+                  content_object_id: string;
+                  display_name: string;
+                  /** @default 0 */
+                  sort_order: number;
+                  id: string;
+                }[];
+              hints: ({
+                  title: string;
+                  content: string;
+                  release_at: string | null;
+                  /** @default 0 */
+                  sort_order: number;
+                  id: string;
+                })[];
+              enabled: boolean;
+              publish_at: string | null;
+              close_at: string | null;
+              submission_limit: number | null;
+              sort_order: number;
+              version: number;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              updated_at: string;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  getManagedContestChallenge: {
+    parameters: {
+      path: {
+        contestId: string;
+        challengeId: string;
+      };
+    };
+    responses: {
+      /** @description Managed contest challenge snapshot */
+      200: {
+        content: {
+          "application/json": {
+            challenge: {
+              id: string;
+              contest_id: string;
+              source_template_id: string;
+              source_version_id: string;
+              source_version_number: number;
+              snapshot_revision: number;
+              title: string;
+              /** @enum {string} */
+              category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
+              description: string;
+              flag_format: string | null;
+              flag_policy: {
+                [key: string]: unknown;
+              };
+              scoring_policy: {
+                [key: string]: unknown;
+              };
+              instance_policy: {
+                [key: string]: unknown;
+              };
+              assets: {
+                  content_object_id: string;
+                  display_name: string;
+                  /** @default 0 */
+                  sort_order: number;
+                  id: string;
+                }[];
+              hints: ({
+                  title: string;
+                  content: string;
+                  release_at: string | null;
+                  /** @default 0 */
+                  sort_order: number;
+                  id: string;
+                })[];
+              enabled: boolean;
+              publish_at: string | null;
+              close_at: string | null;
+              submission_limit: number | null;
+              sort_order: number;
+              version: number;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              updated_at: string;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  reviseContestChallengeSnapshot: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+        /** @description Strong ETag containing the current resource version. */
+        "If-Match": string;
+      };
+      path: {
+        contestId: string;
+        challengeId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title?: string;
+          /** @enum {string} */
+          category?: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
+          description?: string;
+          flag_format?: string | null;
+          flag_policy?: {
+            [key: string]: unknown;
+          };
+          scoring_policy?: {
+            [key: string]: unknown;
+          };
+          instance_policy?: {
+            [key: string]: unknown;
+          };
+          assets?: {
+              content_object_id: string;
+              display_name: string;
+              /** @default 0 */
+              sort_order: number;
+            }[];
+          hints?: ({
+              title: string;
+              content: string;
+              release_at: string | null;
+              /** @default 0 */
+              sort_order: number;
+            })[];
+          enabled?: boolean;
+          publish_at?: string | null;
+          close_at?: string | null;
+          submission_limit?: number | null;
+          sort_order?: number;
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Published contest challenge snapshot explicitly revised with a new revision and resource version */
+      200: {
+        content: {
+          "application/json": {
+            challenge: {
+              id: string;
+              contest_id: string;
+              source_template_id: string;
+              source_version_id: string;
+              source_version_number: number;
+              snapshot_revision: number;
+              title: string;
+              /** @enum {string} */
+              category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
+              description: string;
+              flag_format: string | null;
+              flag_policy: {
+                [key: string]: unknown;
+              };
+              scoring_policy: {
+                [key: string]: unknown;
+              };
+              instance_policy: {
+                [key: string]: unknown;
+              };
+              assets: {
+                  content_object_id: string;
+                  display_name: string;
+                  /** @default 0 */
+                  sort_order: number;
+                  id: string;
+                }[];
+              hints: ({
+                  title: string;
+                  content: string;
+                  release_at: string | null;
+                  /** @default 0 */
+                  sort_order: number;
+                  id: string;
+                })[];
+              enabled: boolean;
+              publish_at: string | null;
+              close_at: string | null;
+              submission_limit: number | null;
+              sort_order: number;
+              version: number;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              updated_at: string;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      428: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };

@@ -473,6 +473,21 @@ export const challengeTemplateAssets = pgTable('challenge_template_assets', {
   check('challenge_template_assets_display_name_not_empty', sql`length(btrim(${table.displayName})) > 0`),
 ])
 
+export const challengeTemplateHints = pgTable('challenge_template_hints', {
+  id: uuid().primaryKey().defaultRandom(),
+  templateVersionId: uuid('template_version_id').notNull().references(() => challengeTemplateVersions.id),
+  title: varchar({ length: 160 }).notNull(),
+  content: text().notNull(),
+  releaseAfterSeconds: integer('release_after_seconds'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+}, (table) => [
+  index('challenge_template_hints_version_order').on(table.templateVersionId, table.sortOrder, table.id),
+  check('challenge_template_hints_title_not_empty', sql`length(btrim(${table.title})) > 0`),
+  check('challenge_template_hints_content_not_empty', sql`length(btrim(${table.content})) > 0`),
+  check('challenge_template_hints_release_nonnegative', sql`${table.releaseAfterSeconds} IS NULL OR ${table.releaseAfterSeconds} >= 0`),
+])
+
 export const contestChallenges = pgTable('contest_challenges', {
   id: uuid().primaryKey().defaultRandom(),
   contestId: uuid('contest_id').notNull().references(() => contests.id, { onDelete: 'cascade' }),
