@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -78,6 +80,87 @@ func TestPostgresRepositoryRenewsOnlyCurrentLease(t *testing.T) {
 	if err := repository.Renew(ctx, stale, 20*time.Second); !errors.Is(err, ErrLeaseLost) {
 		t.Fatalf("stale Renew() error = %v, want ErrLeaseLost", err)
 	}
+}
+
+func TestRecordObservationRequiresCurrentLeaseAndGeneration(t *testing.T) {
+	t.Run("current lease writes complete observation", func(t *testing.T) {
+		pool := openJobsTestDatabase(t)
+		repository := NewPostgresRepository(pool)
+		jobID := insertInspectJob(t, pool, 90)
+		lease := claimOne(t, repository, "worker-a", 5*time.Second)
+		observation := runningObservation()
+		if err := repository.RecordObservation(context.Background(), lease, observation); err != nil {
+			t.Fatalf("RecordObservation() error = %v", err)
+		}
+
+		var state string
+		var generation int64
+		var resourceID string
+		var entrypoints json.RawMessage
+		var ciphertext []byte
+		var observedAt *time.Time
+		var errorCode *string
+		var version int64
+		if err := pool.QueryRow(context.Background(), `
+			SELECT observed_state::text, observed_generation, provider_resource_id,
+			       entrypoints, access_ciphertext, last_observed_at,
+			       last_error_code, version
+			FROM instances WHERE id = $1`, instanceIDFor(90)).Scan(
+			&state, &generation, &resourceID, &entrypoints, &ciphertext,
+			&observedAt, &errorCode, &version,
+		); err != nil {
+			t.Fatal(err)
+		}
+		expectedEntrypoints, err := json.Marshal(observation.Entrypoints)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if state != "running" || generation != 7 || resourceID != observation.ProviderResourceID || !jsonEqual(entrypoints, expectedEntrypoints) || !bytes.Equal(ciphertext, observation.AccessCiphertext) || observedAt == nil || errorCode != nil || version != 2 {
+			t.Fatalf("observation state = %s/%d/%s/%s/%x/%v/%v/%d for job %s", state, generation, resourceID, entrypoints, ciphertext, observedAt, errorCode, version, jobID)
+		}
+	})
+
+	t.Run("expired worker cannot overwrite reclaimed observation", func(t *testing.T) {
+		pool := openJobsTestDatabase(t)
+		repository := NewPostgresRepository(pool)
+		insertInspectJob(t, pool, 91)
+		oldLease := claimOne(t, repository, "worker-a", 5*time.Second)
+		if _, err := pool.Exec(context.Background(), `
+			UPDATE instance_jobs SET lease_until = clock_timestamp() - interval '1 second'
+			WHERE id = $1`, string(oldLease.Job.JobID)); err != nil {
+			t.Fatal(err)
+		}
+		if err := repository.RecordObservation(context.Background(), oldLease, runningObservation()); !errors.Is(err, ErrObservationRejected) {
+			t.Fatalf("expired RecordObservation() error = %v, want ErrObservationRejected", err)
+		}
+		currentLease := claimOne(t, repository, "worker-b", 5*time.Second)
+		currentObservation := Observation{State: ObservedStarting, ProviderResourceID: "pod/current-generation"}
+		if err := repository.RecordObservation(context.Background(), currentLease, currentObservation); err != nil {
+			t.Fatalf("current RecordObservation() error = %v", err)
+		}
+		if err := repository.RecordObservation(context.Background(), oldLease, Observation{
+			State: ObservedFailed, ErrorCode: "provider.stale", ErrorSummary: "Stale worker result",
+		}); !errors.Is(err, ErrObservationRejected) {
+			t.Fatalf("stale RecordObservation() error = %v, want ErrObservationRejected", err)
+		}
+		assertObservedSummary(t, pool, instanceIDFor(91), "starting", 7, "pod/current-generation", 2)
+	})
+
+	t.Run("old generation cannot overwrite new desired state", func(t *testing.T) {
+		pool := openJobsTestDatabase(t)
+		repository := NewPostgresRepository(pool)
+		insertInspectJob(t, pool, 92)
+		lease := claimOne(t, repository, "worker-a", 5*time.Second)
+		if _, err := pool.Exec(context.Background(), `
+			UPDATE instances SET desired_generation = desired_generation + 1
+			WHERE id = $1`, instanceIDFor(92)); err != nil {
+			t.Fatal(err)
+		}
+		if err := repository.RecordObservation(context.Background(), lease, runningObservation()); !errors.Is(err, ErrObservationRejected) {
+			t.Fatalf("old generation RecordObservation() error = %v, want ErrObservationRejected", err)
+		}
+		assertObservedSummary(t, pool, instanceIDFor(92), "pending", 0, "", 1)
+	})
 }
 
 func TestFailureInjectionPersistsEveryJobOutcome(t *testing.T) {
@@ -488,6 +571,47 @@ func instanceIDFor(index int) string {
 	return fmt.Sprintf("018f47a2-4ef8-7e2c-9c24-%012x", index+0x100000)
 }
 
+func runningObservation() Observation {
+	return Observation{
+		State:              ObservedRunning,
+		ProviderResourceID: "pod/current-generation",
+		Entrypoints: []Entrypoint{{
+			Name: "web", Protocol: "http", Host: "challenge.example.test", Port: 443,
+			URL: "https://challenge.example.test/instance/current",
+		}},
+		AccessCiphertext: []byte("sealed-access-data"),
+	}
+}
+
+func jsonEqual(first, second []byte) bool {
+	var firstValue any
+	var secondValue any
+	if json.Unmarshal(first, &firstValue) != nil || json.Unmarshal(second, &secondValue) != nil {
+		return false
+	}
+	return reflect.DeepEqual(firstValue, secondValue)
+}
+
+func assertObservedSummary(t *testing.T, pool *pgxpool.Pool, instanceID, wantState string, wantGeneration int64, wantResourceID string, wantVersion int64) {
+	t.Helper()
+	var state string
+	var generation int64
+	var resourceID *string
+	var version int64
+	if err := pool.QueryRow(context.Background(), `
+		SELECT observed_state::text, observed_generation, provider_resource_id, version
+		FROM instances WHERE id = $1`, instanceID).Scan(&state, &generation, &resourceID, &version); err != nil {
+		t.Fatal(err)
+	}
+	actualResourceID := ""
+	if resourceID != nil {
+		actualResourceID = *resourceID
+	}
+	if state != wantState || generation != wantGeneration || actualResourceID != wantResourceID || version != wantVersion {
+		t.Fatalf("observed summary = %s/%d/%s/%d, want %s/%d/%s/%d", state, generation, actualResourceID, version, wantState, wantGeneration, wantResourceID, wantVersion)
+	}
+}
+
 func assertJobStatus(t *testing.T, pool *pgxpool.Pool, jobID string, wantStatus JobStatus, wantErrorCode string) {
 	t.Helper()
 	var status string
@@ -567,9 +691,22 @@ CREATE TYPE instance_job_status AS ENUM (
 CREATE TYPE instance_attempt_outcome AS ENUM (
   'running', 'succeeded', 'retryable_error', 'permanent_error', 'cancelled', 'lease_lost'
 );
+CREATE TYPE instance_observed_state AS ENUM (
+  'pending', 'starting', 'running', 'stopping', 'stopped', 'failed', 'unknown'
+);
 CREATE TABLE instances (
   id uuid PRIMARY KEY,
-  desired_generation bigint NOT NULL
+  desired_generation bigint NOT NULL,
+  observed_state instance_observed_state NOT NULL DEFAULT 'pending',
+  observed_generation bigint NOT NULL DEFAULT 0,
+  provider_resource_id text,
+  entrypoints jsonb NOT NULL DEFAULT '[]'::jsonb,
+  access_ciphertext bytea,
+  last_observed_at timestamptz,
+  last_error_code text,
+  last_error_summary text,
+  version bigint NOT NULL DEFAULT 1,
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE instance_jobs (
   id uuid PRIMARY KEY,

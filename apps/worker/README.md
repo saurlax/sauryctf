@@ -56,4 +56,11 @@ older job `superseded`; expired fencing owners are recorded as `lease_lost`.
 Queue rows retain the latest safe error code and summary while the attempts
 table preserves the complete execution history for later dead-letter replay.
 
+Observation writes are conditional on the current job id, Worker owner,
+unexpired lease, fencing token, instance id, and desired generation. They
+advance `observed_generation` and the instance version together, so an expired
+Worker or a job from an older desired generation cannot overwrite a newer
+resource observation. Only validated ready entrypoints and sealed access bytes
+may be stored for a `running` instance.
+
 Run locally with `pnpm dev:worker` after configuring the Worker variables.
