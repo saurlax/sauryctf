@@ -54,7 +54,7 @@ const record: ContestChallengeRecord = {
   category: 'web' as const,
   description: 'Contest statement snapshot',
   flagFormat: 'flag{...}',
-  flagPolicy: { type: 'static', digest: 'masked' },
+  flagPolicy: { type: 'static', digest: 'a'.repeat(64) },
   scoringPolicy: { type: 'fixed-v1', points: 500 },
   instancePolicy: { type: 'none' },
   assets: [{ id: assetId, contentObjectId: objectId, displayName: 'starter.zip', sortOrder: 0 }],

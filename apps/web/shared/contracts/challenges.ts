@@ -12,7 +12,7 @@ export const challengeCategorySchema = z.enum([
 
 export const staticFlagPolicySchema = z.strictObject({
   type: z.literal('static'),
-  digest: z.string().trim().min(1).max(512),
+  digest: z.string().trim().regex(/^[a-f0-9]{64}$/iu, '静态 Flag 摘要必须是 SHA-256 十六进制值'),
 })
 
 export const teamDerivedFlagPolicySchema = z.strictObject({

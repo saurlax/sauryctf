@@ -71,6 +71,8 @@ describe('orthogonal challenge policy contracts', () => {
 
   it('rejects unsupported, incomplete, and mixed policy shapes', () => {
     expect(challengeFlagPolicySchema.safeParse({ type: 'static' }).success).toBe(false)
+    expect(challengeFlagPolicySchema.safeParse({ type: 'static', digest: 'masked' }).success).toBe(false)
+    expect(challengeFlagPolicySchema.safeParse({ type: 'static', digest: 'a'.repeat(64) }).success).toBe(true)
     expect(challengeFlagPolicySchema.safeParse({
       type: 'team-derived', key_version: 1, digest: 'must-not-mix-strategies',
     }).success).toBe(false)
