@@ -11,24 +11,31 @@ const router = useRouter()
 const route = useRoute()
 const toast = useToast()
 const config = useRuntimeConfig()
+const { errorMessage, platformSettings, t } = usePlatformUi()
 const submitting = ref(false)
 
 const redirectTarget = computed(() => {
   return resolveAuthRedirect(route.query.redirect, '/console/team')
 })
 
-const registerSchema = z.object({
-  username: z.string().min(3, '用户名至少 3 个字符'),
-  email: z.string().email('请输入有效邮箱'),
-  password: z.string().min(6, '密码至少 6 个字符'),
-  confirm_password: z.string().min(6, '确认密码至少 6 个字符'),
+const registerSchema = computed(() => z.object({
+  username: z.string().min(3, t('validation.username_min')),
+  email: z.string().email(t('validation.email')),
+  password: z.string().min(6, t('validation.password_min_6')),
+  confirm_password: z.string().min(6, t('validation.confirm_password_min_6')),
   turnstile_token: z.string().optional(),
 }).refine(value => value.password === value.confirm_password, {
-  message: '两次输入的密码不一致',
+  message: t('validation.password_mismatch'),
   path: ['confirm_password'],
-})
+}))
 
-type RegisterSchema = z.output<typeof registerSchema>
+interface RegisterSchema {
+  username: string
+  email: string
+  password: string
+  confirm_password: string
+  turnstile_token?: string
+}
 
 const state = reactive<Partial<RegisterSchema>>({
   username: '',
@@ -44,15 +51,15 @@ async function onRegister(payload: FormSubmitEvent<RegisterSchema>) {
     await register(payload.data.username, payload.data.email, payload.data.password, payload.data.turnstile_token)
     try {
       await requestEmailVerification()
-      toast.add({ title: '注册成功', description: '验证邮件已进入发送队列。', color: 'success' })
+      toast.add({ title: t('auth.register.success'), description: t('auth.register.verification_queued'), color: 'success' })
     }
     catch {
-      toast.add({ title: '注册成功', description: '请在账号页重新发送验证邮件。', color: 'warning' })
+      toast.add({ title: t('auth.register.success'), description: t('auth.register.verification_retry'), color: 'warning' })
     }
     await router.push(resolveRedirect())
   }
   catch (e: any) {
-    toast.add({ title: '注册失败', description: controlPlaneErrorMessage(e), color: 'error' })
+    toast.add({ title: t('auth.register.failed'), description: errorMessage(e), color: 'error' })
   }
   finally {
     submitting.value = false
@@ -81,25 +88,28 @@ const loginTo = computed(() => {
 <template>
   <div class="mx-auto max-w-xl py-8">
     <UPageCard
-      title="注册"
-      description="创建平台账号。注册成功后会自动登录。"
+      :title="t('auth.register.title')"
+      :description="t('auth.register.description')"
       icon="i-lucide-user-plus"
     >
-      <UForm :schema="registerSchema" :state="state" class="space-y-4" @submit="onRegister">
-        <UFormField name="username" label="用户名" required>
-          <UInput v-model="state.username" class="w-full" placeholder="请输入用户名" :disabled="submitting" />
+      <div v-if="!platformSettings.public_registration_enabled" class="rounded-lg border border-warning/30 bg-warning/5 p-4 text-sm">
+        {{ t('auth.registration_closed') }}
+      </div>
+      <UForm v-else :schema="registerSchema" :state="state" class="space-y-4" @submit="onRegister">
+        <UFormField name="username" :label="t('auth.username')" required>
+          <UInput v-model="state.username" class="w-full" :placeholder="t('auth.username_placeholder')" :disabled="submitting" />
         </UFormField>
 
-        <UFormField name="email" label="邮箱" required>
-          <UInput v-model="state.email" class="w-full" type="email" placeholder="请输入邮箱" :disabled="submitting" />
+        <UFormField name="email" :label="t('auth.email')" required>
+          <UInput v-model="state.email" class="w-full" type="email" :placeholder="t('auth.email_placeholder')" :disabled="submitting" />
         </UFormField>
 
-        <UFormField name="password" label="密码" required>
-          <UInput v-model="state.password" class="w-full" type="password" placeholder="请输入密码" :disabled="submitting" />
+        <UFormField name="password" :label="t('auth.password')" required>
+          <UInput v-model="state.password" class="w-full" type="password" :placeholder="t('auth.password_placeholder')" :disabled="submitting" />
         </UFormField>
 
-        <UFormField name="confirm_password" label="确认密码" required>
-          <UInput v-model="state.confirm_password" class="w-full" type="password" placeholder="请再次输入密码" :disabled="submitting" />
+        <UFormField name="confirm_password" :label="t('auth.confirm_password')" required>
+          <UInput v-model="state.confirm_password" class="w-full" type="password" :placeholder="t('auth.confirm_password_placeholder')" :disabled="submitting" />
         </UFormField>
 
         <TurnstileField
@@ -109,23 +119,23 @@ const loginTo = computed(() => {
           action="register"
         />
 
-        <UButton type="submit" block label="注册账号" icon="i-lucide-user-round-plus" :loading="submitting" />
+        <UButton type="submit" block :label="t('auth.register.submit')" icon="i-lucide-user-round-plus" :loading="submitting" />
       </UForm>
 
       <template #footer>
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div class="text-sm text-muted">
-            {{ redirectTarget === '/console/team' ? '注册后默认进入队伍页。' : `注册后会先进入队伍页，并保留返回目标 ${redirectTarget}。` }}
+            {{ redirectTarget === '/console/team' ? t('auth.register.default_redirect') : t('auth.register.redirect', { target: redirectTarget }) }}
           </div>
           <div class="text-sm text-muted">
-            已有账号？
+            {{ t('auth.register.has_account') }}
             <ULink :to="loginTo" class="font-medium">
-              返回登录
+              {{ t('auth.register.back_login') }}
             </ULink>
           </div>
           <div class="flex flex-wrap gap-2">
-            <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="ghost" />
-            <UButton label="返回登录" icon="i-lucide-log-in" :to="loginTo" variant="outline" :disabled="submitting" />
+            <UButton :label="t('auth.browse_games')" icon="i-lucide-trophy" to="/games" variant="ghost" />
+            <UButton :label="t('auth.register.back_login')" icon="i-lucide-log-in" :to="loginTo" variant="outline" :disabled="submitting" />
           </div>
         </div>
       </template>

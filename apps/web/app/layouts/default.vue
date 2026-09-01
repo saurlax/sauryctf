@@ -1,14 +1,15 @@
 <script setup lang="ts">
 const { authState, isLoggedIn, logout } = useAuth()
+const { locale, platformSettings, setLocale, t } = usePlatformUi()
 const route = useRoute()
 
 const items = computed(() => {
   const nav = [
-    { label: '首页', to: '/' },
-    { label: '比赛', to: '/games' },
+    { label: t('nav.home'), to: '/' },
+    { label: t('nav.games'), to: '/games' },
   ]
   if (isLoggedIn.value) {
-    nav.push({ label: '控制台', to: '/console' })
+    nav.push({ label: t('nav.console'), to: '/console' })
   }
   return nav
 })
@@ -23,35 +24,52 @@ const authRedirect = computed(() => {
 
 const loginTo = computed(() => buildAuthEntryPath('/login', authRedirect.value))
 const registerTo = computed(() => buildAuthEntryPath('/register', authRedirect.value))
+
+const localeItems = computed(() => [[
+  { label: t('locale.zh-CN'), checked: locale.value === 'zh-CN', onSelect: () => setLocale('zh-CN') },
+  { label: t('locale.en'), checked: locale.value === 'en', onSelect: () => setLocale('en') },
+]])
+const localeLabel = computed(() => t(locale.value === 'en' ? 'locale.en' : 'locale.zh-CN'))
 </script>
 
 <template>
   <UHeader>
     <template #title>
-      <span class="text-xl font-bold">SauryCTF</span>
+      <div class="flex items-center gap-2">
+        <img v-if="platformSettings.logo_url" :src="platformSettings.logo_url" alt="" class="size-7 object-contain">
+        <span class="text-xl font-bold">{{ platformSettings.brand_name }}</span>
+      </div>
     </template>
     <UNavigationMenu :items="items" />
     <template #right>
+      <UDropdownMenu :items="localeItems">
+        <UButton
+          variant="ghost"
+          icon="i-lucide-languages"
+          :label="localeLabel"
+          :aria-label="t('locale.label')"
+        />
+      </UDropdownMenu>
       <template v-if="isLoggedIn">
         <UDropdownMenu
           :items="
             [
               [
-                { label: authState.user?.username || '用户', icon: 'i-lucide-user', disabled: true },
+                { label: authState.user?.username || t('nav.user'), icon: 'i-lucide-user', disabled: true },
               ],
               [
-                { label: '控制台', icon: 'i-lucide-layout-dashboard', to: '/console' },
-                { label: '我的队伍', icon: 'i-lucide-users', to: '/console/team' },
-                { label: '账号安全', icon: 'i-lucide-key-round', to: '/console/account' },
+                { label: t('nav.console'), icon: 'i-lucide-layout-dashboard', to: '/console' },
+                { label: t('nav.team'), icon: 'i-lucide-users', to: '/console/team' },
+                { label: t('nav.account'), icon: 'i-lucide-key-round', to: '/console/account' },
                 ...(authState.user?.role === 'admin'
                   ? [
-                      { label: '用户管理', icon: 'i-lucide-users-round', to: '/console/admin/users' },
-                      { label: '审计日志', icon: 'i-lucide-scroll-text', to: '/console/admin/audit' },
+                      { label: t('nav.users'), icon: 'i-lucide-users-round', to: '/console/admin/users' },
+                      { label: t('nav.audit'), icon: 'i-lucide-scroll-text', to: '/console/admin/audit' },
                     ]
                   : []),
               ],
               [
-                { label: '退出登录', icon: 'i-lucide-log-out', onSelect: logout },
+                { label: t('nav.logout'), icon: 'i-lucide-log-out', onSelect: logout },
               ],
             ]"
         >
@@ -60,8 +78,14 @@ const registerTo = computed(() => buildAuthEntryPath('/register', authRedirect.v
       </template>
       <template v-else>
         <div class="flex items-center gap-2">
-          <UButton label="登录" icon="i-lucide-log-in" variant="ghost" :to="loginTo" />
-          <UButton label="注册" icon="i-lucide-user-round-plus" variant="outline" :to="registerTo" />
+          <UButton :label="t('nav.login')" icon="i-lucide-log-in" variant="ghost" :to="loginTo" />
+          <UButton
+            v-if="platformSettings.public_registration_enabled"
+            :label="t('nav.register')"
+            icon="i-lucide-user-round-plus"
+            variant="outline"
+            :to="registerTo"
+          />
         </div>
       </template>
     </template>
@@ -75,7 +99,7 @@ const registerTo = computed(() => buildAuthEntryPath('/register', authRedirect.v
 
   <UFooter>
     <template #left>
-      <p class="text-sm text-muted">&copy; {{ new Date().getFullYear() }} SauryCTF</p>
+      <p class="text-sm text-muted">&copy; {{ new Date().getFullYear() }} {{ platformSettings.brand_name }}</p>
     </template>
   </UFooter>
 </template>

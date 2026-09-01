@@ -1,4 +1,7 @@
 import nodemailer from 'nodemailer'
+import type { PlatformLocale } from '../../../shared/contracts/platform-settings'
+import { renderSystemMailTemplate } from '../../../shared/i18n/mail-templates'
+import { isPlatformLocale } from '../../../shared/i18n/system'
 import type { IdentityMailTokenProtector } from '../../domains/identity/delivery'
 import type { MailTransport, MailTransportMessage } from '../../domains/notifications/mail-outbox'
 
@@ -10,6 +13,7 @@ export interface SmtpMailTransportOptions {
   password?: string
   from: string
   publicOrigin: string
+  presentation?: () => Promise<{ brandName: string, locale: PlatformLocale }>
 }
 
 interface RenderedMail {
@@ -49,7 +53,7 @@ export class SmtpMailTransport implements MailTransport {
   }
 
   async send(message: MailTransportMessage): Promise<void> {
-    const rendered = this.render(message)
+    const rendered = await this.render(message)
     await this.transporter.sendMail({
       from: this.options.from,
       to: message.recipient,
@@ -59,30 +63,21 @@ export class SmtpMailTransport implements MailTransport {
     })
   }
 
-  private render(message: MailTransportMessage): RenderedMail {
+  private async render(message: MailTransportMessage): Promise<RenderedMail> {
+    const configured = await this.options.presentation?.() ?? { brandName: 'SauryCTF', locale: 'zh-CN' as const }
+    const locale = isPlatformLocale(message.payload.locale) ? message.payload.locale : configured.locale
     const tokenEnvelope = message.payload.token_envelope
     if (message.templateKey === 'identity.email_verification_requested') {
       const token = this.revealToken(tokenEnvelope)
       const link = `${this.options.publicOrigin}/verify-email?token=${encodeURIComponent(token)}`
-      return { subject: '验证 SauryCTF 邮箱', text: `请打开以下链接验证邮箱：\n${link}` }
+      return renderSystemMailTemplate(message.templateKey, { ...configured, locale, link })
     }
     if (message.templateKey === 'identity.password_reset_requested') {
       const token = this.revealToken(tokenEnvelope)
       const link = `${this.options.publicOrigin}/reset-password?token=${encodeURIComponent(token)}`
-      return { subject: '重置 SauryCTF 密码', text: `请打开以下链接重置密码：\n${link}` }
+      return renderSystemMailTemplate(message.templateKey, { ...configured, locale, link })
     }
-
-    const securitySubjects: Record<string, string> = {
-      'identity.password_changed': 'SauryCTF 密码已变更',
-      'identity.email_changed': 'SauryCTF 邮箱已变更',
-      'identity.email_verified': 'SauryCTF 邮箱已验证',
-      'identity.role_changed': 'SauryCTF 账号角色已变更',
-      'identity.account_banned': 'SauryCTF 账号状态已变更',
-      'identity.account_reactivated': 'SauryCTF 账号状态已恢复',
-    }
-    const subject = securitySubjects[message.templateKey]
-    if (!subject) throw new Error('UnsupportedMailTemplate')
-    return { subject, text: `${subject}。如非本人操作，请立即联系平台管理员。` }
+    return renderSystemMailTemplate(message.templateKey, { ...configured, locale })
   }
 
   private revealToken(value: unknown): string {

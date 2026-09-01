@@ -107,6 +107,10 @@ export default defineNitroPlugin(async (nitroApp) => {
   const scoringReplays = new ContestScoringReplayService(
     new PostgresScoringReplayRepository(database.pool),
   )
+  const platformSettings = new PlatformSettingsService(
+    new PostgresPlatformSettingsRepository(database.pool),
+    content,
+  )
   const services: ControlPlaneServices = {
     identity,
     identitySessions: new IdentitySessionService(identityRepository),
@@ -148,10 +152,7 @@ export default defineNitroPlugin(async (nitroApp) => {
       content,
       new ContestPackageArchiveCodec(contentStore),
     ),
-    platformSettings: new PlatformSettingsService(
-      new PostgresPlatformSettingsRepository(database.pool),
-      content,
-    ),
+    platformSettings,
   }
 
   const smtpHost = process.env.MAIL_SMTP_HOST
@@ -173,6 +174,10 @@ export default defineNitroPlugin(async (nitroApp) => {
         password: process.env.MAIL_SMTP_PASSWORD,
         from: mailFrom,
         publicOrigin,
+        presentation: async () => {
+          const settings = await platformSettings.readPublic()
+          return { brandName: settings.brandName, locale: settings.defaultLocale }
+        },
       }, mailTokens),
     )
     let dispatching = false

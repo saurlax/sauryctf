@@ -8,6 +8,7 @@ const toast = useToast()
 const { authState, ensureInitialized } = useAuth()
 const { fetchParticipationMap } = useGameParticipationMap()
 const { resolveParticipationMeta } = usePublicGameParticipationState()
+const { businessContent, status: systemStatus, t } = usePlatformUi()
 const games = ref<Game[]>([])
 const participationMap = ref<Record<number, GameParticipation>>({})
 const loading = ref(true)
@@ -128,9 +129,9 @@ function getStatusColor(status: string) {
 
 function getStatusLabel(status: string) {
   switch (status) {
-    case 'active': return '进行中'
-    case 'draft': return '草稿'
-    case 'ended': return '已结束'
+    case 'active': return systemStatus('running')
+    case 'draft': return systemStatus('draft')
+    case 'ended': return systemStatus('ended')
     default: return status
   }
 }
@@ -157,7 +158,7 @@ function getGamePhase(game: Game) {
 function getDisplayStatusLabel(game: Game) {
   const phase = getGamePhase(game)
   if (phase === 'before_start') {
-    return '未开始'
+    return systemStatus('upcoming')
   }
 
   return getStatusLabel(phase === 'active' ? game.status : phase)
@@ -511,7 +512,7 @@ onMounted(async () => {
         <template #header>
           <div class="flex items-center justify-between">
             <h3 class="text-lg font-semibold">
-              {{ game.name }}
+              {{ businessContent(game.name) }}
             </h3>
             <UBadge :color="getDisplayStatusColor(game)" size="sm">
               {{ getDisplayStatusLabel(game) }}
@@ -519,7 +520,7 @@ onMounted(async () => {
           </div>
         </template>
         <p class="text-sm text-muted line-clamp-2">
-          {{ game.description || '暂无描述' }}
+          {{ game.description ? businessContent(game.description) : t('content.no_description') }}
         </p>
         <div class="mt-3 rounded-lg border border-default bg-elevated/50 px-3 py-3 text-xs">
           <div class="mb-2 flex items-center justify-between gap-2">
