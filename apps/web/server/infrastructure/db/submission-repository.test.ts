@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto'
 import { Client } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { staticFlagDigest } from '../../domains/challenges/flag-verifier'
-import type { ChallengeScoringPolicy } from '../../../shared/contracts/challenges'
+import type { ChallengeFlagPolicy, ChallengeScoringPolicy } from '../../../shared/contracts/challenges'
 import {
+  CheatClueRequestConflictError,
+  CheatClueReviewConflictError,
   ScoreAdjustmentArchivedContestError,
   ScoreAdjustmentRequestConflictError,
   SubmissionChallengeClosedError,
@@ -70,6 +72,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     closeAt?: Date | null
     submissionLimit?: number | null
     scoringPolicy?: ChallengeScoringPolicy
+    flagPolicy?: ChallengeFlagPolicy
     practiceEnabled?: boolean
   } = {}) {
     const suffix = randomUUID()
@@ -156,7 +159,8 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       publishAt: options.publishAt,
       closeAt: options.closeAt,
       submissionLimit: options.submissionLimit,
-      flagPolicy: { type: 'static', digest: staticFlagDigest('flag{correct}') },
+      flagPolicy: options.flagPolicy
+        ?? { type: 'static', digest: staticFlagDigest('flag{correct}') },
       scoringPolicy: options.scoringPolicy,
     })
     await database.pool.query(
@@ -657,6 +661,215 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       scoreboard_version: '1',
       scoreboard_events: '1',
       first_solve_events: '1',
+    })
+  })
+
+  it('creates one deduplicated evidence clue for repeated incorrect answers without automatic punishment', async () => {
+    const input = await fixture()
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await repository.append(appendCommand(input, 'flag{same-wrong}', 'incorrect').command)
+    }
+
+    const page = await repository.listCheatClues(input.contestId, 'open', undefined, 20)
+    const repeated = page.items.filter(clue => clue.clueType === 'repeated_incorrect_answer')
+    expect(repeated).toHaveLength(1)
+    expect(repeated[0]).toMatchObject({
+      contestId: input.contestId,
+      challengeId: input.challengeId,
+      participationId: input.participationId,
+      status: 'open',
+      reviewedBy: null,
+      reviewedAt: null,
+    })
+    expect(repeated[0]!.evidence).toMatchObject({
+      schema: 'cheat-clue.v1',
+      kind: 'repeated_incorrect_answer',
+      answer_fingerprint: expect.stringMatching(/^[0-9a-f]{64}$/u),
+      participation_id: input.participationId,
+      challenge_id: input.challengeId,
+      mode: 'official',
+      matching_submission_count: 3,
+    })
+    const serializedEvidence = JSON.stringify(repeated[0]!.evidence)
+    expect(serializedEvidence).not.toContain('flag{same-wrong}')
+    expect(serializedEvidence).not.toMatch(/ciphertext|encrypted|plaintext/u)
+
+    const facts = await database.pool.query<{
+      user_status: string
+      submission_count: string
+      solve_count: string
+      adjustment_count: string
+      scoreboard_version: string | null
+    }>(
+      `SELECT
+         (SELECT status::text FROM users WHERE id = $2) AS user_status,
+         (SELECT count(*)::text FROM submissions WHERE contest_id = $1) AS submission_count,
+         (SELECT count(*)::text FROM solves WHERE contest_id = $1) AS solve_count,
+         (SELECT count(*)::text FROM score_adjustments WHERE contest_id = $1) AS adjustment_count,
+         (SELECT version::text FROM scoreboard_versions WHERE contest_id = $1) AS scoreboard_version`,
+      [input.contestId, input.userId],
+    )
+    expect(facts.rows[0]).toEqual({
+      user_status: 'active',
+      submission_count: '4',
+      solve_count: '0',
+      adjustment_count: '0',
+      scoreboard_version: null,
+    })
+
+    await database.pool.query(
+      `UPDATE contests
+       SET end_at = $2, practice_enabled = true, updated_at = $3
+       WHERE id = $1`,
+      [input.contestId, new Date(at.getTime() - 1), at],
+    )
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await repository.append(appendCommand(input, 'flag{practice-wrong}', 'incorrect').command)
+    }
+    const unchanged = await database.pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count
+       FROM cheat_clues
+       WHERE contest_id = $1 AND clue_type = 'repeated_incorrect_answer'`,
+      [input.contestId],
+    )
+    expect(unchanged.rows[0]!.count).toBe('1')
+  })
+
+  it('detects shared incorrect answers, abnormal frequency, and foreign team-derived Flags', async () => {
+    const sharedOwner = await fixture()
+    const sharedPeer = await addParticipant(sharedOwner)
+    await repository.append(appendCommand(sharedOwner, 'flag{shared-wrong}', 'incorrect').command)
+    await repository.append(appendCommand(sharedPeer, 'flag{shared-wrong}', 'incorrect').command)
+    const shared = await database.pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count
+       FROM cheat_clues
+       WHERE contest_id = $1 AND clue_type = 'shared_incorrect_answer'`,
+      [sharedOwner.contestId],
+    )
+    expect(shared.rows[0]!.count).toBe('2')
+
+    const frequent = await fixture()
+    for (let attempt = 0; attempt < 11; attempt += 1) {
+      await repository.append(appendCommand(
+        frequent,
+        `flag{frequency-${attempt}}`,
+        'incorrect',
+      ).command)
+    }
+    const frequency = await database.pool.query<{ count: string, evidence: Record<string, unknown> }>(
+      `SELECT (count(*) OVER ())::text AS count, evidence
+       FROM cheat_clues
+       WHERE contest_id = $1 AND clue_type = 'abnormal_submission_frequency'`,
+      [frequent.contestId],
+    )
+    expect(frequency.rows).toHaveLength(1)
+    expect(frequency.rows[0]).toMatchObject({
+      count: '1',
+      evidence: { kind: 'abnormal_submission_frequency', matching_submission_count: 10 },
+    })
+
+    const owner = await fixture({
+      flagPolicy: { type: 'team-derived', key_version: 1 },
+    })
+    const offender = await addParticipant(owner)
+    const stolenFlag = 'flag{derived-for-owner}'
+    const incorrect = await repository.append(
+      appendCommand(offender, stolenFlag, 'incorrect').command,
+    )
+    const correct = await repository.append(
+      appendCommand(owner, stolenFlag, 'correct').command,
+    )
+    const foreign = await database.pool.query<{
+      participation_id: string
+      evidence: Record<string, unknown>
+    }>(
+      `SELECT participation_id, evidence
+       FROM cheat_clues
+       WHERE contest_id = $1 AND clue_type = 'foreign_team_flag'`,
+      [owner.contestId],
+    )
+    expect(foreign.rows).toHaveLength(1)
+    expect(foreign.rows[0]).toMatchObject({
+      participation_id: offender.participationId,
+      evidence: {
+        kind: 'foreign_team_flag',
+        incorrect_submission_id: incorrect.id,
+        owner_submission_id: correct.id,
+        participation_id: offender.participationId,
+        owner_participation_id: owner.participationId,
+      },
+    })
+    expect(JSON.stringify(foreign.rows[0]!.evidence)).not.toContain(stolenFlag)
+  })
+
+  it('applies the human review state machine idempotently and only writes immutable audit evidence', async () => {
+    const input = await fixture()
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await repository.append(appendCommand(input, 'flag{review-me}', 'incorrect').command)
+    }
+    const open = (await repository.listCheatClues(
+      input.contestId,
+      'open',
+      undefined,
+      20,
+    )).items.find(clue => clue.clueType === 'repeated_incorrect_answer')!
+    const reviewingCommand = {
+      actorId: input.userId,
+      contestId: input.contestId,
+      clueId: open.id,
+      status: 'reviewing' as const,
+      note: null,
+      requestId: randomUUID(),
+      at,
+    }
+    const reviewing = await repository.reviewCheatClue(reviewingCommand)
+    const replayed = await repository.reviewCheatClue(reviewingCommand)
+    expect(reviewing).toMatchObject({ status: 'reviewing', reviewedBy: null, reviewedAt: null })
+    expect(replayed).toEqual(reviewing)
+
+    const confirmed = await repository.reviewCheatClue({
+      ...reviewingCommand,
+      status: 'confirmed',
+      note: 'Confirmed after reviewing the evidence',
+      requestId: randomUUID(),
+    })
+    expect(confirmed).toMatchObject({
+      status: 'confirmed',
+      reviewedBy: input.userId,
+      reviewNote: 'Confirmed after reviewing the evidence',
+      reviewedAt: at,
+    })
+    await expect(repository.reviewCheatClue({
+      ...reviewingCommand,
+      status: 'dismissed',
+      note: 'Attempt to change a final conclusion',
+      requestId: randomUUID(),
+    })).rejects.toBeInstanceOf(CheatClueReviewConflictError)
+    await expect(repository.reviewCheatClue({
+      ...reviewingCommand,
+      status: 'confirmed',
+      note: 'Conflicting reuse of the first request',
+    })).rejects.toBeInstanceOf(CheatClueRequestConflictError)
+
+    const facts = await database.pool.query<{
+      audit_count: string
+      adjustment_count: string
+      solve_count: string
+      scoreboard_version: string | null
+    }>(
+      `SELECT
+         (SELECT count(*)::text FROM audit_events
+          WHERE target_type = 'cheat_clue' AND target_id = $2) AS audit_count,
+         (SELECT count(*)::text FROM score_adjustments WHERE contest_id = $1) AS adjustment_count,
+         (SELECT count(*)::text FROM solves WHERE contest_id = $1) AS solve_count,
+         (SELECT version::text FROM scoreboard_versions WHERE contest_id = $1) AS scoreboard_version`,
+      [input.contestId, open.id],
+    )
+    expect(facts.rows[0]).toEqual({
+      audit_count: '2',
+      adjustment_count: '0',
+      solve_count: '0',
+      scoreboard_version: null,
     })
   })
 

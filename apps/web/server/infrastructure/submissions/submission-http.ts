@@ -1,10 +1,14 @@
 import type { H3Event } from 'h3'
 import { getQuery, setResponseHeader } from 'h3'
 import {
+  cheatClueListRequestSchema,
+  cheatClueListResponseSchema,
   managedSubmissionListRequestSchema,
   managedSubmissionListResponseSchema,
   recordScoreAdjustmentRequestSchema,
   recordScoreAdjustmentResponseSchema,
+  reviewCheatClueRequestSchema,
+  reviewCheatClueResponseSchema,
   submitFlagRequestSchema,
   submitFlagResponseSchema,
 } from '../../../shared/contracts/submissions'
@@ -25,7 +29,9 @@ import { enforceFlagSubmissionNetworkRateLimits } from '../security/request-secu
 
 type SubmissionCommands = Pick<SubmissionService,
   | 'listManaged'
+  | 'listCheatClues'
   | 'recordScoreAdjustment'
+  | 'reviewCheatClue'
   | 'verifyFlag'>
 
 export interface SubmissionHttpDependencies {
@@ -141,6 +147,72 @@ export async function handleRecordScoreAdjustment(
   })
 }
 
+export async function handleListCheatClues(
+  event: H3Event,
+  contestId: string,
+  dependencies = submissionHttpDependencies(event),
+) {
+  const context = await requireProtectedCapability(
+    event,
+    identityCapability.contestJudge,
+    dependencies.identity,
+  )
+  const query = cheatClueListRequestSchema.parse(getQuery(event))
+  const result = await runOperation(event, () => dependencies.submissions.listCheatClues(
+    context.subject,
+    contestId,
+    query.status,
+    query.cursor,
+    query.limit,
+  ))
+  return cheatClueListResponseSchema.parse({
+    items: result.items.map(cheatClueProjection),
+    page: { next_cursor: result.nextCursor, has_more: result.hasMore },
+  })
+}
+
+export async function handleReviewCheatClue(
+  event: H3Event,
+  contestId: string,
+  clueId: string,
+  dependencies = submissionHttpDependencies(event),
+) {
+  const context = await requireProtectedCapability(
+    event,
+    identityCapability.contestJudge,
+    dependencies.identity,
+  )
+  const input = await readValidatedJsonBody(event, reviewCheatClueRequestSchema)
+  const clue = await runOperation(event, () => dependencies.submissions.reviewCheatClue(
+    context.subject,
+    {
+      contestId,
+      clueId,
+      status: input.status,
+      note: input.review_note ?? null,
+      requestId: requestIdSchema.parse(event.context.requestId),
+    },
+  ))
+  return reviewCheatClueResponseSchema.parse({ clue: cheatClueProjection(clue) })
+}
+
+function cheatClueProjection(item: Awaited<ReturnType<SubmissionService['reviewCheatClue']>>) {
+  return {
+    id: item.id,
+    contest_id: item.contestId,
+    challenge_id: item.challengeId,
+    participation_id: item.participationId,
+    clue_type: item.clueType,
+    evidence: item.evidence,
+    status: item.status,
+    reviewed_by: item.reviewedBy,
+    review_note: item.reviewNote,
+    reviewed_at: item.reviewedAt?.toISOString() ?? null,
+    created_at: item.createdAt.toISOString(),
+    updated_at: item.updatedAt.toISOString(),
+  }
+}
+
 async function runOperation<T>(event: H3Event, operation: () => Promise<T>): Promise<T> {
   try {
     return await operation()
@@ -151,6 +223,11 @@ async function runOperation<T>(event: H3Event, operation: () => Promise<T>): Pro
       setResponseHeader(event, 'retry-after', Math.max(1, Math.ceil(error.retryAfterMs / 1000)))
     }
     const statusCode = {
+      'cheat_clue.cursor_invalid': 400,
+      'cheat_clue.not_found': 404,
+      'cheat_clue.request_conflict': 409,
+      'cheat_clue.review_conflict': 409,
+      'cheat_clue.review_note_required': 400,
       'challenge.flag_configuration_invalid': 503,
       'challenge.flag_validator_failed': 503,
       'challenge.not_found': 404,

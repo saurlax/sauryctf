@@ -27,6 +27,13 @@ export interface SubmissionRepository {
   append(command: AppendSubmissionCommand): Promise<StoredSubmission>
   listManaged(contestId: string, cursor: string | undefined, limit: number): Promise<ManagedSubmissionPage>
   recordScoreAdjustment(command: RecordScoreAdjustmentCommand): Promise<ScoreAdjustmentRecord>
+  listCheatClues(
+    contestId: string,
+    status: CheatClueStatus | undefined,
+    cursor: string | undefined,
+    limit: number,
+  ): Promise<CheatCluePage>
+  reviewCheatClue(command: ReviewCheatClueCommand): Promise<CheatClueRecord>
 }
 
 export type VerifiedSubmissionResult = 'correct' | 'incorrect'
@@ -80,6 +87,44 @@ export interface ScoreAdjustmentRecord {
   createdAt: Date
 }
 
+export type CheatClueStatus = 'open' | 'reviewing' | 'dismissed' | 'confirmed'
+export type CheatClueType =
+  | 'repeated_incorrect_answer'
+  | 'shared_incorrect_answer'
+  | 'abnormal_submission_frequency'
+  | 'foreign_team_flag'
+
+export interface CheatClueRecord {
+  id: string
+  contestId: string
+  challengeId: string | null
+  participationId: string | null
+  clueType: CheatClueType
+  evidence: Record<string, unknown>
+  status: CheatClueStatus
+  reviewedBy: string | null
+  reviewNote: string | null
+  reviewedAt: Date | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface CheatCluePage {
+  items: CheatClueRecord[]
+  nextCursor: string | null
+  hasMore: boolean
+}
+
+export interface ReviewCheatClueCommand {
+  actorId: string
+  contestId: string
+  clueId: string
+  status: Exclude<CheatClueStatus, 'open'>
+  note: string | null
+  requestId: string
+  at: Date
+}
+
 export class SubmissionTeamRequiredError extends Error {}
 export class SubmissionParticipationNotAcceptedError extends Error {}
 export class SubmissionContestNotRunningError extends Error {}
@@ -92,3 +137,7 @@ export class SubmissionContestNotFoundError extends Error {}
 export class SubmissionParticipationNotFoundError extends Error {}
 export class ScoreAdjustmentArchivedContestError extends Error {}
 export class ScoreAdjustmentRequestConflictError extends Error {}
+export class CheatClueNotFoundError extends Error {}
+export class CheatClueCursorInvalidError extends Error {}
+export class CheatClueReviewConflictError extends Error {}
+export class CheatClueRequestConflictError extends Error {}

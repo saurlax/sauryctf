@@ -196,4 +196,34 @@ describeWithPostgres('submission and scoring authority schema', () => {
       [contestId],
     )).rejects.toMatchObject({ code: '23505' })
   })
+
+  it('constrains anti-cheat clue kinds, deduplication keys, and final review attribution', async () => {
+    const insert = (
+      key: string,
+      type: string,
+      status = 'open',
+      reviewedBy: string | null = null,
+      reviewedAt: Date | null = null,
+    ) => database.pool.query(
+      `INSERT INTO cheat_clues
+         (clue_key, contest_id, contest_challenge_id, participation_id,
+          clue_type, evidence, status, reviewed_by, reviewed_at)
+       VALUES ($1, $2, $3, $4, $5, '{}', $6, $7, $8)`,
+      [key, contestId, challengeId, participationId, type, status, reviewedBy, reviewedAt],
+    )
+
+    await expect(insert('unsupported', 'automatic_ban')).rejects.toMatchObject({ code: '23514' })
+    await insert('repeat:fixture', 'repeated_incorrect_answer')
+    await expect(insert('repeat:fixture', 'repeated_incorrect_answer'))
+      .rejects.toMatchObject({ code: '23505' })
+    await expect(insert('confirmed-without-reviewer', 'repeated_incorrect_answer', 'confirmed'))
+      .rejects.toMatchObject({ code: '23514' })
+    await expect(insert(
+      'confirmed-with-reviewer',
+      'repeated_incorrect_answer',
+      'confirmed',
+      userId,
+      new Date(),
+    )).resolves.toBeDefined()
+  })
 })

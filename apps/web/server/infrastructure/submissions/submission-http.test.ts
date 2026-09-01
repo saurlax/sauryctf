@@ -8,8 +8,10 @@ import { SubmissionServiceError } from '../../domains/submissions/service'
 import { normalizeApiError } from '../http/errors'
 import { MemoryRateLimitStore } from '../security/rate-limit'
 import {
+  handleListCheatClues,
   handleListManagedSubmissions,
   handleRecordScoreAdjustment,
+  handleReviewCheatClue,
   handleSubmitFlag,
   type SubmissionHttpDependencies,
 } from './submission-http'
@@ -18,6 +20,7 @@ const requestId = '018f47a2-4ef8-7e2c-9c24-6d68b7451f80'
 const userId = '018f47a2-4ef8-7e2c-9c24-6d68b7451f81'
 const contestId = '018f47a2-4ef8-7e2c-9c24-6d68b7451f82'
 const challengeId = '018f47a2-4ef8-7e2c-9c24-6d68b7451f83'
+const clueId = '018f47a2-4ef8-7e2c-9c24-6d68b7451f87'
 const session: AuthSessionData = {
   user_id: userId,
   session_version: 1,
@@ -43,6 +46,7 @@ function dependencies(options: {
   mode?: 'official' | 'practice'
   rateLimits?: MemoryRateLimitStore
   managedItems?: Awaited<ReturnType<SubmissionHttpDependencies['submissions']['listManaged']>>['items']
+  cheatClueItems?: Awaited<ReturnType<SubmissionHttpDependencies['submissions']['listCheatClues']>>['items']
 } = {}): SubmissionHttpDependencies {
   const clear = vi.fn()
   return {
@@ -68,6 +72,36 @@ function dependencies(options: {
         items: options.managedItems ?? [],
         nextCursor: null,
         hasMore: false,
+      })),
+      listCheatClues: vi.fn(async () => ({
+        items: options.cheatClueItems ?? [],
+        nextCursor: null,
+        hasMore: false,
+      })),
+      reviewCheatClue: vi.fn(async (_actor, input) => ({
+        id: clueId,
+        contestId: input.contestId,
+        challengeId,
+        participationId: '018f47a2-4ef8-7e2c-9c24-6d68b7451f85',
+        clueType: 'repeated_incorrect_answer' as const,
+        evidence: {
+          schema: 'cheat-clue.v1',
+          kind: 'repeated_incorrect_answer',
+          answer_fingerprint: 'a'.repeat(64),
+          trigger_submission_id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f84',
+          participation_id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f85',
+          challenge_id: challengeId,
+          mode: 'official',
+          matching_submission_count: 3,
+          first_seen_at: '2026-09-01T08:00:00.000Z',
+          last_seen_at: '2026-09-01T08:01:00.000Z',
+        },
+        status: input.status,
+        reviewedBy: input.status === 'reviewing' ? null : userId,
+        reviewNote: input.note,
+        reviewedAt: input.status === 'reviewing' ? null : new Date('2026-09-01T08:02:00.000Z'),
+        createdAt: new Date('2026-09-01T08:01:00.000Z'),
+        updatedAt: new Date('2026-09-01T08:02:00.000Z'),
       })),
       recordScoreAdjustment: vi.fn(async (_actor, input) => ({
         id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f86',
@@ -98,6 +132,50 @@ async function invokeManaged(deps: SubmissionHttpDependencies) {
   }))
   return toWebHandler(app)(new Request(
     `https://ctf.example.test/api/admin/contests/${contestId}/submissions?limit=20`,
+  ))
+}
+
+async function invokeCheatClues(deps: SubmissionHttpDependencies) {
+  const app = createApp()
+  app.use(eventHandler(async (event) => {
+    event.context.requestId = requestId
+    try {
+      return await handleListCheatClues(event, contestId, deps)
+    }
+    catch (error) {
+      const response = normalizeApiError(error, requestId)
+      setResponseStatus(event, response.statusCode)
+      return response.body
+    }
+  }))
+  return toWebHandler(app)(new Request(
+    `https://ctf.example.test/api/admin/contests/${contestId}/cheat-clues?status=open&limit=20`,
+  ))
+}
+
+async function invokeCheatClueReview(deps: SubmissionHttpDependencies) {
+  const app = createApp()
+  app.use(eventHandler(async (event) => {
+    event.context.requestId = requestId
+    try {
+      return await handleReviewCheatClue(event, contestId, clueId, deps)
+    }
+    catch (error) {
+      const response = normalizeApiError(error, requestId)
+      setResponseStatus(event, response.statusCode)
+      return response.body
+    }
+  }))
+  return toWebHandler(app)(new Request(
+    `https://ctf.example.test/api/admin/contests/${contestId}/cheat-clues/${clueId}`,
+    {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        status: 'confirmed',
+        review_note: 'Confirmed after reviewing the evidence',
+      }),
+    },
   ))
 }
 
@@ -290,5 +368,58 @@ describe('Flag submission HTTP admission', () => {
     const forbidden = await invokeAdjustment(playerDependencies)
     expect(forbidden.status).toBe(403)
     expect(playerDependencies.submissions.recordScoreAdjustment).not.toHaveBeenCalled()
+  })
+
+  it('returns typed reviewable evidence to an organizer without plaintext answers', async () => {
+    const sample = await dependencies({ subject: organizer }).submissions.reviewCheatClue(
+      organizer,
+      {
+        contestId,
+        clueId,
+        status: 'reviewing',
+        note: null,
+        requestId,
+      },
+    )
+    const deps = dependencies({ subject: organizer, cheatClueItems: [sample] })
+    const response = await invokeCheatClues(deps)
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body).toMatchObject({
+      items: [{
+        id: clueId,
+        clue_type: 'repeated_incorrect_answer',
+        status: 'reviewing',
+        evidence: { answer_fingerprint: 'a'.repeat(64) },
+      }],
+    })
+    expect(JSON.stringify(body)).not.toMatch(/flag\{|ciphertext|plaintext/u)
+    expect(deps.submissions.listCheatClues).toHaveBeenCalledWith(
+      organizer,
+      contestId,
+      'open',
+      undefined,
+      20,
+    )
+  })
+
+  it('requires judge capability for evidence access and maps an authorized review command', async () => {
+    const playerDependencies = dependencies({ subject: player })
+    expect((await invokeCheatClues(playerDependencies)).status).toBe(403)
+    expect(playerDependencies.submissions.listCheatClues).not.toHaveBeenCalled()
+
+    const organizerDependencies = dependencies({ subject: organizer })
+    const reviewed = await invokeCheatClueReview(organizerDependencies)
+    expect(reviewed.status).toBe(200)
+    expect(organizerDependencies.submissions.reviewCheatClue).toHaveBeenCalledWith(
+      organizer,
+      {
+        contestId,
+        clueId,
+        status: 'confirmed',
+        note: 'Confirmed after reviewing the evidence',
+        requestId,
+      },
+    )
   })
 })

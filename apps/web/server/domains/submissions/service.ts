@@ -7,6 +7,10 @@ import { identityCapability, requireIdentityCapability } from '../identity/capab
 import type { SessionSubject } from '../identity/repository'
 import type { SubmissionAnswerProtector } from './answer-protection'
 import {
+  CheatClueCursorInvalidError,
+  CheatClueNotFoundError,
+  CheatClueRequestConflictError,
+  CheatClueReviewConflictError,
   SubmissionChallengeClosedError,
   SubmissionChallengeUnavailableError,
   SubmissionContestNotRunningError,
@@ -20,6 +24,7 @@ import {
   ScoreAdjustmentArchivedContestError,
   ScoreAdjustmentRequestConflictError,
   type SubmissionRepository,
+  type CheatClueStatus,
 } from './repository'
 
 export interface SubmissionRateLimitDecision {
@@ -38,6 +43,11 @@ export interface SubmissionRateLimiter {
 }
 
 export type SubmissionServiceErrorCode =
+  | 'cheat_clue.cursor_invalid'
+  | 'cheat_clue.not_found'
+  | 'cheat_clue.request_conflict'
+  | 'cheat_clue.review_conflict'
+  | 'cheat_clue.review_note_required'
   | 'challenge.flag_configuration_invalid'
   | 'challenge.flag_validator_failed'
   | 'challenge.not_found'
@@ -58,6 +68,11 @@ export type SubmissionServiceErrorCode =
   | 'submission.request_conflict'
 
 const errorMessages: Record<SubmissionServiceErrorCode, string> = {
+  'cheat_clue.cursor_invalid': '反作弊线索游标无效或已经过期',
+  'cheat_clue.not_found': '反作弊线索不存在',
+  'cheat_clue.request_conflict': '请求标识已被其他反作弊复核使用',
+  'cheat_clue.review_conflict': '反作弊线索当前状态不允许该复核操作',
+  'cheat_clue.review_note_required': '最终复核结论必须填写至少 10 个字符的备注',
   'challenge.flag_configuration_invalid': '题目 Flag 校验配置不可用',
   'challenge.flag_validator_failed': '题目 Flag 校验器暂时不可用',
   'challenge.not_found': '比赛题目不存在或尚未开放',
@@ -241,6 +256,46 @@ export class SubmissionService {
     }))
   }
 
+  async listCheatClues(
+    actor: SessionSubject,
+    contestId: string,
+    status: CheatClueStatus | undefined,
+    cursor: string | undefined,
+    limit: number,
+  ) {
+    requireIdentityCapability(actor, identityCapability.contestJudge)
+    return this.mapRepository(() => this.repository.listCheatClues(
+      contestId,
+      status,
+      cursor,
+      limit,
+    ))
+  }
+
+  async reviewCheatClue(actor: SessionSubject, input: {
+    contestId: string
+    clueId: string
+    status: Exclude<CheatClueStatus, 'open'>
+    note: string | null
+    requestId: string
+  }) {
+    requireIdentityCapability(actor, identityCapability.contestJudge)
+    const note = input.note?.trim() || null
+    const finalReview = input.status === 'dismissed' || input.status === 'confirmed'
+    if ((finalReview && (note?.length ?? 0) < 10) || (note?.length ?? 0) > 1000) {
+      throw new SubmissionServiceError('cheat_clue.review_note_required')
+    }
+    return this.mapRepository(() => this.repository.reviewCheatClue({
+      actorId: actor.userId,
+      contestId: input.contestId,
+      clueId: input.clueId,
+      status: input.status,
+      note,
+      requestId: input.requestId,
+      at: this.now(),
+    }))
+  }
+
   private async enforceLimits(inputs: Array<Parameters<SubmissionRateLimiter['consume']>[0]>) {
     for (const input of inputs) {
       const decision = await this.rateLimiter.consume(input)
@@ -290,6 +345,18 @@ export class SubmissionService {
       }
       if (error instanceof SubmissionContestNotFoundError) {
         throw new SubmissionServiceError('contest.not_found')
+      }
+      if (error instanceof CheatClueNotFoundError) {
+        throw new SubmissionServiceError('cheat_clue.not_found')
+      }
+      if (error instanceof CheatClueCursorInvalidError) {
+        throw new SubmissionServiceError('cheat_clue.cursor_invalid')
+      }
+      if (error instanceof CheatClueReviewConflictError) {
+        throw new SubmissionServiceError('cheat_clue.review_conflict')
+      }
+      if (error instanceof CheatClueRequestConflictError) {
+        throw new SubmissionServiceError('cheat_clue.request_conflict')
       }
       throw error
     }

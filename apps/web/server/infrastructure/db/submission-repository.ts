@@ -7,6 +7,10 @@ import {
   type ChallengeScoringPolicy,
 } from '../../../shared/contracts/challenges'
 import {
+  CheatClueCursorInvalidError,
+  CheatClueNotFoundError,
+  CheatClueRequestConflictError,
+  CheatClueReviewConflictError,
   ScoreAdjustmentArchivedContestError,
   ScoreAdjustmentRequestConflictError,
   SubmissionChallengeClosedError,
@@ -20,8 +24,13 @@ import {
   SubmissionRequestConflictError,
   SubmissionTeamRequiredError,
   type AppendSubmissionCommand,
+  type CheatCluePage,
+  type CheatClueRecord,
+  type CheatClueStatus,
+  type CheatClueType,
   type ManagedSubmissionPage,
   type RecordScoreAdjustmentCommand,
+  type ReviewCheatClueCommand,
   type ScoreAdjustmentRecord,
   type StoredSubmission,
   type SubmissionAdmission,
@@ -83,6 +92,40 @@ interface ScoreAdjustmentRow {
   created_by: string
   request_id: string
   created_at: Date
+}
+
+interface CheatClueRow {
+  id: string
+  contest_id: string
+  contest_challenge_id: string | null
+  participation_id: string | null
+  clue_type: CheatClueType
+  evidence: Record<string, unknown>
+  status: CheatClueStatus
+  reviewed_by: string | null
+  review_note: string | null
+  reviewed_at: Date | null
+  created_at: Date
+  updated_at: Date
+}
+
+interface MatchingSubmissionRow {
+  id: string
+  participation_id: string
+  submitted_at: Date
+}
+
+interface CheatClueReviewAuditRow {
+  actor_user_id: string | null
+  target_id: string | null
+  reason: string | null
+  changes: {
+    contest_id?: unknown
+    from_status?: unknown
+    to_status?: unknown
+    review_note?: unknown
+  }
+  occurred_at: Date
 }
 
 export class PostgresSubmissionRepository implements SubmissionRepository {
@@ -155,6 +198,14 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
           admission.teamName,
           admission.scoringPolicy,
           admission.mode,
+        )
+      }
+      if (admission.mode === 'official') {
+        await this.detectCheatClues(
+          connection,
+          inserted.rows[0]!,
+          command.answerDigest,
+          admission.flagPolicy.type === 'team-derived',
         )
       }
       await connection.query('COMMIT')
@@ -322,6 +373,143 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
         }
         throw new ScoreAdjustmentRequestConflictError()
       }
+      throw error
+    }
+    finally {
+      connection.release()
+    }
+  }
+
+  async listCheatClues(
+    contestId: string,
+    status: CheatClueStatus | undefined,
+    cursor: string | undefined,
+    limit: number,
+  ): Promise<CheatCluePage> {
+    const contest = await this.pool.query('SELECT 1 FROM contests WHERE id = $1', [contestId])
+    if (!contest.rows[0]) throw new SubmissionContestNotFoundError()
+
+    let anchor: { id: string, created_at: Date } | null = null
+    if (cursor) {
+      const result = await this.pool.query<{ id: string, created_at: Date }>(
+        `SELECT id, created_at
+         FROM cheat_clues
+         WHERE contest_id = $1
+           AND id::text = $2
+           AND ($3::text IS NULL OR status::text = $3)`,
+        [contestId, cursor, status ?? null],
+      )
+      anchor = result.rows[0] ?? null
+      if (!anchor) throw new CheatClueCursorInvalidError()
+    }
+
+    const result = await this.pool.query<CheatClueRow>(
+      `SELECT id, contest_id, contest_challenge_id, participation_id,
+              clue_type, evidence, status::text, reviewed_by, review_note,
+              reviewed_at, created_at, updated_at
+       FROM cheat_clues
+       WHERE contest_id = $1
+         AND ($2::text IS NULL OR status::text = $2)
+         AND ($3::timestamptz IS NULL
+           OR (created_at, id) < ($3::timestamptz, $4::uuid))
+       ORDER BY created_at DESC, id DESC
+       LIMIT $5`,
+      [contestId, status ?? null, anchor?.created_at ?? null, anchor?.id ?? null, limit + 1],
+    )
+    const hasMore = result.rows.length > limit
+    const rows = result.rows.slice(0, limit)
+    return {
+      items: rows.map(cheatClueRecord),
+      nextCursor: hasMore ? rows.at(-1)!.id : null,
+      hasMore,
+    }
+  }
+
+  async reviewCheatClue(command: ReviewCheatClueCommand): Promise<CheatClueRecord> {
+    const connection = await this.pool.connect()
+    try {
+      await connection.query('BEGIN')
+      await connection.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`cheat-clue-review:${command.requestId}`],
+      )
+      const existingAudit = await this.readCheatClueReviewByRequestId(
+        connection,
+        command.requestId,
+      )
+      if (existingAudit) {
+        if (!sameCheatClueReview(existingAudit, command)) {
+          throw new CheatClueRequestConflictError()
+        }
+        const clue = await this.readCheatClue(
+          connection,
+          command.contestId,
+          command.clueId,
+          false,
+        )
+        if (!clue) throw new CheatClueNotFoundError()
+        await connection.query('COMMIT')
+        return reviewedCheatClueRecord(clue, existingAudit, command)
+      }
+
+      const clue = await this.readCheatClue(
+        connection,
+        command.contestId,
+        command.clueId,
+        true,
+      )
+      if (!clue) throw new CheatClueNotFoundError()
+      if (!canReviewCheatClue(clue.status, command.status)) {
+        throw new CheatClueReviewConflictError()
+      }
+
+      const finalReview = command.status === 'dismissed' || command.status === 'confirmed'
+      const updated = await connection.query<CheatClueRow>(
+        `UPDATE cheat_clues
+         SET status = $2,
+             reviewed_by = CASE WHEN $3::boolean THEN $4::uuid ELSE NULL END,
+             review_note = $5,
+             reviewed_at = CASE WHEN $3::boolean THEN $6::timestamptz ELSE NULL END,
+             updated_at = $6
+         WHERE id = $1
+         RETURNING id, contest_id, contest_challenge_id, participation_id,
+                   clue_type, evidence, status::text, reviewed_by, review_note,
+                   reviewed_at, created_at, updated_at`,
+        [
+          command.clueId,
+          command.status,
+          finalReview,
+          command.actorId,
+          command.note,
+          command.at,
+        ],
+      )
+      await connection.query(
+        `INSERT INTO audit_events
+           (actor_user_id, action, target_type, target_id, reason, outcome,
+            request_id, changes, metadata, occurred_at)
+         VALUES ($1, 'cheat_clue.reviewed', 'cheat_clue', $2, $3,
+                 'succeeded', $4, $5, $6, $7)`,
+        [
+          command.actorId,
+          command.clueId,
+          command.note,
+          command.requestId,
+          {
+            contest_id: command.contestId,
+            from_status: clue.status,
+            to_status: command.status,
+            review_note: command.note,
+          },
+          { automatic_action: false },
+          command.at,
+        ],
+      )
+      await connection.query('COMMIT')
+      return cheatClueRecord(updated.rows[0]!)
+    }
+    catch (error) {
+      await connection.query('ROLLBACK')
       throw error
     }
     finally {
@@ -523,6 +711,265 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
     )
   }
 
+  private async detectCheatClues(
+    connection: PoolClient,
+    submission: SubmissionRow,
+    answerDigest: Buffer,
+    teamDerivedFlag: boolean,
+  ) {
+    const fingerprint = answerDigest.toString('hex')
+    if (submission.result === 'incorrect') {
+      await this.detectRepeatedIncorrectAnswer(connection, submission, answerDigest, fingerprint)
+      await this.detectSharedIncorrectAnswer(connection, submission, answerDigest, fingerprint)
+    }
+    await this.detectAbnormalFrequency(connection, submission)
+    if (teamDerivedFlag) {
+      await this.detectForeignTeamFlag(connection, submission, answerDigest, fingerprint)
+    }
+  }
+
+  private async detectRepeatedIncorrectAnswer(
+    connection: PoolClient,
+    submission: SubmissionRow,
+    answerDigest: Buffer,
+    fingerprint: string,
+  ) {
+    const result = await connection.query<{
+      matching_count: string
+      first_seen_at: Date
+      last_seen_at: Date
+    }>(
+      `SELECT count(*)::text AS matching_count,
+              min(submitted_at) AS first_seen_at,
+              max(submitted_at) AS last_seen_at
+       FROM submissions
+       WHERE participation_id = $1
+         AND contest_challenge_id = $2
+         AND mode = 'official'
+         AND result = 'incorrect'
+         AND answer_digest = $3`,
+      [submission.participation_id, submission.contest_challenge_id, answerDigest],
+    )
+    const aggregate = result.rows[0]!
+    const matchingCount = Number(aggregate.matching_count)
+    if (matchingCount < 3) return
+    await this.insertCheatClue(connection, {
+      key: `repeat:${submission.participation_id}:${submission.contest_challenge_id}:official:${fingerprint}`,
+      submission,
+      type: 'repeated_incorrect_answer',
+      evidence: {
+        schema: 'cheat-clue.v1',
+        kind: 'repeated_incorrect_answer',
+        answer_fingerprint: fingerprint,
+        trigger_submission_id: submission.id,
+        participation_id: submission.participation_id,
+        challenge_id: submission.contest_challenge_id,
+        mode: 'official',
+        matching_submission_count: matchingCount,
+        first_seen_at: aggregate.first_seen_at.toISOString(),
+        last_seen_at: aggregate.last_seen_at.toISOString(),
+      },
+    })
+  }
+
+  private async detectSharedIncorrectAnswer(
+    connection: PoolClient,
+    submission: SubmissionRow,
+    answerDigest: Buffer,
+    fingerprint: string,
+  ) {
+    const result = await connection.query<MatchingSubmissionRow>(
+      `SELECT DISTINCT ON (participation_id)
+              id, participation_id, submitted_at
+       FROM submissions
+       WHERE contest_challenge_id = $1
+         AND mode = 'official'
+         AND result = 'incorrect'
+         AND answer_digest = $2
+       ORDER BY participation_id, submitted_at, id`,
+      [submission.contest_challenge_id, answerDigest],
+    )
+    if (result.rows.length < 2) return
+    const relatedParticipationIds = result.rows.map(row => row.participation_id).sort()
+    for (const subject of result.rows) {
+      await this.insertCheatClue(connection, {
+        key: `shared:${submission.contest_challenge_id}:official:${fingerprint}:${subject.participation_id}`,
+        submission: {
+          ...submission,
+          id: subject.id,
+          participation_id: subject.participation_id,
+          submitted_at: subject.submitted_at,
+        },
+        type: 'shared_incorrect_answer',
+        evidence: {
+          schema: 'cheat-clue.v1',
+          kind: 'shared_incorrect_answer',
+          answer_fingerprint: fingerprint,
+          trigger_submission_id: submission.id,
+          subject_submission_id: subject.id,
+          participation_id: subject.participation_id,
+          related_participation_ids: relatedParticipationIds,
+          challenge_id: submission.contest_challenge_id,
+          mode: 'official',
+          matching_participation_count: relatedParticipationIds.length,
+          observed_at: submission.submitted_at.toISOString(),
+        },
+      })
+    }
+  }
+
+  private async detectAbnormalFrequency(
+    connection: PoolClient,
+    submission: SubmissionRow,
+  ) {
+    const result = await connection.query<{
+      matching_count: string
+      first_seen_at: Date
+      last_seen_at: Date
+    }>(
+      `SELECT count(*)::text AS matching_count,
+              min(submitted_at) AS first_seen_at,
+              max(submitted_at) AS last_seen_at
+       FROM submissions
+       WHERE participation_id = $1
+         AND contest_challenge_id = $2
+         AND mode = 'official'
+         AND submitted_at > $3::timestamptz - interval '60 seconds'
+         AND submitted_at <= $3`,
+      [submission.participation_id, submission.contest_challenge_id, submission.submitted_at],
+    )
+    const aggregate = result.rows[0]!
+    const matchingCount = Number(aggregate.matching_count)
+    if (matchingCount < 10) return
+    const epochMinute = Math.floor(submission.submitted_at.getTime() / 60_000)
+    await this.insertCheatClue(connection, {
+      key: `frequency:${submission.participation_id}:${submission.contest_challenge_id}:official:${epochMinute}`,
+      submission,
+      type: 'abnormal_submission_frequency',
+      evidence: {
+        schema: 'cheat-clue.v1',
+        kind: 'abnormal_submission_frequency',
+        trigger_submission_id: submission.id,
+        participation_id: submission.participation_id,
+        challenge_id: submission.contest_challenge_id,
+        mode: 'official',
+        matching_submission_count: matchingCount,
+        window_started_at: aggregate.first_seen_at.toISOString(),
+        window_ended_at: aggregate.last_seen_at.toISOString(),
+      },
+    })
+  }
+
+  private async detectForeignTeamFlag(
+    connection: PoolClient,
+    submission: SubmissionRow,
+    answerDigest: Buffer,
+    fingerprint: string,
+  ) {
+    if (submission.result === 'incorrect') {
+      const owners = await connection.query<MatchingSubmissionRow>(
+        `SELECT DISTINCT ON (participation_id)
+                id, participation_id, submitted_at
+         FROM submissions
+         WHERE contest_challenge_id = $1
+           AND mode = 'official'
+           AND result IN ('correct', 'already_solved')
+           AND answer_digest = $2
+           AND participation_id <> $3
+         ORDER BY participation_id, (result = 'correct') DESC, submitted_at, id`,
+        [submission.contest_challenge_id, answerDigest, submission.participation_id],
+      )
+      for (const owner of owners.rows) {
+        await this.insertForeignTeamFlagClue(
+          connection,
+          submission,
+          owner,
+          fingerprint,
+        )
+      }
+      return
+    }
+
+    const offenders = await connection.query<MatchingSubmissionRow>(
+      `SELECT id, participation_id, submitted_at
+       FROM submissions
+       WHERE contest_challenge_id = $1
+         AND mode = 'official'
+         AND result = 'incorrect'
+         AND answer_digest = $2
+         AND participation_id <> $3
+       ORDER BY submitted_at, id`,
+      [submission.contest_challenge_id, answerDigest, submission.participation_id],
+    )
+    const owner = {
+      id: submission.id,
+      participation_id: submission.participation_id,
+      submitted_at: submission.submitted_at,
+    }
+    for (const offender of offenders.rows) {
+      await this.insertForeignTeamFlagClue(connection, offender, owner, fingerprint, submission)
+    }
+  }
+
+  private async insertForeignTeamFlagClue(
+    connection: PoolClient,
+    offender: MatchingSubmissionRow | SubmissionRow,
+    owner: MatchingSubmissionRow,
+    fingerprint: string,
+    context?: SubmissionRow,
+  ) {
+    const submission = context ?? offender as SubmissionRow
+    await this.insertCheatClue(connection, {
+      key: `foreign:${offender.id}:${owner.participation_id}`,
+      submission: {
+        ...submission,
+        id: offender.id,
+        participation_id: offender.participation_id,
+        submitted_at: offender.submitted_at,
+      },
+      type: 'foreign_team_flag',
+      evidence: {
+        schema: 'cheat-clue.v1',
+        kind: 'foreign_team_flag',
+        answer_fingerprint: fingerprint,
+        incorrect_submission_id: offender.id,
+        owner_submission_id: owner.id,
+        participation_id: offender.participation_id,
+        owner_participation_id: owner.participation_id,
+        challenge_id: submission.contest_challenge_id,
+        mode: 'official',
+        observed_at: submission.submitted_at.toISOString(),
+      },
+    })
+  }
+
+  private async insertCheatClue(
+    connection: PoolClient,
+    input: {
+      key: string
+      submission: SubmissionRow
+      type: CheatClueType
+      evidence: Record<string, unknown>
+    },
+  ) {
+    await connection.query(
+      `INSERT INTO cheat_clues
+         (clue_key, contest_id, contest_challenge_id, participation_id,
+          clue_type, evidence, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+       ON CONFLICT (clue_key) DO NOTHING`,
+      [
+        input.key,
+        input.submission.contest_id,
+        input.submission.contest_challenge_id,
+        input.submission.participation_id,
+        input.type,
+        input.evidence,
+        input.submission.submitted_at,
+      ],
+    )
+  }
+
   private async advanceScoreboardVersion(
     connection: PoolClient,
     contestId: string,
@@ -571,6 +1018,41 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
     )
     return result.rows[0] ?? null
   }
+
+  private async readCheatClue(
+    queryable: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>,
+    contestId: string,
+    clueId: string,
+    forUpdate: boolean,
+  ) {
+    const result = await queryable.query<CheatClueRow>(
+      `SELECT id, contest_id, contest_challenge_id, participation_id,
+              clue_type, evidence, status::text, reviewed_by, review_note,
+              reviewed_at, created_at, updated_at
+       FROM cheat_clues
+       WHERE contest_id = $1 AND id = $2
+       ${forUpdate ? 'FOR UPDATE' : ''}`,
+      [contestId, clueId],
+    )
+    return result.rows[0] ?? null
+  }
+
+  private async readCheatClueReviewByRequestId(
+    queryable: Pick<PoolClient, 'query'>,
+    requestId: string,
+  ) {
+    const result = await queryable.query<CheatClueReviewAuditRow>(
+      `SELECT actor_user_id, target_id, reason, changes, occurred_at
+       FROM audit_events
+       WHERE request_id = $1
+         AND action = 'cheat_clue.reviewed'
+         AND target_type = 'cheat_clue'
+       ORDER BY occurred_at, id
+       LIMIT 1`,
+      [requestId],
+    )
+    return result.rows[0] ?? null
+  }
 }
 
 function submissionRecord(row: SubmissionRow): StoredSubmission {
@@ -607,6 +1089,56 @@ function scoreAdjustmentRecord(row: ScoreAdjustmentRow): ScoreAdjustmentRecord {
     requestId: row.request_id,
     createdAt: row.created_at,
   }
+}
+
+function cheatClueRecord(row: CheatClueRow): CheatClueRecord {
+  return {
+    id: row.id,
+    contestId: row.contest_id,
+    challengeId: row.contest_challenge_id,
+    participationId: row.participation_id,
+    clueType: row.clue_type,
+    evidence: row.evidence,
+    status: row.status,
+    reviewedBy: row.reviewed_by,
+    reviewNote: row.review_note,
+    reviewedAt: row.reviewed_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function reviewedCheatClueRecord(
+  clue: CheatClueRow,
+  audit: CheatClueReviewAuditRow,
+  command: ReviewCheatClueCommand,
+): CheatClueRecord {
+  const finalReview = command.status === 'dismissed' || command.status === 'confirmed'
+  return {
+    ...cheatClueRecord(clue),
+    status: command.status,
+    reviewedBy: finalReview ? command.actorId : null,
+    reviewNote: command.note,
+    reviewedAt: finalReview ? audit.occurred_at : null,
+    updatedAt: audit.occurred_at,
+  }
+}
+
+function canReviewCheatClue(current: CheatClueStatus, next: ReviewCheatClueCommand['status']) {
+  return current === 'open'
+    ? ['reviewing', 'dismissed', 'confirmed'].includes(next)
+    : current === 'reviewing' && ['dismissed', 'confirmed'].includes(next)
+}
+
+function sameCheatClueReview(
+  audit: CheatClueReviewAuditRow,
+  command: ReviewCheatClueCommand,
+) {
+  return audit.actor_user_id === command.actorId
+    && audit.target_id === command.clueId
+    && audit.changes.contest_id === command.contestId
+    && audit.changes.to_status === command.status
+    && (audit.changes.review_note ?? null) === command.note
 }
 
 function sameScoreAdjustment(

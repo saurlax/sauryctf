@@ -50,8 +50,116 @@ export const recordScoreAdjustmentResponseSchema = z.strictObject({
   adjustment: scoreAdjustmentSchema,
 })
 
+export const cheatClueStatusSchema = z.enum(['open', 'reviewing', 'dismissed', 'confirmed'])
+export const cheatClueReviewStatusSchema = z.enum(['reviewing', 'dismissed', 'confirmed'])
+const answerFingerprintSchema = z.string().regex(/^[0-9a-f]{64}$/u)
+const cheatClueBase = {
+  id: uuidSchema,
+  contest_id: uuidSchema,
+  challenge_id: uuidSchema.nullable(),
+  participation_id: uuidSchema.nullable(),
+  status: cheatClueStatusSchema,
+  reviewed_by: uuidSchema.nullable(),
+  review_note: z.string().max(1000).nullable(),
+  reviewed_at: utcTimestampSchema.nullable(),
+  created_at: utcTimestampSchema,
+  updated_at: utcTimestampSchema,
+}
+
+const repeatedIncorrectAnswerEvidenceSchema = z.strictObject({
+  schema: z.literal('cheat-clue.v1'),
+  kind: z.literal('repeated_incorrect_answer'),
+  answer_fingerprint: answerFingerprintSchema,
+  trigger_submission_id: uuidSchema,
+  participation_id: uuidSchema,
+  challenge_id: uuidSchema,
+  mode: z.literal('official'),
+  matching_submission_count: z.number().int().min(3),
+  first_seen_at: utcTimestampSchema,
+  last_seen_at: utcTimestampSchema,
+})
+
+const sharedIncorrectAnswerEvidenceSchema = z.strictObject({
+  schema: z.literal('cheat-clue.v1'),
+  kind: z.literal('shared_incorrect_answer'),
+  answer_fingerprint: answerFingerprintSchema,
+  trigger_submission_id: uuidSchema,
+  subject_submission_id: uuidSchema,
+  participation_id: uuidSchema,
+  related_participation_ids: z.array(uuidSchema).min(2),
+  challenge_id: uuidSchema,
+  mode: z.literal('official'),
+  matching_participation_count: z.number().int().min(2),
+  observed_at: utcTimestampSchema,
+})
+
+const abnormalSubmissionFrequencyEvidenceSchema = z.strictObject({
+  schema: z.literal('cheat-clue.v1'),
+  kind: z.literal('abnormal_submission_frequency'),
+  trigger_submission_id: uuidSchema,
+  participation_id: uuidSchema,
+  challenge_id: uuidSchema,
+  mode: z.literal('official'),
+  matching_submission_count: z.number().int().min(10),
+  window_started_at: utcTimestampSchema,
+  window_ended_at: utcTimestampSchema,
+})
+
+const foreignTeamFlagEvidenceSchema = z.strictObject({
+  schema: z.literal('cheat-clue.v1'),
+  kind: z.literal('foreign_team_flag'),
+  answer_fingerprint: answerFingerprintSchema,
+  incorrect_submission_id: uuidSchema,
+  owner_submission_id: uuidSchema,
+  participation_id: uuidSchema,
+  owner_participation_id: uuidSchema,
+  challenge_id: uuidSchema,
+  mode: z.literal('official'),
+  observed_at: utcTimestampSchema,
+})
+
+export const cheatClueSchema = z.discriminatedUnion('clue_type', [
+  z.strictObject({
+    ...cheatClueBase,
+    clue_type: z.literal('repeated_incorrect_answer'),
+    evidence: repeatedIncorrectAnswerEvidenceSchema,
+  }),
+  z.strictObject({
+    ...cheatClueBase,
+    clue_type: z.literal('shared_incorrect_answer'),
+    evidence: sharedIncorrectAnswerEvidenceSchema,
+  }),
+  z.strictObject({
+    ...cheatClueBase,
+    clue_type: z.literal('abnormal_submission_frequency'),
+    evidence: abnormalSubmissionFrequencyEvidenceSchema,
+  }),
+  z.strictObject({
+    ...cheatClueBase,
+    clue_type: z.literal('foreign_team_flag'),
+    evidence: foreignTeamFlagEvidenceSchema,
+  }),
+])
+
+export const cheatClueListRequestSchema = paginationRequestSchema.extend({
+  status: cheatClueStatusSchema.optional(),
+})
+export const cheatClueListResponseSchema = cursorPageSchema(cheatClueSchema)
+
+export const reviewCheatClueRequestSchema = z.strictObject({
+  status: cheatClueReviewStatusSchema,
+  review_note: z.string().trim().max(1000).nullable().optional(),
+})
+
+export const reviewCheatClueResponseSchema = z.strictObject({
+  clue: cheatClueSchema,
+})
+
 export type SubmitFlagRequest = z.infer<typeof submitFlagRequestSchema>
 export type SubmitFlagResponse = z.infer<typeof submitFlagResponseSchema>
 export type ManagedSubmission = z.infer<typeof managedSubmissionSchema>
 export type RecordScoreAdjustmentRequest = z.infer<typeof recordScoreAdjustmentRequestSchema>
 export type ScoreAdjustment = z.infer<typeof scoreAdjustmentSchema>
+export type CheatClue = z.infer<typeof cheatClueSchema>
+export type CheatClueStatus = z.infer<typeof cheatClueStatusSchema>
+export type ReviewCheatClueRequest = z.infer<typeof reviewCheatClueRequestSchema>

@@ -613,6 +613,7 @@ export const scoreAdjustments = pgTable('score_adjustments', {
 
 export const cheatClues = pgTable('cheat_clues', {
   id: uuid().primaryKey().defaultRandom(),
+  clueKey: varchar('clue_key', { length: 200 }).notNull(),
   contestId: uuid('contest_id').notNull().references(() => contests.id),
   contestChallengeId: uuid('contest_challenge_id').references(() => contestChallenges.id),
   participationId: uuid('participation_id').references(() => participations.id),
@@ -625,8 +626,10 @@ export const cheatClues = pgTable('cheat_clues', {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
 }, (table) => [
+  uniqueIndex('cheat_clues_key_unique').on(table.clueKey),
   index('cheat_clues_review_queue').on(table.contestId, table.status, table.createdAt),
   check('cheat_clues_type_not_empty', sql`length(${table.clueType}) > 0`),
+  check('cheat_clues_type_supported', sql`${table.clueType} IN ('repeated_incorrect_answer', 'shared_incorrect_answer', 'abnormal_submission_frequency', 'foreign_team_flag')`),
   check('cheat_clues_evidence_object', sql`jsonb_typeof(${table.evidence}) = 'object'`),
   check('cheat_clues_review_state', sql`(${table.status} IN ('dismissed', 'confirmed') AND ${table.reviewedBy} IS NOT NULL AND ${table.reviewedAt} IS NOT NULL) OR ${table.status} IN ('open', 'reviewing')`),
 ])

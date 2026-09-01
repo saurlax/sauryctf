@@ -68,6 +68,21 @@ function admissionRepository() {
       submittedAt: at,
     })),
     listManaged: vi.fn(async () => ({ items: [], nextCursor: null, hasMore: false })),
+    listCheatClues: vi.fn(async () => ({ items: [], nextCursor: null, hasMore: false })),
+    reviewCheatClue: vi.fn(async input => ({
+      id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f78',
+      contestId: input.contestId,
+      challengeId,
+      participationId,
+      clueType: 'repeated_incorrect_answer' as const,
+      evidence: {},
+      status: input.status,
+      reviewedBy: input.status === 'reviewing' ? null : input.actorId,
+      reviewNote: input.note,
+      reviewedAt: input.status === 'reviewing' ? null : input.at,
+      createdAt: at,
+      updatedAt: input.at,
+    })),
     recordScoreAdjustment: vi.fn(async input => ({
       id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f77',
       contestId: input.contestId,
@@ -173,6 +188,8 @@ describe('submission eligibility pipeline', () => {
       admit: vi.fn(async () => { throw failure }),
       append: vi.fn(),
       listManaged: vi.fn(),
+      listCheatClues: vi.fn(),
+      reviewCheatClue: vi.fn(),
       recordScoreAdjustment: vi.fn(),
     }
     const verifier = { verify: vi.fn(() => ({ correct: true })) }
@@ -294,5 +311,72 @@ describe('score adjustment authorization', () => {
       { ...input, reason: 'too short' },
     )).rejects.toMatchObject({ code: 'score.adjustment_reason_required' })
     expect(repository.recordScoreAdjustment).not.toHaveBeenCalled()
+  })
+})
+
+describe('anti-cheat clue review authorization', () => {
+  it('allows an organizer to list and transition evidence while trimming the review note', async () => {
+    const repository = admissionRepository()
+    const service = new SubmissionService(
+      repository,
+      { verify: vi.fn() },
+      allowedLimiter(),
+      answerProtector(),
+      () => at,
+    )
+    const organizer = { ...actor, role: 'organizer' as const }
+
+    await service.listCheatClues(organizer, contestId, 'open', undefined, 20)
+    expect(repository.listCheatClues).toHaveBeenCalledWith(
+      contestId,
+      'open',
+      undefined,
+      20,
+    )
+    await service.reviewCheatClue(organizer, {
+      contestId,
+      clueId: '018f47a2-4ef8-7e2c-9c24-6d68b7451f78',
+      status: 'confirmed',
+      note: '  Confirmed after evidence review  ',
+      requestId,
+    })
+    expect(repository.reviewCheatClue).toHaveBeenCalledWith({
+      actorId: userId,
+      contestId,
+      clueId: '018f47a2-4ef8-7e2c-9c24-6d68b7451f78',
+      status: 'confirmed',
+      note: 'Confirmed after evidence review',
+      requestId,
+      at,
+    })
+  })
+
+  it('rejects players and final conclusions without a substantive note before persistence', async () => {
+    const repository = admissionRepository()
+    const service = new SubmissionService(
+      repository,
+      { verify: vi.fn() },
+      allowedLimiter(),
+      answerProtector(),
+      () => at,
+    )
+    const input = {
+      contestId,
+      clueId: '018f47a2-4ef8-7e2c-9c24-6d68b7451f78',
+      status: 'dismissed' as const,
+      note: 'Reviewed evidence and dismissed',
+      requestId,
+    }
+
+    await expect(service.listCheatClues(actor, contestId, undefined, undefined, 20))
+      .rejects.toBeInstanceOf(IdentityCapabilityError)
+    await expect(service.reviewCheatClue(actor, input))
+      .rejects.toBeInstanceOf(IdentityCapabilityError)
+    await expect(service.reviewCheatClue(
+      { ...actor, role: 'organizer' },
+      { ...input, note: 'too short' },
+    )).rejects.toMatchObject({ code: 'cheat_clue.review_note_required' })
+    expect(repository.listCheatClues).not.toHaveBeenCalled()
+    expect(repository.reviewCheatClue).not.toHaveBeenCalled()
   })
 })

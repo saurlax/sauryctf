@@ -110,6 +110,12 @@ export interface paths {
   "/api/admin/contests/{contestId}/score-adjustments": {
     post: operations["recordContestScoreAdjustment"];
   };
+  "/api/admin/contests/{contestId}/cheat-clues": {
+    get: operations["listContestCheatClues"];
+  };
+  "/api/admin/contests/{contestId}/cheat-clues/{clueId}": {
+    patch: operations["reviewContestCheatClue"];
+  };
   "/api/admin/contests/{contestId}": {
     get: operations["getManagedContest"];
     patch: operations["updateContestDraft"];
@@ -2687,6 +2693,379 @@ export interface operations {
               /** Format: date-time */
               created_at: string;
             };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  listContestCheatClues: {
+    parameters: {
+      query?: {
+        cursor?: string;
+        limit?: number;
+        status?: "open" | "reviewing" | "dismissed" | "confirmed";
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    responses: {
+      /** @description Paginated reviewable anti-cheat evidence without plaintext answers */
+      200: {
+        content: {
+          "application/json": {
+            items: (OneOf<[{
+                id: string;
+                contest_id: string;
+                challenge_id: string | null;
+                participation_id: string | null;
+                /** @enum {string} */
+                status: "open" | "reviewing" | "dismissed" | "confirmed";
+                reviewed_by: string | null;
+                review_note: string | null;
+                reviewed_at: string | null;
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                updated_at: string;
+                /** @constant */
+                clue_type: "repeated_incorrect_answer";
+                evidence: {
+                  /** @constant */
+                  schema: "cheat-clue.v1";
+                  /** @constant */
+                  kind: "repeated_incorrect_answer";
+                  answer_fingerprint: string;
+                  trigger_submission_id: string;
+                  participation_id: string;
+                  challenge_id: string;
+                  /** @constant */
+                  mode: "official";
+                  matching_submission_count: number;
+                  /** Format: date-time */
+                  first_seen_at: string;
+                  /** Format: date-time */
+                  last_seen_at: string;
+                };
+              }, {
+                id: string;
+                contest_id: string;
+                challenge_id: string | null;
+                participation_id: string | null;
+                /** @enum {string} */
+                status: "open" | "reviewing" | "dismissed" | "confirmed";
+                reviewed_by: string | null;
+                review_note: string | null;
+                reviewed_at: string | null;
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                updated_at: string;
+                /** @constant */
+                clue_type: "shared_incorrect_answer";
+                evidence: {
+                  /** @constant */
+                  schema: "cheat-clue.v1";
+                  /** @constant */
+                  kind: "shared_incorrect_answer";
+                  answer_fingerprint: string;
+                  trigger_submission_id: string;
+                  subject_submission_id: string;
+                  participation_id: string;
+                  related_participation_ids: string[];
+                  challenge_id: string;
+                  /** @constant */
+                  mode: "official";
+                  matching_participation_count: number;
+                  /** Format: date-time */
+                  observed_at: string;
+                };
+              }, {
+                id: string;
+                contest_id: string;
+                challenge_id: string | null;
+                participation_id: string | null;
+                /** @enum {string} */
+                status: "open" | "reviewing" | "dismissed" | "confirmed";
+                reviewed_by: string | null;
+                review_note: string | null;
+                reviewed_at: string | null;
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                updated_at: string;
+                /** @constant */
+                clue_type: "abnormal_submission_frequency";
+                evidence: {
+                  /** @constant */
+                  schema: "cheat-clue.v1";
+                  /** @constant */
+                  kind: "abnormal_submission_frequency";
+                  trigger_submission_id: string;
+                  participation_id: string;
+                  challenge_id: string;
+                  /** @constant */
+                  mode: "official";
+                  matching_submission_count: number;
+                  /** Format: date-time */
+                  window_started_at: string;
+                  /** Format: date-time */
+                  window_ended_at: string;
+                };
+              }, {
+                id: string;
+                contest_id: string;
+                challenge_id: string | null;
+                participation_id: string | null;
+                /** @enum {string} */
+                status: "open" | "reviewing" | "dismissed" | "confirmed";
+                reviewed_by: string | null;
+                review_note: string | null;
+                reviewed_at: string | null;
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                updated_at: string;
+                /** @constant */
+                clue_type: "foreign_team_flag";
+                evidence: {
+                  /** @constant */
+                  schema: "cheat-clue.v1";
+                  /** @constant */
+                  kind: "foreign_team_flag";
+                  answer_fingerprint: string;
+                  incorrect_submission_id: string;
+                  owner_submission_id: string;
+                  participation_id: string;
+                  owner_participation_id: string;
+                  challenge_id: string;
+                  /** @constant */
+                  mode: "official";
+                  /** Format: date-time */
+                  observed_at: string;
+                };
+              }]>)[];
+            page: {
+              next_cursor: string | null;
+              has_more: boolean;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  reviewContestCheatClue: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+      path: {
+        contestId: string;
+        clueId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          status: "reviewing" | "dismissed" | "confirmed";
+          review_note?: string | null;
+        };
+      };
+    };
+    responses: {
+      /** @description Anti-cheat evidence classified by an authorized human reviewer without automatic punishment */
+      200: {
+        content: {
+          "application/json": {
+            clue: OneOf<[{
+              id: string;
+              contest_id: string;
+              challenge_id: string | null;
+              participation_id: string | null;
+              /** @enum {string} */
+              status: "open" | "reviewing" | "dismissed" | "confirmed";
+              reviewed_by: string | null;
+              review_note: string | null;
+              reviewed_at: string | null;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              updated_at: string;
+              /** @constant */
+              clue_type: "repeated_incorrect_answer";
+              evidence: {
+                /** @constant */
+                schema: "cheat-clue.v1";
+                /** @constant */
+                kind: "repeated_incorrect_answer";
+                answer_fingerprint: string;
+                trigger_submission_id: string;
+                participation_id: string;
+                challenge_id: string;
+                /** @constant */
+                mode: "official";
+                matching_submission_count: number;
+                /** Format: date-time */
+                first_seen_at: string;
+                /** Format: date-time */
+                last_seen_at: string;
+              };
+            }, {
+              id: string;
+              contest_id: string;
+              challenge_id: string | null;
+              participation_id: string | null;
+              /** @enum {string} */
+              status: "open" | "reviewing" | "dismissed" | "confirmed";
+              reviewed_by: string | null;
+              review_note: string | null;
+              reviewed_at: string | null;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              updated_at: string;
+              /** @constant */
+              clue_type: "shared_incorrect_answer";
+              evidence: {
+                /** @constant */
+                schema: "cheat-clue.v1";
+                /** @constant */
+                kind: "shared_incorrect_answer";
+                answer_fingerprint: string;
+                trigger_submission_id: string;
+                subject_submission_id: string;
+                participation_id: string;
+                related_participation_ids: string[];
+                challenge_id: string;
+                /** @constant */
+                mode: "official";
+                matching_participation_count: number;
+                /** Format: date-time */
+                observed_at: string;
+              };
+            }, {
+              id: string;
+              contest_id: string;
+              challenge_id: string | null;
+              participation_id: string | null;
+              /** @enum {string} */
+              status: "open" | "reviewing" | "dismissed" | "confirmed";
+              reviewed_by: string | null;
+              review_note: string | null;
+              reviewed_at: string | null;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              updated_at: string;
+              /** @constant */
+              clue_type: "abnormal_submission_frequency";
+              evidence: {
+                /** @constant */
+                schema: "cheat-clue.v1";
+                /** @constant */
+                kind: "abnormal_submission_frequency";
+                trigger_submission_id: string;
+                participation_id: string;
+                challenge_id: string;
+                /** @constant */
+                mode: "official";
+                matching_submission_count: number;
+                /** Format: date-time */
+                window_started_at: string;
+                /** Format: date-time */
+                window_ended_at: string;
+              };
+            }, {
+              id: string;
+              contest_id: string;
+              challenge_id: string | null;
+              participation_id: string | null;
+              /** @enum {string} */
+              status: "open" | "reviewing" | "dismissed" | "confirmed";
+              reviewed_by: string | null;
+              review_note: string | null;
+              reviewed_at: string | null;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              updated_at: string;
+              /** @constant */
+              clue_type: "foreign_team_flag";
+              evidence: {
+                /** @constant */
+                schema: "cheat-clue.v1";
+                /** @constant */
+                kind: "foreign_team_flag";
+                answer_fingerprint: string;
+                incorrect_submission_id: string;
+                owner_submission_id: string;
+                participation_id: string;
+                owner_participation_id: string;
+                challenge_id: string;
+                /** @constant */
+                mode: "official";
+                /** Format: date-time */
+                observed_at: string;
+              };
+            }]>;
           };
         };
       };
