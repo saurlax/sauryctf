@@ -62,6 +62,7 @@ describe('deterministic contest scoring replay', () => {
     const replay = replayContestScoring(fixture())
     expect(replay).toEqual({
       schema: 'contest-scoring-replay.v1',
+      factVersion: 6,
       challengeScores: [
         {
           challengeId: 'challenge-decay',

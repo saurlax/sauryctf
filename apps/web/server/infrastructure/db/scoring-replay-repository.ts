@@ -6,6 +6,7 @@ import {
   type ReplayParticipationStatus,
   type ReplaySubmissionMode,
   type ReplaySubmissionResult,
+  type ScoringReplayOptions,
   type ScoringReplayRepository,
 } from '../../domains/submissions/scoring-replay'
 
@@ -51,8 +52,9 @@ interface AdjustmentRow {
 export class PostgresScoringReplayRepository implements ScoringReplayRepository {
   constructor(private readonly pool: Pool) {}
 
-  async load(contestId: string): Promise<ContestScoringFacts> {
+  async load(contestId: string, options?: ScoringReplayOptions): Promise<ContestScoringFacts> {
     const connection = await this.pool.connect()
+    const factsBefore = options?.factsBefore ?? null
     try {
       await connection.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY')
       const contest = await connection.query('SELECT 1 FROM contests WHERE id = $1', [contestId])
@@ -78,23 +80,26 @@ export class PostgresScoringReplayRepository implements ScoringReplayRepository 
                 mode::text, result::text, submitted_at
          FROM submissions
          WHERE contest_id = $1
+           AND ($2::timestamptz IS NULL OR submitted_at < $2)
          ORDER BY submitted_at, id`,
-        [contestId],
+        [contestId, factsBefore],
       )
       const solveRows = await connection.query<SolveRow>(
         `SELECT id, submission_id, contest_challenge_id, participation_id,
                 mode::text, solve_order, solved_at
          FROM solves
          WHERE contest_id = $1
+           AND ($2::timestamptz IS NULL OR solved_at < $2)
          ORDER BY mode, contest_challenge_id, solve_order, solved_at, id`,
-        [contestId],
+        [contestId, factsBefore],
       )
       const adjustmentRows = await connection.query<AdjustmentRow>(
         `SELECT id, participation_id, points_delta, created_at
          FROM score_adjustments
          WHERE contest_id = $1
+           AND ($2::timestamptz IS NULL OR created_at < $2)
          ORDER BY created_at, id`,
-        [contestId],
+        [contestId, factsBefore],
       )
       await connection.query('COMMIT')
 

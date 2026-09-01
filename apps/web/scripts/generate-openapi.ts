@@ -91,6 +91,10 @@ import {
   submitFlagRequestSchema,
   submitFlagResponseSchema,
 } from '../shared/contracts/submissions'
+import {
+  scoreboardQuerySchema,
+  scoreboardResponseSchema,
+} from '../shared/contracts/scoreboards'
 
 function openApiSchema(schema: z.ZodType): Record<string, unknown> {
   const jsonSchema = z.toJSONSchema(schema, { target: 'draft-7' }) as Record<string, unknown>
@@ -569,6 +573,39 @@ const document = {
         responses: {
           200: jsonResponse('Selected public contest events with stable cursor pagination', publicTimelineListResponseSchema),
           400: errorResponse,
+          404: errorResponse,
+        },
+      },
+    },
+    '/api/contests/{contestId}/scoreboard': {
+      get: {
+        operationId: 'getPublicContestScoreboard',
+        tags: ['Contests', 'Scoreboards'],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          { name: 'division_id', in: 'query', required: false, schema: openApiSchema(scoreboardQuerySchema.shape.division_id) },
+        ],
+        responses: {
+          200: jsonResponse('Public live, frozen, or settled deterministic scoreboard projection', scoreboardResponseSchema),
+          400: errorResponse,
+          404: errorResponse,
+        },
+      },
+    },
+    '/api/admin/contests/{contestId}/scoreboard': {
+      get: {
+        operationId: 'getInternalContestScoreboard',
+        tags: ['Administration', 'Contests', 'Scoreboards'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          { name: 'division_id', in: 'query', required: false, schema: openApiSchema(scoreboardQuerySchema.shape.division_id) },
+        ],
+        responses: {
+          200: jsonResponse('Organizer and administrator live internal scoreboard projection', scoreboardResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
           404: errorResponse,
         },
       },

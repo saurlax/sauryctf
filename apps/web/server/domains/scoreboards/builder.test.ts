@@ -30,6 +30,7 @@ function score(input: Partial<ReplayedParticipationScore> & {
 function replay(): ContestScoringReplay {
   return {
     schema: 'contest-scoring-replay.v1',
+    factVersion: 0,
     challengeScores: [
       {
         challengeId: 'challenge-b',

@@ -57,8 +57,12 @@ export interface ContestScoringFacts {
   adjustments: ReplayScoreAdjustmentFact[]
 }
 
+export interface ScoringReplayOptions {
+  factsBefore?: Date
+}
+
 export interface ScoringReplayRepository {
-  load(contestId: string): Promise<ContestScoringFacts>
+  load(contestId: string, options?: ScoringReplayOptions): Promise<ContestScoringFacts>
 }
 
 export interface ReplayedChallengeScore {
@@ -101,6 +105,7 @@ export interface ReplayedRankSummary {
 
 export interface ContestScoringReplay {
   schema: 'contest-scoring-replay.v1'
+  factVersion: number
   challengeScores: ReplayedChallengeScore[]
   participationScores: ReplayedParticipationScore[]
   rankingSummary: ReplayedRankSummary[]
@@ -118,8 +123,14 @@ export class ScoringReplayInvariantError extends Error {
 export class ContestScoringReplayService {
   constructor(private readonly repository: ScoringReplayRepository) {}
 
-  async replay(contestId: string): Promise<ContestScoringReplay> {
-    return replayContestScoring(await this.repository.load(contestId))
+  async replay(contestId: string, options?: ScoringReplayOptions): Promise<ContestScoringReplay> {
+    if (options?.factsBefore !== undefined) {
+      requireValidDate(options.factsBefore, 'Scoring replay cutoff')
+    }
+    const facts = options === undefined
+      ? await this.repository.load(contestId)
+      : await this.repository.load(contestId, options)
+    return replayContestScoring(facts)
   }
 }
 
@@ -287,6 +298,7 @@ export function replayContestScoring(facts: ContestScoringFacts): ContestScoring
 
   return {
     schema: 'contest-scoring-replay.v1',
+    factVersion: safeAdd(officialSolves.length, facts.adjustments.length, 'fact version'),
     challengeScores,
     participationScores,
     rankingSummary,

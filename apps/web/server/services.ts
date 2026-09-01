@@ -10,6 +10,7 @@ import type { PublicTimelineService } from './domains/timeline/service'
 import type { ChallengeTemplateService } from './domains/challenges/service'
 import type { ContestChallengeService } from './domains/challenges/contest-challenge-service'
 import type { SubmissionService } from './domains/submissions/service'
+import type { ScoreboardViewService } from './domains/scoreboards/view-service'
 
 export interface ControlPlaneServices {
   identity: IdentityService
@@ -24,4 +25,5 @@ export interface ControlPlaneServices {
   challengeTemplates: ChallengeTemplateService
   contestChallenges: ContestChallengeService
   submissions: SubmissionService
+  scoreboards: ScoreboardViewService
 }

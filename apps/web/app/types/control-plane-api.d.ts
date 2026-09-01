@@ -157,6 +157,12 @@ export interface paths {
   "/api/contests/{contestId}/timeline": {
     get: operations["listPublicContestTimeline"];
   };
+  "/api/contests/{contestId}/scoreboard": {
+    get: operations["getPublicContestScoreboard"];
+  };
+  "/api/admin/contests/{contestId}/scoreboard": {
+    get: operations["getInternalContestScoreboard"];
+  };
   "/api/contests/{contestId}/participation": {
     get: operations["getCurrentParticipation"];
     post: operations["registerParticipation"];
@@ -4336,6 +4342,170 @@ export interface operations {
       };
       /** @description Stable API error */
       400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  getPublicContestScoreboard: {
+    parameters: {
+      query?: {
+        division_id?: string;
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    responses: {
+      /** @description Public live, frozen, or settled deterministic scoreboard projection */
+      200: {
+        content: {
+          "application/json": {
+            scoreboard: {
+              /** @constant */
+              schema: "scoreboard-projection.v1";
+              contest_id: string;
+              /** @enum {string} */
+              view: "public" | "internal";
+              /** @enum {string} */
+              state: "live" | "frozen" | "settled";
+              version: number;
+              frozen_at: string | null;
+              /** Format: date-time */
+              built_at: string;
+              scope: OneOf<[{
+                /** @constant */
+                type: "overall";
+              }, {
+                /** @constant */
+                type: "division";
+                division_id: string;
+              }]>;
+              challenges: ({
+                  challenge_id: string;
+                  official_solve_count: number;
+                  current_points: number;
+                  first_solve_participation_id: string | null;
+                })[];
+              rows: ({
+                  rank: number;
+                  participation_id: string;
+                  team_id: string;
+                  team_name: string;
+                  division_id: string | null;
+                  total_points: number;
+                  solve_points: number;
+                  adjustment_points: number;
+                  official_solve_count: number;
+                  last_scoring_at: string | null;
+                  solves: {
+                      solve_id: string;
+                      challenge_id: string;
+                      /** Format: date-time */
+                      solved_at: string;
+                    }[];
+                })[];
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  getInternalContestScoreboard: {
+    parameters: {
+      query?: {
+        division_id?: string;
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    responses: {
+      /** @description Organizer and administrator live internal scoreboard projection */
+      200: {
+        content: {
+          "application/json": {
+            scoreboard: {
+              /** @constant */
+              schema: "scoreboard-projection.v1";
+              contest_id: string;
+              /** @enum {string} */
+              view: "public" | "internal";
+              /** @enum {string} */
+              state: "live" | "frozen" | "settled";
+              version: number;
+              frozen_at: string | null;
+              /** Format: date-time */
+              built_at: string;
+              scope: OneOf<[{
+                /** @constant */
+                type: "overall";
+              }, {
+                /** @constant */
+                type: "division";
+                division_id: string;
+              }]>;
+              challenges: ({
+                  challenge_id: string;
+                  official_solve_count: number;
+                  current_points: number;
+                  first_solve_participation_id: string | null;
+                })[];
+              rows: ({
+                  rank: number;
+                  participation_id: string;
+                  team_id: string;
+                  team_name: string;
+                  division_id: string | null;
+                  total_points: number;
+                  solve_points: number;
+                  adjustment_points: number;
+                  official_solve_count: number;
+                  last_scoring_at: string | null;
+                  solves: {
+                      solve_id: string;
+                      challenge_id: string;
+                      /** Format: date-time */
+                      solved_at: string;
+                    }[];
+                })[];
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };

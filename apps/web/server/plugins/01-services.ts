@@ -33,6 +33,10 @@ import { SubmissionService } from '../domains/submissions/service'
 import { PostgresSubmissionRepository } from '../infrastructure/db/submission-repository'
 import { RateLimitStoreSubmissionLimiter } from '../infrastructure/security/submission-rate-limiter'
 import { AesGcmSubmissionAnswerProtector } from '../infrastructure/security/submission-answer-protector'
+import { ContestScoringReplayService } from '../domains/submissions/scoring-replay'
+import { ScoreboardViewService } from '../domains/scoreboards/view-service'
+import { PostgresScoringReplayRepository } from '../infrastructure/db/scoring-replay-repository'
+import { PostgresScoreboardViewRepository } from '../infrastructure/db/scoreboard-view-repository'
 
 export default defineNitroPlugin(async (nitroApp) => {
   const databaseUrl = process.env.DATABASE_URL
@@ -58,6 +62,9 @@ export default defineNitroPlugin(async (nitroApp) => {
     mailTokens,
   )
   await identity.bootstrapDefaultAdministrator()
+  const scoringReplays = new ContestScoringReplayService(
+    new PostgresScoringReplayRepository(database.pool),
+  )
   const services: ControlPlaneServices = {
     identity,
     identitySessions: new IdentitySessionService(identityRepository),
@@ -75,6 +82,10 @@ export default defineNitroPlugin(async (nitroApp) => {
       new FlagVerifier(new VersionedFlagKeyring({})),
       new RateLimitStoreSubmissionLimiter(rateLimits),
       new AesGcmSubmissionAnswerProtector(Buffer.from(submissionAnswerKey, 'base64url')),
+    ),
+    scoreboards: new ScoreboardViewService(
+      new PostgresScoreboardViewRepository(database.pool),
+      scoringReplays,
     ),
   }
 
