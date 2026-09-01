@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { Client } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { staticFlagDigest } from '../../domains/challenges/flag-verifier'
+import { ContestScoringReplayService } from '../../domains/submissions/scoring-replay'
 import type { ChallengeFlagPolicy, ChallengeScoringPolicy } from '../../../shared/contracts/challenges'
 import {
   CheatClueRequestConflictError,
@@ -21,6 +22,7 @@ import { createPublishableChallenge } from '../../test-support/publishable-chall
 import { createDatabaseClient, type DatabaseClient } from './client'
 import { runMigrations } from './migrate'
 import { PostgresSubmissionRepository } from './submission-repository'
+import { PostgresScoringReplayRepository } from './scoring-replay-repository'
 import { AesGcmSubmissionAnswerProtector } from '../security/submission-answer-protector'
 
 const adminConnectionString = process.env.TEST_DATABASE_ADMIN_URL
@@ -894,5 +896,65 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     await expect(repository.listManaged(input.contestId, randomUUID(), 2)).rejects.toBeInstanceOf(
       SubmissionCursorInvalidError,
     )
+  })
+
+  it('replays the same PostgreSQL fact snapshot to identical current scores and ranking summaries', async () => {
+    const firstTeam = await fixture({
+      scoringPolicy: {
+        type: 'decay-v1',
+        initial_points: 500,
+        minimum_points: 100,
+        decay_solves: 10,
+      },
+    })
+    const secondTeam = await addParticipant(firstTeam)
+    await repository.append(appendCommand(firstTeam, 'flag{correct}', 'correct').command)
+    await repository.append(appendCommand(secondTeam, 'flag{correct}', 'correct').command)
+    await repository.recordScoreAdjustment(adjustmentCommand(
+      firstTeam,
+      -25,
+      'Apply the reviewed replay fixture penalty',
+    ))
+    await database.pool.query(
+      `UPDATE contests
+       SET end_at = $2, practice_enabled = true, updated_at = $3
+       WHERE id = $1`,
+      [firstTeam.contestId, new Date(at.getTime() - 1), at],
+    )
+    await repository.append(appendCommand(firstTeam, 'flag{correct}', 'correct').command)
+
+    const replayer = new ContestScoringReplayService(
+      new PostgresScoringReplayRepository(database.pool),
+    )
+    const first = await replayer.replay(firstTeam.contestId)
+    const second = await replayer.replay(firstTeam.contestId)
+    expect(second).toEqual(first)
+    expect(JSON.stringify(second)).toBe(JSON.stringify(first))
+    expect(first.challengeScores).toEqual([expect.objectContaining({
+      challengeId: firstTeam.challengeId,
+      officialSolveCount: 2,
+      currentPoints: 461,
+      firstSolve: expect.objectContaining({ participationId: firstTeam.participationId }),
+    })])
+    expect(first.participationScores).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        participationId: firstTeam.participationId,
+        officialSolveCount: 1,
+        solvePoints: 461,
+        adjustmentPoints: -25,
+        totalPoints: 436,
+      }),
+      expect.objectContaining({
+        participationId: secondTeam.participationId,
+        officialSolveCount: 1,
+        solvePoints: 461,
+        adjustmentPoints: 0,
+        totalPoints: 461,
+      }),
+    ]))
+    expect(first.rankingSummary.map(row => row.participationId)).toEqual([
+      secondTeam.participationId,
+      firstTeam.participationId,
+    ])
   })
 })
