@@ -13,9 +13,10 @@ import (
 )
 
 var (
-	ErrUnavailable    = errors.New("worker database is unavailable")
-	ErrUnexpectedRole = errors.New("expected worker database role is not active")
-	ErrInstanceSchema = errors.New("instance job schema is not ready")
+	ErrUnavailable      = errors.New("worker database is unavailable")
+	ErrUnexpectedRole   = errors.New("expected worker database role is not active")
+	ErrUnsafePrivileges = errors.New("worker database privileges are incomplete or too broad")
+	ErrInstanceSchema   = errors.New("instance job schema is not ready")
 )
 
 // Options configures the worker's dedicated connection pool.
@@ -64,6 +65,7 @@ func (readiness *Readiness) Ready(ctx context.Context) error {
 	}
 
 	var roleAccepted bool
+	var privilegesAccepted bool
 	var instancesReady bool
 	var jobsReady bool
 	var attemptsReady bool
@@ -85,12 +87,36 @@ func (readiness *Readiness) Ready(ctx context.Context) error {
 					OR pg_has_role(current_user, expected_role.oid, 'member')
 				  )
 			),
+			COALESCE(
+				has_table_privilege(current_user, to_regclass('public.instances'), 'SELECT')
+				AND has_table_privilege(current_user, to_regclass('public.instance_jobs'), 'SELECT')
+				AND has_table_privilege(current_user, to_regclass('public.instance_job_attempts'), 'SELECT')
+				AND has_table_privilege(current_user, to_regclass('public.instance_orphan_reports'), 'SELECT')
+				AND has_column_privilege(current_user, to_regclass('public.instances'), 'observed_state', 'UPDATE')
+				AND has_column_privilege(current_user, to_regclass('public.instance_jobs'), 'status', 'UPDATE')
+				AND has_column_privilege(current_user, to_regclass('public.instance_job_attempts'), 'id', 'INSERT')
+				AND has_column_privilege(current_user, to_regclass('public.instance_orphan_reports'), 'provider', 'INSERT')
+				AND NOT has_column_privilege(current_user, to_regclass('public.instances'), 'desired_state', 'UPDATE')
+				AND NOT has_column_privilege(current_user, to_regclass('public.instance_jobs'), 'payload', 'UPDATE')
+				AND NOT has_table_privilege(current_user, to_regclass('public.instance_jobs'), 'INSERT')
+				AND NOT has_table_privilege(current_user, to_regclass('public.instances'), 'DELETE')
+				AND NOT has_table_privilege(current_user, to_regclass('public.users'), 'SELECT')
+				AND NOT has_table_privilege(current_user, to_regclass('public.teams'), 'SELECT')
+				AND NOT has_table_privilege(current_user, to_regclass('public.contests'), 'SELECT')
+				AND NOT has_table_privilege(current_user, to_regclass('public.challenge_template_versions'), 'SELECT')
+				AND NOT has_table_privilege(current_user, to_regclass('public.submissions'), 'SELECT')
+				AND NOT has_table_privilege(current_user, to_regclass('public.solves'), 'SELECT')
+				AND NOT has_table_privilege(current_user, to_regclass('public.score_adjustments'), 'SELECT')
+				AND NOT has_table_privilege(current_user, to_regclass('public.scoreboard_snapshots'), 'SELECT'),
+				false
+			),
 			to_regclass('public.instances') IS NOT NULL,
 			to_regclass('public.instance_jobs') IS NOT NULL,
 			to_regclass('public.instance_job_attempts') IS NOT NULL,
 			to_regclass('public.instance_orphan_reports') IS NOT NULL`
 	if err := readiness.connection.QueryRow(ctx, query, readiness.expectedRole).Scan(
 		&roleAccepted,
+		&privilegesAccepted,
 		&instancesReady,
 		&jobsReady,
 		&attemptsReady,
@@ -103,6 +129,9 @@ func (readiness *Readiness) Ready(ctx context.Context) error {
 	}
 	if !instancesReady || !jobsReady || !attemptsReady || !orphanReportsReady {
 		return fmt.Errorf("%w: required instance tables are missing", ErrInstanceSchema)
+	}
+	if !privilegesAccepted {
+		return ErrUnsafePrivileges
 	}
 	return nil
 }

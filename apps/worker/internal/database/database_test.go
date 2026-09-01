@@ -56,7 +56,7 @@ func (connection testConnection) QueryRow(ctx context.Context, query string, arg
 }
 
 func TestReadinessAcceptsRestrictedRoleAndInstanceSchema(t *testing.T) {
-	connection := &fakeConnection{values: []bool{true, true, true, true, true}}
+	connection := &fakeConnection{values: []bool{true, true, true, true, true, true}}
 	readiness := NewReadiness(testConnection{connection}, "sauryctf_worker")
 	if err := readiness.Ready(context.Background()); err != nil {
 		t.Fatalf("Ready() error = %v", err)
@@ -67,6 +67,11 @@ func TestReadinessAcceptsRestrictedRoleAndInstanceSchema(t *testing.T) {
 	for _, table := range []string{"public.instances", "public.instance_jobs", "public.instance_job_attempts", "public.instance_orphan_reports"} {
 		if !strings.Contains(connection.query, table) {
 			t.Fatalf("readiness query does not check %s", table)
+		}
+	}
+	for _, forbidden := range []string{"public.users", "public.teams", "public.contests", "public.challenge_template_versions", "public.submissions", "public.solves", "public.score_adjustments", "public.scoreboard_snapshots"} {
+		if !strings.Contains(connection.query, forbidden) {
+			t.Fatalf("readiness query does not reject access to %s", forbidden)
 		}
 	}
 	for _, restriction := range []string{"NOT login_role.rolsuper", "NOT login_role.rolcreatedb", "NOT login_role.rolcreaterole", "NOT login_role.rolreplication", "NOT login_role.rolbypassrls"} {
@@ -98,9 +103,10 @@ func TestReadinessRejectsBroadRoleAndIncompleteSchema(t *testing.T) {
 		values []bool
 		want   error
 	}{
-		{name: "role", values: []bool{false, true, true, true, true}, want: ErrUnexpectedRole},
-		{name: "schema", values: []bool{true, true, false, true, true}, want: ErrInstanceSchema},
-		{name: "orphan reports", values: []bool{true, true, true, true, false}, want: ErrInstanceSchema},
+		{name: "role", values: []bool{false, true, true, true, true, true}, want: ErrUnexpectedRole},
+		{name: "privileges", values: []bool{true, false, true, true, true, true}, want: ErrUnsafePrivileges},
+		{name: "schema", values: []bool{true, true, true, false, true, true}, want: ErrInstanceSchema},
+		{name: "orphan reports", values: []bool{true, true, true, true, true, false}, want: ErrInstanceSchema},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
