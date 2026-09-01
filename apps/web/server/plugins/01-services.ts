@@ -20,6 +20,8 @@ import { ParticipationService } from '../domains/participations/service'
 import { PostgresParticipationRepository } from '../infrastructure/db/participation-repository'
 import { ContestService } from '../domains/contests/service'
 import { PostgresContestRepository } from '../infrastructure/db/contest-repository'
+import { AnnouncementService } from '../domains/announcements/service'
+import { PostgresAnnouncementRepository } from '../infrastructure/db/announcement-repository'
 
 export default defineNitroPlugin(async (nitroApp) => {
   const databaseUrl = process.env.DATABASE_URL
@@ -52,6 +54,7 @@ export default defineNitroPlugin(async (nitroApp) => {
     teams: new TeamService(new PostgresTeamRepository(database.pool)),
     participations: new ParticipationService(new PostgresParticipationRepository(database.pool)),
     contests: new ContestService(new PostgresContestRepository(database.pool)),
+    announcements: new AnnouncementService(new PostgresAnnouncementRepository(database.pool)),
   }
 
   const smtpHost = process.env.MAIL_SMTP_HOST

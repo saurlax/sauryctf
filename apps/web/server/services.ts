@@ -5,6 +5,7 @@ import type { RateLimitStore } from './infrastructure/security/rate-limit'
 import type { TeamService } from './domains/teams/service'
 import type { ParticipationService } from './domains/participations/service'
 import type { ContestService } from './domains/contests/service'
+import type { AnnouncementService } from './domains/announcements/service'
 
 export interface ControlPlaneServices {
   identity: IdentityService
@@ -14,4 +15,5 @@ export interface ControlPlaneServices {
   teams: TeamService
   participations: ParticipationService
   contests: ContestService
+  announcements: AnnouncementService
 }

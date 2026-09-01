@@ -88,8 +88,21 @@ export interface paths {
   "/api/admin/contests/{contestId}/archive": {
     post: operations["archiveContest"];
   };
+  "/api/admin/contests/{contestId}/announcements": {
+    get: operations["listManagedAnnouncements"];
+    post: operations["createAnnouncement"];
+  };
+  "/api/admin/contests/{contestId}/announcements/{announcementId}": {
+    patch: operations["updateAnnouncement"];
+  };
+  "/api/admin/contests/{contestId}/announcements/{announcementId}/withdraw": {
+    post: operations["withdrawAnnouncement"];
+  };
   "/api/contests/{contestId}": {
     get: operations["getPublicContest"];
+  };
+  "/api/contests/{contestId}/announcements": {
+    get: operations["listPublicAnnouncements"];
   };
   "/api/contests/{contestId}/participation": {
     get: operations["getCurrentParticipation"];
@@ -1787,6 +1800,320 @@ export interface operations {
       };
     };
   };
+  listManagedAnnouncements: {
+    parameters: {
+      query?: {
+        cursor?: string;
+        limit?: number;
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    responses: {
+      /** @description Cursor-paginated announcement management projection */
+      200: {
+        content: {
+          "application/json": {
+            items: ({
+                id: string;
+                contest_id: string;
+                title: string;
+                body: string;
+                /** @enum {string} */
+                status: "scheduled" | "published" | "withdrawn";
+                /** Format: date-time */
+                publish_at: string;
+                withdrawn_at: string | null;
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                updated_at: string;
+                version: number;
+              })[];
+            page: {
+              next_cursor: string | null;
+              has_more: boolean;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  createAnnouncement: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title: string;
+          body: string;
+          /** Format: date-time */
+          publish_at: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Announcement created with a scheduled publication event */
+      201: {
+        content: {
+          "application/json": {
+            announcement: {
+              id: string;
+              contest_id: string;
+              title: string;
+              body: string;
+              /** @enum {string} */
+              status: "scheduled" | "published" | "withdrawn";
+              /** Format: date-time */
+              publish_at: string;
+              withdrawn_at: string | null;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              updated_at: string;
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  updateAnnouncement: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+        /** @description Strong ETag containing the current resource version. */
+        "If-Match": string;
+      };
+      path: {
+        contestId: string;
+        announcementId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title?: string;
+          body?: string;
+          /** Format: date-time */
+          publish_at?: string;
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Announcement updated with optimistic concurrency */
+      200: {
+        content: {
+          "application/json": {
+            announcement: {
+              id: string;
+              contest_id: string;
+              title: string;
+              body: string;
+              /** @enum {string} */
+              status: "scheduled" | "published" | "withdrawn";
+              /** Format: date-time */
+              publish_at: string;
+              withdrawn_at: string | null;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              updated_at: string;
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      428: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  withdrawAnnouncement: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+        /** @description Strong ETag containing the current resource version. */
+        "If-Match": string;
+      };
+      path: {
+        contestId: string;
+        announcementId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Announcement withdrawn and hidden from public reads */
+      200: {
+        content: {
+          "application/json": {
+            announcement: {
+              id: string;
+              contest_id: string;
+              title: string;
+              body: string;
+              /** @enum {string} */
+              status: "scheduled" | "published" | "withdrawn";
+              /** Format: date-time */
+              publish_at: string;
+              withdrawn_at: string | null;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              updated_at: string;
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      428: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
   getPublicContest: {
     parameters: {
       path: {
@@ -1831,6 +2158,58 @@ export interface operations {
               version: number;
             };
           };
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  listPublicAnnouncements: {
+    parameters: {
+      query?: {
+        cursor?: string;
+        limit?: number;
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    responses: {
+      /** @description Published, non-withdrawn announcements for a public contest */
+      200: {
+        content: {
+          "application/json": {
+            items: ({
+                id: string;
+                contest_id: string;
+                title: string;
+                body: string;
+                /** @enum {string} */
+                status: "scheduled" | "published" | "withdrawn";
+                /** Format: date-time */
+                publish_at: string;
+                withdrawn_at: string | null;
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                updated_at: string;
+                version: number;
+              })[];
+            page: {
+              next_cursor: string | null;
+              has_more: boolean;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Stable API error */

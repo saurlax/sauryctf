@@ -56,6 +56,14 @@ import {
   createContestDraftRequestSchema,
   updateContestDraftRequestSchema,
 } from '../shared/contracts/contests'
+import {
+  announcementListRequestSchema,
+  announcementListResponseSchema,
+  announcementResponseSchema,
+  createAnnouncementRequestSchema,
+  updateAnnouncementRequestSchema,
+  withdrawAnnouncementRequestSchema,
+} from '../shared/contracts/announcements'
 
 function openApiSchema(schema: z.ZodType): Record<string, unknown> {
   const jsonSchema = z.toJSONSchema(schema, { target: 'draft-7' }) as Record<string, unknown>
@@ -404,7 +412,109 @@ const document = {
     },
     '/api/admin/contests/{contestId}/publish': { post: { operationId: 'publishContest', tags: ['Administration', 'Contests'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], requestBody: jsonRequestBody(contestLifecycleRequestSchema), responses: { 200: jsonResponse('Contest published', contestResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse } } },
     '/api/admin/contests/{contestId}/archive': { post: { operationId: 'archiveContest', tags: ['Administration', 'Contests'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], requestBody: jsonRequestBody(contestLifecycleRequestSchema), responses: { 200: jsonResponse('Ended contest archived', contestResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse } } },
+    '/api/admin/contests/{contestId}/announcements': {
+      get: {
+        operationId: 'listManagedAnnouncements',
+        tags: ['Administration', 'Contests', 'Announcements'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          { name: 'cursor', in: 'query', required: false, schema: openApiSchema(announcementListRequestSchema.shape.cursor) },
+          { name: 'limit', in: 'query', required: false, schema: openApiSchema(announcementListRequestSchema.shape.limit) },
+        ],
+        responses: {
+          200: jsonResponse('Cursor-paginated announcement management projection', announcementListResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+        },
+      },
+      post: {
+        operationId: 'createAnnouncement',
+        tags: ['Administration', 'Contests', 'Announcements'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          originParameter,
+          csrfParameter,
+        ],
+        requestBody: jsonRequestBody(createAnnouncementRequestSchema),
+        responses: {
+          201: jsonResponse('Announcement created with a scheduled publication event', announcementResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+        },
+      },
+    },
+    '/api/admin/contests/{contestId}/announcements/{announcementId}': {
+      patch: {
+        operationId: 'updateAnnouncement',
+        tags: ['Administration', 'Contests', 'Announcements'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          { name: 'announcementId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          originParameter,
+          csrfParameter,
+          ifMatchParameter,
+        ],
+        requestBody: jsonRequestBody(updateAnnouncementRequestSchema),
+        responses: {
+          200: jsonResponse('Announcement updated with optimistic concurrency', announcementResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          428: errorResponse,
+        },
+      },
+    },
+    '/api/admin/contests/{contestId}/announcements/{announcementId}/withdraw': {
+      post: {
+        operationId: 'withdrawAnnouncement',
+        tags: ['Administration', 'Contests', 'Announcements'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          { name: 'announcementId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          originParameter,
+          csrfParameter,
+          ifMatchParameter,
+        ],
+        requestBody: jsonRequestBody(withdrawAnnouncementRequestSchema),
+        responses: {
+          200: jsonResponse('Announcement withdrawn and hidden from public reads', announcementResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          428: errorResponse,
+        },
+      },
+    },
     '/api/contests/{contestId}': { get: { operationId: 'getPublicContest', tags: ['Contests'], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }], responses: { 200: jsonResponse('Public published or archived contest projection', contestResponseSchema), 404: errorResponse } } },
+    '/api/contests/{contestId}/announcements': {
+      get: {
+        operationId: 'listPublicAnnouncements',
+        tags: ['Contests', 'Announcements'],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          { name: 'cursor', in: 'query', required: false, schema: openApiSchema(announcementListRequestSchema.shape.cursor) },
+          { name: 'limit', in: 'query', required: false, schema: openApiSchema(announcementListRequestSchema.shape.limit) },
+        ],
+        responses: {
+          200: jsonResponse('Published, non-withdrawn announcements for a public contest', announcementListResponseSchema),
+          400: errorResponse,
+          404: errorResponse,
+        },
+      },
+    },
     '/api/contests/{contestId}/participation': {
       get: { operationId: 'getCurrentParticipation', tags: ['Contests', 'Participations'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }], responses: { 200: jsonResponse('Current team participation projection', currentParticipationResponseSchema), 401: errorResponse, 404: errorResponse } },
       post: { operationId: 'registerParticipation', tags: ['Contests', 'Participations'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], requestBody: jsonRequestBody(registerParticipationRequestSchema), responses: { 201: jsonResponse('Team registration created', participationMutationResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse } },
