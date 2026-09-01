@@ -3,6 +3,8 @@ import { getQuery, setResponseHeader } from 'h3'
 import {
   managedSubmissionListRequestSchema,
   managedSubmissionListResponseSchema,
+  recordScoreAdjustmentRequestSchema,
+  recordScoreAdjustmentResponseSchema,
   submitFlagRequestSchema,
   submitFlagResponseSchema,
 } from '../../../shared/contracts/submissions'
@@ -21,7 +23,10 @@ import { readValidatedJsonBody } from '../http/body'
 import { createApiError } from '../http/errors'
 import { enforceFlagSubmissionNetworkRateLimits } from '../security/request-security'
 
-type SubmissionCommands = Pick<SubmissionService, 'listManaged' | 'verifyFlag'>
+type SubmissionCommands = Pick<SubmissionService,
+  | 'listManaged'
+  | 'recordScoreAdjustment'
+  | 'verifyFlag'>
 
 export interface SubmissionHttpDependencies {
   identity: IdentityHttpDependencies
@@ -99,6 +104,42 @@ export async function handleListManagedSubmissions(
   })
 }
 
+export async function handleRecordScoreAdjustment(
+  event: H3Event,
+  contestId: string,
+  dependencies = submissionHttpDependencies(event),
+) {
+  const context = await requireProtectedCapability(
+    event,
+    identityCapability.contestJudge,
+    dependencies.identity,
+  )
+  const input = await readValidatedJsonBody(event, recordScoreAdjustmentRequestSchema)
+  const adjustment = await runOperation(event, () => dependencies.submissions.recordScoreAdjustment(
+    context.subject,
+    {
+      contestId,
+      participationId: input.participation_id,
+      pointsDelta: input.points_delta,
+      reason: input.reason,
+      confirmed: input.confirm,
+      requestId: requestIdSchema.parse(event.context.requestId),
+    },
+  ))
+  return recordScoreAdjustmentResponseSchema.parse({
+    adjustment: {
+      id: adjustment.id,
+      contest_id: adjustment.contestId,
+      participation_id: adjustment.participationId,
+      points_delta: adjustment.pointsDelta,
+      reason: adjustment.reason,
+      created_by: adjustment.createdBy,
+      request_id: adjustment.requestId,
+      created_at: adjustment.createdAt.toISOString(),
+    },
+  })
+}
+
 async function runOperation<T>(event: H3Event, operation: () => Promise<T>): Promise<T> {
   try {
     return await operation()
@@ -117,7 +158,13 @@ async function runOperation<T>(event: H3Event, operation: () => Promise<T>): Pro
       'contest.not_running': 409,
       'contest.not_found': 404,
       'participation.not_accepted': 403,
+      'participation.not_found': 404,
       'security.rate_limited': 429,
+      'score.adjustment_confirmation_required': 400,
+      'score.adjustment_invalid': 400,
+      'score.adjustment_not_allowed': 409,
+      'score.adjustment_reason_required': 400,
+      'score.adjustment_request_conflict': 409,
       'team.membership_required': 403,
       'submission.cursor_invalid': 400,
       'submission.request_conflict': 409,

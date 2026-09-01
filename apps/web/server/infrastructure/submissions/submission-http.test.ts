@@ -9,6 +9,7 @@ import { normalizeApiError } from '../http/errors'
 import { MemoryRateLimitStore } from '../security/rate-limit'
 import {
   handleListManagedSubmissions,
+  handleRecordScoreAdjustment,
   handleSubmitFlag,
   type SubmissionHttpDependencies,
 } from './submission-http'
@@ -67,6 +68,16 @@ function dependencies(options: {
         nextCursor: null,
         hasMore: false,
       })),
+      recordScoreAdjustment: vi.fn(async (_actor, input) => ({
+        id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f86',
+        contestId: input.contestId,
+        participationId: input.participationId,
+        pointsDelta: input.pointsDelta,
+        reason: input.reason,
+        createdBy: userId,
+        requestId: input.requestId,
+        createdAt: new Date('2026-09-01T08:02:00.000Z'),
+      })),
     },
   }
 }
@@ -108,6 +119,37 @@ async function invoke(deps: SubmissionHttpDependencies, flag = 'flag{correct}') 
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ flag }),
+    },
+  ))
+}
+
+async function invokeAdjustment(
+  deps: SubmissionHttpDependencies,
+  body: Record<string, unknown> = {
+    participation_id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f85',
+    points_delta: -25,
+    reason: 'Apply the reviewed rule penalty',
+    confirm: true,
+  },
+) {
+  const app = createApp()
+  app.use(eventHandler(async (event) => {
+    event.context.requestId = requestId
+    try {
+      return await handleRecordScoreAdjustment(event, contestId, deps)
+    }
+    catch (error) {
+      const response = normalizeApiError(error, requestId)
+      setResponseStatus(event, response.statusCode)
+      return response.body
+    }
+  }))
+  return toWebHandler(app)(new Request(
+    `https://ctf.example.test/api/admin/contests/${contestId}/score-adjustments`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
     },
   ))
 }
@@ -202,5 +244,44 @@ describe('Flag submission HTTP admission', () => {
     const response = await invokeManaged(deps)
     expect(response.status).toBe(403)
     expect(deps.submissions.listManaged).not.toHaveBeenCalled()
+  })
+
+  it('records a confirmed score adjustment through the organizer judge capability', async () => {
+    const deps = dependencies({ subject: organizer })
+    const response = await invokeAdjustment(deps)
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      adjustment: {
+        contest_id: contestId,
+        points_delta: -25,
+        reason: 'Apply the reviewed rule penalty',
+        request_id: requestId,
+      },
+    })
+    expect(deps.submissions.recordScoreAdjustment).toHaveBeenCalledWith(organizer, {
+      contestId,
+      participationId: '018f47a2-4ef8-7e2c-9c24-6d68b7451f85',
+      pointsDelta: -25,
+      reason: 'Apply the reviewed rule penalty',
+      confirmed: true,
+      requestId,
+    })
+  })
+
+  it('rejects an unconfirmed score adjustment and a player before domain mutation', async () => {
+    const organizerDependencies = dependencies({ subject: organizer })
+    const unconfirmed = await invokeAdjustment(organizerDependencies, {
+      participation_id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f85',
+      points_delta: 25,
+      reason: 'Apply the reviewed score correction',
+      confirm: false,
+    })
+    expect(unconfirmed.status).toBe(400)
+    expect(organizerDependencies.submissions.recordScoreAdjustment).not.toHaveBeenCalled()
+
+    const playerDependencies = dependencies({ subject: player })
+    const forbidden = await invokeAdjustment(playerDependencies)
+    expect(forbidden.status).toBe(403)
+    expect(playerDependencies.submissions.recordScoreAdjustment).not.toHaveBeenCalled()
   })
 })

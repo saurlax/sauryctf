@@ -54,6 +54,7 @@ function admissionRepository() {
       teamName: 'Blue Team',
       flagFormat: 'flag{...}',
       flagPolicy: { type: 'static' as const, digest: 'a'.repeat(64) },
+      scoringPolicy: { type: 'fixed-v1' as const, points: 500 },
     })),
     append: vi.fn(async () => ({
       id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f76',
@@ -66,6 +67,16 @@ function admissionRepository() {
       submittedAt: at,
     })),
     listManaged: vi.fn(async () => ({ items: [], nextCursor: null, hasMore: false })),
+    recordScoreAdjustment: vi.fn(async input => ({
+      id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f77',
+      contestId: input.contestId,
+      participationId: input.participationId,
+      pointsDelta: input.pointsDelta,
+      reason: input.reason,
+      createdBy: input.actorId,
+      requestId: input.requestId,
+      createdAt: input.at,
+    })),
   }
 }
 
@@ -92,6 +103,7 @@ describe('submission eligibility pipeline', () => {
         teamName: 'Blue Team',
         flagFormat: 'flag{...}',
         flagPolicy: { type: 'static' as const, digest: 'a'.repeat(64) },
+        scoringPolicy: { type: 'fixed-v1' as const, points: 500 },
       }
     })
     const limiter = allowedLimiter(input => order.push(`${input.scope}:${input.action}`))
@@ -159,6 +171,7 @@ describe('submission eligibility pipeline', () => {
       admit: vi.fn(async () => { throw failure }),
       append: vi.fn(),
       listManaged: vi.fn(),
+      recordScoreAdjustment: vi.fn(),
     }
     const verifier = { verify: vi.fn(() => ({ correct: true })) }
     const service = new SubmissionService(repository, verifier, allowedLimiter(), answerProtector(), () => at)
@@ -214,5 +227,70 @@ describe('submission eligibility pipeline', () => {
     }))
     expect(repository.admit).toHaveBeenCalledOnce()
     expect(verifier.verify).not.toHaveBeenCalled()
+  })
+})
+
+describe('score adjustment authorization', () => {
+  it('allows a verified organizer to record a confirmed bounded adjustment with a reason', async () => {
+    const repository = admissionRepository()
+    const service = new SubmissionService(
+      repository,
+      { verify: vi.fn() },
+      allowedLimiter(),
+      answerProtector(),
+      () => at,
+    )
+
+    await expect(service.recordScoreAdjustment({ ...actor, role: 'organizer' }, {
+      contestId,
+      participationId,
+      pointsDelta: -25,
+      reason: '  Apply the reviewed rule penalty  ',
+      confirmed: true,
+      requestId,
+    })).resolves.toMatchObject({ pointsDelta: -25, reason: 'Apply the reviewed rule penalty' })
+    expect(repository.recordScoreAdjustment).toHaveBeenCalledWith({
+      actorId: userId,
+      contestId,
+      participationId,
+      pointsDelta: -25,
+      reason: 'Apply the reviewed rule penalty',
+      requestId,
+      at,
+    })
+  })
+
+  it('rejects players, missing confirmation, invalid points, and short reasons before persistence', async () => {
+    const repository = admissionRepository()
+    const service = new SubmissionService(
+      repository,
+      { verify: vi.fn() },
+      allowedLimiter(),
+      answerProtector(),
+      () => at,
+    )
+    const input = {
+      contestId,
+      participationId,
+      pointsDelta: 25,
+      reason: 'Reviewed score correction',
+      confirmed: true,
+      requestId,
+    }
+
+    await expect(service.recordScoreAdjustment(actor, input)).rejects.toBeInstanceOf(IdentityCapabilityError)
+    await expect(service.recordScoreAdjustment(
+      { ...actor, role: 'organizer' },
+      { ...input, confirmed: false },
+    )).rejects.toMatchObject({ code: 'score.adjustment_confirmation_required' })
+    await expect(service.recordScoreAdjustment(
+      { ...actor, role: 'organizer' },
+      { ...input, pointsDelta: 0 },
+    )).rejects.toMatchObject({ code: 'score.adjustment_invalid' })
+    await expect(service.recordScoreAdjustment(
+      { ...actor, role: 'organizer' },
+      { ...input, reason: 'too short' },
+    )).rejects.toMatchObject({ code: 'score.adjustment_reason_required' })
+    expect(repository.recordScoreAdjustment).not.toHaveBeenCalled()
   })
 })

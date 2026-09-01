@@ -1,7 +1,14 @@
 import { timingSafeEqual } from 'node:crypto'
 import type { Pool, PoolClient } from 'pg'
-import { challengeFlagPolicySchema, type ChallengeFlagPolicy } from '../../../shared/contracts/challenges'
 import {
+  challengeFlagPolicySchema,
+  challengeScoringPolicySchema,
+  type ChallengeFlagPolicy,
+  type ChallengeScoringPolicy,
+} from '../../../shared/contracts/challenges'
+import {
+  ScoreAdjustmentArchivedContestError,
+  ScoreAdjustmentRequestConflictError,
   SubmissionChallengeClosedError,
   SubmissionChallengeUnavailableError,
   SubmissionContestNotFoundError,
@@ -9,16 +16,20 @@ import {
   SubmissionCursorInvalidError,
   SubmissionLimitReachedError,
   SubmissionParticipationNotAcceptedError,
+  SubmissionParticipationNotFoundError,
   SubmissionRequestConflictError,
   SubmissionTeamRequiredError,
   type AppendSubmissionCommand,
   type ManagedSubmissionPage,
+  type RecordScoreAdjustmentCommand,
+  type ScoreAdjustmentRecord,
   type StoredSubmission,
   type SubmissionAdmission,
   type SubmissionAdmissionCommand,
   type SubmissionRepository,
   type SubmissionResult,
 } from '../../domains/submissions/repository'
+import { calculateChallengeScore } from '../../domains/submissions/scoring'
 
 interface ContestRow {
   publication_status: 'draft' | 'published' | 'archived'
@@ -39,6 +50,7 @@ interface ChallengeRow {
   submission_limit: number | null
   flag_format: string | null
   flag_policy: ChallengeFlagPolicy
+  scoring_policy: ChallengeScoringPolicy
 }
 
 interface SubmissionRow {
@@ -58,6 +70,17 @@ interface ExistingSubmissionRow extends SubmissionRow {
 
 interface SolveRow {
   solve_order: number
+}
+
+interface ScoreAdjustmentRow {
+  id: string
+  contest_id: string
+  participation_id: string
+  points_delta: number
+  reason: string
+  created_by: string
+  request_id: string
+  created_at: Date
 }
 
 export class PostgresSubmissionRepository implements SubmissionRepository {
@@ -117,7 +140,13 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
         ],
       )
       if (result === 'correct') {
-        await this.createOfficialSolve(connection, inserted.rows[0]!, admission.teamId, admission.teamName)
+        await this.createOfficialSolve(
+          connection,
+          inserted.rows[0]!,
+          admission.teamId,
+          admission.teamName,
+          admission.scoringPolicy,
+        )
       }
       await connection.query('COMMIT')
       return submissionRecord(inserted.rows[0]!)
@@ -176,6 +205,121 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
     }
   }
 
+  async recordScoreAdjustment(
+    command: RecordScoreAdjustmentCommand,
+  ): Promise<ScoreAdjustmentRecord> {
+    const connection = await this.pool.connect()
+    try {
+      await connection.query('BEGIN')
+      const existing = await this.readScoreAdjustmentByRequestId(connection, command.requestId)
+      if (existing) {
+        if (!sameScoreAdjustment(existing, command)) throw new ScoreAdjustmentRequestConflictError()
+        await connection.query('COMMIT')
+        return scoreAdjustmentRecord(existing)
+      }
+
+      const contest = await connection.query<{ publication_status: string }>(
+        `SELECT publication_status::text
+         FROM contests
+         WHERE id = $1
+         FOR UPDATE`,
+        [command.contestId],
+      )
+      if (!contest.rows[0]) throw new SubmissionContestNotFoundError()
+      if (contest.rows[0].publication_status === 'archived') {
+        throw new ScoreAdjustmentArchivedContestError()
+      }
+
+      const participation = await connection.query(
+        `SELECT 1
+         FROM participations
+         WHERE id = $1 AND contest_id = $2
+         FOR UPDATE`,
+        [command.participationId, command.contestId],
+      )
+      if (!participation.rows[0]) throw new SubmissionParticipationNotFoundError()
+
+      const inserted = await connection.query<ScoreAdjustmentRow>(
+        `INSERT INTO score_adjustments
+           (contest_id, participation_id, points_delta, reason,
+            created_by, request_id, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, contest_id, participation_id, points_delta, reason,
+                   created_by, request_id, created_at`,
+        [
+          command.contestId,
+          command.participationId,
+          command.pointsDelta,
+          command.reason,
+          command.actorId,
+          command.requestId,
+          command.at,
+        ],
+      )
+      const adjustment = inserted.rows[0]!
+      const scoreboardVersion = await this.advanceScoreboardVersion(
+        connection,
+        command.contestId,
+        command.at,
+      )
+      await connection.query(
+        `INSERT INTO domain_outbox
+           (aggregate_type, aggregate_id, event_type, dedupe_key, payload,
+            occurred_at, available_at)
+         VALUES ('contest', $1, 'scoreboard.version_changed', $2, $3, $4, $4)`,
+        [
+          command.contestId,
+          `scoreboard:${command.contestId}:adjustment:${adjustment.id}`,
+          {
+            contest_id: command.contestId,
+            version: scoreboardVersion,
+            reason: 'score_adjustment',
+            adjustment_id: adjustment.id,
+            participation_id: command.participationId,
+            points_delta: command.pointsDelta,
+          },
+          command.at,
+        ],
+      )
+      await connection.query(
+        `INSERT INTO audit_events
+           (actor_user_id, action, target_type, target_id, reason, outcome,
+            request_id, changes, metadata, occurred_at)
+         VALUES ($1, 'score.adjustment.recorded', 'score_adjustment', $2, $3,
+                 'succeeded', $4, $5, $6, $7)`,
+        [
+          command.actorId,
+          adjustment.id,
+          command.reason,
+          command.requestId,
+          {
+            contest_id: command.contestId,
+            participation_id: command.participationId,
+            points_delta: command.pointsDelta,
+          },
+          { scoreboard_version: scoreboardVersion },
+          command.at,
+        ],
+      )
+      await connection.query('COMMIT')
+      return scoreAdjustmentRecord(adjustment)
+    }
+    catch (error) {
+      await connection.query('ROLLBACK')
+      if (isScoreAdjustmentRequestIdConflict(error)) {
+        const existing = await this.readScoreAdjustmentByRequestId(this.pool, command.requestId)
+        if (existing && sameScoreAdjustment(existing, command)) {
+          return scoreAdjustmentRecord(existing)
+        }
+        throw new ScoreAdjustmentRequestConflictError()
+      }
+      throw error
+    }
+    finally {
+      connection.release()
+    }
+  }
+
   private async admitWith(
     connection: PoolClient,
     command: SubmissionAdmissionCommand,
@@ -224,7 +368,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
 
     const challengeResult = await connection.query<ChallengeRow>(
       `SELECT id, enabled, publish_at, close_at, submission_limit,
-              flag_format, flag_policy
+              flag_format, flag_policy, scoring_policy
        FROM contest_challenges
        WHERE contest_id = $1 AND id = $2
        ${challengeLock}`,
@@ -263,6 +407,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
       teamName,
       flagFormat: challenge.flag_format,
       flagPolicy: challengeFlagPolicySchema.parse(challenge.flag_policy),
+      scoringPolicy: challengeScoringPolicySchema.parse(challenge.scoring_policy),
     }
   }
 
@@ -287,6 +432,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
     submission: SubmissionRow,
     teamId: string,
     teamName: string,
+    scoringPolicy: ChallengeScoringPolicy,
   ) {
     const orderResult = await connection.query<{ solve_order: number }>(
       `SELECT count(*)::integer + 1 AS solve_order
@@ -295,18 +441,45 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
       [submission.contest_challenge_id],
     )
     const solveOrder = orderResult.rows[0]!.solve_order
+    const awardedScore = calculateChallengeScore(scoringPolicy, solveOrder)
     const solve = await connection.query<SolveRow>(
       `INSERT INTO solves
          (submission_id, contest_id, contest_challenge_id, participation_id,
           mode, awarded_score, solve_order, solved_at)
-       VALUES ($1, $2, $3, $4, 'official', 0, $5, $6)
+       VALUES ($1, $2, $3, $4, 'official', $5, $6, $7)
        RETURNING solve_order`,
       [
         submission.id,
         submission.contest_id,
         submission.contest_challenge_id,
         submission.participation_id,
+        awardedScore,
         solveOrder,
+        submission.submitted_at,
+      ],
+    )
+    const scoreboardVersion = await this.advanceScoreboardVersion(
+      connection,
+      submission.contest_id,
+      submission.submitted_at,
+    )
+    await connection.query(
+      `INSERT INTO domain_outbox
+         (aggregate_type, aggregate_id, event_type, dedupe_key, payload,
+          occurred_at, available_at)
+       VALUES ('contest', $1, 'scoreboard.version_changed', $2, $3, $4, $4)`,
+      [
+        submission.contest_id,
+        `scoreboard:${submission.contest_id}:solve:${submission.id}`,
+        {
+          contest_id: submission.contest_id,
+          version: scoreboardVersion,
+          reason: 'official_solve',
+          challenge_id: submission.contest_challenge_id,
+          participation_id: submission.participation_id,
+          solve_order: solveOrder,
+          current_points: awardedScore,
+        },
         submission.submitted_at,
       ],
     )
@@ -329,6 +502,27 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
     )
   }
 
+  private async advanceScoreboardVersion(
+    connection: PoolClient,
+    contestId: string,
+    at: Date,
+  ): Promise<number> {
+    const result = await connection.query<{ version: string }>(
+      `INSERT INTO scoreboard_versions (contest_id, version, updated_at)
+       VALUES ($1, 1, $2)
+       ON CONFLICT (contest_id) DO UPDATE
+       SET version = scoreboard_versions.version + 1,
+           updated_at = EXCLUDED.updated_at
+       RETURNING version::text`,
+      [contestId, at],
+    )
+    const version = Number(result.rows[0]!.version)
+    if (!Number.isSafeInteger(version) || version <= 0) {
+      throw new Error('Scoreboard version exceeded the supported integer range')
+    }
+    return version
+  }
+
   private async readByRequestId(
     queryable: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>,
     requestId: string,
@@ -337,6 +531,20 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
       `SELECT id, contest_id, contest_challenge_id, participation_id,
               user_id, mode::text, result::text, answer_digest, submitted_at
        FROM submissions
+       WHERE request_id = $1`,
+      [requestId],
+    )
+    return result.rows[0] ?? null
+  }
+
+  private async readScoreAdjustmentByRequestId(
+    queryable: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>,
+    requestId: string,
+  ) {
+    const result = await queryable.query<ScoreAdjustmentRow>(
+      `SELECT id, contest_id, participation_id, points_delta, reason,
+              created_by, request_id, created_at
+       FROM score_adjustments
        WHERE request_id = $1`,
       [requestId],
     )
@@ -368,9 +576,40 @@ function sameRequest(existing: ExistingSubmissionRow, command: AppendSubmissionC
     && timingSafeEqual(existing.answer_digest, command.answerDigest)
 }
 
+function scoreAdjustmentRecord(row: ScoreAdjustmentRow): ScoreAdjustmentRecord {
+  return {
+    id: row.id,
+    contestId: row.contest_id,
+    participationId: row.participation_id,
+    pointsDelta: row.points_delta,
+    reason: row.reason,
+    createdBy: row.created_by,
+    requestId: row.request_id,
+    createdAt: row.created_at,
+  }
+}
+
+function sameScoreAdjustment(
+  existing: ScoreAdjustmentRow,
+  command: RecordScoreAdjustmentCommand,
+) {
+  return existing.contest_id === command.contestId
+    && existing.participation_id === command.participationId
+    && existing.points_delta === command.pointsDelta
+    && existing.reason === command.reason
+    && existing.created_by === command.actorId
+}
+
 function isRequestIdConflict(error: unknown) {
   return typeof error === 'object'
     && error !== null
     && (error as { code?: string }).code === '23505'
     && (error as { constraint?: string }).constraint === 'submissions_request_id_unique'
+}
+
+function isScoreAdjustmentRequestIdConflict(error: unknown) {
+  return typeof error === 'object'
+    && error !== null
+    && (error as { code?: string }).code === '23505'
+    && (error as { constraint?: string }).constraint === 'score_adjustments_request_id_unique'
 }

@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto'
 import { Client } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { staticFlagDigest } from '../../domains/challenges/flag-verifier'
+import type { ChallengeScoringPolicy } from '../../../shared/contracts/challenges'
 import {
+  ScoreAdjustmentArchivedContestError,
+  ScoreAdjustmentRequestConflictError,
   SubmissionChallengeClosedError,
   SubmissionChallengeUnavailableError,
   SubmissionContestNotRunningError,
@@ -66,6 +69,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     publishAt?: Date | null
     closeAt?: Date | null
     submissionLimit?: number | null
+    scoringPolicy?: ChallengeScoringPolicy
   } = {}) {
     const suffix = randomUUID()
     const user = await database.pool.query<{ id: string }>(
@@ -151,6 +155,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       closeAt: options.closeAt,
       submissionLimit: options.submissionLimit,
       flagPolicy: { type: 'static', digest: staticFlagDigest('flag{correct}') },
+      scoringPolicy: options.scoringPolicy,
     })
     await database.pool.query(
       `UPDATE contests
@@ -272,6 +277,23 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     }
   }
 
+  function adjustmentCommand(
+    input: Awaited<ReturnType<typeof fixture>>,
+    pointsDelta: number,
+    reason: string,
+    requestId = randomUUID(),
+  ) {
+    return {
+      actorId: input.userId,
+      contestId: input.contestId,
+      participationId: input.participationId,
+      pointsDelta,
+      reason,
+      requestId,
+      at,
+    }
+  }
+
   it('returns only the authoritative context needed after every eligibility check passes', async () => {
     const input = await fixture()
     await expect(admit(input)).resolves.toEqual({
@@ -282,6 +304,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       teamName: input.teamName,
       flagFormat: 'flag{...}',
       flagPolicy: { type: 'static', digest: staticFlagDigest('flag{correct}') },
+      scoringPolicy: { type: 'fixed-v1', points: 500 },
     })
   })
 
@@ -448,6 +471,110 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     expect(timeline.rows).toHaveLength(1)
     expect(timeline.rows[0]!.count).toBe('1')
     expect(timeline.rows[0]!.payload.team_id).toBe(ordered.rows[0]!.team_id)
+  })
+
+  it('persists the deterministic decay-v1 award and advances one scoreboard version per solve', async () => {
+    const firstTeam = await fixture({
+      scoringPolicy: {
+        type: 'decay-v1',
+        initial_points: 500,
+        minimum_points: 100,
+        decay_solves: 10,
+      },
+    })
+    const secondTeam = await addParticipant(firstTeam)
+    const thirdTeam = await addParticipant(firstTeam)
+    for (const input of [firstTeam, secondTeam, thirdTeam]) {
+      await repository.append(appendCommand(input, 'flag{correct}', 'correct').command)
+    }
+
+    const solves = await database.pool.query<{ solve_order: number, awarded_score: number }>(
+      `SELECT solve_order, awarded_score
+       FROM solves
+       WHERE contest_challenge_id = $1 AND mode = 'official'
+       ORDER BY solve_order`,
+      [firstTeam.challengeId],
+    )
+    expect(solves.rows).toEqual([
+      { solve_order: 1, awarded_score: 500 },
+      { solve_order: 2, awarded_score: 461 },
+      { solve_order: 3, awarded_score: 427 },
+    ])
+    const version = await database.pool.query<{ version: string, event_count: string }>(
+      `SELECT version::text,
+              (SELECT count(*)::text
+               FROM domain_outbox
+               WHERE aggregate_id = $1
+                 AND event_type = 'scoreboard.version_changed') AS event_count
+       FROM scoreboard_versions
+       WHERE contest_id = $1`,
+      [firstTeam.contestId],
+    )
+    expect(version.rows[0]).toEqual({ version: '3', event_count: '3' })
+  })
+
+  it('records positive and negative adjustments idempotently without rewriting solve facts', async () => {
+    const input = await fixture()
+    const penalty = adjustmentCommand(input, -25, 'Apply the reviewed rule penalty')
+    const first = await repository.recordScoreAdjustment(penalty)
+    const replayed = await repository.recordScoreAdjustment(penalty)
+    expect(replayed).toEqual(first)
+
+    const bonus = adjustmentCommand(input, 50, 'Apply the approved scoring bonus')
+    await repository.recordScoreAdjustment(bonus)
+    await expect(repository.recordScoreAdjustment({
+      ...penalty,
+      pointsDelta: -30,
+    })).rejects.toBeInstanceOf(ScoreAdjustmentRequestConflictError)
+
+    const facts = await database.pool.query<{
+      adjustment_count: string
+      adjustment_total: string
+      submission_count: string
+      solve_count: string
+      version: string
+      outbox_count: string
+      audit_count: string
+    }>(
+      `SELECT
+         (SELECT count(*)::text FROM score_adjustments WHERE contest_id = $1) AS adjustment_count,
+         (SELECT sum(points_delta)::text FROM score_adjustments WHERE contest_id = $1) AS adjustment_total,
+         (SELECT count(*)::text FROM submissions WHERE contest_id = $1) AS submission_count,
+         (SELECT count(*)::text FROM solves WHERE contest_id = $1) AS solve_count,
+         (SELECT version::text FROM scoreboard_versions WHERE contest_id = $1) AS version,
+         (SELECT count(*)::text FROM domain_outbox
+          WHERE aggregate_id = $1 AND payload->>'reason' = 'score_adjustment') AS outbox_count,
+         (SELECT count(*)::text FROM audit_events
+          WHERE action = 'score.adjustment.recorded'
+            AND changes->>'contest_id' = $1::text) AS audit_count`,
+      [input.contestId],
+    )
+    expect(facts.rows[0]).toEqual({
+      adjustment_count: '2',
+      adjustment_total: '25',
+      submission_count: '0',
+      solve_count: '0',
+      version: '2',
+      outbox_count: '2',
+      audit_count: '2',
+    })
+
+    await database.pool.query(
+      `UPDATE contests
+       SET publication_status = 'archived', archived_at = $2, updated_at = $2
+       WHERE id = $1`,
+      [input.contestId, at],
+    )
+    await expect(repository.recordScoreAdjustment(adjustmentCommand(
+      input,
+      10,
+      'Attempt an archived score correction',
+    ))).rejects.toBeInstanceOf(ScoreAdjustmentArchivedContestError)
+    const unchanged = await database.pool.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM score_adjustments WHERE contest_id = $1',
+      [input.contestId],
+    )
+    expect(unchanged.rows[0]!.count).toBe('2')
   })
 
   it('paginates a management projection that never selects answer protection material', async () => {

@@ -1,4 +1,7 @@
-import type { ChallengeFlagPolicy } from '../../../shared/contracts/challenges'
+import type {
+  ChallengeFlagPolicy,
+  ChallengeScoringPolicy,
+} from '../../../shared/contracts/challenges'
 
 export interface SubmissionAdmissionCommand {
   userId: string
@@ -15,12 +18,14 @@ export interface SubmissionAdmission {
   teamName: string
   flagFormat: string | null
   flagPolicy: ChallengeFlagPolicy
+  scoringPolicy: ChallengeScoringPolicy
 }
 
 export interface SubmissionRepository {
   admit(command: SubmissionAdmissionCommand): Promise<SubmissionAdmission>
   append(command: AppendSubmissionCommand): Promise<StoredSubmission>
   listManaged(contestId: string, cursor: string | undefined, limit: number): Promise<ManagedSubmissionPage>
+  recordScoreAdjustment(command: RecordScoreAdjustmentCommand): Promise<ScoreAdjustmentRecord>
 }
 
 export type VerifiedSubmissionResult = 'correct' | 'incorrect'
@@ -52,6 +57,27 @@ export interface ManagedSubmissionPage {
   hasMore: boolean
 }
 
+export interface RecordScoreAdjustmentCommand {
+  actorId: string
+  contestId: string
+  participationId: string
+  pointsDelta: number
+  reason: string
+  requestId: string
+  at: Date
+}
+
+export interface ScoreAdjustmentRecord {
+  id: string
+  contestId: string
+  participationId: string
+  pointsDelta: number
+  reason: string
+  createdBy: string
+  requestId: string
+  createdAt: Date
+}
+
 export class SubmissionTeamRequiredError extends Error {}
 export class SubmissionParticipationNotAcceptedError extends Error {}
 export class SubmissionContestNotRunningError extends Error {}
@@ -61,3 +87,6 @@ export class SubmissionLimitReachedError extends Error {}
 export class SubmissionRequestConflictError extends Error {}
 export class SubmissionCursorInvalidError extends Error {}
 export class SubmissionContestNotFoundError extends Error {}
+export class SubmissionParticipationNotFoundError extends Error {}
+export class ScoreAdjustmentArchivedContestError extends Error {}
+export class ScoreAdjustmentRequestConflictError extends Error {}

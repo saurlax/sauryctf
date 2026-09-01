@@ -107,6 +107,9 @@ export interface paths {
   "/api/admin/contests/{contestId}/submissions": {
     get: operations["listManagedContestSubmissions"];
   };
+  "/api/admin/contests/{contestId}/score-adjustments": {
+    post: operations["recordContestScoreAdjustment"];
+  };
   "/api/admin/contests/{contestId}": {
     get: operations["getManagedContest"];
     patch: operations["updateContestDraft"];
@@ -2639,6 +2642,80 @@ export interface operations {
       };
       /** @description Stable API error */
       404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  recordContestScoreAdjustment: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          participation_id: string;
+          points_delta: number;
+          reason: string;
+          /** @constant */
+          confirm: true;
+        };
+      };
+    };
+    responses: {
+      /** @description Explicit score adjustment recorded with audit and scoreboard version evidence */
+      200: {
+        content: {
+          "application/json": {
+            adjustment: {
+              id: string;
+              contest_id: string;
+              participation_id: string;
+              points_delta: number;
+              reason: string;
+              created_by: string;
+              request_id: string;
+              /** Format: date-time */
+              created_at: string;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };

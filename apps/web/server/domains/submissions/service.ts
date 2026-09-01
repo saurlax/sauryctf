@@ -14,8 +14,11 @@ import {
   SubmissionCursorInvalidError,
   SubmissionContestNotFoundError,
   SubmissionParticipationNotAcceptedError,
+  SubmissionParticipationNotFoundError,
   SubmissionRequestConflictError,
   SubmissionTeamRequiredError,
+  ScoreAdjustmentArchivedContestError,
+  ScoreAdjustmentRequestConflictError,
   type SubmissionRepository,
 } from './repository'
 
@@ -43,7 +46,13 @@ export type SubmissionServiceErrorCode =
   | 'contest.not_running'
   | 'contest.not_found'
   | 'participation.not_accepted'
+  | 'participation.not_found'
   | 'security.rate_limited'
+  | 'score.adjustment_confirmation_required'
+  | 'score.adjustment_invalid'
+  | 'score.adjustment_not_allowed'
+  | 'score.adjustment_reason_required'
+  | 'score.adjustment_request_conflict'
   | 'team.membership_required'
   | 'submission.cursor_invalid'
   | 'submission.request_conflict'
@@ -57,7 +66,13 @@ const errorMessages: Record<SubmissionServiceErrorCode, string> = {
   'contest.not_running': '当前不在正式提交时间内',
   'contest.not_found': '比赛不存在',
   'participation.not_accepted': '当前队伍尚未获得比赛提交资格',
+  'participation.not_found': '比赛参赛记录不存在',
   'security.rate_limited': '请求过于频繁，请稍后重试',
+  'score.adjustment_confirmation_required': '成绩调整需要明确确认',
+  'score.adjustment_invalid': '成绩调整分值必须是非零且不超过一百万的整数',
+  'score.adjustment_not_allowed': '归档比赛不允许调整成绩',
+  'score.adjustment_reason_required': '成绩调整必须填写至少 10 个字符的原因',
+  'score.adjustment_request_conflict': '请求标识已被其他成绩调整使用',
   'team.membership_required': '请先加入队伍',
   'submission.cursor_invalid': '提交记录游标无效或已经过期',
   'submission.request_conflict': '请求标识已被其他提交使用',
@@ -190,6 +205,38 @@ export class SubmissionService {
     return this.mapRepository(() => this.repository.listManaged(contestId, cursor, limit))
   }
 
+  async recordScoreAdjustment(actor: SessionSubject, input: {
+    contestId: string
+    participationId: string
+    pointsDelta: number
+    reason: string
+    confirmed: boolean
+    requestId: string
+  }) {
+    requireIdentityCapability(actor, identityCapability.contestJudge)
+    if (!input.confirmed) {
+      throw new SubmissionServiceError('score.adjustment_confirmation_required')
+    }
+    if (!Number.isSafeInteger(input.pointsDelta)
+      || input.pointsDelta === 0
+      || Math.abs(input.pointsDelta) > 1_000_000) {
+      throw new SubmissionServiceError('score.adjustment_invalid')
+    }
+    const reason = input.reason.trim()
+    if (reason.length < 10 || reason.length > 1000) {
+      throw new SubmissionServiceError('score.adjustment_reason_required')
+    }
+    return this.mapRepository(() => this.repository.recordScoreAdjustment({
+      actorId: actor.userId,
+      contestId: input.contestId,
+      participationId: input.participationId,
+      pointsDelta: input.pointsDelta,
+      reason,
+      requestId: input.requestId,
+      at: this.now(),
+    }))
+  }
+
   private async enforceLimits(inputs: Array<Parameters<SubmissionRateLimiter['consume']>[0]>) {
     for (const input of inputs) {
       const decision = await this.rateLimiter.consume(input)
@@ -210,6 +257,9 @@ export class SubmissionService {
       if (error instanceof SubmissionParticipationNotAcceptedError) {
         throw new SubmissionServiceError('participation.not_accepted')
       }
+      if (error instanceof SubmissionParticipationNotFoundError) {
+        throw new SubmissionServiceError('participation.not_found')
+      }
       if (error instanceof SubmissionContestNotRunningError) {
         throw new SubmissionServiceError('contest.not_running')
       }
@@ -224,6 +274,12 @@ export class SubmissionService {
       }
       if (error instanceof SubmissionRequestConflictError) {
         throw new SubmissionServiceError('submission.request_conflict')
+      }
+      if (error instanceof ScoreAdjustmentRequestConflictError) {
+        throw new SubmissionServiceError('score.adjustment_request_conflict')
+      }
+      if (error instanceof ScoreAdjustmentArchivedContestError) {
+        throw new SubmissionServiceError('score.adjustment_not_allowed')
       }
       if (error instanceof SubmissionCursorInvalidError) {
         throw new SubmissionServiceError('submission.cursor_invalid')
