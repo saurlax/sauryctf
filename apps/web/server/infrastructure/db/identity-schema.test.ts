@@ -104,4 +104,22 @@ describeWithPostgres('identity authority schema', () => {
     expect(columns.rows).toEqual([{ column_name: 'session_version' }])
     expect(sessions.rows).toEqual([])
   })
+
+  it('stores roles globally without contest-level role bindings', async () => {
+    const roleColumns = await database.pool.query<{ column_name: string }>(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'user_roles'
+       ORDER BY column_name`,
+    )
+    const contestRoleTables = await database.pool.query<{ table_name: string }>(
+      `SELECT table_name
+       FROM information_schema.tables
+       WHERE table_schema = 'public'
+         AND lower(table_name) IN ('contest_roles', 'contest_role_bindings', 'contest_organizers')`,
+    )
+
+    expect(roleColumns.rows.map(row => row.column_name)).toEqual(['created_at', 'role', 'updated_at', 'user_id'])
+    expect(contestRoleTables.rows).toEqual([])
+  })
 })

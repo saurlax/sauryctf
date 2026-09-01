@@ -9,9 +9,11 @@ import {
   resourceVersionSchema,
 } from '../shared/contracts/http'
 import {
+  changeGlobalRoleRequestSchema,
   changePasswordRequestSchema,
   emailVerificationConfirmRequestSchema,
   emailVerifiedSchema,
+  globalRoleChangedSchema,
   passwordChangedSchema,
   passwordResetAcceptedSchema,
   passwordResetConfirmRequestSchema,
@@ -192,6 +194,31 @@ const document = {
         tags: ['Identity'],
         responses: {
           200: jsonResponse('Double-submit CSRF token and matching cookie', csrfTokenResponseSchema),
+        },
+      },
+    },
+    '/api/admin/users/{userId}/role': {
+      patch: {
+        operationId: 'changeUserGlobalRole',
+        tags: ['Administration', 'Identity'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          {
+            name: 'userId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+          originParameter,
+          csrfParameter,
+        ],
+        requestBody: jsonRequestBody(changeGlobalRoleRequestSchema),
+        responses: {
+          200: jsonResponse('Global role changed and target sessions invalidated', globalRoleChangedSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
         },
       },
     },

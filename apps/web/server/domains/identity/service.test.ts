@@ -206,6 +206,64 @@ describeWithPostgres('scrypt identity registration and login', () => {
       .resolves.toMatchObject({ sessionVersion: result.sessionVersion })
   })
 
+  it('enforces admin-only role changes and invalidates the target user sessions', async () => {
+    const registered = await service.register({
+      username: 'RoleTarget',
+      email: 'role-target@example.test',
+      password: 'role target password',
+    })
+    const userActor = {
+      userId: '018f47a2-4ef8-7e2c-9c24-6d68b7451a10',
+      username: 'OrdinaryActor',
+      email: 'ordinary-actor@example.test',
+      emailVerified: true,
+      status: 'active' as const,
+      role: 'user' as const,
+      sessionVersion: 1,
+      mustChangePassword: false,
+    }
+    await expect(service.changeGlobalRole(userActor, registered.userId, 'organizer'))
+      .rejects.toMatchObject({ code: 'identity.capability_forbidden' })
+
+    const before = await database.pool.query<{ role: string, session_version: string }>(
+      `SELECT r.role::text, u.session_version::text
+       FROM users u JOIN user_roles r ON r.user_id = u.id WHERE u.id = $1`,
+      [registered.userId],
+    )
+    expect(before.rows).toEqual([{ role: 'user', session_version: '1' }])
+
+    const result = await service.changeGlobalRole(
+      { ...userActor, role: 'admin' },
+      registered.userId,
+      'organizer',
+    )
+    expect(result).toEqual({
+      userId: registered.userId,
+      previousRole: 'user',
+      role: 'organizer',
+      sessionVersion: 2,
+      changed: true,
+    })
+
+    const sessions = new IdentitySessionService(new PostgresIdentityRepository(database.pool))
+    await expect(sessions.validate({
+      user_id: registered.userId,
+      session_version: registered.sessionVersion,
+      logged_in_at: '2026-09-01T07:08:09.123Z',
+    })).rejects.toMatchObject({ name: 'InvalidIdentitySessionError' })
+    await expect(sessions.validate({
+      user_id: registered.userId,
+      session_version: result.sessionVersion,
+      logged_in_at: '2026-09-01T07:08:09.123Z',
+    })).resolves.toMatchObject({ role: 'organizer' })
+
+    await expect(service.changeGlobalRole(
+      { ...userActor, role: 'admin' },
+      registered.userId,
+      'organizer',
+    )).resolves.toMatchObject({ sessionVersion: 2, changed: false })
+  })
+
   it('does not mutate the credential or session version for a wrong current password', async () => {
     const registered = await service.register({
       username: 'WrongCurrent',

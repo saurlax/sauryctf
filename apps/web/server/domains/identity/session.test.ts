@@ -37,6 +37,7 @@ class SessionRepository implements IdentityRepository {
   async resetPassword(): Promise<never> { throw new Error('not used') }
   async issueEmailToken(): Promise<never> { throw new Error('not used') }
   async verifyEmail(): Promise<never> { throw new Error('not used') }
+  async changeGlobalRole(): Promise<never> { throw new Error('not used') }
 }
 
 describe('protected identity session validation', () => {

@@ -16,6 +16,7 @@ import { DisabledHumanVerificationProvider } from '../../domains/identity/human-
 import { normalizeApiError } from '../http/errors'
 import { MemoryRateLimitStore } from '../security/rate-limit'
 import {
+  handleChangeGlobalRole,
   handleChangePassword,
   handleEmailVerificationConfirm,
   handleEmailVerificationRequest,
@@ -58,6 +59,13 @@ function createDependencies(overrides: Partial<IdentityHttpDependencies['identit
   })
   const dependencies: IdentityHttpDependencies = {
     identity: {
+      changeGlobalRole: vi.fn(async (_actor, targetUserId, role) => ({
+        userId: targetUserId,
+        previousRole: 'user' as const,
+        role,
+        sessionVersion: 2,
+        changed: true,
+      })),
       changePassword: vi.fn(async () => {
         authoritativeVersion += 1
         return { userId, sessionVersion: authoritativeVersion }
@@ -270,5 +278,46 @@ describe('identity HTTP adapters', () => {
     await expect(response.json()).resolves.toMatchObject({
       error: { code: 'identity.email_verification_required' },
     })
+  })
+
+  it.each(['user', 'organizer'] as const)('rejects %s role changes at the HTTP and domain boundary', async (role) => {
+    const { dependencies } = createDependencies()
+    dependencies.sessions.validate = vi.fn(async () => ({ ...verifiedSubject, role }))
+    const response = await invoke(
+      (event, deps) => handleChangeGlobalRole(event, deps, '018f47a2-4ef8-7e2c-9c24-6d68b7451f30'),
+      dependencies,
+      { role: 'organizer' },
+    )
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'identity.capability_forbidden' },
+    })
+    expect(dependencies.identity.changeGlobalRole).not.toHaveBeenCalled()
+  })
+
+  it('allows an admin to change a global role through the management API', async () => {
+    const { dependencies } = createDependencies()
+    dependencies.sessions.validate = vi.fn(async () => ({ ...verifiedSubject, role: 'admin' as const }))
+    const targetUserId = '018f47a2-4ef8-7e2c-9c24-6d68b7451f30'
+    const response = await invoke(
+      (event, deps) => handleChangeGlobalRole(event, deps, targetUserId),
+      dependencies,
+      { role: 'organizer' },
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      user_id: targetUserId,
+      previous_role: 'user',
+      role: 'organizer',
+      session_version: 2,
+      changed: true,
+    })
+    expect(dependencies.identity.changeGlobalRole).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'admin' }),
+      targetUserId,
+      'organizer',
+    )
   })
 })

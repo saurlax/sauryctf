@@ -11,11 +11,46 @@ export const identityCapability = {
   flagSubmit: 'flag.submit',
   writeupWrite: 'writeup.write',
   instanceOperate: 'instance.operate',
-  organize: 'contest.organize',
-  administer: 'platform.administer',
+  contestManage: 'contest.manage',
+  contestJudge: 'contest.judge',
+  userManage: 'user.manage',
+  roleManage: 'role.manage',
+  platformSettingsManage: 'platform.settings.manage',
+  globalOperationsManage: 'platform.operations.manage',
 } as const
 
 export type IdentityCapability = typeof identityCapability[keyof typeof identityCapability]
+
+const playerCapabilities = [
+  identityCapability.publicBrowse,
+  identityCapability.accountRead,
+  identityCapability.accountWrite,
+  identityCapability.verificationResend,
+  identityCapability.logout,
+  identityCapability.teamWrite,
+  identityCapability.contestRegister,
+  identityCapability.flagSubmit,
+  identityCapability.writeupWrite,
+  identityCapability.instanceOperate,
+] as const
+
+export const globalRoleCapabilities: Readonly<Record<SessionSubject['role'], ReadonlySet<IdentityCapability>>> = {
+  user: new Set(playerCapabilities),
+  organizer: new Set([
+    ...playerCapabilities,
+    identityCapability.contestManage,
+    identityCapability.contestJudge,
+  ]),
+  admin: new Set([
+    ...playerCapabilities,
+    identityCapability.contestManage,
+    identityCapability.contestJudge,
+    identityCapability.userManage,
+    identityCapability.roleManage,
+    identityCapability.platformSettingsManage,
+    identityCapability.globalOperationsManage,
+  ]),
+}
 
 const unverifiedCapabilities = new Set<IdentityCapability>([
   identityCapability.publicBrowse,
@@ -26,10 +61,22 @@ const unverifiedCapabilities = new Set<IdentityCapability>([
 ])
 
 export class IdentityCapabilityError extends Error {
-  constructor(readonly code: 'identity.email_verification_required' | 'identity.account_setup_required') {
-    super(code === 'identity.email_verification_required' ? '请先验证邮箱' : '请先完成账号安全设置')
+  constructor(readonly code:
+    | 'identity.email_verification_required'
+    | 'identity.account_setup_required'
+    | 'identity.capability_forbidden') {
+    const messages = {
+      'identity.email_verification_required': '请先验证邮箱',
+      'identity.account_setup_required': '请先完成账号安全设置',
+      'identity.capability_forbidden': '当前账号无权执行此操作',
+    } as const
+    super(messages[code])
     this.name = 'IdentityCapabilityError'
   }
+}
+
+export function hasIdentityCapability(subject: SessionSubject, capability: IdentityCapability): boolean {
+  return globalRoleCapabilities[subject.role].has(capability)
 }
 
 export function requireIdentityCapability(subject: SessionSubject, capability: IdentityCapability): void {
@@ -38,5 +85,8 @@ export function requireIdentityCapability(subject: SessionSubject, capability: I
   }
   if (!subject.emailVerified && !unverifiedCapabilities.has(capability)) {
     throw new IdentityCapabilityError('identity.email_verification_required')
+  }
+  if (!hasIdentityCapability(subject, capability)) {
+    throw new IdentityCapabilityError('identity.capability_forbidden')
   }
 }

@@ -1,11 +1,16 @@
 import type { PasswordHasher } from './password'
+import { identityCapability, requireIdentityCapability } from './capabilities'
 import {
   IdentityConflictError,
   IdentityMutationConflictError,
+  IdentityNotFoundError,
   InvalidEmailTokenError,
+  type GlobalRole,
+  type GlobalRoleMutationResult,
   type IdentityRepository,
   type PasswordMutationResult,
   type RegisteredIdentity,
+  type SessionSubject,
 } from './repository'
 import type { IdentityTokenCodec, IssuedIdentityToken, PasswordResetRequestResult } from './token'
 
@@ -29,6 +34,7 @@ export interface LoginIdentityResult {
 export type IdentityServiceErrorCode =
   | 'identity.conflict'
   | 'identity.invalid_credentials'
+  | 'identity.not_found'
   | 'identity.password_unchanged'
   | 'identity.token_invalid'
 
@@ -37,6 +43,7 @@ export class IdentityServiceError extends Error {
     const messages: Record<IdentityServiceErrorCode, string> = {
       'identity.conflict': '账号标识已被使用',
       'identity.invalid_credentials': '账号或密码错误',
+      'identity.not_found': '账号不存在',
       'identity.password_unchanged': '密码已被其他请求修改，请重新登录',
       'identity.token_invalid': '凭证无效或已过期',
     }
@@ -199,6 +206,21 @@ export class IdentityService {
     }
     catch (error) {
       if (error instanceof InvalidEmailTokenError) throw new IdentityServiceError('identity.token_invalid')
+      throw error
+    }
+  }
+
+  async changeGlobalRole(
+    actor: SessionSubject,
+    targetUserId: string,
+    role: GlobalRole,
+  ): Promise<GlobalRoleMutationResult> {
+    requireIdentityCapability(actor, identityCapability.roleManage)
+    try {
+      return await this.repository.changeGlobalRole(targetUserId, role, this.now())
+    }
+    catch (error) {
+      if (error instanceof IdentityNotFoundError) throw new IdentityServiceError('identity.not_found')
       throw error
     }
   }

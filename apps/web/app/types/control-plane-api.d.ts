@@ -29,6 +29,9 @@ export interface paths {
   "/api/auth/csrf": {
     get: operations["getCsrfToken"];
   };
+  "/api/admin/users/{userId}/role": {
+    patch: operations["changeUserGlobalRole"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -317,6 +320,67 @@ export interface operations {
           "application/json": {
             csrf_token: string;
           };
+        };
+      };
+    };
+  };
+  changeUserGlobalRole: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+      path: {
+        userId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          role: "user" | "organizer" | "admin";
+        };
+      };
+    };
+    responses: {
+      /** @description Global role changed and target sessions invalidated */
+      200: {
+        content: {
+          "application/json": {
+            user_id: string;
+            /** @enum {string} */
+            previous_role: "user" | "organizer" | "admin";
+            /** @enum {string} */
+            role: "user" | "organizer" | "admin";
+            session_version: number;
+            changed: boolean;
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
     };

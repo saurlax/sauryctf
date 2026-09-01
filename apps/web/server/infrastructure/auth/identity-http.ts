@@ -1,9 +1,11 @@
 import type { H3Event } from 'h3'
 import { setResponseStatus } from 'h3'
 import {
+  changeGlobalRoleRequestSchema,
   changePasswordRequestSchema,
   emailVerificationConfirmRequestSchema,
   emailVerifiedSchema,
+  globalRoleChangedSchema,
   passwordChangedSchema,
   passwordResetConfirmRequestSchema,
   passwordResetRequestSchema,
@@ -35,6 +37,7 @@ import type { RateLimitStore } from '../security/rate-limit'
 import { resolveProtectedIdentitySession } from './protected-session'
 
 type IdentityCommands = Pick<IdentityService,
+  | 'changeGlobalRole'
   | 'changePassword'
   | 'requestPasswordReset'
   | 'resetPassword'
@@ -122,6 +125,27 @@ export async function handleChangePassword(event: H3Event, dependencies: Identit
   return passwordChangedSchema.parse({ changed: true })
 }
 
+export async function handleChangeGlobalRole(
+  event: H3Event,
+  dependencies: IdentityHttpDependencies,
+  targetUserId: string,
+) {
+  const context = await requireProtectedCapability(event, identityCapability.roleManage, dependencies)
+  const input = await readValidatedJsonBody(event, changeGlobalRoleRequestSchema)
+  const result = await runIdentityOperation(() => dependencies.identity.changeGlobalRole(
+    context.subject,
+    targetUserId,
+    input.role,
+  ))
+  return globalRoleChangedSchema.parse({
+    user_id: result.userId,
+    previous_role: result.previousRole,
+    role: result.role,
+    session_version: result.sessionVersion,
+    changed: result.changed,
+  })
+}
+
 export async function handlePasswordResetRequest(event: H3Event, dependencies: IdentityHttpDependencies) {
   const input = await readValidatedJsonBody(event, passwordResetRequestSchema)
   await runHumanVerification(() => requireHumanVerification(dependencies.humanVerification, {
@@ -191,10 +215,15 @@ async function runIdentityOperation<T>(operation: () => Promise<T>): Promise<T> 
     return await operation()
   }
   catch (error) {
+    if (error instanceof IdentityCapabilityError) {
+      throw createApiError(403, error.code, error.message)
+    }
     if (!(error instanceof IdentityServiceError)) throw error
     const statusCode = error.code === 'identity.conflict'
       || error.code === 'identity.password_unchanged'
       ? 409
+      : error.code === 'identity.not_found'
+        ? 404
       : error.code === 'identity.invalid_credentials'
         ? 401
         : 400

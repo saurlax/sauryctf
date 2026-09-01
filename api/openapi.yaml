@@ -293,6 +293,83 @@ paths:
                 required:
                   - csrf_token
                 additionalProperties: false
+  /api/admin/users/{userId}/role:
+    patch:
+      operationId: changeUserGlobalRole
+      tags:
+        - Administration
+        - Identity
+      security:
+        - cookieSession: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - *a2
+        - *a3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  type: string
+                  enum:
+                    - user
+                    - organizer
+                    - admin
+              required:
+                - role
+              additionalProperties: false
+      responses:
+        "200":
+          description: Global role changed and target sessions invalidated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id:
+                    type: string
+                    allOf:
+                      - type: string
+                        pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                      - type: string
+                        pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                  previous_role:
+                    type: string
+                    enum:
+                      - user
+                      - organizer
+                      - admin
+                  role:
+                    type: string
+                    enum:
+                      - user
+                      - organizer
+                      - admin
+                  session_version:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  changed:
+                    type: boolean
+                required:
+                  - user_id
+                  - previous_role
+                  - role
+                  - session_version
+                  - changed
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "404": *a1
 components:
   securitySchemes:
     cookieSession:

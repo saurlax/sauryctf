@@ -2,7 +2,10 @@ import type { Pool } from 'pg'
 import {
   IdentityConflictError,
   IdentityMutationConflictError,
+  IdentityNotFoundError,
   InvalidEmailTokenError,
+  type GlobalRole,
+  type GlobalRoleMutationResult,
   type IdentityRepository,
   type NewEmailToken,
   type NewIdentity,
@@ -314,6 +317,67 @@ export class PostgresIdentityRepository implements IdentityRepository {
       )
       await connection.query('COMMIT')
       return { userId: activeToken.user_id, sessionVersion: Number(user.rows[0]!.session_version) }
+    }
+    catch (error) {
+      await connection.query('ROLLBACK')
+      throw error
+    }
+    finally {
+      connection.release()
+    }
+  }
+
+  async changeGlobalRole(
+    userId: string,
+    role: GlobalRole,
+    changedAt: Date,
+  ): Promise<GlobalRoleMutationResult> {
+    const connection = await this.pool.connect()
+    try {
+      await connection.query('BEGIN')
+      const current = await connection.query<{ role: GlobalRole, session_version: string }>(
+        `SELECT r.role::text, u.session_version::text
+         FROM users u
+         JOIN user_roles r ON r.user_id = u.id
+         WHERE u.id = $1
+         FOR UPDATE OF u, r`,
+        [userId],
+      )
+      const existing = current.rows[0]
+      if (!existing) throw new IdentityNotFoundError()
+
+      if (existing.role === role) {
+        await connection.query('COMMIT')
+        return {
+          userId,
+          previousRole: existing.role,
+          role,
+          sessionVersion: Number(existing.session_version),
+          changed: false,
+        }
+      }
+
+      await connection.query(
+        `UPDATE user_roles SET role = $2, updated_at = $3 WHERE user_id = $1`,
+        [userId, role, changedAt],
+      )
+      const user = await connection.query<{ session_version: string }>(
+        `UPDATE users
+         SET session_version = session_version + 1,
+             version = version + 1,
+             updated_at = $2
+         WHERE id = $1
+         RETURNING session_version::text`,
+        [userId, changedAt],
+      )
+      await connection.query('COMMIT')
+      return {
+        userId,
+        previousRole: existing.role,
+        role,
+        sessionVersion: Number(user.rows[0]!.session_version),
+        changed: true,
+      }
     }
     catch (error) {
       await connection.query('ROLLBACK')

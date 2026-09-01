@@ -31,6 +31,16 @@ export interface PasswordMutationResult {
   sessionVersion: number
 }
 
+export type GlobalRole = 'user' | 'organizer' | 'admin'
+
+export interface GlobalRoleMutationResult {
+  userId: string
+  previousRole: GlobalRole
+  role: GlobalRole
+  sessionVersion: number
+  changed: boolean
+}
+
 export interface NewEmailToken {
   userId: string
   purpose: EmailTokenPurpose
@@ -51,7 +61,7 @@ export interface SessionSubject {
   email: string
   emailVerified: boolean
   status: 'active' | 'banned'
-  role: 'user' | 'organizer' | 'admin'
+  role: GlobalRole
   sessionVersion: number
   mustChangePassword: boolean
 }
@@ -67,6 +77,7 @@ export interface IdentityRepository {
   resetPassword(tokenDigest: Buffer, nextHash: string, consumedAt: Date): Promise<PasswordMutationResult>
   issueEmailToken(token: NewEmailToken): Promise<void>
   verifyEmail(tokenDigest: Buffer, consumedAt: Date): Promise<PasswordMutationResult>
+  changeGlobalRole(userId: string, role: GlobalRole, changedAt: Date): Promise<GlobalRoleMutationResult>
 }
 
 export class IdentityConflictError extends Error {
@@ -87,5 +98,12 @@ export class InvalidEmailTokenError extends Error {
   constructor() {
     super('Email token is invalid or expired')
     this.name = 'InvalidEmailTokenError'
+  }
+}
+
+export class IdentityNotFoundError extends Error {
+  constructor() {
+    super('Identity does not exist')
+    this.name = 'IdentityNotFoundError'
   }
 }

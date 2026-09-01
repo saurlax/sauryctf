@@ -15,6 +15,7 @@ function repositoryFor(subject: SessionSubject | null): IdentityRepository {
     resetPassword: vi.fn(),
     issueEmailToken: vi.fn(),
     verifyEmail: vi.fn(),
+    changeGlobalRole: vi.fn(),
   }
 }
 

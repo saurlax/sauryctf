@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  changeGlobalRoleRequestSchema,
   changePasswordRequestSchema,
   emailVerificationConfirmRequestSchema,
   emailVerifiedSchema,
+  globalRoleChangedSchema,
+  globalRoleSchema,
   passwordChangedSchema,
   passwordResetAcceptedSchema,
   passwordResetConfirmRequestSchema,
@@ -41,5 +44,18 @@ describe('password reset anti-enumeration response', () => {
     expect(emailVerifiedSchema.parse({ verified: true })).toEqual({ verified: true })
     expect(() => passwordChangedSchema.parse({ changed: true, session_version: 2 })).toThrow()
     expect(() => emailVerifiedSchema.parse({ verified: true, token: 'secret' })).toThrow()
+  })
+
+  it('accepts only the three global roles and returns the invalidated session version', () => {
+    expect(globalRoleSchema.options).toEqual(['user', 'organizer', 'admin'])
+    expect(changeGlobalRoleRequestSchema.parse({ role: 'organizer' })).toEqual({ role: 'organizer' })
+    expect(() => changeGlobalRoleRequestSchema.parse({ role: 'judge' })).toThrow()
+    expect(globalRoleChangedSchema.parse({
+      user_id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f2d',
+      previous_role: 'user',
+      role: 'organizer',
+      session_version: 2,
+      changed: true,
+    })).toMatchObject({ role: 'organizer', session_version: 2 })
   })
 })
