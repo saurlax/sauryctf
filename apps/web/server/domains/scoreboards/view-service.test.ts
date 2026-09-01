@@ -6,10 +6,18 @@ import type {
 } from '../submissions/scoring-replay'
 import {
   ScoreboardViewService,
+  type ScoreboardProjection,
   type ScoreboardContestState,
   type ScoreboardSnapshotRecord,
   type ScoreboardViewRepository,
 } from './view-service'
+import {
+  cacheDescriptor,
+  parseScoreboardCacheValue,
+  scoreboardCacheKey,
+  serializeScoreboardCacheValue,
+  type ScoreboardProjectionCache,
+} from './cache'
 
 const contestId = 'contest-1'
 const freezeAt = new Date('2026-09-01T08:10:00.000Z')
@@ -56,6 +64,14 @@ class FakeRepository implements ScoreboardViewRepository {
         && snapshot.view === input.view
         && snapshot.scopeKey === input.scopeKey)
       .toSorted((a, b) => b.version - a.version)[0] ?? null
+  }
+
+  async readLatestSnapshotVersion(input: {
+    contestId: string
+    view: 'public' | 'internal'
+    scopeKey: string
+  }) {
+    return (await this.readLatestSnapshot(input))?.version ?? null
   }
 
   async writeSnapshot(snapshot: ScoreboardSnapshotRecord) {
@@ -125,6 +141,22 @@ function replay(includePostFreezeSolve: boolean): ContestScoringReplay {
       }),
     ],
     rankingSummary: [],
+  }
+}
+
+class FakeCache implements ScoreboardProjectionCache {
+  values = new Map<string, string>()
+  get = vi.fn(async (descriptor: ReturnType<typeof cacheDescriptor>) => {
+    const serialized = this.values.get(scoreboardCacheKey(descriptor))
+    return serialized ? parseScoreboardCacheValue(descriptor, serialized) : null
+  })
+
+  set = vi.fn(async (value: ScoreboardProjection) => {
+    this.values.set(scoreboardCacheKey(cacheDescriptor(value)), serializeScoreboardCacheValue(value))
+  })
+
+  seed(value: ScoreboardProjection) {
+    this.values.set(scoreboardCacheKey(cacheDescriptor(value)), serializeScoreboardCacheValue(value))
   }
 }
 
@@ -228,5 +260,136 @@ describe('role-aware scoreboard freeze views', () => {
       viewerRole: 'user',
       scope: { type: 'division', divisionId: 'missing' },
     })).rejects.toMatchObject({ code: 'scoreboard.not_found' })
+  })
+
+  it('uses only the current authoritative version and rejects a stale cached projection', async () => {
+    const repository = new FakeRepository()
+    const replays = { replay: vi.fn(async () => replay(true)) }
+    const cache = new FakeCache()
+    repository.contest = { ...repository.contest, currentVersion: 1 }
+    const staleService = new ScoreboardViewService(
+      repository,
+      { replay: async () => replay(false) },
+      undefined,
+      () => new Date('2026-09-01T08:06:00.000Z'),
+    )
+    cache.seed(await staleService.read({
+      contestId,
+      view: 'public',
+      viewerRole: 'user',
+      scope: { type: 'overall' },
+    }))
+    repository.contest = { ...repository.contest, currentVersion: 2 }
+    const service = new ScoreboardViewService(
+      repository,
+      replays,
+      undefined,
+      () => new Date('2026-09-01T08:06:00.000Z'),
+      cache,
+    )
+
+    const result = await service.read({
+      contestId,
+      view: 'public',
+      viewerRole: 'user',
+      scope: { type: 'overall' },
+    })
+    expect(result.version).toBe(2)
+    expect(replays.replay).toHaveBeenCalledOnce()
+    expect(cache.get).toHaveBeenCalledWith(expect.objectContaining({ version: 2 }))
+
+    replays.replay.mockClear()
+    expect((await service.read({
+      contestId,
+      view: 'public',
+      viewerRole: 'user',
+      scope: { type: 'overall' },
+    })).version).toBe(2)
+    expect(replays.replay).not.toHaveBeenCalled()
+  })
+
+  it('never consults public projection caches for forbidden or authorized internal reads', async () => {
+    const repository = new FakeRepository()
+    const cache = new FakeCache()
+    const replays = { replay: vi.fn(async () => replay(true)) }
+    const service = new ScoreboardViewService(
+      repository,
+      replays,
+      undefined,
+      () => duringFreeze,
+      cache,
+    )
+
+    await expect(service.read({
+      contestId,
+      view: 'internal',
+      viewerRole: 'user',
+      scope: { type: 'overall' },
+    })).rejects.toMatchObject({ code: 'scoreboard.internal_forbidden' })
+    await service.read({
+      contestId,
+      view: 'internal',
+      viewerRole: 'organizer',
+      scope: { type: 'overall' },
+    })
+    expect(cache.get).not.toHaveBeenCalled()
+    expect(cache.set).not.toHaveBeenCalled()
+  })
+
+  it('rejects a live cache entry after the same version becomes settled', async () => {
+    const repository = new FakeRepository()
+    const cache = new FakeCache()
+    const liveService = new ScoreboardViewService(
+      repository,
+      { replay: async () => replay(true) },
+      undefined,
+      () => new Date('2026-09-01T08:06:00.000Z'),
+    )
+    cache.seed(await liveService.read({
+      contestId,
+      view: 'public',
+      viewerRole: 'user',
+      scope: { type: 'overall' },
+    }))
+    const replays = { replay: vi.fn(async () => replay(true)) }
+    const settledService = new ScoreboardViewService(
+      repository,
+      replays,
+      undefined,
+      () => afterEnd,
+      cache,
+    )
+
+    const result = await settledService.read({
+      contestId,
+      view: 'public',
+      viewerRole: 'user',
+      scope: { type: 'overall' },
+    })
+    expect(result.state).toBe('settled')
+    expect(replays.replay).toHaveBeenCalledOnce()
+  })
+
+  it('falls back to authoritative materialization when cache operations fail', async () => {
+    const repository = new FakeRepository()
+    const replays = { replay: vi.fn(async () => replay(true)) }
+    const failingCache: ScoreboardProjectionCache = {
+      get: vi.fn(async () => { throw new Error('redis unavailable') }),
+      set: vi.fn(async () => { throw new Error('redis unavailable') }),
+    }
+    const service = new ScoreboardViewService(
+      repository,
+      replays,
+      undefined,
+      () => new Date('2026-09-01T08:06:00.000Z'),
+      failingCache,
+    )
+    await expect(service.read({
+      contestId,
+      view: 'public',
+      viewerRole: 'user',
+      scope: { type: 'overall' },
+    })).resolves.toMatchObject({ version: 2, state: 'live' })
+    expect(replays.replay).toHaveBeenCalledOnce()
   })
 })

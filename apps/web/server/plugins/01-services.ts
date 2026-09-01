@@ -35,6 +35,7 @@ import { RateLimitStoreSubmissionLimiter } from '../infrastructure/security/subm
 import { AesGcmSubmissionAnswerProtector } from '../infrastructure/security/submission-answer-protector'
 import { ContestScoringReplayService } from '../domains/submissions/scoring-replay'
 import { ScoreboardViewService } from '../domains/scoreboards/view-service'
+import { ResilientRedisScoreboardCache } from '../infrastructure/cache/redis-scoreboard-cache'
 import { PostgresScoringReplayRepository } from '../infrastructure/db/scoring-replay-repository'
 import { PostgresScoreboardViewRepository } from '../infrastructure/db/scoreboard-view-repository'
 
@@ -50,6 +51,7 @@ export default defineNitroPlugin(async (nitroApp) => {
   })
   const identityRepository = new PostgresIdentityRepository(database.pool)
   const rateLimits = new ResilientRedisRateLimitStore(process.env.REDIS_URL)
+  const scoreboardCache = new ResilientRedisScoreboardCache(process.env.REDIS_URL)
   const humanVerification = process.env.TURNSTILE_SECRET_KEY
     ? new TurnstileHumanVerificationProvider(process.env.TURNSTILE_SECRET_KEY)
     : new DisabledHumanVerificationProvider()
@@ -86,6 +88,9 @@ export default defineNitroPlugin(async (nitroApp) => {
     scoreboards: new ScoreboardViewService(
       new PostgresScoreboardViewRepository(database.pool),
       scoringReplays,
+      undefined,
+      undefined,
+      scoreboardCache,
     ),
   }
 
@@ -133,6 +138,7 @@ export default defineNitroPlugin(async (nitroApp) => {
   nitroApp.hooks.hook('close', async () => {
     if (dispatchTimer) clearInterval(dispatchTimer)
     await rateLimits.close()
+    await scoreboardCache.close()
     await database.pool.end()
   })
 })

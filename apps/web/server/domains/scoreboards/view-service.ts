@@ -4,6 +4,7 @@ import {
   type ScoreboardReadModel,
   type ScoreboardScope,
 } from './builder'
+import type { ScoreboardProjectionCache } from './cache'
 
 export type ScoreboardView = 'public' | 'internal'
 export type ScoreboardViewerRole = 'user' | 'organizer' | 'admin'
@@ -36,6 +37,11 @@ export interface ScoreboardViewRepository {
     view: ScoreboardView
     scopeKey: string
   }): Promise<ScoreboardSnapshotRecord | null>
+  readLatestSnapshotVersion(input: {
+    contestId: string
+    view: ScoreboardView
+    scopeKey: string
+  }): Promise<number | null>
   readSnapshot(input: {
     contestId: string
     view: ScoreboardView
@@ -92,6 +98,7 @@ export class ScoreboardViewService {
     private readonly replays: ScoreboardReplaySource,
     private readonly builder = new ScoreboardBuilder(),
     private readonly now: () => Date = () => new Date(),
+    private readonly cache?: ScoreboardProjectionCache,
   ) {}
 
   async read(input: ReadScoreboardInput): Promise<ScoreboardProjection> {
@@ -137,7 +144,7 @@ export class ScoreboardViewService {
     const settled = contest.publicationStatus === 'archived'
       || now.getTime() >= contest.endAt.getTime()
     if (settled) {
-      return this.materialize({
+      return this.cachedMaterialize({
         contest,
         scope: input.scope,
         view: 'public',
@@ -149,7 +156,36 @@ export class ScoreboardViewService {
     }
 
     if (contest.freezeAt && now.getTime() >= contest.freezeAt.getTime()) {
-      return this.materialize({
+      const scopeKey = scopeKeyFor(input.scope)
+      const version = await this.repository.readLatestSnapshotVersion({
+        contestId: contest.contestId,
+        view: 'public',
+        scopeKey,
+      })
+      if (version !== null) {
+        const descriptor = {
+          contestId: contest.contestId,
+          view: 'public' as const,
+          scopeKey,
+          version,
+          state: 'frozen' as const,
+          frozenAt: contest.freezeAt.toISOString(),
+        }
+        const cached = await this.readCache(descriptor)
+        if (cached) return cached
+        const existing = await this.repository.readSnapshot({
+          contestId: contest.contestId,
+          view: 'public',
+          scopeKey,
+          version,
+        })
+        if (existing) {
+          const value = projection(existing, 'frozen', contest.freezeAt)
+          await this.writeCache(value)
+          return value
+        }
+      }
+      const value = await this.materialize({
         contest,
         scope: input.scope,
         view: 'public',
@@ -159,9 +195,11 @@ export class ScoreboardViewService {
         persist: true,
         preferLatestExisting: true,
       })
+      await this.writeCache(value)
+      return value
     }
 
-    return this.materialize({
+    return this.cachedMaterialize({
       contest,
       scope: input.scope,
       view: 'public',
@@ -170,6 +208,48 @@ export class ScoreboardViewService {
       now,
       persist: false,
     })
+  }
+
+  private async cachedMaterialize(input: {
+    contest: ScoreboardContestState
+    scope: ScoreboardScope
+    view: 'public'
+    state: 'live' | 'settled'
+    version: number
+    now: Date
+    persist: boolean
+  }): Promise<ScoreboardProjection> {
+    const descriptor = {
+      contestId: input.contest.contestId,
+      view: input.view,
+      scopeKey: scopeKeyFor(input.scope),
+      version: input.version,
+      state: input.state,
+      frozenAt: null,
+    }
+    const cached = await this.readCache(descriptor)
+    if (cached) return cached
+    const value = await this.materialize(input)
+    await this.writeCache(value)
+    return value
+  }
+
+  private async readCache(descriptor: Parameters<ScoreboardProjectionCache['get']>[0]) {
+    try {
+      return await this.cache?.get(descriptor) ?? null
+    }
+    catch {
+      return null
+    }
+  }
+
+  private async writeCache(value: ScoreboardProjection): Promise<void> {
+    try {
+      await this.cache?.set(value)
+    }
+    catch {
+      // Cache failures never change authorization or authoritative scoreboard reads.
+    }
   }
 
   private async materialize(input: {
@@ -184,7 +264,7 @@ export class ScoreboardViewService {
     preferExisting?: boolean
     preferLatestExisting?: boolean
   }): Promise<ScoreboardProjection> {
-    const scopeKey = input.scope.type === 'overall' ? 'overall' : input.scope.divisionId
+    const scopeKey = scopeKeyFor(input.scope)
     if (input.preferLatestExisting) {
       const existing = await this.repository.readLatestSnapshot({
         contestId: input.contest.contestId,
@@ -230,6 +310,10 @@ export class ScoreboardViewService {
       : generated
     return projection(snapshot, input.state, input.contest.freezeAt)
   }
+}
+
+function scopeKeyFor(scope: ScoreboardScope): string {
+  return scope.type === 'overall' ? 'overall' : scope.divisionId
 }
 
 function projection(

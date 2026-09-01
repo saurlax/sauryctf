@@ -81,6 +81,22 @@ export class PostgresScoreboardViewRepository implements ScoreboardViewRepositor
     return result.rows[0] ? snapshotRecord(result.rows[0]) : null
   }
 
+  async readLatestSnapshotVersion(input: {
+    contestId: string
+    view: ScoreboardView
+    scopeKey: string
+  }): Promise<number | null> {
+    const result = await this.pool.query<{ version: string }>(
+      `SELECT version::text
+       FROM scoreboard_snapshots
+       WHERE contest_id = $1 AND view = $2 AND scope_key = $3
+       ORDER BY version DESC
+       LIMIT 1`,
+      [input.contestId, input.view, input.scopeKey],
+    )
+    return result.rows[0] ? safeVersion(result.rows[0].version) : null
+  }
+
   async readSnapshot(input: {
     contestId: string
     view: ScoreboardView
