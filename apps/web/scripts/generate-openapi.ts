@@ -54,6 +54,7 @@ import {
   contestLifecycleRequestSchema,
   contestResponseSchema,
   createContestDraftRequestSchema,
+  updateContestDraftRequestSchema,
 } from '../shared/contracts/contests'
 
 function openApiSchema(schema: z.ZodType): Record<string, unknown> {
@@ -111,6 +112,14 @@ const csrfParameter = {
   required: true,
   schema: { type: 'string', minLength: 43, maxLength: 43 },
   description: 'Double-submit proof matching the sauryctf-csrf cookie.',
+}
+
+const ifMatchParameter = {
+  name: 'If-Match',
+  in: 'header',
+  required: true,
+  schema: { type: 'string', pattern: '^"[1-9][0-9]*"$' },
+  description: 'Strong ETag containing the current resource version.',
 }
 
 const document = {
@@ -389,7 +398,10 @@ const document = {
     '/api/teams/members/{userId}': { delete: { operationId: 'removeTeamMember', tags: ['Teams'], security: [{ cookieSession: [] }], parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], responses: { 200: jsonResponse('Member removed', memberRemovedResponseSchema), 401: errorResponse, 403: errorResponse, 404: errorResponse } } },
     '/api/admin/teams/{teamId}/corrections': { post: { operationId: 'correctTeamMembership', tags: ['Administration', 'Teams'], security: [{ cookieSession: [] }], parameters: [{ name: 'teamId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], requestBody: jsonRequestBody(adminTeamCorrectionRequestSchema), responses: { 200: jsonResponse('Team membership corrected with audit evidence', teamMutationResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse } } },
     '/api/admin/contests': { post: { operationId: 'createContestDraft', tags: ['Administration', 'Contests'], security: [{ cookieSession: [] }], parameters: [originParameter, csrfParameter], requestBody: jsonRequestBody(createContestDraftRequestSchema), responses: { 201: jsonResponse('Contest draft created', contestResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 409: errorResponse } } },
-    '/api/admin/contests/{contestId}': { get: { operationId: 'getManagedContest', tags: ['Administration', 'Contests'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }], responses: { 200: jsonResponse('Managed contest projection', contestResponseSchema), 401: errorResponse, 403: errorResponse, 404: errorResponse } } },
+    '/api/admin/contests/{contestId}': {
+      get: { operationId: 'getManagedContest', tags: ['Administration', 'Contests'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }], responses: { 200: jsonResponse('Managed contest projection', contestResponseSchema), 401: errorResponse, 403: errorResponse, 404: errorResponse } },
+      patch: { operationId: 'updateContestDraft', tags: ['Administration', 'Contests'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter, ifMatchParameter], requestBody: jsonRequestBody(updateContestDraftRequestSchema), responses: { 200: jsonResponse('Contest draft configuration updated', contestResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse, 428: errorResponse } },
+    },
     '/api/admin/contests/{contestId}/publish': { post: { operationId: 'publishContest', tags: ['Administration', 'Contests'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], requestBody: jsonRequestBody(contestLifecycleRequestSchema), responses: { 200: jsonResponse('Contest published', contestResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse } } },
     '/api/admin/contests/{contestId}/archive': { post: { operationId: 'archiveContest', tags: ['Administration', 'Contests'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], requestBody: jsonRequestBody(contestLifecycleRequestSchema), responses: { 200: jsonResponse('Ended contest archived', contestResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse } } },
     '/api/contests/{contestId}': { get: { operationId: 'getPublicContest', tags: ['Contests'], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }], responses: { 200: jsonResponse('Public published or archived contest projection', contestResponseSchema), 404: errorResponse } } },

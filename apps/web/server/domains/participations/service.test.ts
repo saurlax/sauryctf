@@ -83,6 +83,7 @@ describeWithPostgres('participation registration transactions', () => {
 
   async function contest(creator: SessionSubject, options: {
     strategy?: 'review' | 'auto_accept'
+    visibility?: 'public' | 'private'
     publicationStatus?: 'draft' | 'published'
     ended?: boolean
     minTeamSize?: number
@@ -101,19 +102,20 @@ describeWithPostgres('participation registration transactions', () => {
       : null
     const inserted = await database.pool.query<{ id: string }>(
       `INSERT INTO contests
-         (title, slug, publication_status, visibility, registration_strategy, invite_digest,
+         (title, slug, publication_status, visibility, registration_strategy, invite_required, invite_digest,
           start_at, end_at, published_at, min_team_size, max_team_size,
           registration_constraints, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
                CASE WHEN $3::contest_publication_status = 'published' THEN now() ELSE NULL END,
-               $9, $10, $11, $12)
+               $10, $11, $12, $13)
        RETURNING id`,
       [
         `Participation Contest ${sequence}`,
         `participation-contest-${sequence}`,
         publicationStatus,
-        options.inviteCode ? 'private' : 'public',
+        options.visibility ?? (options.inviteCode ? 'private' : 'public'),
         options.strategy ?? 'review',
+        Boolean(options.inviteCode),
         inviteDigest,
         startAt,
         endAt,
@@ -200,7 +202,7 @@ describeWithPostgres('participation registration transactions', () => {
     const captain = await user()
     await registeredTeam(captain, 'Private Team')
     const firstInvite = 'contest-invite-first-value-000000000001'
-    const target = await contest(organizer, { inviteCode: firstInvite })
+    const target = await contest(organizer, { visibility: 'public', inviteCode: firstInvite })
 
     await expect(participations.register(captain, target.id, 'unknown-contest-invite-000000000000')).rejects.toMatchObject({
       code: 'participation.invite_invalid',
@@ -216,6 +218,17 @@ describeWithPostgres('participation registration transactions', () => {
       decision: 'accepted',
       reason: 'Review after invite rotation',
     })).rejects.toMatchObject({ code: 'participation.invite_invalid' })
+  })
+
+  it('does not treat a private contest identifier as registration authorization', async () => {
+    const organizer = await user({ role: 'organizer' })
+    const captain = await user()
+    await registeredTeam(captain, 'Private Discovery Team')
+    const target = await contest(organizer, { visibility: 'private' })
+
+    await expect(participations.register(captain, target.id)).rejects.toMatchObject({
+      code: 'participation.registration_closed',
+    })
   })
 
   it('allows pending and rejected registrations to withdraw and reapply, but locks accepted registrations', async () => {

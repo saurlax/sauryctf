@@ -134,6 +134,55 @@ describeWithPostgres('Jeopardy contest authority schema', () => {
     )).rejects.toMatchObject({ code: '23503' })
   })
 
+  it('defends contest configuration invariants at the database boundary', async () => {
+    const contestId = await createContest(`configuration-${randomUUID()}`)
+    await expect(database.pool.query(
+      'UPDATE contests SET end_at = start_at WHERE id = $1',
+      [contestId],
+    )).rejects.toMatchObject({ code: '23514', constraint: 'contests_time_window' })
+    await expect(database.pool.query(
+      `UPDATE contests SET scoreboard_freeze_at = start_at - interval '1 second' WHERE id = $1`,
+      [contestId],
+    )).rejects.toMatchObject({ code: '23514', constraint: 'contests_freeze_window' })
+    await expect(database.pool.query(
+      `UPDATE contests SET writeup_required = true,
+                           writeup_deadline_at = end_at - interval '1 second'
+       WHERE id = $1`,
+      [contestId],
+    )).rejects.toMatchObject({ code: '23514', constraint: 'contests_writeup_deadline' })
+    await expect(database.pool.query(
+      `UPDATE contests SET writeup_required = false,
+                           writeup_deadline_at = end_at + interval '1 day'
+       WHERE id = $1`,
+      [contestId],
+    )).rejects.toMatchObject({ code: '23514', constraint: 'contests_writeup_configuration' })
+    await expect(database.pool.query(
+      'UPDATE contests SET invite_required = true WHERE id = $1',
+      [contestId],
+    )).rejects.toMatchObject({ code: '23514', constraint: 'contests_invite_configuration' })
+    await expect(database.pool.query(
+      `UPDATE contests SET invite_digest = decode('abcd', 'hex') WHERE id = $1`,
+      [contestId],
+    )).rejects.toMatchObject({ code: '23514', constraint: 'contests_invite_configuration' })
+    await expect(database.pool.query(
+      'UPDATE contests SET max_team_size = 101 WHERE id = $1',
+      [contestId],
+    )).rejects.toMatchObject({ code: '23514', constraint: 'contests_team_size' })
+    await expect(database.pool.query(
+      `UPDATE contests SET registration_constraints = '{"unknown":true}'::jsonb WHERE id = $1`,
+      [contestId],
+    )).rejects.toMatchObject({ code: '23514', constraint: 'contests_registration_constraints_shape' })
+
+    await expect(database.pool.query(
+      `UPDATE contests
+       SET visibility = 'public', invite_required = true,
+           invite_digest = decode(repeat('ab', 32), 'hex'),
+           registration_constraints = '{"allowed_email_domains":["example.edu"]}'::jsonb
+       WHERE id = $1`,
+      [contestId],
+    )).resolves.toMatchObject({ rowCount: 1 })
+  })
+
   it('deduplicates public timeline events within a contest', async () => {
     const contestId = await createContest(`timeline-${randomUUID()}`)
     await database.pool.query(

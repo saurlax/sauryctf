@@ -1,12 +1,17 @@
 import type { H3Event } from 'h3'
-import { setResponseStatus } from 'h3'
+import { getHeader, setResponseHeader, setResponseStatus } from 'h3'
 import {
   contestLifecycleRequestSchema,
   contestResponseSchema,
   createContestDraftRequestSchema,
+  updateContestDraftRequestSchema,
   type Contest,
 } from '../../../shared/contracts/contests'
-import { requestIdSchema } from '../../../shared/contracts/http'
+import {
+  entityTagForVersion,
+  requestIdSchema,
+  versionFromIfMatch,
+} from '../../../shared/contracts/http'
 import { identityCapability } from '../../domains/identity/capabilities'
 import type { ContestRecord } from '../../domains/contests/repository'
 import { ContestServiceError, type ContestService } from '../../domains/contests/service'
@@ -19,7 +24,7 @@ import { readValidatedJsonBody } from '../http/body'
 import { createApiError } from '../http/errors'
 
 type ContestCommands = Pick<ContestService,
-  'archive' | 'createDraft' | 'publish' | 'readManaged' | 'readPublic'>
+  'archive' | 'createDraft' | 'publish' | 'readManaged' | 'readPublic' | 'updateDraft'>
 
 export interface ContestHttpDependencies {
   identity: IdentityHttpDependencies
@@ -44,8 +49,21 @@ function projection(record: ContestRecord): Contest {
     description: record.description,
     publication_status: record.publicationStatus,
     phase: record.phase,
+    visibility: record.visibility,
+    invite_required: record.inviteRequired,
+    invite_configured: record.inviteConfigured,
+    registration_strategy: record.registrationStrategy,
     start_at: record.startAt.toISOString(),
     end_at: record.endAt.toISOString(),
+    scoreboard_freeze_at: record.scoreboardFreezeAt?.toISOString() ?? null,
+    practice_enabled: record.practiceEnabled,
+    writeup_required: record.writeupRequired,
+    writeup_deadline_at: record.writeupDeadlineAt?.toISOString() ?? null,
+    min_team_size: record.minTeamSize,
+    max_team_size: record.maxTeamSize,
+    registration_constraints: {
+      allowed_email_domains: record.registrationConstraints.allowedEmailDomains,
+    },
     published_at: record.publishedAt?.toISOString() ?? null,
     archived_at: record.archivedAt?.toISOString() ?? null,
     version: record.version,
@@ -67,14 +85,24 @@ async function runContestOperation<T>(operation: () => Promise<T>): Promise<T> {
   }
   catch (error) {
     if (!(error instanceof ContestServiceError)) throw error
+    if (error.code === 'contest.configuration_invalid') {
+      throw createApiError(400, 'validation.failed', '请求字段无效', error.fields)
+    }
     const statusCode = {
+      'contest.configuration_locked': 409,
       'contest.not_ended': 409,
       'contest.not_found': 404,
       'contest.slug_conflict': 409,
       'contest.transition_invalid': 409,
+      'resource.version_conflict': 409,
     }[error.code]
-    throw createApiError(statusCode, error.code, error.message)
+    throw createApiError(statusCode, error.code, error.message, error.fields)
   }
+}
+
+function respond(event: H3Event, record: ContestRecord) {
+  setResponseHeader(event, 'etag', entityTagForVersion(record.version))
+  return contestResponseSchema.parse({ contest: projection(record) })
 }
 
 export async function handleCreateContestDraft(
@@ -88,11 +116,64 @@ export async function handleCreateContestDraft(
     title: input.title,
     slug: input.slug,
     description: input.description,
+    visibility: input.visibility,
+    inviteRequired: input.invite_required,
+    inviteCode: input.invite_code,
+    registrationStrategy: input.registration_strategy,
     startAt: new Date(input.start_at),
     endAt: new Date(input.end_at),
+    scoreboardFreezeAt: input.scoreboard_freeze_at ? new Date(input.scoreboard_freeze_at) : null,
+    practiceEnabled: input.practice_enabled,
+    writeupRequired: input.writeup_required,
+    writeupDeadlineAt: input.writeup_deadline_at ? new Date(input.writeup_deadline_at) : null,
+    minTeamSize: input.min_team_size,
+    maxTeamSize: input.max_team_size,
+    allowedEmailDomains: input.registration_constraints.allowed_email_domains,
   }))
   setResponseStatus(event, 201)
-  return contestResponseSchema.parse({ contest: projection(result) })
+  return respond(event, result)
+}
+
+export async function handleUpdateContestDraft(
+  event: H3Event,
+  contestId: string,
+  dependencies = contestHttpDependencies(event),
+) {
+  const subject = await manager(event, dependencies)
+  const expectedVersion = versionFromIfMatch(getHeader(event, 'if-match'))
+  if (expectedVersion === null) {
+    throw createApiError(428, 'resource.precondition_required', '需要有效的 If-Match 资源版本', {
+      if_match: ['请提交当前资源的强 ETag，例如 "3"'],
+    })
+  }
+  const input = await readValidatedJsonBody(event, updateContestDraftRequestSchema)
+  const result = await runContestOperation(() => dependencies.contests.updateDraft(subject, {
+    requestId: requestIdSchema.parse(event.context.requestId),
+    contestId,
+    expectedVersion,
+    reason: input.reason,
+    title: input.title,
+    slug: input.slug,
+    description: input.description,
+    visibility: input.visibility,
+    inviteRequired: input.invite_required,
+    inviteCode: input.invite_code,
+    registrationStrategy: input.registration_strategy,
+    startAt: input.start_at ? new Date(input.start_at) : undefined,
+    endAt: input.end_at ? new Date(input.end_at) : undefined,
+    scoreboardFreezeAt: input.scoreboard_freeze_at === undefined
+      ? undefined
+      : input.scoreboard_freeze_at === null ? null : new Date(input.scoreboard_freeze_at),
+    practiceEnabled: input.practice_enabled,
+    writeupRequired: input.writeup_required,
+    writeupDeadlineAt: input.writeup_deadline_at === undefined
+      ? undefined
+      : input.writeup_deadline_at === null ? null : new Date(input.writeup_deadline_at),
+    minTeamSize: input.min_team_size,
+    maxTeamSize: input.max_team_size,
+    allowedEmailDomains: input.registration_constraints?.allowed_email_domains,
+  }))
+  return respond(event, result)
 }
 
 export async function handleManagedContest(
@@ -102,7 +183,7 @@ export async function handleManagedContest(
 ) {
   const subject = await manager(event, dependencies)
   const result = await runContestOperation(() => dependencies.contests.readManaged(subject, contestId))
-  return contestResponseSchema.parse({ contest: projection(result) })
+  return respond(event, result)
 }
 
 export async function handlePublicContest(
@@ -111,7 +192,7 @@ export async function handlePublicContest(
   dependencies: Pick<ContestHttpDependencies, 'contests'>,
 ) {
   const result = await runContestOperation(() => dependencies.contests.readPublic(contestId))
-  return contestResponseSchema.parse({ contest: projection(result) })
+  return respond(_event, result)
 }
 
 export async function handlePublishContest(
@@ -126,7 +207,7 @@ export async function handlePublishContest(
     contestId,
     reason: input.reason,
   }))
-  return contestResponseSchema.parse({ contest: projection(result) })
+  return respond(event, result)
 }
 
 export async function handleArchiveContest(
@@ -141,5 +222,5 @@ export async function handleArchiveContest(
     contestId,
     reason: input.reason,
   }))
-  return contestResponseSchema.parse({ contest: projection(result) })
+  return respond(event, result)
 }

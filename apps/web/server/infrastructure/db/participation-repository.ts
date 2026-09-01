@@ -27,6 +27,7 @@ interface LockedContest {
   publicationStatus: 'draft' | 'published' | 'archived'
   registrationStrategy: 'review' | 'auto_accept'
   visibility: 'public' | 'private'
+  inviteRequired: boolean
   inviteDigest: Buffer | null
   phase: 'upcoming' | 'running' | 'ended'
   minTeamSize: number
@@ -374,6 +375,7 @@ export class PostgresParticipationRepository implements ParticipationRepository 
       publication_status: LockedContest['publicationStatus']
       registration_strategy: LockedContest['registrationStrategy']
       visibility: LockedContest['visibility']
+      invite_required: boolean
       invite_digest: Buffer | null
       phase: LockedContest['phase']
       min_team_size: number
@@ -381,7 +383,7 @@ export class PostgresParticipationRepository implements ParticipationRepository 
       registration_constraints: unknown
     }>(
       `SELECT id, publication_status::text, registration_strategy::text, visibility::text,
-              invite_digest,
+              invite_required, invite_digest,
               derive_contest_time_phase(start_at, end_at, CURRENT_TIMESTAMP)::text AS phase,
               min_team_size, max_team_size, registration_constraints
        FROM contests
@@ -396,6 +398,7 @@ export class PostgresParticipationRepository implements ParticipationRepository 
       publicationStatus: row.publication_status,
       registrationStrategy: row.registration_strategy,
       visibility: row.visibility,
+      inviteRequired: row.invite_required,
       inviteDigest: row.invite_digest,
       phase: row.phase,
       minTeamSize: row.min_team_size,
@@ -408,13 +411,17 @@ export class PostgresParticipationRepository implements ParticipationRepository 
     if (contest.publicationStatus !== 'published' || contest.phase === 'ended') {
       throw new ParticipationRegistrationClosedError()
     }
-    if (contest.visibility === 'private' && !contest.inviteDigest) {
+    if (contest.visibility === 'private' && !contest.inviteRequired) {
+      throw new ParticipationRegistrationClosedError()
+    }
+    if (contest.inviteRequired && !contest.inviteDigest) {
       throw new ParticipationConfigurationInvalidError()
     }
   }
 
   private verifySubmittedInvite(contest: LockedContest, submitted: Buffer | null): Buffer | null {
-    if (!contest.inviteDigest) return null
+    if (!contest.inviteRequired) return null
+    if (!contest.inviteDigest) throw new ParticipationConfigurationInvalidError()
     if (!submitted || !this.safeDigestEqual(contest.inviteDigest, submitted)) {
       throw new ParticipationInviteInvalidError()
     }
@@ -422,7 +429,8 @@ export class PostgresParticipationRepository implements ParticipationRepository 
   }
 
   private verifyInviteEvidence(contest: LockedContest, evidence: Buffer | null) {
-    if (!contest.inviteDigest) return
+    if (!contest.inviteRequired) return
+    if (!contest.inviteDigest) throw new ParticipationConfigurationInvalidError()
     if (!evidence || !this.safeDigestEqual(contest.inviteDigest, evidence)) {
       throw new ParticipationInviteInvalidError()
     }

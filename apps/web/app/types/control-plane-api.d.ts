@@ -80,6 +80,7 @@ export interface paths {
   };
   "/api/admin/contests/{contestId}": {
     get: operations["getManagedContest"];
+    patch: operations["updateContestDraft"];
   };
   "/api/admin/contests/{contestId}/publish": {
     post: operations["publishContest"];
@@ -1309,10 +1310,44 @@ export interface operations {
           slug: string;
           /** @default */
           description: string;
+          /**
+           * @default public
+           * @enum {string}
+           */
+          visibility: "public" | "private";
+          /** @default false */
+          invite_required: boolean;
+          invite_code?: string;
+          /**
+           * @default review
+           * @enum {string}
+           */
+          registration_strategy: "review" | "auto_accept";
           /** Format: date-time */
           start_at: string;
           /** Format: date-time */
           end_at: string;
+          /** @default null */
+          scoreboard_freeze_at: string | null;
+          /** @default false */
+          practice_enabled: boolean;
+          /** @default false */
+          writeup_required: boolean;
+          /** @default null */
+          writeup_deadline_at: string | null;
+          /** @default 1 */
+          min_team_size: number;
+          /** @default 5 */
+          max_team_size: number;
+          /**
+           * @default {
+           *   "allowed_email_domains": []
+           * }
+           */
+          registration_constraints: {
+            /** @default [] */
+            allowed_email_domains: string[];
+          };
         };
       };
     };
@@ -1329,10 +1364,26 @@ export interface operations {
               /** @enum {string} */
               publication_status: "draft" | "published" | "archived";
               phase: ("upcoming" | "running" | "ended") | null;
+              /** @enum {string} */
+              visibility: "public" | "private";
+              invite_required: boolean;
+              invite_configured: boolean;
+              /** @enum {string} */
+              registration_strategy: "review" | "auto_accept";
               /** Format: date-time */
               start_at: string;
               /** Format: date-time */
               end_at: string;
+              scoreboard_freeze_at: string | null;
+              practice_enabled: boolean;
+              writeup_required: boolean;
+              writeup_deadline_at: string | null;
+              min_team_size: number;
+              max_team_size: number;
+              registration_constraints: {
+                /** @default [] */
+                allowed_email_domains: string[];
+              };
               published_at: string | null;
               archived_at: string | null;
               version: number;
@@ -1385,10 +1436,26 @@ export interface operations {
               /** @enum {string} */
               publication_status: "draft" | "published" | "archived";
               phase: ("upcoming" | "running" | "ended") | null;
+              /** @enum {string} */
+              visibility: "public" | "private";
+              invite_required: boolean;
+              invite_configured: boolean;
+              /** @enum {string} */
+              registration_strategy: "review" | "auto_accept";
               /** Format: date-time */
               start_at: string;
               /** Format: date-time */
               end_at: string;
+              scoreboard_freeze_at: string | null;
+              practice_enabled: boolean;
+              writeup_required: boolean;
+              writeup_deadline_at: string | null;
+              min_team_size: number;
+              max_team_size: number;
+              registration_constraints: {
+                /** @default [] */
+                allowed_email_domains: string[];
+              };
               published_at: string | null;
               archived_at: string | null;
               version: number;
@@ -1410,6 +1477,128 @@ export interface operations {
       };
       /** @description Stable API error */
       404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  updateContestDraft: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+        /** @description Strong ETag containing the current resource version. */
+        "If-Match": string;
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title?: string;
+          slug?: string;
+          description?: string;
+          /** @enum {string} */
+          visibility?: "public" | "private";
+          invite_required?: boolean;
+          invite_code?: string | null;
+          /** @enum {string} */
+          registration_strategy?: "review" | "auto_accept";
+          /** Format: date-time */
+          start_at?: string;
+          /** Format: date-time */
+          end_at?: string;
+          scoreboard_freeze_at?: string | null;
+          practice_enabled?: boolean;
+          writeup_required?: boolean;
+          writeup_deadline_at?: string | null;
+          min_team_size?: number;
+          max_team_size?: number;
+          registration_constraints?: {
+            /** @default [] */
+            allowed_email_domains: string[];
+          };
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Contest draft configuration updated */
+      200: {
+        content: {
+          "application/json": {
+            contest: {
+              id: string;
+              title: string;
+              slug: string;
+              description: string;
+              /** @enum {string} */
+              publication_status: "draft" | "published" | "archived";
+              phase: ("upcoming" | "running" | "ended") | null;
+              /** @enum {string} */
+              visibility: "public" | "private";
+              invite_required: boolean;
+              invite_configured: boolean;
+              /** @enum {string} */
+              registration_strategy: "review" | "auto_accept";
+              /** Format: date-time */
+              start_at: string;
+              /** Format: date-time */
+              end_at: string;
+              scoreboard_freeze_at: string | null;
+              practice_enabled: boolean;
+              writeup_required: boolean;
+              writeup_deadline_at: string | null;
+              min_team_size: number;
+              max_team_size: number;
+              registration_constraints: {
+                /** @default [] */
+                allowed_email_domains: string[];
+              };
+              published_at: string | null;
+              archived_at: string | null;
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      428: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };
@@ -1448,10 +1637,26 @@ export interface operations {
               /** @enum {string} */
               publication_status: "draft" | "published" | "archived";
               phase: ("upcoming" | "running" | "ended") | null;
+              /** @enum {string} */
+              visibility: "public" | "private";
+              invite_required: boolean;
+              invite_configured: boolean;
+              /** @enum {string} */
+              registration_strategy: "review" | "auto_accept";
               /** Format: date-time */
               start_at: string;
               /** Format: date-time */
               end_at: string;
+              scoreboard_freeze_at: string | null;
+              practice_enabled: boolean;
+              writeup_required: boolean;
+              writeup_deadline_at: string | null;
+              min_team_size: number;
+              max_team_size: number;
+              registration_constraints: {
+                /** @default [] */
+                allowed_email_domains: string[];
+              };
               published_at: string | null;
               archived_at: string | null;
               version: number;
@@ -1523,10 +1728,26 @@ export interface operations {
               /** @enum {string} */
               publication_status: "draft" | "published" | "archived";
               phase: ("upcoming" | "running" | "ended") | null;
+              /** @enum {string} */
+              visibility: "public" | "private";
+              invite_required: boolean;
+              invite_configured: boolean;
+              /** @enum {string} */
+              registration_strategy: "review" | "auto_accept";
               /** Format: date-time */
               start_at: string;
               /** Format: date-time */
               end_at: string;
+              scoreboard_freeze_at: string | null;
+              practice_enabled: boolean;
+              writeup_required: boolean;
+              writeup_deadline_at: string | null;
+              min_team_size: number;
+              max_team_size: number;
+              registration_constraints: {
+                /** @default [] */
+                allowed_email_domains: string[];
+              };
               published_at: string | null;
               archived_at: string | null;
               version: number;
@@ -1585,10 +1806,26 @@ export interface operations {
               /** @enum {string} */
               publication_status: "draft" | "published" | "archived";
               phase: ("upcoming" | "running" | "ended") | null;
+              /** @enum {string} */
+              visibility: "public" | "private";
+              invite_required: boolean;
+              invite_configured: boolean;
+              /** @enum {string} */
+              registration_strategy: "review" | "auto_accept";
               /** Format: date-time */
               start_at: string;
               /** Format: date-time */
               end_at: string;
+              scoreboard_freeze_at: string | null;
+              practice_enabled: boolean;
+              writeup_required: boolean;
+              writeup_deadline_at: string | null;
+              min_team_size: number;
+              max_team_size: number;
+              registration_constraints: {
+                /** @default [] */
+                allowed_email_domains: string[];
+              };
               published_at: string | null;
               archived_at: string | null;
               version: number;

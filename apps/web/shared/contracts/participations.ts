@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { resourceVersionSchema, utcTimestampSchema, uuidSchema } from './common-types'
 import { cursorPageSchema } from './http'
 import { teamMemberRoleSchema } from './teams'
+import { contestInviteCodeSchema } from './contests'
 
 export const participationStatusSchema = z.enum(['pending', 'accepted', 'rejected', 'withdrawn'])
 
@@ -34,7 +35,7 @@ export const currentParticipationResponseSchema = z.strictObject({
 })
 
 export const registerParticipationRequestSchema = z.strictObject({
-  invite_code: z.string().trim().min(32).max(512).optional(),
+  invite_code: contestInviteCodeSchema.optional(),
 })
 
 export const participationMutationResponseSchema = z.strictObject({

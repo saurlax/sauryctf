@@ -11,6 +11,7 @@ import {
   handleCreateContestDraft,
   handlePublicContest,
   handlePublishContest,
+  handleUpdateContestDraft,
   type ContestHttpDependencies,
 } from './contest-http'
 
@@ -24,8 +25,13 @@ const organizer: SessionSubject = {
 }
 const record = {
   id: contestId, title: 'Autumn CTF', slug: 'autumn-ctf', description: 'Contest',
-  publicationStatus: 'draft' as const, phase: null, startAt: new Date('2026-10-01T00:00:00.000Z'),
-  endAt: new Date('2026-10-01T08:00:00.000Z'), publishedAt: null, archivedAt: null, version: 1,
+  publicationStatus: 'draft' as const, phase: null, visibility: 'public' as const,
+  inviteRequired: false, inviteConfigured: false, registrationStrategy: 'review' as const,
+  startAt: new Date('2026-10-01T00:00:00.000Z'), endAt: new Date('2026-10-01T08:00:00.000Z'),
+  scoreboardFreezeAt: null, practiceEnabled: false, writeupRequired: false,
+  writeupDeadlineAt: null, minTeamSize: 1, maxTeamSize: 5,
+  registrationConstraints: { allowedEmailDomains: [] },
+  publishedAt: null, archivedAt: null, version: 1,
 }
 
 function dependencies(subject: SessionSubject = organizer, overrides: Partial<ContestHttpDependencies['contests']> = {}): ContestHttpDependencies {
@@ -38,6 +44,7 @@ function dependencies(subject: SessionSubject = organizer, overrides: Partial<Co
     },
     contests: {
       createDraft: vi.fn(async () => record), readManaged: vi.fn(async () => record), readPublic: vi.fn(async () => record),
+      updateDraft: vi.fn(async () => ({ ...record, version: 2 })),
       publish: vi.fn(async () => ({ ...record, publicationStatus: 'published' as const, phase: 'upcoming' as const, publishedAt: new Date(), version: 2 })),
       archive: vi.fn(async () => ({ ...record, publicationStatus: 'archived' as const, phase: 'ended' as const, publishedAt: new Date(), archivedAt: new Date(), version: 3 })),
       ...overrides,
@@ -45,7 +52,11 @@ function dependencies(subject: SessionSubject = organizer, overrides: Partial<Co
   }
 }
 
-async function invoke(handler: (event: H3Event) => Promise<unknown>, body?: unknown) {
+async function invoke(
+  handler: (event: H3Event) => Promise<unknown>,
+  body?: unknown,
+  options: { method?: string, headers?: Record<string, string> } = {},
+) {
   const app = createApp()
   app.use(eventHandler(async (event) => {
     event.context.requestId = requestId
@@ -57,8 +68,8 @@ async function invoke(handler: (event: H3Event) => Promise<unknown>, body?: unkn
     }
   }))
   return toWebHandler(app)(new Request('https://ctf.example.test/api/contests/test', {
-    method: body === undefined ? 'GET' : 'POST',
-    headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+    method: options.method ?? (body === undefined ? 'GET' : 'POST'),
+    headers: body === undefined ? options.headers : { 'content-type': 'application/json', ...options.headers },
     body: body === undefined ? undefined : JSON.stringify(body),
   }))
 }
@@ -69,12 +80,89 @@ describe('contest HTTP adapters', () => {
     const allowed = dependencies()
     const created = await invoke(event => handleCreateContestDraft(event, allowed), input)
     expect(created.status).toBe(201)
+    expect(created.headers.get('etag')).toBe('"1"')
     expect(allowed.contests.createDraft).toHaveBeenCalledWith(organizer, expect.objectContaining({ requestId, slug: 'autumn-ctf' }))
 
     const denied = dependencies({ ...organizer, role: 'user' })
     const forbidden = await invoke(event => handleCreateContestDraft(event, denied), input)
     expect(forbidden.status).toBe(403)
     expect(denied.contests.createDraft).not.toHaveBeenCalled()
+  })
+
+  it('accepts independent visibility and invite settings with canonical configuration fields', async () => {
+    const deps = dependencies()
+    const input = {
+      title: 'Autumn CTF', slug: 'autumn-ctf', description: 'Contest',
+      visibility: 'public', invite_required: true,
+      invite_code: 'contest-invite-value-000000000001', registration_strategy: 'auto_accept',
+      start_at: '2026-10-01T00:00:00.000Z', end_at: '2026-10-01T08:00:00.000Z',
+      scoreboard_freeze_at: '2026-10-01T07:00:00.000Z', practice_enabled: true,
+      writeup_required: true, writeup_deadline_at: '2026-10-02T08:00:00.000Z',
+      min_team_size: 2, max_team_size: 6,
+      registration_constraints: { allowed_email_domains: ['Example.EDU', 'example.edu'] },
+    }
+    const response = await invoke(event => handleCreateContestDraft(event, deps), input)
+    expect(response.status).toBe(201)
+    expect(deps.contests.createDraft).toHaveBeenCalledWith(organizer, expect.objectContaining({
+      visibility: 'public', inviteRequired: true, inviteCode: input.invite_code,
+      registrationStrategy: 'auto_accept', practiceEnabled: true, writeupRequired: true,
+      minTeamSize: 2, maxTeamSize: 6,
+      allowedEmailDomains: ['Example.EDU', 'example.edu'],
+    }))
+  })
+
+  it.each([
+    ['end_at', { end_at: '2026-10-01T00:00:00.000Z' }],
+    ['scoreboard_freeze_at', { scoreboard_freeze_at: '2026-09-30T23:59:59.000Z' }],
+    ['scoreboard_freeze_at', { scoreboard_freeze_at: '2026-10-01T08:00:01.000Z' }],
+    ['writeup_deadline_at', { writeup_required: true, writeup_deadline_at: '2026-10-01T07:59:59.000Z' }],
+    ['writeup_deadline_at', { writeup_required: false, writeup_deadline_at: '2026-10-02T00:00:00.000Z' }],
+    ['invite_code', { invite_required: true }],
+    ['invite_code', { invite_required: true, invite_code: 'too-short' }],
+    ['min_team_size', { min_team_size: 0 }],
+    ['max_team_size', { min_team_size: 5, max_team_size: 4 }],
+    ['visibility', { visibility: 'hidden' }],
+    ['registration_strategy', { registration_strategy: 'instant' }],
+    ['registration_constraints.allowed_email_domains.0', {
+      registration_constraints: { allowed_email_domains: ['invalid_domain!'] },
+    }],
+  ])('returns a field error for invalid %s configuration', async (field, override) => {
+    const input = {
+      title: 'Autumn CTF', slug: 'autumn-ctf', description: 'Contest',
+      start_at: '2026-10-01T00:00:00.000Z', end_at: '2026-10-01T08:00:00.000Z',
+      ...override,
+    }
+    const deps = dependencies()
+    const response = await invoke(event => handleCreateContestDraft(event, deps), input)
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'validation.failed', fields: { [field]: expect.any(Array) } },
+    })
+    expect(deps.contests.createDraft).not.toHaveBeenCalled()
+  })
+
+  it('requires and forwards a strong resource version for draft updates', async () => {
+    const deps = dependencies()
+    const missing = await invoke(
+      event => handleUpdateContestDraft(event, contestId, deps),
+      { practice_enabled: true, reason: 'Enable post-contest practice' },
+      { method: 'PATCH' },
+    )
+    expect(missing.status).toBe(428)
+    await expect(missing.json()).resolves.toMatchObject({
+      error: { code: 'resource.precondition_required', fields: { if_match: expect.any(Array) } },
+    })
+
+    const updated = await invoke(
+      event => handleUpdateContestDraft(event, contestId, deps),
+      { practice_enabled: true, reason: 'Enable post-contest practice' },
+      { method: 'PATCH', headers: { 'if-match': '"1"' } },
+    )
+    expect(updated.status).toBe(200)
+    expect(updated.headers.get('etag')).toBe('"2"')
+    expect(deps.contests.updateDraft).toHaveBeenCalledWith(organizer, expect.objectContaining({
+      contestId, expectedVersion: 1, practiceEnabled: true,
+    }))
   })
 
   it('projects lifecycle transitions and request audit context', async () => {

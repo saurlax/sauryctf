@@ -1722,6 +1722,26 @@ paths:
                   default: ""
                   type: string
                   maxLength: 100000
+                visibility:
+                  default: public
+                  type: string
+                  enum:
+                    - public
+                    - private
+                invite_required:
+                  default: false
+                  type: boolean
+                invite_code:
+                  type: string
+                  minLength: 32
+                  maxLength: 128
+                  pattern: ^[A-Za-z0-9._:-]+$
+                registration_strategy:
+                  default: review
+                  type: string
+                  enum:
+                    - review
+                    - auto_accept
                 start_at:
                   type: string
                   format: date-time
@@ -1730,12 +1750,69 @@ paths:
                   type: string
                   format: date-time
                   pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                scoreboard_freeze_at:
+                  default: null
+                  anyOf:
+                    - type: string
+                      format: date-time
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                    - type: "null"
+                practice_enabled:
+                  default: false
+                  type: boolean
+                writeup_required:
+                  default: false
+                  type: boolean
+                writeup_deadline_at:
+                  default: null
+                  anyOf:
+                    - type: string
+                      format: date-time
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                    - type: "null"
+                min_team_size:
+                  default: 1
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                max_team_size:
+                  default: 5
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                registration_constraints:
+                  default:
+                    allowed_email_domains: []
+                  type: object
+                  properties:
+                    allowed_email_domains:
+                      default: []
+                      maxItems: 100
+                      type: array
+                      items:
+                        type: string
+                        minLength: 1
+                        maxLength: 253
+                        pattern: ^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$
+                  required:
+                    - allowed_email_domains
+                  additionalProperties: false
               required:
                 - title
                 - slug
                 - description
+                - visibility
+                - invite_required
+                - registration_strategy
                 - start_at
                 - end_at
+                - scoreboard_freeze_at
+                - practice_enabled
+                - writeup_required
+                - writeup_deadline_at
+                - min_team_size
+                - max_team_size
+                - registration_constraints
               additionalProperties: false
       responses:
         "201":
@@ -1779,6 +1856,20 @@ paths:
                               - running
                               - ended
                           - type: "null"
+                      visibility:
+                        type: string
+                        enum:
+                          - public
+                          - private
+                      invite_required:
+                        type: boolean
+                      invite_configured:
+                        type: boolean
+                      registration_strategy:
+                        type: string
+                        enum:
+                          - review
+                          - auto_accept
                       start_at:
                         type: string
                         format: date-time
@@ -1787,6 +1878,45 @@ paths:
                         type: string
                         format: date-time
                         pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      scoreboard_freeze_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      practice_enabled:
+                        type: boolean
+                      writeup_required:
+                        type: boolean
+                      writeup_deadline_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      min_team_size:
+                        type: integer
+                        minimum: 1
+                        maximum: 100
+                      max_team_size:
+                        type: integer
+                        minimum: 1
+                        maximum: 100
+                      registration_constraints:
+                        type: object
+                        properties:
+                          allowed_email_domains:
+                            default: []
+                            maxItems: 100
+                            type: array
+                            items:
+                              type: string
+                              minLength: 1
+                              maxLength: 253
+                              pattern: ^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$
+                        required:
+                          - allowed_email_domains
+                        additionalProperties: false
                       published_at:
                         anyOf:
                           - type: string
@@ -1810,8 +1940,19 @@ paths:
                       - description
                       - publication_status
                       - phase
+                      - visibility
+                      - invite_required
+                      - invite_configured
+                      - registration_strategy
                       - start_at
                       - end_at
+                      - scoreboard_freeze_at
+                      - practice_enabled
+                      - writeup_required
+                      - writeup_deadline_at
+                      - min_team_size
+                      - max_team_size
+                      - registration_constraints
                       - published_at
                       - archived_at
                       - version
@@ -1880,6 +2021,20 @@ paths:
                               - running
                               - ended
                           - type: "null"
+                      visibility:
+                        type: string
+                        enum:
+                          - public
+                          - private
+                      invite_required:
+                        type: boolean
+                      invite_configured:
+                        type: boolean
+                      registration_strategy:
+                        type: string
+                        enum:
+                          - review
+                          - auto_accept
                       start_at:
                         type: string
                         format: date-time
@@ -1888,6 +2043,45 @@ paths:
                         type: string
                         format: date-time
                         pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      scoreboard_freeze_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      practice_enabled:
+                        type: boolean
+                      writeup_required:
+                        type: boolean
+                      writeup_deadline_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      min_team_size:
+                        type: integer
+                        minimum: 1
+                        maximum: 100
+                      max_team_size:
+                        type: integer
+                        minimum: 1
+                        maximum: 100
+                      registration_constraints:
+                        type: object
+                        properties:
+                          allowed_email_domains:
+                            default: []
+                            maxItems: 100
+                            type: array
+                            items:
+                              type: string
+                              minLength: 1
+                              maxLength: 253
+                              pattern: ^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$
+                        required:
+                          - allowed_email_domains
+                        additionalProperties: false
                       published_at:
                         anyOf:
                           - type: string
@@ -1911,8 +2105,19 @@ paths:
                       - description
                       - publication_status
                       - phase
+                      - visibility
+                      - invite_required
+                      - invite_configured
+                      - registration_strategy
                       - start_at
                       - end_at
+                      - scoreboard_freeze_at
+                      - practice_enabled
+                      - writeup_required
+                      - writeup_deadline_at
+                      - min_team_size
+                      - max_team_size
+                      - registration_constraints
                       - published_at
                       - archived_at
                       - version
@@ -1923,6 +2128,273 @@ paths:
         "401": *a1
         "403": *a1
         "404": *a1
+    patch:
+      operationId: updateContestDraft
+      tags:
+        - Administration
+        - Contests
+      security:
+        - cookieSession: []
+      parameters:
+        - name: contestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - *a2
+        - *a3
+        - name: If-Match
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^"[1-9][0-9]*"$
+          description: Strong ETag containing the current resource version.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 160
+                slug:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+                description:
+                  type: string
+                  maxLength: 100000
+                visibility:
+                  type: string
+                  enum:
+                    - public
+                    - private
+                invite_required:
+                  type: boolean
+                invite_code:
+                  anyOf:
+                    - type: string
+                      minLength: 32
+                      maxLength: 128
+                      pattern: ^[A-Za-z0-9._:-]+$
+                    - type: "null"
+                registration_strategy:
+                  type: string
+                  enum:
+                    - review
+                    - auto_accept
+                start_at:
+                  type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                end_at:
+                  type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                scoreboard_freeze_at:
+                  anyOf:
+                    - type: string
+                      format: date-time
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                    - type: "null"
+                practice_enabled:
+                  type: boolean
+                writeup_required:
+                  type: boolean
+                writeup_deadline_at:
+                  anyOf:
+                    - type: string
+                      format: date-time
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                    - type: "null"
+                min_team_size:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                max_team_size:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                registration_constraints:
+                  type: object
+                  properties:
+                    allowed_email_domains:
+                      default: []
+                      maxItems: 100
+                      type: array
+                      items:
+                        type: string
+                        minLength: 1
+                        maxLength: 253
+                        pattern: ^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$
+                  required:
+                    - allowed_email_domains
+                  additionalProperties: false
+                reason:
+                  type: string
+                  minLength: 3
+                  maxLength: 1000
+              required:
+                - reason
+              additionalProperties: false
+      responses:
+        "200":
+          description: Contest draft configuration updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contest:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      title:
+                        type: string
+                        minLength: 1
+                        maxLength: 160
+                      slug:
+                        type: string
+                        minLength: 1
+                        maxLength: 100
+                      description:
+                        type: string
+                      publication_status:
+                        type: string
+                        enum:
+                          - draft
+                          - published
+                          - archived
+                      phase:
+                        anyOf:
+                          - type: string
+                            enum:
+                              - upcoming
+                              - running
+                              - ended
+                          - type: "null"
+                      visibility:
+                        type: string
+                        enum:
+                          - public
+                          - private
+                      invite_required:
+                        type: boolean
+                      invite_configured:
+                        type: boolean
+                      registration_strategy:
+                        type: string
+                        enum:
+                          - review
+                          - auto_accept
+                      start_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      end_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      scoreboard_freeze_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      practice_enabled:
+                        type: boolean
+                      writeup_required:
+                        type: boolean
+                      writeup_deadline_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      min_team_size:
+                        type: integer
+                        minimum: 1
+                        maximum: 100
+                      max_team_size:
+                        type: integer
+                        minimum: 1
+                        maximum: 100
+                      registration_constraints:
+                        type: object
+                        properties:
+                          allowed_email_domains:
+                            default: []
+                            maxItems: 100
+                            type: array
+                            items:
+                              type: string
+                              minLength: 1
+                              maxLength: 253
+                              pattern: ^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$
+                        required:
+                          - allowed_email_domains
+                        additionalProperties: false
+                      published_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      archived_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                    required:
+                      - id
+                      - title
+                      - slug
+                      - description
+                      - publication_status
+                      - phase
+                      - visibility
+                      - invite_required
+                      - invite_configured
+                      - registration_strategy
+                      - start_at
+                      - end_at
+                      - scoreboard_freeze_at
+                      - practice_enabled
+                      - writeup_required
+                      - writeup_deadline_at
+                      - min_team_size
+                      - max_team_size
+                      - registration_constraints
+                      - published_at
+                      - archived_at
+                      - version
+                    additionalProperties: false
+                required:
+                  - contest
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "404": *a1
+        "409": *a1
+        "428": *a1
   /api/admin/contests/{contestId}/publish:
     post:
       operationId: publishContest
@@ -1996,6 +2468,20 @@ paths:
                               - running
                               - ended
                           - type: "null"
+                      visibility:
+                        type: string
+                        enum:
+                          - public
+                          - private
+                      invite_required:
+                        type: boolean
+                      invite_configured:
+                        type: boolean
+                      registration_strategy:
+                        type: string
+                        enum:
+                          - review
+                          - auto_accept
                       start_at:
                         type: string
                         format: date-time
@@ -2004,6 +2490,45 @@ paths:
                         type: string
                         format: date-time
                         pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      scoreboard_freeze_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      practice_enabled:
+                        type: boolean
+                      writeup_required:
+                        type: boolean
+                      writeup_deadline_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      min_team_size:
+                        type: integer
+                        minimum: 1
+                        maximum: 100
+                      max_team_size:
+                        type: integer
+                        minimum: 1
+                        maximum: 100
+                      registration_constraints:
+                        type: object
+                        properties:
+                          allowed_email_domains:
+                            default: []
+                            maxItems: 100
+                            type: array
+                            items:
+                              type: string
+                              minLength: 1
+                              maxLength: 253
+                              pattern: ^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$
+                        required:
+                          - allowed_email_domains
+                        additionalProperties: false
                       published_at:
                         anyOf:
                           - type: string
@@ -2027,8 +2552,19 @@ paths:
                       - description
                       - publication_status
                       - phase
+                      - visibility
+                      - invite_required
+                      - invite_configured
+                      - registration_strategy
                       - start_at
                       - end_at
+                      - scoreboard_freeze_at
+                      - practice_enabled
+                      - writeup_required
+                      - writeup_deadline_at
+                      - min_team_size
+                      - max_team_size
+                      - registration_constraints
                       - published_at
                       - archived_at
                       - version
@@ -2114,6 +2650,20 @@ paths:
                               - running
                               - ended
                           - type: "null"
+                      visibility:
+                        type: string
+                        enum:
+                          - public
+                          - private
+                      invite_required:
+                        type: boolean
+                      invite_configured:
+                        type: boolean
+                      registration_strategy:
+                        type: string
+                        enum:
+                          - review
+                          - auto_accept
                       start_at:
                         type: string
                         format: date-time
@@ -2122,6 +2672,45 @@ paths:
                         type: string
                         format: date-time
                         pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      scoreboard_freeze_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      practice_enabled:
+                        type: boolean
+                      writeup_required:
+                        type: boolean
+                      writeup_deadline_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      min_team_size:
+                        type: integer
+                        minimum: 1
+                        maximum: 100
+                      max_team_size:
+                        type: integer
+                        minimum: 1
+                        maximum: 100
+                      registration_constraints:
+                        type: object
+                        properties:
+                          allowed_email_domains:
+                            default: []
+                            maxItems: 100
+                            type: array
+                            items:
+                              type: string
+                              minLength: 1
+                              maxLength: 253
+                              pattern: ^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$
+                        required:
+                          - allowed_email_domains
+                        additionalProperties: false
                       published_at:
                         anyOf:
                           - type: string
@@ -2145,8 +2734,19 @@ paths:
                       - description
                       - publication_status
                       - phase
+                      - visibility
+                      - invite_required
+                      - invite_configured
+                      - registration_strategy
                       - start_at
                       - end_at
+                      - scoreboard_freeze_at
+                      - practice_enabled
+                      - writeup_required
+                      - writeup_deadline_at
+                      - min_team_size
+                      - max_team_size
+                      - registration_constraints
                       - published_at
                       - archived_at
                       - version
@@ -2213,6 +2813,20 @@ paths:
                               - running
                               - ended
                           - type: "null"
+                      visibility:
+                        type: string
+                        enum:
+                          - public
+                          - private
+                      invite_required:
+                        type: boolean
+                      invite_configured:
+                        type: boolean
+                      registration_strategy:
+                        type: string
+                        enum:
+                          - review
+                          - auto_accept
                       start_at:
                         type: string
                         format: date-time
@@ -2221,6 +2835,45 @@ paths:
                         type: string
                         format: date-time
                         pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      scoreboard_freeze_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      practice_enabled:
+                        type: boolean
+                      writeup_required:
+                        type: boolean
+                      writeup_deadline_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      min_team_size:
+                        type: integer
+                        minimum: 1
+                        maximum: 100
+                      max_team_size:
+                        type: integer
+                        minimum: 1
+                        maximum: 100
+                      registration_constraints:
+                        type: object
+                        properties:
+                          allowed_email_domains:
+                            default: []
+                            maxItems: 100
+                            type: array
+                            items:
+                              type: string
+                              minLength: 1
+                              maxLength: 253
+                              pattern: ^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$
+                        required:
+                          - allowed_email_domains
+                        additionalProperties: false
                       published_at:
                         anyOf:
                           - type: string
@@ -2244,8 +2897,19 @@ paths:
                       - description
                       - publication_status
                       - phase
+                      - visibility
+                      - invite_required
+                      - invite_configured
+                      - registration_strategy
                       - start_at
                       - end_at
+                      - scoreboard_freeze_at
+                      - practice_enabled
+                      - writeup_required
+                      - writeup_deadline_at
+                      - min_team_size
+                      - max_team_size
+                      - registration_constraints
                       - published_at
                       - archived_at
                       - version
@@ -2435,7 +3099,8 @@ paths:
                 invite_code:
                   type: string
                   minLength: 32
-                  maxLength: 512
+                  maxLength: 128
+                  pattern: ^[A-Za-z0-9._:-]+$
               additionalProperties: false
       responses:
         "201":

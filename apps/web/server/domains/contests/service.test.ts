@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { Client } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { SessionSubject } from '../identity/repository'
@@ -243,6 +243,212 @@ describeWithPostgres('contest lifecycle and shared UTC phase', () => {
     expect(results.filter(result => result.status === 'rejected')).toHaveLength(1)
     await expect(contests.readManaged(organizer, created.id)).resolves.toMatchObject({
       publicationStatus: 'published', version: 2,
+    })
+  })
+
+  it('persists a complete draft configuration without exposing the invite secret', async () => {
+    const organizer = await user('organizer')
+    const inviteCode = 'contest-invite-value-000000000001'
+    sequence++
+    const created = await contests.createDraft(organizer, {
+      requestId: randomUUID(),
+      title: `Configured Contest ${sequence}`,
+      slug: `configured-contest-${sequence}`,
+      description: 'Complete contest configuration',
+      visibility: 'public',
+      inviteRequired: true,
+      inviteCode,
+      registrationStrategy: 'auto_accept',
+      startAt: new Date('2030-05-01T00:00:00.000Z'),
+      endAt: new Date('2030-05-01T08:00:00.000Z'),
+      scoreboardFreezeAt: new Date('2030-05-01T07:00:00.000Z'),
+      practiceEnabled: true,
+      writeupRequired: true,
+      writeupDeadlineAt: new Date('2030-05-02T08:00:00.000Z'),
+      minTeamSize: 2,
+      maxTeamSize: 6,
+      allowedEmailDomains: ['Example.EDU', 'example.edu', 'ctf.example'],
+    })
+
+    expect(created).toMatchObject({
+      visibility: 'public',
+      inviteRequired: true,
+      inviteConfigured: true,
+      registrationStrategy: 'auto_accept',
+      scoreboardFreezeAt: new Date('2030-05-01T07:00:00.000Z'),
+      practiceEnabled: true,
+      writeupRequired: true,
+      writeupDeadlineAt: new Date('2030-05-02T08:00:00.000Z'),
+      minTeamSize: 2,
+      maxTeamSize: 6,
+      registrationConstraints: { allowedEmailDomains: ['example.edu', 'ctf.example'] },
+    })
+    expect(JSON.stringify(created)).not.toContain(inviteCode)
+
+    const stored = await database.pool.query<{
+      invite_digest: Buffer
+      registration_constraints: { allowed_email_domains: string[] }
+    }>('SELECT invite_digest, registration_constraints FROM contests WHERE id = $1', [created.id])
+    expect(stored.rows[0]!.invite_digest).toEqual(createHash('sha256').update(inviteCode).digest())
+    expect(stored.rows[0]!.registration_constraints).toEqual({
+      allowed_email_domains: ['example.edu', 'ctf.example'],
+    })
+  })
+
+  it('keeps discovery visibility and invite requirements independent', async () => {
+    const organizer = await user('organizer')
+    sequence++
+    const privateWithoutInvite = await contests.createDraft(organizer, {
+      requestId: randomUUID(), title: `Private Contest ${sequence}`,
+      slug: `private-contest-${sequence}`, description: '', visibility: 'private',
+      inviteRequired: false,
+      startAt: new Date('2030-05-01T00:00:00.000Z'),
+      endAt: new Date('2030-05-01T08:00:00.000Z'),
+    })
+    expect(privateWithoutInvite).toMatchObject({
+      visibility: 'private', inviteRequired: false, inviteConfigured: false,
+    })
+    await contests.publish(organizer, {
+      requestId: randomUUID(),
+      contestId: privateWithoutInvite.id,
+      reason: 'Publish private discovery test',
+    })
+    await expect(contests.readPublic(privateWithoutInvite.id)).rejects.toMatchObject({
+      code: 'contest.not_found',
+    })
+  })
+
+  it('rejects invalid configurations with precise fields before writing facts or audit', async () => {
+    const organizer = await user('organizer')
+    const base = {
+      requestId: randomUUID(),
+      title: 'Invalid Configuration',
+      slug: 'invalid-configuration',
+      description: '',
+      startAt: new Date('2030-05-01T00:00:00.000Z'),
+      endAt: new Date('2030-05-01T08:00:00.000Z'),
+    }
+    const cases: Array<{
+      field: string
+      input: Parameters<ContestService['createDraft']>[1]
+    }> = [
+      { field: 'end_at', input: { ...base, endAt: new Date('2030-05-01T00:00:00.000Z') } },
+      { field: 'scoreboard_freeze_at', input: { ...base, scoreboardFreezeAt: new Date('2030-04-30T23:59:59.000Z') } },
+      { field: 'writeup_deadline_at', input: { ...base, writeupRequired: true, writeupDeadlineAt: new Date('2030-05-01T07:59:59.000Z') } },
+      { field: 'writeup_deadline_at', input: { ...base, writeupRequired: false, writeupDeadlineAt: new Date('2030-05-02T00:00:00.000Z') } },
+      { field: 'invite_code', input: { ...base, inviteRequired: true } },
+      { field: 'min_team_size', input: { ...base, minTeamSize: 0 } },
+      { field: 'max_team_size', input: { ...base, minTeamSize: 5, maxTeamSize: 4 } },
+      { field: 'visibility', input: { ...base, visibility: 'hidden' as 'public' } },
+      { field: 'registration_strategy', input: { ...base, registrationStrategy: 'instant' as 'review' } },
+      { field: 'registration_constraints.allowed_email_domains.0', input: { ...base, allowedEmailDomains: ['invalid_domain!'] } },
+    ]
+    const before = await database.pool.query<{ count: string }>('SELECT count(*)::text AS count FROM contests')
+    for (const testCase of cases) {
+      await expect(contests.createDraft(organizer, testCase.input)).rejects.toMatchObject({
+        code: 'contest.configuration_invalid',
+        fields: { [testCase.field]: expect.any(Array) },
+      })
+    }
+    const after = await database.pool.query<{ count: string }>('SELECT count(*)::text AS count FROM contests')
+    expect(after.rows[0]!.count).toBe(before.rows[0]!.count)
+  })
+
+  it('updates only a draft with optimistic concurrency and one transactional audit', async () => {
+    const organizer = await user('organizer')
+    const created = await draft(organizer)
+    const inviteCode = 'updated-contest-invite-000000000001'
+    const requestId = randomUUID()
+    const updated = await contests.updateDraft(organizer, {
+      requestId,
+      contestId: created.id,
+      expectedVersion: created.version,
+      reason: 'Apply final registration policy',
+      visibility: 'private',
+      inviteRequired: true,
+      inviteCode,
+      registrationStrategy: 'auto_accept',
+      practiceEnabled: true,
+      writeupRequired: true,
+      writeupDeadlineAt: new Date(created.endAt.getTime() + 86_400_000),
+      minTeamSize: 2,
+      maxTeamSize: 8,
+      allowedEmailDomains: ['Example.EDU', 'example.edu'],
+    })
+
+    expect(updated).toMatchObject({
+      version: 2,
+      visibility: 'private',
+      inviteRequired: true,
+      inviteConfigured: true,
+      registrationStrategy: 'auto_accept',
+      practiceEnabled: true,
+      writeupRequired: true,
+      minTeamSize: 2,
+      maxTeamSize: 8,
+      registrationConstraints: { allowedEmailDomains: ['example.edu'] },
+    })
+    await expect(contests.updateDraft(organizer, {
+      requestId: randomUUID(), contestId: created.id, expectedVersion: 1,
+      reason: 'Attempt stale update', practiceEnabled: false,
+    })).rejects.toMatchObject({ code: 'resource.version_conflict' })
+
+    const audit = await database.pool.query<{ action: string, request_id: string }>(
+      `SELECT action, request_id FROM audit_events
+       WHERE target_id = $1 AND action = 'contest.configuration_updated'`,
+      [created.id],
+    )
+    expect(audit.rows).toEqual([{ action: 'contest.configuration_updated', request_id: requestId }])
+  })
+
+  it('rejects ordinary users and locks published or archived configuration', async () => {
+    const organizer = await user('organizer')
+    const ordinary = await user()
+    const created = await draft(organizer, 'ended')
+    await expect(contests.updateDraft(ordinary, {
+      requestId: randomUUID(), contestId: created.id, expectedVersion: 1,
+      reason: 'Unauthorized configuration update', practiceEnabled: true,
+    })).rejects.toMatchObject({ code: 'identity.capability_forbidden' })
+
+    const published = await contests.publish(organizer, {
+      requestId: randomUUID(), contestId: created.id, reason: 'Publish lock candidate',
+    })
+    await expect(contests.updateDraft(organizer, {
+      requestId: randomUUID(), contestId: created.id, expectedVersion: published.version,
+      reason: 'Published configuration update', practiceEnabled: true,
+    })).rejects.toMatchObject({ code: 'contest.configuration_locked' })
+
+    const archived = await contests.archive(organizer, {
+      requestId: randomUUID(), contestId: created.id, reason: 'Archive lock candidate',
+    })
+    await expect(contests.updateDraft(organizer, {
+      requestId: randomUUID(), contestId: created.id, expectedVersion: archived.version,
+      reason: 'Archived configuration update', practiceEnabled: true,
+    })).rejects.toMatchObject({ code: 'contest.configuration_locked' })
+  })
+
+  it('rolls back a draft update when its immutable audit insert fails', async () => {
+    const organizer = await user('organizer')
+    const created = await draft(organizer)
+    const requestId = randomUUID()
+    await database.pool.query(
+      `INSERT INTO audit_events
+         (actor_user_id, action, target_type, target_id, reason, outcome, request_id, changes, metadata)
+       VALUES ($1, 'contest.configuration_updated', 'contest', $2, 'Existing event',
+               'succeeded', $3, '{}', '{}')`,
+      [organizer.userId, created.id, requestId],
+    )
+
+    await expect(contests.updateDraft(organizer, {
+      requestId,
+      contestId: created.id,
+      expectedVersion: created.version,
+      reason: 'Update with duplicate audit',
+      practiceEnabled: true,
+    })).rejects.toMatchObject({ code: '23505' })
+    await expect(contests.readManaged(organizer, created.id)).resolves.toMatchObject({
+      practiceEnabled: false,
+      version: created.version,
     })
   })
 })
