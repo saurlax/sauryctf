@@ -83,4 +83,14 @@ truncated-ID collisions. The shared provider contract suite requires repeated
 destroy calls for an absent resource to return the same valid `stopped`
 observation.
 
+The Docker adapter talks directly to a versioned Docker Engine HTTP API over a
+Unix socket or explicit HTTP(S) origin. It never shells out to the Docker CLI.
+It pulls the immutable image reference, creates the deterministic container,
+passes validated environment values, applies CPU/memory/writable-layer limits,
+publishes declared ports, and stores the complete ownership plus entrypoint
+metadata in labels. Existing containers are reused only when all ownership
+labels match. Missing resources make `Inspect` return a safe `unknown` state and
+make repeated `Destroy` calls return `stopped`. Set `TEST_DOCKER_HOST` (and
+optionally `TEST_DOCKER_IMAGE`) to include the real Engine lifecycle test.
+
 Run locally with `pnpm dev:worker` after configuring the Worker variables.
