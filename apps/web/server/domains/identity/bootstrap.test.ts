@@ -2,6 +2,7 @@ import { randomUUID, scryptSync, timingSafeEqual } from 'node:crypto'
 import { Client } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { identityTokenCodec } from '../../infrastructure/auth/identity-token-codec'
+import { AesGcmIdentityMailTokenProtector } from '../../infrastructure/auth/identity-mail-token-protector'
 import { createDatabaseClient, type DatabaseClient } from '../../infrastructure/db/client'
 import { PostgresIdentityRepository } from '../../infrastructure/db/identity-repository'
 import { runMigrations } from '../../infrastructure/db/migrate'
@@ -50,7 +51,13 @@ describeWithPostgres('default administrator bootstrap', () => {
     database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 4 })
     await runMigrations(database)
     repository = new PostgresIdentityRepository(database.pool)
-    service = new IdentityService(repository, new TestScryptHasher(), identityTokenCodec)
+    service = new IdentityService(
+      repository,
+      new TestScryptHasher(),
+      identityTokenCodec,
+      undefined,
+      new AesGcmIdentityMailTokenProtector('bootstrap-test-secret-that-is-at-least-32-characters'),
+    )
   })
 
   afterAll(async () => {

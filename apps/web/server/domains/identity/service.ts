@@ -1,4 +1,5 @@
 import type { PasswordHasher } from './password'
+import type { IdentityMailTokenProtector } from './delivery'
 import { identityCapability, requireIdentityCapability } from './capabilities'
 import {
   IdentityConflictError,
@@ -79,6 +80,7 @@ export class IdentityService {
     private readonly passwords: PasswordHasher,
     private readonly tokens?: IdentityTokenCodec,
     private readonly now: () => Date = () => new Date(),
+    private readonly mailTokens?: IdentityMailTokenProtector,
   ) {}
 
   async register(input: RegisterIdentityInput): Promise<RegisteredIdentity> {
@@ -185,6 +187,7 @@ export class IdentityService {
       targetEmailNormalized: recipient.emailNormalized,
       expiresAt,
       issuedAt,
+      tokenEnvelope: this.requireMailTokenProtector().protect(token),
     })
     return {
       accepted: true,
@@ -225,6 +228,7 @@ export class IdentityService {
       targetEmailNormalized: normalizeEmail(subject.email),
       expiresAt,
       issuedAt,
+      tokenEnvelope: this.requireMailTokenProtector().protect(token),
     })
     return { token, purpose: 'verify_email', expiresAt }
   }
@@ -258,5 +262,10 @@ export class IdentityService {
   private requireTokenCodec(): IdentityTokenCodec {
     if (!this.tokens) throw new Error('Identity token codec is not configured')
     return this.tokens
+  }
+
+  private requireMailTokenProtector(): IdentityMailTokenProtector {
+    if (!this.mailTokens) throw new Error('Identity mail token protector is not configured')
+    return this.mailTokens
   }
 }

@@ -8,7 +8,6 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AuthSessionData } from '../../../shared/contracts/auth-session'
 import { identityCapability } from '../../domains/identity/capabilities'
-import type { IdentityTokenDeliveryMessage } from '../../domains/identity/delivery'
 import type { SessionSubject } from '../../domains/identity/repository'
 import { IdentityServiceError } from '../../domains/identity/service'
 import { InvalidIdentitySessionError } from '../../domains/identity/session'
@@ -51,7 +50,6 @@ type IdentityHandler = (event: H3Event, dependencies: IdentityHttpDependencies) 
 function createDependencies(overrides: Partial<IdentityHttpDependencies['identity']> = {}) {
   let session: unknown = originalSession
   let authoritativeVersion = 1
-  const delivered: IdentityTokenDeliveryMessage[] = []
   const replace = vi.fn(async (_event: H3Event, next: AuthSessionData) => {
     session = next
   })
@@ -94,9 +92,6 @@ function createDependencies(overrides: Partial<IdentityHttpDependencies['identit
         return { ...verifiedSubject, sessionVersion: authoritativeVersion }
       }),
     },
-    delivery: {
-      deliver: vi.fn(async message => void delivered.push(message)),
-    },
     humanVerification: new DisabledHumanVerificationProvider(),
     rateLimits: new MemoryRateLimitStore(),
     browserSession: {
@@ -105,7 +100,7 @@ function createDependencies(overrides: Partial<IdentityHttpDependencies['identit
       clear,
     },
   }
-  return { dependencies, delivered, replace, clear, setSession: (value: unknown) => { session = value } }
+  return { dependencies, replace, clear, setSession: (value: unknown) => { session = value } }
 }
 
 async function invoke(
@@ -212,7 +207,6 @@ describe('identity HTTP adapters', () => {
     expect(existingText).toBe(missingText)
     expect(JSON.parse(existingText)).toEqual({ accepted: true })
     expect(existingText).not.toContain(rawToken)
-    expect(existing.delivered).toHaveLength(1)
     expect(JSON.stringify(consoleError.mock.calls)).not.toContain(rawToken)
   })
 
@@ -261,17 +255,12 @@ describe('identity HTTP adapters', () => {
   })
 
   it('delivers verification material internally but never returns the token', async () => {
-    const { dependencies, delivered } = createDependencies()
+    const { dependencies } = createDependencies()
     const response = await invoke(handleEmailVerificationRequest, dependencies)
     const body = await response.text()
     expect(response.status).toBe(202)
     expect(JSON.parse(body)).toEqual({ accepted: true })
     expect(body).not.toContain('v'.repeat(43))
-    expect(delivered).toEqual([expect.objectContaining({
-      userId,
-      recipient: 'player@example.test',
-      purpose: 'verify_email',
-    })])
   })
 
   it('maps expired or consumed verification tokens to one stable API error', async () => {

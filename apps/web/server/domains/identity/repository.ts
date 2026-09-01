@@ -53,6 +53,7 @@ export interface NewEmailToken {
   targetEmailNormalized: string
   expiresAt: Date
   issuedAt: Date
+  tokenEnvelope: string
 }
 
 export interface PasswordResetRecipient {

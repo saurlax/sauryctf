@@ -6,6 +6,7 @@ import { createDatabaseClient, type DatabaseClient } from '../../infrastructure/
 import { PostgresIdentityRepository } from '../../infrastructure/db/identity-repository'
 import { runMigrations } from '../../infrastructure/db/migrate'
 import { identityTokenCodec } from '../../infrastructure/auth/identity-token-codec'
+import { AesGcmIdentityMailTokenProtector } from '../../infrastructure/auth/identity-mail-token-protector'
 import type { PasswordHasher } from './password'
 import { IdentityService } from './service'
 import { IdentitySessionService } from './session'
@@ -62,6 +63,7 @@ describeWithPostgres('scrypt identity registration and login', () => {
       hasher,
       identityTokenCodec,
       () => new Date(currentTime),
+      new AesGcmIdentityMailTokenProtector('identity-service-test-secret-that-is-at-least-32-characters'),
     )
   })
 
@@ -244,6 +246,26 @@ describeWithPostgres('scrypt identity registration and login', () => {
       sessionVersion: 2,
       changed: true,
     })
+    const securityRecords = await database.pool.query<{
+      event_count: string
+      notification_count: string
+      delivery_count: string
+    }>(
+      `SELECT
+         (SELECT count(*)::text FROM domain_outbox
+          WHERE aggregate_id = $1 AND event_type = 'identity.role_changed') AS event_count,
+         (SELECT count(*)::text FROM notifications
+          WHERE user_id = $1 AND template_key = 'identity.role_changed') AS notification_count,
+         (SELECT count(*)::text FROM mail_deliveries
+          WHERE recipient_normalized = 'role-target@example.test'
+            AND template_key = 'identity.role_changed') AS delivery_count`,
+      [registered.userId],
+    )
+    expect(securityRecords.rows).toEqual([{
+      event_count: '1',
+      notification_count: '1',
+      delivery_count: '1',
+    }])
 
     const sessions = new IdentitySessionService(new PostgresIdentityRepository(database.pool))
     await expect(sessions.validate({
@@ -294,6 +316,12 @@ describeWithPostgres('scrypt identity registration and login', () => {
     )
     expect(stored.rows[0]!.token_digest).toEqual(identityTokenCodec.digest(existing.delivery!.token))
     expect(stored.rows[0]!.token_digest.toString('utf8')).not.toContain(existing.delivery!.token)
+    const queuedMail = await database.pool.query<{ payload: Record<string, unknown> }>(
+      `SELECT payload FROM mail_deliveries
+       WHERE template_key = 'identity.password_reset_requested'
+       ORDER BY created_at DESC LIMIT 1`,
+    )
+    expect(JSON.stringify(queuedMail.rows[0]!.payload)).not.toContain(existing.delivery!.token)
 
     const reset = await service.resetPassword(existing.delivery!.token, 'after reset password')
     expect(reset.sessionVersion).toBe(registered.sessionVersion + 1)

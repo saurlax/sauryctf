@@ -20,7 +20,6 @@ import {
   identityCapability,
   requireIdentityCapability,
 } from '../../domains/identity/capabilities'
-import type { IdentityTokenDelivery } from '../../domains/identity/delivery'
 import {
   IdentityServiceError,
   type IdentityService,
@@ -31,7 +30,6 @@ import {
   type HumanVerificationProvider,
 } from '../../domains/identity/human-verification'
 import type { IdentitySessionValidator } from '../../domains/identity/session'
-import { structuredLog } from '../telemetry/logging'
 import { readValidatedJsonBody } from '../http/body'
 import { createApiError } from '../http/errors'
 import { enforceUserRateLimit, getClientIp } from '../security/request-security'
@@ -56,7 +54,6 @@ export interface BrowserSessionAdapter {
 export interface IdentityHttpDependencies {
   identity: IdentityCommands
   sessions: IdentitySessionValidator
-  delivery: IdentityTokenDelivery
   humanVerification: HumanVerificationProvider
   rateLimits: RateLimitStore
   browserSession: BrowserSessionAdapter
@@ -76,7 +73,6 @@ export function identityHttpDependencies(event: H3Event): IdentityHttpDependenci
   return {
     identity: services.identity,
     sessions: services.identitySessions,
-    delivery: services.identityTokenDelivery,
     humanVerification: services.humanVerification,
     rateLimits: services.rateLimits,
     browserSession: nuxtBrowserSession,
@@ -179,16 +175,7 @@ export async function handlePasswordResetRequest(event: H3Event, dependencies: I
     remoteIp: getClientIp(event),
     action: 'password_reset',
   }))
-  const result = await runIdentityOperation(() => dependencies.identity.requestPasswordReset(input.email))
-  if (result.delivery) {
-    await deliverWithoutDisclosure(dependencies.delivery, {
-      userId: result.delivery.userId,
-      recipient: result.delivery.emailNormalized,
-      token: result.delivery.token,
-      purpose: result.delivery.purpose,
-      expiresAt: result.delivery.expiresAt,
-    })
-  }
+  await runIdentityOperation(() => dependencies.identity.requestPasswordReset(input.email))
   setResponseStatus(event, 202)
   return publicPasswordResetResponse()
 }
@@ -220,12 +207,7 @@ export async function handleEmailVerificationRequest(event: H3Event, dependencie
     3,
     15 * 60_000,
   )
-  const issued = await runIdentityOperation(() => dependencies.identity.requestEmailVerification(context.subject.userId))
-  await deliverWithoutDisclosure(dependencies.delivery, {
-    ...issued,
-    userId: context.subject.userId,
-    recipient: context.subject.email,
-  })
+  await runIdentityOperation(() => dependencies.identity.requestEmailVerification(context.subject.userId))
   setResponseStatus(event, 202)
   return publicPasswordResetResponse()
 }
@@ -254,20 +236,5 @@ async function runIdentityOperation<T>(operation: () => Promise<T>): Promise<T> 
         ? 401
         : 400
     throw createApiError(statusCode, error.code, error.message)
-  }
-}
-
-async function deliverWithoutDisclosure(
-  delivery: IdentityTokenDelivery,
-  message: Parameters<IdentityTokenDelivery['deliver']>[0],
-): Promise<void> {
-  try {
-    await delivery.deliver(message)
-  }
-  catch {
-    console.error(structuredLog('error', 'identity.token_delivery_deferred', {
-      user_id: message.userId,
-      purpose: message.purpose,
-    }))
   }
 }

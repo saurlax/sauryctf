@@ -1,4 +1,4 @@
-import type { Pool } from 'pg'
+import type { Pool, PoolClient } from 'pg'
 import {
   IdentityConflictError,
   IdentityMutationConflictError,
@@ -27,8 +27,43 @@ function isUniqueViolation(error: unknown): boolean {
     && (error as PostgresErrorLike).code === '23505'
 }
 
+interface SecurityEventInput {
+  userId: string
+  recipientNormalized: string
+  templateKey: string
+  dedupeKey: string
+  occurredAt: Date
+  eventPayload?: Record<string, unknown>
+  mailPayload?: Record<string, unknown>
+}
+
 export class PostgresIdentityRepository implements IdentityRepository {
   constructor(private readonly pool: Pool) {}
+
+  private async appendSecurityEvent(connection: PoolClient, input: SecurityEventInput): Promise<void> {
+    const event = await connection.query<{ id: string }>(
+      `INSERT INTO domain_outbox
+         (aggregate_type, aggregate_id, event_type, event_version, dedupe_key, payload, occurred_at, available_at)
+       VALUES ('user', $1, $2, 1, $3, $4, $5, $5)
+       ON CONFLICT (dedupe_key) DO UPDATE SET dedupe_key = EXCLUDED.dedupe_key
+       RETURNING id`,
+      [input.userId, input.templateKey, input.dedupeKey, input.eventPayload ?? {}, input.occurredAt],
+    )
+    const eventId = event.rows[0]!.id
+    await connection.query(
+      `INSERT INTO notifications (user_id, source_event_id, template_key, payload, created_at)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (user_id, source_event_id) DO NOTHING`,
+      [input.userId, eventId, input.templateKey, input.eventPayload ?? {}, input.occurredAt],
+    )
+    await connection.query(
+      `INSERT INTO mail_deliveries
+         (source_event_id, recipient, recipient_normalized, template_key, payload, available_at, created_at, updated_at)
+       VALUES ($1, $2, $2, $3, $4, $5, $5, $5)
+       ON CONFLICT (source_event_id, recipient_normalized, template_key) DO NOTHING`,
+      [eventId, input.recipientNormalized, input.templateKey, input.mailPayload ?? input.eventPayload ?? {}, input.occurredAt],
+    )
+  }
 
   async createIdentity(identity: NewIdentity): Promise<RegisteredIdentity> {
     const connection = await this.pool.connect()
@@ -212,14 +247,14 @@ export class PostgresIdentityRepository implements IdentityRepository {
         [userId, previousHash, nextHash, changedAt],
       )
       if (credential.rowCount !== 1) throw new IdentityMutationConflictError()
-      const user = await connection.query<{ session_version: string }>(
+      const user = await connection.query<{ session_version: string, email_normalized: string }>(
         `UPDATE users
          SET session_version = session_version + 1,
              must_change_password = false,
              version = version + 1,
              updated_at = $2
          WHERE id = $1
-         RETURNING session_version::text`,
+         RETURNING session_version::text, email_normalized`,
         [userId, changedAt],
       )
       if (!user.rows[0]) throw new IdentityMutationConflictError()
@@ -228,6 +263,14 @@ export class PostgresIdentityRepository implements IdentityRepository {
          WHERE user_id = $1 AND purpose = 'reset_password' AND used_at IS NULL`,
         [userId, changedAt],
       )
+      await this.appendSecurityEvent(connection, {
+        userId,
+        recipientNormalized: user.rows[0].email_normalized,
+        templateKey: 'identity.password_changed',
+        dedupeKey: `identity.password_changed:${userId}:${user.rows[0].session_version}`,
+        occurredAt: changedAt,
+        eventPayload: { method: 'current_password' },
+      })
       await connection.query('COMMIT')
       return { userId, sessionVersion: Number(user.rows[0].session_version) }
     }
@@ -248,8 +291,8 @@ export class PostgresIdentityRepository implements IdentityRepository {
     const connection = await this.pool.connect()
     try {
       await connection.query('BEGIN')
-      const token = await connection.query<{ id: string, user_id: string }>(
-        `SELECT t.id, t.user_id
+      const token = await connection.query<{ id: string, user_id: string, email_normalized: string }>(
+        `SELECT t.id, t.user_id, u.email_normalized
          FROM email_tokens t
          JOIN users u ON u.id = t.user_id
          WHERE t.token_digest = $1
@@ -282,6 +325,14 @@ export class PostgresIdentityRepository implements IdentityRepository {
          WHERE user_id = $1 AND purpose = 'reset_password' AND used_at IS NULL`,
         [activeToken.user_id, consumedAt],
       )
+      await this.appendSecurityEvent(connection, {
+        userId: activeToken.user_id,
+        recipientNormalized: activeToken.email_normalized,
+        templateKey: 'identity.password_changed',
+        dedupeKey: `identity.password_changed:reset:${activeToken.user_id}:${user.rows[0]!.session_version}`,
+        occurredAt: consumedAt,
+        eventPayload: { method: 'password_reset' },
+      })
       await connection.query('COMMIT')
       return { userId: activeToken.user_id, sessionVersion: Number(user.rows[0]!.session_version) }
     }
@@ -316,6 +367,25 @@ export class PostgresIdentityRepository implements IdentityRepository {
           token.issuedAt,
         ],
       )
+      const templateKey = token.purpose === 'verify_email'
+        ? 'identity.email_verification_requested'
+        : 'identity.password_reset_requested'
+      await this.appendSecurityEvent(connection, {
+        userId: token.userId,
+        recipientNormalized: token.targetEmailNormalized,
+        templateKey,
+        dedupeKey: `${templateKey}:${token.tokenDigest.toString('hex')}`,
+        occurredAt: token.issuedAt,
+        eventPayload: {
+          purpose: token.purpose,
+          expires_at: token.expiresAt.toISOString(),
+        },
+        mailPayload: {
+          purpose: token.purpose,
+          expires_at: token.expiresAt.toISOString(),
+          token_envelope: token.tokenEnvelope,
+        },
+      })
       await connection.query('COMMIT')
     }
     catch (error) {
@@ -331,8 +401,8 @@ export class PostgresIdentityRepository implements IdentityRepository {
     const connection = await this.pool.connect()
     try {
       await connection.query('BEGIN')
-      const token = await connection.query<{ id: string, user_id: string }>(
-        `SELECT t.id, t.user_id
+      const token = await connection.query<{ id: string, user_id: string, email_normalized: string }>(
+        `SELECT t.id, t.user_id, u.email_normalized
          FROM email_tokens t
          JOIN users u ON u.id = t.user_id
          WHERE t.token_digest = $1
@@ -360,6 +430,13 @@ export class PostgresIdentityRepository implements IdentityRepository {
          WHERE user_id = $1 AND purpose = 'verify_email' AND used_at IS NULL`,
         [activeToken.user_id, consumedAt],
       )
+      await this.appendSecurityEvent(connection, {
+        userId: activeToken.user_id,
+        recipientNormalized: activeToken.email_normalized,
+        templateKey: 'identity.email_verified',
+        dedupeKey: `identity.email_verified:${tokenDigest.toString('hex')}`,
+        occurredAt: consumedAt,
+      })
       await connection.query('COMMIT')
       return { userId: activeToken.user_id, sessionVersion: Number(user.rows[0]!.session_version) }
     }
@@ -380,8 +457,12 @@ export class PostgresIdentityRepository implements IdentityRepository {
     const connection = await this.pool.connect()
     try {
       await connection.query('BEGIN')
-      const current = await connection.query<{ role: GlobalRole, session_version: string }>(
-        `SELECT r.role::text, u.session_version::text
+      const current = await connection.query<{
+        role: GlobalRole
+        session_version: string
+        email_normalized: string
+      }>(
+        `SELECT r.role::text, u.session_version::text, u.email_normalized
          FROM users u
          JOIN user_roles r ON r.user_id = u.id
          WHERE u.id = $1
@@ -415,6 +496,14 @@ export class PostgresIdentityRepository implements IdentityRepository {
          RETURNING session_version::text`,
         [userId, changedAt],
       )
+      await this.appendSecurityEvent(connection, {
+        userId,
+        recipientNormalized: existing.email_normalized,
+        templateKey: 'identity.role_changed',
+        dedupeKey: `identity.role_changed:${userId}:${user.rows[0]!.session_version}`,
+        occurredAt: changedAt,
+        eventPayload: { previous_role: existing.role, role },
+      })
       await connection.query('COMMIT')
       return {
         userId,
@@ -459,6 +548,13 @@ export class PostgresIdentityRepository implements IdentityRepository {
         `UPDATE email_tokens SET used_at = $2 WHERE user_id = $1 AND used_at IS NULL`,
         [userId, changedAt],
       )
+      await this.appendSecurityEvent(connection, {
+        userId,
+        recipientNormalized: emailNormalized,
+        templateKey: 'identity.email_changed',
+        dedupeKey: `identity.email_changed:${userId}:${user.rows[0].session_version}`,
+        occurredAt: changedAt,
+      })
       await connection.query('COMMIT')
       return { userId, sessionVersion: Number(user.rows[0].session_version) }
     }
