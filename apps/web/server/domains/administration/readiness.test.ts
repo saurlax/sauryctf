@@ -18,6 +18,8 @@ describe('control-plane readiness', () => {
       PUBLIC_ORIGIN: 'https://ctf.example.test',
       NUXT_SESSION_PASSWORD: 'a-secure-session-password-with-32-characters',
       SUBMISSION_ANSWER_KEY: 'c2F1cnljdGYtZGV2LXN1Ym1pc3Npb24ta2V5LTAwMDE',
+      INSTANCE_SECRET_ACTIVE_KEY_ID: 'worker-key-v1',
+      INSTANCE_SECRET_KEYS: '{"worker-key-v1":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY"}',
       S3_ENDPOINT: 'http://127.0.0.1:9000',
       S3_REGION: 'us-east-1',
       S3_BUCKET: 'sauryctf',

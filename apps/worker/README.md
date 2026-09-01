@@ -17,6 +17,9 @@ Required configuration:
 
 - `WORKER_ID`: stable identifier for lease ownership.
 - `WORKER_DATABASE_URL`: PostgreSQL URL for a dedicated credentialed login.
+- `INSTANCE_SECRET_KEYS`: deployment Secret containing a JSON keyring of
+  unpadded base64url-encoded 32-byte envelope keys. Retain old keys while any
+  live instance generation still references them.
 
 Optional configuration:
 
@@ -105,9 +108,16 @@ load-balancer address. TCP entrypoints use an explicitly enabled consecutive
 port range on a dedicated LoadBalancer Service; the adapter always sets
 `allocateLoadBalancerNodePorts=false` and never falls back to NodePort. The
 Worker publishes no entrypoint until both the workload and every required route
-are ready. The Secret currently stores only the sealed envelope JSON;
-decryption, runtime injection, and post-completion clearing belong to the
-dedicated sensitive payload task.
+are ready. Instance-sensitive variables arrive only as an opaque
+`instance-secrets.v1` envelope. The control plane encrypts each payload with a
+random data key and wraps that key with the active AES-256-GCM deployment key;
+the authenticated context binds provider, owner identifiers, instance, and
+generation. The Worker decrypts immediately before `Ensure`, clears plaintext
+buffers when the provider returns, and never copies Flag material to logs or
+labels. Kubernetes stores the decrypted values in the owned opaque Secret and
+injects them through exact `SecretKeyRef` entries; the Secret is deleted with
+the instance. Docker receives the same reserved variables only in its typed
+Engine API create request.
 
 Kubernetes workloads always run with `runAsNonRoot`, RuntimeDefault seccomp, a
 read-only root filesystem, all Linux capabilities dropped, privilege escalation

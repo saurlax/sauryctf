@@ -17,6 +17,6 @@ node apps/web/.output/server/index.mjs
 GET /api/health/live
 ```
 
-它只证明 Nitro 进程可处理请求。`GET /api/health/ready` 独立检查必需部署配置；缺少 `NUXT_SESSION_PASSWORD`、PostgreSQL、Redis 或对象存储引用时返回 503。后续数据库连接与迁移版本探针会继续加入 ready，但生产平台和反向代理从现在起就不得把 live 误当作 ready。
+它只证明 Nitro 进程可处理请求。`GET /api/health/ready` 独立检查必需部署配置；缺少 `NUXT_SESSION_PASSWORD`、PostgreSQL、Redis、对象存储引用或实例敏感载荷密钥环时返回 503。后续数据库连接与迁移版本探针会继续加入 ready，但生产平台和反向代理从现在起就不得把 live 误当作 ready。
 
-Session 密钥、数据库 URL、Redis URL、对象存储访问密钥等只从部署环境读取，不进入 `platform_settings` 或任何业务表。ready 错误只返回缺失字段名，不回显配置值。
+Session 密钥、数据库 URL、Redis URL、对象存储访问密钥和 `INSTANCE_SECRET_KEYS` 只从部署环境读取，不进入 `platform_settings` 或任何业务表。控制面使用 `INSTANCE_SECRET_ACTIVE_KEY_ID` 选择新 envelope 的包装密钥；Worker 保留仍被活动实例引用的旧密钥用于解密和对账。ready 错误只返回缺失字段名，不回显配置值。

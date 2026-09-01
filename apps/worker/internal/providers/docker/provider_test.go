@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/saurlax/sauryctf/apps/worker/internal/contracts"
@@ -110,7 +111,7 @@ func TestEnsureCreatesStartsAndReusesDeterministicContainer(t *testing.T) {
 		t.Fatalf("pull/create/start calls = %d/%d/%d", len(engine.pulled), len(engine.created), len(engine.started))
 	}
 	request := engine.created[0]
-	if request.Image != spec.Runtime.Image || !slices.Equal(request.Env, []string{"MODE=competition", "PORT_HINT=8080"}) {
+	if request.Image != spec.Runtime.Image || !slices.Equal(request.Env, []string{"MODE=competition", "PORT_HINT=8080", "SAURYCTF_FLAG=flag{docker-runtime}"}) {
 		t.Fatalf("create image/env = %s/%v", request.Image, request.Env)
 	}
 	if request.HostConfig.Memory != spec.Runtime.Resources.MemoryBytes || request.HostConfig.NanoCPUs != 500_000_000 || request.HostConfig.StorageOpt["size"] != "536870912" {
@@ -118,6 +119,11 @@ func TestEnsureCreatesStartsAndReusesDeterministicContainer(t *testing.T) {
 	}
 	if len(request.ExposedPorts) != 2 || len(request.HostConfig.PortBindings) != 2 || request.Labels[providers.LabelTeam] != string(spec.Key.Team) || request.Labels[LabelEntrypoints] == "" {
 		t.Fatalf("create ports/labels = %+v/%+v/%+v", request.ExposedPorts, request.HostConfig.PortBindings, request.Labels)
+	}
+	for name, value := range request.Labels {
+		if strings.Contains(name, "flag{") || strings.Contains(value, "flag{") {
+			t.Fatalf("Docker label exposed the Flag: %s=%s", name, value)
+		}
 	}
 	second, err := provider.Ensure(context.Background(), spec)
 	if err != nil {
@@ -236,5 +242,6 @@ func dockerTestSpec() providers.InstanceSpec {
 			Resources:   contracts.InstanceResourceLimits{CPUMillicores: 500, MemoryBytes: 256 * 1024 * 1024, EphemeralStorageBytes: 512 * 1024 * 1024},
 			Network:     contracts.InstanceNetworkPolicy{Egress: "deny"},
 		},
+		SensitiveEnvironment: []providers.SensitiveEnvironmentVariable{{Name: "SAURYCTF_FLAG", Value: []byte("flag{docker-runtime}")}},
 	}
 }

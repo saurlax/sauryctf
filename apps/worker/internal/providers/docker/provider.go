@@ -146,9 +146,12 @@ func (provider *Provider) create(ctx context.Context, name string, spec provider
 }
 
 func createRequest(spec providers.InstanceSpec) (CreateRequest, error) {
-	environment := make([]string, 0, len(spec.Runtime.Environment))
+	environment := make([]string, 0, len(spec.Runtime.Environment)+len(spec.SensitiveEnvironment))
 	for _, variable := range spec.Runtime.Environment {
 		environment = append(environment, variable.Name+"="+variable.Value)
+	}
+	for _, variable := range spec.SensitiveEnvironment {
+		environment = append(environment, variable.Name+"="+string(variable.Value))
 	}
 	exposed := make(map[string]struct{}, len(spec.Runtime.Entrypoints))
 	bindings := make(map[string][]PortBinding, len(spec.Runtime.Entrypoints))

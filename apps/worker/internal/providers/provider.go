@@ -122,9 +122,10 @@ func ParseInstanceKey(labels map[string]string, platformID string, provider cont
 }
 
 type InstanceSpec struct {
-	Key       InstanceKey
-	Runtime   contracts.InstanceRuntimeSpec
-	ExpiresAt *time.Time
+	Key                  InstanceKey
+	Runtime              contracts.InstanceRuntimeSpec
+	SensitiveEnvironment []SensitiveEnvironmentVariable
+	ExpiresAt            *time.Time
 }
 
 func (spec InstanceSpec) Validate() error {
@@ -134,11 +135,49 @@ func (spec InstanceSpec) Validate() error {
 	if err := spec.Runtime.Validate(); err != nil {
 		return fmt.Errorf("runtime: %w", err)
 	}
+	if spec.Runtime.SecretEnvelope != nil && len(spec.SensitiveEnvironment) != 0 {
+		return errors.New("runtime secret envelope and decrypted environment must not coexist")
+	}
+	if len(spec.SensitiveEnvironment) > 32 {
+		return errors.New("sensitive_environment must contain at most 32 items")
+	}
+	seenSensitiveNames := make(map[string]struct{}, len(spec.SensitiveEnvironment))
+	for index, variable := range spec.SensitiveEnvironment {
+		if err := variable.Validate(); err != nil {
+			return fmt.Errorf("sensitive_environment[%d]: %w", index, err)
+		}
+		if _, exists := seenSensitiveNames[variable.Name]; exists {
+			return fmt.Errorf("sensitive_environment[%d]: duplicate name %q", index, variable.Name)
+		}
+		seenSensitiveNames[variable.Name] = struct{}{}
+	}
 	if spec.ExpiresAt != nil && spec.ExpiresAt.IsZero() {
 		return errors.New("expires_at must not be zero")
 	}
 	return nil
 }
+
+type SensitiveEnvironmentVariable struct {
+	Name  string
+	Value []byte
+}
+
+func (variable SensitiveEnvironmentVariable) Validate() error {
+	if !strings.HasPrefix(variable.Name, "SAURYCTF_") || !environmentNamePattern.MatchString(variable.Name) {
+		return errors.New("name must use the platform-reserved SAURYCTF_ prefix")
+	}
+	if len(variable.Value) < 1 || len(variable.Value) > 8192 {
+		return errors.New("value must contain 1-8192 bytes")
+	}
+	for _, value := range variable.Value {
+		if value == 0 {
+			return errors.New("value must not contain NUL bytes")
+		}
+	}
+	return nil
+}
+
+var environmentNamePattern = regexp.MustCompile(`^[A-Z_][A-Z0-9_]{0,127}$`)
 
 type Resource struct {
 	Provider   contracts.InstanceProvider

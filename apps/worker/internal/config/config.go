@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/saurlax/sauryctf/apps/worker/internal/secrets"
 )
 
 const (
@@ -54,6 +56,7 @@ type Config struct {
 	ReconcileInterval      time.Duration
 	RetryInitialDelay      time.Duration
 	RetryMaxDelay          time.Duration
+	InstanceSecretKeyring  *secrets.Keyring
 }
 
 // Load reads and validates Worker configuration without opening external connections.
@@ -135,6 +138,10 @@ func Load(getenv func(string) string) (Config, error) {
 	if retryInitialDelay > retryMaxDelay {
 		problems = append(problems, errors.New("WORKER_RETRY_INITIAL_DELAY must not exceed WORKER_RETRY_MAX_DELAY"))
 	}
+	instanceSecretKeyring, err := secrets.ParseKeyringJSON(strings.TrimSpace(getenv("INSTANCE_SECRET_KEYS")))
+	if err != nil {
+		problems = append(problems, fmt.Errorf("INSTANCE_SECRET_KEYS: %w", err))
+	}
 	if err := errors.Join(problems...); err != nil {
 		return Config{}, err
 	}
@@ -157,6 +164,7 @@ func Load(getenv func(string) string) (Config, error) {
 		ReconcileInterval:      reconcileInterval,
 		RetryInitialDelay:      retryInitialDelay,
 		RetryMaxDelay:          retryMaxDelay,
+		InstanceSecretKeyring:  instanceSecretKeyring,
 	}, nil
 }
 

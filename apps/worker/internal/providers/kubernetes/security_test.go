@@ -101,6 +101,10 @@ func TestInspectRejectsDangerousWorkloadDrift(t *testing.T) {
 		{name: "ServiceAccount token", mutate: func(pod *corev1.PodSpec) { value := true; pod.AutomountServiceAccountToken = &value }},
 		{name: "host network", mutate: func(pod *corev1.PodSpec) { pod.HostNetwork = true }},
 		{name: "unbounded CPU request", mutate: func(pod *corev1.PodSpec) { delete(pod.Containers[0].Resources.Requests, corev1.ResourceCPU) }},
+		{name: "plaintext platform secret", mutate: func(pod *corev1.PodSpec) {
+			pod.Containers[0].Env[len(pod.Containers[0].Env)-1].ValueFrom = nil
+			pod.Containers[0].Env[len(pod.Containers[0].Env)-1].Value = "flag{unsafe-plaintext}"
+		}},
 		{name: "host path", mutate: func(pod *corev1.PodSpec) {
 			pod.Volumes = []corev1.Volume{{Name: "tmp", VolumeSource: corev1.VolumeSource{HostPath: &corev1.HostPathVolumeSource{Path: "/"}}}}
 		}},
@@ -118,6 +122,30 @@ func TestInspectRejectsDangerousWorkloadDrift(t *testing.T) {
 				t.Fatalf("Inspect() error = %v", err)
 			}
 		})
+	}
+}
+
+func TestInspectRequiresOwnedRuntimeSecretForSensitiveReferences(t *testing.T) {
+	provider, client, spec, name := readyFakeKubernetesProvider(t)
+	ctx := context.Background()
+	if err := client.CoreV1().Secrets("challenge-test").Delete(ctx, name, metav1.DeleteOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	observation, err := provider.Inspect(ctx, spec.Key)
+	if err != nil || observation.State != jobs.ObservedStarting || len(observation.Entrypoints) != 0 {
+		t.Fatalf("Inspect() without runtime Secret = %+v/%v", observation, err)
+	}
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "challenge-test", Labels: spec.Key.Labels()},
+		Type:       corev1.SecretTypeOpaque,
+		Data:       map[string][]byte{"SAURYCTF_FLAG": []byte("flag{restored}"), "UNEXPECTED": []byte("unsafe")},
+	}
+	if _, err := client.CoreV1().Secrets("challenge-test").Create(ctx, secret, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := provider.Inspect(ctx, spec.Key); jobs.ClassifyFailure(err).Code != "provider.security_policy_drift" {
+		t.Fatalf("Inspect() accepted broadened runtime Secret: %v", err)
 	}
 }
 

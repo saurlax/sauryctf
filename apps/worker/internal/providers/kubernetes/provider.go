@@ -101,6 +101,13 @@ func (provider *Provider) Inspect(ctx context.Context, key providers.InstanceKey
 	if err := validateDeploymentSecurity(deployment); err != nil {
 		return jobs.Observation{}, jobs.PermanentError("provider.security_policy_drift", "Kubernetes workload no longer matches the required security policy", err)
 	}
+	secretReady, err := provider.inspectRuntimeSecret(ctx, name, key, deployment)
+	if err != nil {
+		return jobs.Observation{}, err
+	}
+	if !secretReady {
+		return jobs.Observation{State: jobs.ObservedStarting, ProviderResourceID: resourceID(provider.namespace, name)}, nil
+	}
 	entrypointSpecs, err := deploymentEntrypoints(deployment)
 	if err != nil {
 		return jobs.Observation{}, jobs.PermanentError("provider.invalid_entrypoints", "Kubernetes workload entrypoint metadata is invalid", err)
@@ -216,15 +223,27 @@ func (provider *Provider) ensureService(ctx context.Context, name string, spec p
 }
 
 func (provider *Provider) ensureSecret(ctx context.Context, name string, spec providers.InstanceSpec) error {
-	if spec.Runtime.SecretEnvelope == nil {
+	data := make(map[string][]byte, len(spec.SensitiveEnvironment))
+	for _, variable := range spec.SensitiveEnvironment {
+		data[variable.Name] = append([]byte(nil), variable.Value...)
+	}
+	desired := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: provider.namespace, Labels: spec.Key.Labels()}, Type: corev1.SecretTypeOpaque, Data: data}
+	current, err := provider.client.CoreV1().Secrets(provider.namespace).Get(ctx, name, metav1.GetOptions{})
+	if len(data) == 0 {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		if err != nil {
+			return retryable("get secret", err)
+		}
+		if err := validateLabels(current.Labels, spec.Key); err != nil {
+			return ownershipError(err)
+		}
+		if err := provider.client.CoreV1().Secrets(provider.namespace).Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			return retryable("delete unused secret", err)
+		}
 		return nil
 	}
-	payload, err := json.Marshal(spec.Runtime.SecretEnvelope)
-	if err != nil {
-		return jobs.PermanentError("provider.invalid_secret", "Kubernetes secret envelope is invalid", err)
-	}
-	desired := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: provider.namespace, Labels: spec.Key.Labels()}, Type: corev1.SecretTypeOpaque, Data: map[string][]byte{"envelope.json": payload}}
-	current, err := provider.client.CoreV1().Secrets(provider.namespace).Get(ctx, name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		_, err = provider.client.CoreV1().Secrets(provider.namespace).Create(ctx, desired, metav1.CreateOptions{})
 		return classifyCreate("secret", err)
@@ -245,12 +264,17 @@ func deployment(name, namespace string, spec providers.InstanceSpec) *appsv1.Dep
 	podLabels := spec.Key.Labels()
 	podLabels["sauryctf.io/resource-name"] = name
 	ports := make([]corev1.ContainerPort, 0, len(spec.Runtime.Entrypoints))
-	env := make([]corev1.EnvVar, 0, len(spec.Runtime.Environment))
+	env := make([]corev1.EnvVar, 0, len(spec.Runtime.Environment)+len(spec.SensitiveEnvironment))
 	for _, item := range spec.Runtime.Entrypoints {
 		ports = append(ports, corev1.ContainerPort{Name: item.Name, ContainerPort: int32(item.ContainerPort), Protocol: corev1.ProtocolTCP})
 	}
 	for _, item := range spec.Runtime.Environment {
 		env = append(env, corev1.EnvVar{Name: item.Name, Value: item.Value})
+	}
+	for _, item := range spec.SensitiveEnvironment {
+		env = append(env, corev1.EnvVar{Name: item.Name, ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: name}, Key: item.Name,
+		}}})
 	}
 	entrypoints, _ := json.Marshal(spec.Runtime.Entrypoints)
 	container := corev1.Container{Name: "challenge", Image: spec.Runtime.Image, Env: env, Ports: ports}

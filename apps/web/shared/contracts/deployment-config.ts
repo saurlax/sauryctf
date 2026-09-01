@@ -27,6 +27,22 @@ const optionalEnvironmentValueSchema = z.preprocess(
   z.string().min(1).max(2048).optional(),
 )
 
+const instanceSecretKeyIdSchema = z.string().min(1).max(128)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/u)
+
+const instanceSecretKeysSchema = z.preprocess((value) => {
+  if (typeof value !== 'string') return value
+  try {
+    return JSON.parse(value) as unknown
+  }
+  catch {
+    return value
+  }
+}, z.record(
+  instanceSecretKeyIdSchema,
+  z.string().regex(/^[A-Za-z0-9_-]{43}$/u, '必须是未填充的 32 字节 base64url 密钥'),
+).refine(keys => Object.keys(keys).length > 0, '实例敏感载荷密钥环不能为空'))
+
 export const deploymentConfigSchema = z.strictObject({
   databaseUrl: postgresUrlSchema,
   redisUrl: redisUrlSchema,
@@ -36,6 +52,10 @@ export const deploymentConfigSchema = z.strictObject({
     /^[A-Za-z0-9_-]{43}$/u,
     '必须是未填充的 32 字节 base64url 密钥',
   ),
+  instanceSecrets: z.strictObject({
+    activeKeyId: instanceSecretKeyIdSchema,
+    keys: instanceSecretKeysSchema,
+  }),
   objectStorage: z.strictObject({
     endpoint: z.url(),
     region: z.string().min(1).max(100),
@@ -49,6 +69,13 @@ export const deploymentConfigSchema = z.strictObject({
     siteKey: optionalEnvironmentValueSchema,
   }),
 }).superRefine((config, context) => {
+  if (!Object.hasOwn(config.instanceSecrets.keys, config.instanceSecrets.activeKeyId)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['instanceSecrets', 'activeKeyId'],
+      message: '活动实例敏感载荷密钥必须存在于密钥环中',
+    })
+  }
   if (Boolean(config.turnstile.secretKey) === Boolean(config.turnstile.siteKey)) return
   context.addIssue({
     code: 'custom',
@@ -68,6 +95,10 @@ export function deploymentConfigInput(environment: DeploymentEnvironment) {
     publicOrigin: environment.PUBLIC_ORIGIN,
     sessionPassword: environment.NUXT_SESSION_PASSWORD,
     submissionAnswerKey: environment.SUBMISSION_ANSWER_KEY,
+    instanceSecrets: {
+      activeKeyId: environment.INSTANCE_SECRET_ACTIVE_KEY_ID,
+      keys: environment.INSTANCE_SECRET_KEYS,
+    },
     objectStorage: {
       endpoint: environment.S3_ENDPOINT,
       region: environment.S3_REGION,

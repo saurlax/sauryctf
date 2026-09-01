@@ -11,7 +11,7 @@ func TestLoadRequiresDedicatedIdentityAndDatabase(t *testing.T) {
 	if err == nil {
 		t.Fatal("Load() succeeded without required Worker configuration")
 	}
-	for _, expected := range []string{"WORKER_ID", "WORKER_DATABASE_URL"} {
+	for _, expected := range []string{"WORKER_ID", "WORKER_DATABASE_URL", "INSTANCE_SECRET_KEYS"} {
 		if !strings.Contains(err.Error(), expected) {
 			t.Fatalf("Load() error %q does not mention %s", err, expected)
 		}
@@ -20,8 +20,9 @@ func TestLoadRequiresDedicatedIdentityAndDatabase(t *testing.T) {
 
 func TestLoadAppliesPrivateWorkerDefaults(t *testing.T) {
 	environment := map[string]string{
-		"WORKER_ID":           "worker-pod-1",
-		"WORKER_DATABASE_URL": "postgresql://worker:secret@postgres.internal/sauryctf",
+		"WORKER_ID":            "worker-pod-1",
+		"WORKER_DATABASE_URL":  "postgresql://worker:secret@postgres.internal/sauryctf",
+		"INSTANCE_SECRET_KEYS": `{"worker-key-v1":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY"}`,
 	}
 	config, err := Load(func(key string) string { return environment[key] })
 	if err != nil {
@@ -60,6 +61,7 @@ func TestLoadRejectsUnsafeOrUnboundedValues(t *testing.T) {
 		"WORKER_RECONCILE_INTERVAL":       "500ms",
 		"WORKER_RETRY_INITIAL_DELAY":      "50ms",
 		"WORKER_RETRY_MAX_DELAY":          "61m",
+		"INSTANCE_SECRET_KEYS":            `{"bad":"short"}`,
 	}
 	_, err := Load(func(key string) string { return environment[key] })
 	if err == nil {
@@ -83,6 +85,7 @@ func TestLoadRejectsUnsafeOrUnboundedValues(t *testing.T) {
 		"WORKER_RECONCILE_INTERVAL",
 		"WORKER_RETRY_INITIAL_DELAY",
 		"WORKER_RETRY_MAX_DELAY",
+		"INSTANCE_SECRET_KEYS",
 	} {
 		if !strings.Contains(err.Error(), expected) {
 			t.Fatalf("Load() error %q does not mention %s", err, expected)
@@ -96,6 +99,7 @@ func TestLoadRequiresRetryInitialDelayWithinMaximum(t *testing.T) {
 		"WORKER_DATABASE_URL":        "postgresql://worker:secret@postgres.internal/sauryctf",
 		"WORKER_RETRY_INITIAL_DELAY": "2m",
 		"WORKER_RETRY_MAX_DELAY":     "1m",
+		"INSTANCE_SECRET_KEYS":       `{"worker-key-v1":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY"}`,
 	}
 	_, err := Load(func(key string) string { return environment[key] })
 	if err == nil || !strings.Contains(err.Error(), "WORKER_RETRY_INITIAL_DELAY must not exceed") {
@@ -109,6 +113,7 @@ func TestLoadRequiresRenewalBeforeLeaseExpiry(t *testing.T) {
 		"WORKER_DATABASE_URL":         "postgresql://worker:secret@postgres.internal/sauryctf",
 		"WORKER_LEASE_DURATION":       "30s",
 		"WORKER_LEASE_RENEW_INTERVAL": "30s",
+		"INSTANCE_SECRET_KEYS":        `{"worker-key-v1":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY"}`,
 	}
 	_, err := Load(func(key string) string { return environment[key] })
 	if err == nil || !strings.Contains(err.Error(), "WORKER_LEASE_RENEW_INTERVAL must be shorter") {

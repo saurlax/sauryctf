@@ -41,7 +41,7 @@
       "secret_envelope": {
         "schema": "instance-secrets.v1",
         "key_id": "worker-key-v1",
-        "ciphertext_base64": "AAECAwQFBgcICQ=="
+        "ciphertext_base64": "U0NURgF3cmFwLW5vbmNlMDFkYXRhLW5vbmNlMDEX5poavJWxKKWT1gYV8YJITKLgk7tQgSreGjSmRRMDsXaXkc17eH3zRCPO2HvvBiaHm9ikpff8Ri4MQGwI6n6pkEfCFx0/exckQNEUpzkxmvpCbW2nbPwxiqBUDL3nhcCQ1ViVxdihmMD161KmynhwYxdXutAq56WxJoSOm9U3aJHs8Mu8dAiPHAiogLyDlOjkzsMRckMLGOs2FvgXU+eguxOx90Vz8PdmLVK7Zk3ke5lN1uxRIlIVSFJ/yHscXcZ/ldKbMMA1"
       }
     }
   }

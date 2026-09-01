@@ -2,7 +2,6 @@ package kubernetes
 
 import (
 	"context"
-	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -78,7 +77,7 @@ func TestEnsureCreatesAndUpdatesOwnedResources(t *testing.T) {
 		t.Fatalf("containers = %+v", workload.Spec.Template.Spec.Containers)
 	}
 	container := workload.Spec.Template.Spec.Containers[0]
-	if container.Image != spec.Runtime.Image || !reflect.DeepEqual(container.Env, []corev1.EnvVar{{Name: "MODE", Value: "competition"}, {Name: "PORT_HINT", Value: "8080"}}) {
+	if container.Image != spec.Runtime.Image || len(container.Env) != 3 || !reflect.DeepEqual(container.Env[:2], []corev1.EnvVar{{Name: "MODE", Value: "competition"}, {Name: "PORT_HINT", Value: "8080"}}) {
 		t.Fatalf("container image/env = %q/%+v", container.Image, container.Env)
 	}
 	if !reflect.DeepEqual(container.Ports, []corev1.ContainerPort{{Name: "web", ContainerPort: 8080, Protocol: corev1.ProtocolTCP}, {Name: "shell", ContainerPort: 31337, Protocol: corev1.ProtocolTCP}}) {
@@ -107,14 +106,14 @@ func TestEnsureCreatesAndUpdatesOwnedResources(t *testing.T) {
 		t.Fatalf("tcp service ports = %+v", tcpService.Spec.Ports)
 	}
 
-	var storedEnvelope contracts.InstanceSecretEnvelope
-	if err := json.Unmarshal(secret.Data["envelope.json"], &storedEnvelope); err != nil {
-		t.Fatalf("decode secret envelope: %v", err)
+	if string(secret.Data["SAURYCTF_FLAG"]) != "flag{kubernetes-runtime}" || len(secret.Data) != 1 {
+		t.Fatalf("runtime secret data = %v", secret.Data)
 	}
-	if !reflect.DeepEqual(storedEnvelope, *spec.Runtime.SecretEnvelope) {
-		t.Fatalf("secret envelope = %+v", storedEnvelope)
+	assertSecretNotExposed(t, "flag{kubernetes-runtime}", workload, service, secret)
+	secretReference := workload.Spec.Template.Spec.Containers[0].Env[len(workload.Spec.Template.Spec.Containers[0].Env)-1]
+	if secretReference.Name != "SAURYCTF_FLAG" || secretReference.Value != "" || secretReference.ValueFrom == nil || secretReference.ValueFrom.SecretKeyRef == nil || secretReference.ValueFrom.SecretKeyRef.Name != name || secretReference.ValueFrom.SecretKeyRef.Key != "SAURYCTF_FLAG" {
+		t.Fatalf("runtime secret reference = %+v", secretReference)
 	}
-	assertSecretNotExposed(t, spec.Runtime.SecretEnvelope.CiphertextBase64, workload, service, secret)
 
 	spec.Runtime.Image = "registry.example.test/challenges/web@sha256:fedcba9876543210"
 	spec.Runtime.Environment[0].Value = "updated"
@@ -205,6 +204,27 @@ func TestInspectObservesWorkloadReadinessWithoutPublishingRoute(t *testing.T) {
 	}
 	if err := ready.Validate(); err != nil {
 		t.Fatalf("running observation is invalid: %v", err)
+	}
+}
+
+func TestEnsureRemovesUnusedRuntimeSecretAndReference(t *testing.T) {
+	provider, client, spec, name := readyFakeKubernetesProvider(t)
+	ctx := context.Background()
+	spec.SensitiveEnvironment = nil
+	if _, err := provider.Ensure(ctx, spec); err != nil {
+		t.Fatalf("Ensure() without runtime secret error = %v", err)
+	}
+	if _, err := client.CoreV1().Secrets("challenge-test").Get(ctx, name, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("unused runtime Secret remains: %v", err)
+	}
+	workload, err := client.AppsV1().Deployments("challenge-test").Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, variable := range workload.Spec.Template.Spec.Containers[0].Env {
+		if variable.ValueFrom != nil {
+			t.Fatalf("unused runtime Secret reference remains: %+v", variable)
+		}
 	}
 }
 
@@ -398,10 +418,8 @@ func kubernetesTestSpec() providers.InstanceSpec {
 			Environment: []contracts.InstanceEnvironmentVariable{{Name: "MODE", Value: "competition"}, {Name: "PORT_HINT", Value: "8080"}},
 			Resources:   contracts.InstanceResourceLimits{CPUMillicores: 500, MemoryBytes: 256 * 1024 * 1024, EphemeralStorageBytes: 512 * 1024 * 1024},
 			Network:     contracts.InstanceNetworkPolicy{Egress: "deny"},
-			SecretEnvelope: &contracts.InstanceSecretEnvelope{
-				Schema: "instance-secrets.v1", KeyID: "test-key", CiphertextBase64: "c2VjcmV0LWVudmVsb3Bl",
-			},
 		},
+		SensitiveEnvironment: []providers.SensitiveEnvironmentVariable{{Name: "SAURYCTF_FLAG", Value: []byte("flag{kubernetes-runtime}")}},
 	}
 }
 
@@ -465,18 +483,18 @@ func assertQuantity(t *testing.T, actual, expected resource.Quantity, name strin
 	}
 }
 
-func assertSecretNotExposed(t *testing.T, ciphertext string, workload *appsv1.Deployment, service *corev1.Service, secret *corev1.Secret) {
+func assertSecretNotExposed(t *testing.T, plaintext string, workload *appsv1.Deployment, service *corev1.Service, secret *corev1.Secret) {
 	t.Helper()
 	for _, labels := range []map[string]string{workload.Labels, workload.Spec.Template.Labels, service.Labels, secret.Labels} {
 		for label, value := range labels {
-			if strings.Contains(label, ciphertext) || strings.Contains(value, ciphertext) {
-				t.Fatalf("secret ciphertext leaked through label %q=%q", label, value)
+			if strings.Contains(label, plaintext) || strings.Contains(value, plaintext) {
+				t.Fatalf("secret plaintext leaked through label %q=%q", label, value)
 			}
 		}
 	}
 	for _, variable := range workload.Spec.Template.Spec.Containers[0].Env {
-		if strings.Contains(variable.Name, ciphertext) || strings.Contains(variable.Value, ciphertext) {
-			t.Fatalf("secret ciphertext leaked through environment variable %+v", variable)
+		if strings.Contains(variable.Name, plaintext) || strings.Contains(variable.Value, plaintext) {
+			t.Fatalf("secret plaintext leaked through environment variable %+v", variable)
 		}
 	}
 }

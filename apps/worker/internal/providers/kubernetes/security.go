@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -173,7 +174,16 @@ func validateDeploymentSecurity(deployment *appsv1.Deployment) error {
 		return errors.New("container uses an unapproved environment source")
 	}
 	for _, variable := range container.Env {
-		if variable.ValueFrom != nil {
+		if variable.ValueFrom == nil {
+			if strings.HasPrefix(variable.Name, "SAURYCTF_") {
+				return errors.New("platform-sensitive environment is stored in plaintext")
+			}
+			continue
+		}
+		secret := variable.ValueFrom.SecretKeyRef
+		if !strings.HasPrefix(variable.Name, "SAURYCTF_") || variable.Value != "" || secret == nil ||
+			secret.Name != deployment.Name || secret.Key != variable.Name || secret.Optional != nil && *secret.Optional ||
+			variable.ValueFrom.ConfigMapKeyRef != nil || variable.ValueFrom.FieldRef != nil || variable.ValueFrom.ResourceFieldRef != nil {
 			return errors.New("container uses an unapproved environment reference")
 		}
 	}
@@ -200,6 +210,40 @@ func deploymentNetworkPolicy(deployment metav1.Object) (string, error) {
 		return "", err
 	}
 	return egress, nil
+}
+
+func (provider *Provider) inspectRuntimeSecret(ctx context.Context, name string, key providers.InstanceKey, deployment *appsv1.Deployment) (bool, error) {
+	expected := make(map[string]struct{})
+	for _, variable := range deployment.Spec.Template.Spec.Containers[0].Env {
+		if variable.ValueFrom != nil && variable.ValueFrom.SecretKeyRef != nil {
+			expected[variable.Name] = struct{}{}
+		}
+	}
+	if len(expected) == 0 {
+		return true, nil
+	}
+	secret, err := provider.client.CoreV1().Secrets(provider.namespace).Get(ctx, name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, retryable("inspect secret", err)
+	}
+	if err := validateLabels(secret.Labels, key); err != nil {
+		return false, ownershipError(err)
+	}
+	if secret.DeletionTimestamp != nil {
+		return false, nil
+	}
+	if secret.Type != corev1.SecretTypeOpaque || len(secret.Data) != len(expected) {
+		return false, jobs.PermanentError("provider.security_policy_drift", "Kubernetes runtime Secret no longer matches the required injection policy", nil)
+	}
+	for name := range expected {
+		if len(secret.Data[name]) == 0 {
+			return false, jobs.PermanentError("provider.security_policy_drift", "Kubernetes runtime Secret no longer matches the required injection policy", nil)
+		}
+	}
+	return true, nil
 }
 
 func networkPolicyName(name string) string { return relatedResourceName(name, 'n') }

@@ -155,6 +155,7 @@ export const instanceJobSchema = z.discriminatedUnion('operation', [
 
 export type InstanceJobOperation = z.infer<typeof instanceJobOperationSchema>
 export type InstanceProvider = z.infer<typeof instanceProviderSchema>
+export type InstanceSecretEnvelope = z.infer<typeof instanceSecretEnvelopeSchema>
 export type InstanceRuntimeSpec = z.infer<typeof instanceRuntimeSpecSchema>
 export type EnsureInstanceJobPayload = z.infer<typeof ensureInstanceJobPayloadSchema>
 export type InspectInstanceJobPayload = z.infer<typeof inspectInstanceJobPayloadSchema>

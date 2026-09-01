@@ -12,6 +12,8 @@ const validEnvironment: DeploymentEnvironment = {
   PUBLIC_ORIGIN: 'https://ctf.example.test',
   NUXT_SESSION_PASSWORD: 'a-secure-session-password-with-32-characters',
   SUBMISSION_ANSWER_KEY: 'c2F1cnljdGYtZGV2LXN1Ym1pc3Npb24ta2V5LTAwMDE',
+  INSTANCE_SECRET_ACTIVE_KEY_ID: 'worker-key-v1',
+  INSTANCE_SECRET_KEYS: '{"worker-key-v1":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY"}',
   S3_ENDPOINT: 'http://127.0.0.1:9000',
   S3_REGION: 'us-east-1',
   S3_BUCKET: 'sauryctf',
@@ -30,6 +32,8 @@ describe('production deployment config', () => {
   it.each([
     ['NUXT_SESSION_PASSWORD'],
     ['SUBMISSION_ANSWER_KEY'],
+    ['INSTANCE_SECRET_ACTIVE_KEY_ID'],
+    ['INSTANCE_SECRET_KEYS'],
     ['DATABASE_URL'],
     ['REDIS_URL'],
     ['PUBLIC_ORIGIN'],
@@ -64,5 +68,12 @@ describe('production deployment config', () => {
       TURNSTILE_SECRET_KEY: 'secret',
       TURNSTILE_SITE_KEY: 'site',
     }).success).toBe(true)
+  })
+
+  it('requires the active instance envelope key to exist in the deployment keyring', () => {
+    expect(inspectDeploymentConfig({
+      ...validEnvironment,
+      INSTANCE_SECRET_ACTIVE_KEY_ID: 'missing-key',
+    }).success).toBe(false)
   })
 })
