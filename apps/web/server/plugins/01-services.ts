@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { DomainOutboxDispatcher } from '../domains/events/domain-outbox'
 import { IdentityService } from '../domains/identity/service'
 import { IdentitySessionService } from '../domains/identity/session'
 import { MailOutboxDispatcher } from '../domains/notifications/mail-outbox'
@@ -38,6 +39,8 @@ import { ScoreboardViewService } from '../domains/scoreboards/view-service'
 import { ResilientRedisScoreboardCache } from '../infrastructure/cache/redis-scoreboard-cache'
 import { PostgresScoringReplayRepository } from '../infrastructure/db/scoring-replay-repository'
 import { PostgresScoreboardViewRepository } from '../infrastructure/db/scoreboard-view-repository'
+import { PostgresDomainOutboxRepository } from '../infrastructure/db/domain-outbox-repository'
+import { RedisDomainEventPublisher } from '../infrastructure/events/redis-domain-event-publisher'
 
 export default defineNitroPlugin(async (nitroApp) => {
   const databaseUrl = process.env.DATABASE_URL
@@ -52,6 +55,7 @@ export default defineNitroPlugin(async (nitroApp) => {
   const identityRepository = new PostgresIdentityRepository(database.pool)
   const rateLimits = new ResilientRedisRateLimitStore(process.env.REDIS_URL)
   const scoreboardCache = new ResilientRedisScoreboardCache(process.env.REDIS_URL)
+  const domainEventPublisher = new RedisDomainEventPublisher(process.env.REDIS_URL)
   const humanVerification = process.env.TURNSTILE_SECRET_KEY
     ? new TurnstileHumanVerificationProvider(process.env.TURNSTILE_SECRET_KEY)
     : new DisabledHumanVerificationProvider()
@@ -98,6 +102,7 @@ export default defineNitroPlugin(async (nitroApp) => {
   const mailFrom = process.env.MAIL_FROM
   const publicOrigin = process.env.PUBLIC_ORIGIN
   let dispatchTimer: ReturnType<typeof setInterval> | undefined
+  let domainEventTimer: ReturnType<typeof setInterval> | undefined
   if (smtpHost && mailFrom && publicOrigin) {
     const smtpPort = Number.parseInt(process.env.MAIL_SMTP_PORT ?? '25', 10)
     const dispatcher = new MailOutboxDispatcher(
@@ -132,13 +137,39 @@ export default defineNitroPlugin(async (nitroApp) => {
     dispatchTimer.unref()
   }
 
+  if (process.env.REDIS_URL) {
+    const dispatcher = new DomainOutboxDispatcher(
+      new PostgresDomainOutboxRepository(database.pool),
+      domainEventPublisher,
+    )
+    let dispatching = false
+    const dispatch = async () => {
+      if (dispatching) return
+      dispatching = true
+      try {
+        await dispatcher.runOnce()
+      }
+      catch (error) {
+        console.error(structuredLog('error', 'domain_events.dispatch_failed', { error }))
+      }
+      finally {
+        dispatching = false
+      }
+    }
+    void dispatch()
+    domainEventTimer = setInterval(() => void dispatch(), 2_000)
+    domainEventTimer.unref()
+  }
+
   nitroApp.hooks.hook('request', (event) => {
     event.context.services = services
   })
   nitroApp.hooks.hook('close', async () => {
     if (dispatchTimer) clearInterval(dispatchTimer)
+    if (domainEventTimer) clearInterval(domainEventTimer)
     await rateLimits.close()
     await scoreboardCache.close()
+    await domainEventPublisher.close()
     await database.pool.end()
   })
 })
