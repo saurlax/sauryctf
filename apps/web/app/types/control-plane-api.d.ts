@@ -194,6 +194,25 @@ export interface paths {
   "/api/content/writeup-attachments/{referenceId}/download": {
     get: operations["downloadWriteupAttachment"];
   };
+  "/api/contests/{contestId}/writeup": {
+    get: operations["getOwnWriteup"];
+    put: operations["saveOwnWriteupVersion"];
+  };
+  "/api/contests/{contestId}/writeup/submit": {
+    post: operations["submitOwnWriteup"];
+  };
+  "/api/admin/contests/{contestId}/writeups": {
+    get: operations["listManagedWriteups"];
+  };
+  "/api/admin/contests/{contestId}/writeups/{writeupId}/review": {
+    post: operations["reviewWriteup"];
+  };
+  "/api/admin/contests/{contestId}/writeups/{writeupId}/corrections": {
+    post: operations["correctWriteup"];
+  };
+  "/api/admin/contests/{contestId}/writeups/export": {
+    get: operations["exportSubmittedWriteups"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -5257,6 +5276,714 @@ export interface operations {
       };
       /** @description Stable API error */
       404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  getOwnWriteup: {
+    parameters: {
+      path: {
+        contestId: string;
+      };
+    };
+    responses: {
+      /** @description Accepted team Writeup state; ETag is "0" before the first version is saved */
+      200: {
+        content: {
+          "application/json": {
+            contest_id: string;
+            writeup_required: boolean;
+            writeup_deadline_at: string | null;
+            writeup: ({
+              id: string;
+              contest_id: string;
+              participation_id: string;
+              team_id: string;
+              team_name: string;
+              /** @enum {string} */
+              status: "draft" | "submitted" | "approved" | "changes_requested";
+              current_version: number;
+              submitted_version: number | null;
+              submitted_at: string | null;
+              reviewed_by: string | null;
+              review_note: string | null;
+              reviewed_at: string | null;
+              version: number;
+              /** Format: date-time */
+              updated_at: string;
+              current: {
+                id: string;
+                version_number: number;
+                body: string;
+                created_by: string;
+                /** Format: date-time */
+                created_at: string;
+                attachments: {
+                    reference_id: string;
+                    content_object_id: string;
+                    filename: string;
+                    media_type: string;
+                    size_bytes: number;
+                    sha256: string;
+                  }[];
+              };
+              submitted: {
+                id: string;
+                version_number: number;
+                body: string;
+                created_by: string;
+                /** Format: date-time */
+                created_at: string;
+                attachments: {
+                    reference_id: string;
+                    content_object_id: string;
+                    filename: string;
+                    media_type: string;
+                    size_bytes: number;
+                    sha256: string;
+                  }[];
+              } | null;
+            }) | null;
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  saveOwnWriteupVersion: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+        /** @description Strong ETag containing the current Writeup aggregate version; use "0" when no aggregate exists. */
+        "If-Match": string;
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          body: string;
+          /** @default [] */
+          attachment_ids: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description A new immutable Writeup version was appended */
+      200: {
+        content: {
+          "application/json": {
+            writeup: {
+              id: string;
+              contest_id: string;
+              participation_id: string;
+              team_id: string;
+              team_name: string;
+              /** @enum {string} */
+              status: "draft" | "submitted" | "approved" | "changes_requested";
+              current_version: number;
+              submitted_version: number | null;
+              submitted_at: string | null;
+              reviewed_by: string | null;
+              review_note: string | null;
+              reviewed_at: string | null;
+              version: number;
+              /** Format: date-time */
+              updated_at: string;
+              current: {
+                id: string;
+                version_number: number;
+                body: string;
+                created_by: string;
+                /** Format: date-time */
+                created_at: string;
+                attachments: {
+                    reference_id: string;
+                    content_object_id: string;
+                    filename: string;
+                    media_type: string;
+                    size_bytes: number;
+                    sha256: string;
+                  }[];
+              };
+              submitted: {
+                id: string;
+                version_number: number;
+                body: string;
+                created_by: string;
+                /** Format: date-time */
+                created_at: string;
+                attachments: {
+                    reference_id: string;
+                    content_object_id: string;
+                    filename: string;
+                    media_type: string;
+                    size_bytes: number;
+                    sha256: string;
+                  }[];
+              } | null;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      428: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  submitOwnWriteup: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+        /** @description Strong ETag containing the current Writeup aggregate version; use "0" when no aggregate exists. */
+        "If-Match": string;
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    responses: {
+      /** @description The current immutable version was fixed as the submitted version */
+      200: {
+        content: {
+          "application/json": {
+            writeup: {
+              id: string;
+              contest_id: string;
+              participation_id: string;
+              team_id: string;
+              team_name: string;
+              /** @enum {string} */
+              status: "draft" | "submitted" | "approved" | "changes_requested";
+              current_version: number;
+              submitted_version: number | null;
+              submitted_at: string | null;
+              reviewed_by: string | null;
+              review_note: string | null;
+              reviewed_at: string | null;
+              version: number;
+              /** Format: date-time */
+              updated_at: string;
+              current: {
+                id: string;
+                version_number: number;
+                body: string;
+                created_by: string;
+                /** Format: date-time */
+                created_at: string;
+                attachments: {
+                    reference_id: string;
+                    content_object_id: string;
+                    filename: string;
+                    media_type: string;
+                    size_bytes: number;
+                    sha256: string;
+                  }[];
+              };
+              submitted: {
+                id: string;
+                version_number: number;
+                body: string;
+                created_by: string;
+                /** Format: date-time */
+                created_at: string;
+                attachments: {
+                    reference_id: string;
+                    content_object_id: string;
+                    filename: string;
+                    media_type: string;
+                    size_bytes: number;
+                    sha256: string;
+                  }[];
+              } | null;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      428: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  listManagedWriteups: {
+    parameters: {
+      query?: {
+        cursor?: string;
+        limit?: number;
+        status?: "draft" | "submitted" | "approved" | "changes_requested";
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    responses: {
+      /** @description Cursor-paginated Writeup management projection */
+      200: {
+        content: {
+          "application/json": {
+            items: ({
+                id: string;
+                contest_id: string;
+                participation_id: string;
+                team_id: string;
+                team_name: string;
+                /** @enum {string} */
+                status: "draft" | "submitted" | "approved" | "changes_requested";
+                current_version: number;
+                submitted_version: number | null;
+                submitted_at: string | null;
+                reviewed_by: string | null;
+                review_note: string | null;
+                reviewed_at: string | null;
+                version: number;
+                /** Format: date-time */
+                updated_at: string;
+                current: {
+                  id: string;
+                  version_number: number;
+                  body: string;
+                  created_by: string;
+                  /** Format: date-time */
+                  created_at: string;
+                  attachments: {
+                      reference_id: string;
+                      content_object_id: string;
+                      filename: string;
+                      media_type: string;
+                      size_bytes: number;
+                      sha256: string;
+                    }[];
+                };
+                submitted: {
+                  id: string;
+                  version_number: number;
+                  body: string;
+                  created_by: string;
+                  /** Format: date-time */
+                  created_at: string;
+                  attachments: {
+                      reference_id: string;
+                      content_object_id: string;
+                      filename: string;
+                      media_type: string;
+                      size_bytes: number;
+                      sha256: string;
+                    }[];
+                } | null;
+              })[];
+            page: {
+              next_cursor: string | null;
+              has_more: boolean;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  reviewWriteup: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+        /** @description Strong ETag containing the current Writeup aggregate version; use "0" when no aggregate exists. */
+        "If-Match": string;
+      };
+      path: {
+        contestId: string;
+        writeupId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          decision: "approved" | "changes_requested";
+          /** @default null */
+          note: string | null;
+        };
+      };
+    };
+    responses: {
+      /** @description Submitted Writeup reviewed with transactional audit evidence */
+      200: {
+        content: {
+          "application/json": {
+            writeup: {
+              id: string;
+              contest_id: string;
+              participation_id: string;
+              team_id: string;
+              team_name: string;
+              /** @enum {string} */
+              status: "draft" | "submitted" | "approved" | "changes_requested";
+              current_version: number;
+              submitted_version: number | null;
+              submitted_at: string | null;
+              reviewed_by: string | null;
+              review_note: string | null;
+              reviewed_at: string | null;
+              version: number;
+              /** Format: date-time */
+              updated_at: string;
+              current: {
+                id: string;
+                version_number: number;
+                body: string;
+                created_by: string;
+                /** Format: date-time */
+                created_at: string;
+                attachments: {
+                    reference_id: string;
+                    content_object_id: string;
+                    filename: string;
+                    media_type: string;
+                    size_bytes: number;
+                    sha256: string;
+                  }[];
+              };
+              submitted: {
+                id: string;
+                version_number: number;
+                body: string;
+                created_by: string;
+                /** Format: date-time */
+                created_at: string;
+                attachments: {
+                    reference_id: string;
+                    content_object_id: string;
+                    filename: string;
+                    media_type: string;
+                    size_bytes: number;
+                    sha256: string;
+                  }[];
+              } | null;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      428: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  correctWriteup: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+        /** @description Strong ETag containing the current Writeup aggregate version; use "0" when no aggregate exists. */
+        "If-Match": string;
+      };
+      path: {
+        contestId: string;
+        writeupId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          body: string;
+          /** @default [] */
+          attachment_ids: string[];
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Authorized immutable correction appended and audited */
+      200: {
+        content: {
+          "application/json": {
+            writeup: {
+              id: string;
+              contest_id: string;
+              participation_id: string;
+              team_id: string;
+              team_name: string;
+              /** @enum {string} */
+              status: "draft" | "submitted" | "approved" | "changes_requested";
+              current_version: number;
+              submitted_version: number | null;
+              submitted_at: string | null;
+              reviewed_by: string | null;
+              review_note: string | null;
+              reviewed_at: string | null;
+              version: number;
+              /** Format: date-time */
+              updated_at: string;
+              current: {
+                id: string;
+                version_number: number;
+                body: string;
+                created_by: string;
+                /** Format: date-time */
+                created_at: string;
+                attachments: {
+                    reference_id: string;
+                    content_object_id: string;
+                    filename: string;
+                    media_type: string;
+                    size_bytes: number;
+                    sha256: string;
+                  }[];
+              };
+              submitted: {
+                id: string;
+                version_number: number;
+                body: string;
+                created_by: string;
+                /** Format: date-time */
+                created_at: string;
+                attachments: {
+                    reference_id: string;
+                    content_object_id: string;
+                    filename: string;
+                    media_type: string;
+                    size_bytes: number;
+                    sha256: string;
+                  }[];
+              } | null;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      428: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  exportSubmittedWriteups: {
+    parameters: {
+      path: {
+        contestId: string;
+      };
+    };
+    responses: {
+      /** @description Path-safe ZIP containing only submitted Writeup versions and verified attachments */
+      200: {
+        content: {
+          "application/zip": string;
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };

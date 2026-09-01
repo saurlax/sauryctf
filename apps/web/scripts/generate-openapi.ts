@@ -104,6 +104,15 @@ import {
   contentDownloadResponseSchema,
   contentObjectResponseSchema,
 } from '../shared/contracts/content'
+import {
+  correctWriteupRequestSchema,
+  managedWriteupListRequestSchema,
+  managedWriteupListResponseSchema,
+  ownWriteupResponseSchema,
+  reviewWriteupRequestSchema,
+  saveWriteupRequestSchema,
+  writeupResponseSchema,
+} from '../shared/contracts/writeups'
 
 function openApiSchema(schema: z.ZodType): Record<string, unknown> {
   const jsonSchema = z.toJSONSchema(schema, { target: 'draft-7' }) as Record<string, unknown>
@@ -168,6 +177,14 @@ const ifMatchParameter = {
   required: true,
   schema: { type: 'string', pattern: '^"[1-9][0-9]*"$' },
   description: 'Strong ETag containing the current resource version.',
+}
+
+const writeupIfMatchParameter = {
+  name: 'If-Match',
+  in: 'header',
+  required: true,
+  schema: { type: 'string', pattern: '^"(?:0|[1-9][0-9]*)"$' },
+  description: 'Strong ETag containing the current Writeup aggregate version; use "0" when no aggregate exists.',
 }
 
 const document = {
@@ -747,6 +764,155 @@ const document = {
           401: errorResponse,
           403: errorResponse,
           404: errorResponse,
+        },
+      },
+    },
+    '/api/contests/{contestId}/writeup': {
+      get: {
+        operationId: 'getOwnWriteup',
+        tags: ['Contests', 'Writeups'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        ],
+        responses: {
+          200: jsonResponse('Accepted team Writeup state; ETag is "0" before the first version is saved', ownWriteupResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+        },
+      },
+      put: {
+        operationId: 'saveOwnWriteupVersion',
+        tags: ['Contests', 'Writeups'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          originParameter,
+          csrfParameter,
+          writeupIfMatchParameter,
+        ],
+        requestBody: jsonRequestBody(saveWriteupRequestSchema),
+        responses: {
+          200: jsonResponse('A new immutable Writeup version was appended', writeupResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          428: errorResponse,
+        },
+      },
+    },
+    '/api/contests/{contestId}/writeup/submit': {
+      post: {
+        operationId: 'submitOwnWriteup',
+        tags: ['Contests', 'Writeups'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          originParameter,
+          csrfParameter,
+          writeupIfMatchParameter,
+        ],
+        responses: {
+          200: jsonResponse('The current immutable version was fixed as the submitted version', writeupResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          428: errorResponse,
+        },
+      },
+    },
+    '/api/admin/contests/{contestId}/writeups': {
+      get: {
+        operationId: 'listManagedWriteups',
+        tags: ['Administration', 'Contests', 'Writeups'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          { name: 'cursor', in: 'query', required: false, schema: openApiSchema(managedWriteupListRequestSchema.shape.cursor) },
+          { name: 'limit', in: 'query', required: false, schema: openApiSchema(managedWriteupListRequestSchema.shape.limit) },
+          { name: 'status', in: 'query', required: false, schema: openApiSchema(managedWriteupListRequestSchema.shape.status) },
+        ],
+        responses: {
+          200: jsonResponse('Cursor-paginated Writeup management projection', managedWriteupListResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+        },
+      },
+    },
+    '/api/admin/contests/{contestId}/writeups/{writeupId}/review': {
+      post: {
+        operationId: 'reviewWriteup',
+        tags: ['Administration', 'Contests', 'Writeups'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          { name: 'writeupId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          originParameter,
+          csrfParameter,
+          writeupIfMatchParameter,
+        ],
+        requestBody: jsonRequestBody(reviewWriteupRequestSchema),
+        responses: {
+          200: jsonResponse('Submitted Writeup reviewed with transactional audit evidence', writeupResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          428: errorResponse,
+        },
+      },
+    },
+    '/api/admin/contests/{contestId}/writeups/{writeupId}/corrections': {
+      post: {
+        operationId: 'correctWriteup',
+        tags: ['Administration', 'Contests', 'Writeups'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          { name: 'writeupId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          originParameter,
+          csrfParameter,
+          writeupIfMatchParameter,
+        ],
+        requestBody: jsonRequestBody(correctWriteupRequestSchema),
+        responses: {
+          200: jsonResponse('Authorized immutable correction appended and audited', writeupResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          428: errorResponse,
+        },
+      },
+    },
+    '/api/admin/contests/{contestId}/writeups/export': {
+      get: {
+        operationId: 'exportSubmittedWriteups',
+        tags: ['Administration', 'Contests', 'Writeups'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        ],
+        responses: {
+          200: {
+            description: 'Path-safe ZIP containing only submitted Writeup versions and verified attachments',
+            content: { 'application/zip': { schema: { type: 'string', format: 'binary' } } },
+          },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
         },
       },
     },

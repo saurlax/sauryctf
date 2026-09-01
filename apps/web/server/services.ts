@@ -14,6 +14,7 @@ import type { ScoreboardViewService } from './domains/scoreboards/view-service'
 import type { PublicRealtimeLog } from './domains/events/public-realtime'
 import type { ContentObjectService } from './domains/content/service'
 import type { ContentDownloadService } from './domains/content/download-service'
+import type { WriteupService } from './domains/writeups/service'
 
 export interface ControlPlaneServices {
   identity: IdentityService
@@ -32,4 +33,5 @@ export interface ControlPlaneServices {
   publicRealtime: PublicRealtimeLog
   content: ContentObjectService
   contentDownloads: ContentDownloadService
+  writeups: WriteupService
 }

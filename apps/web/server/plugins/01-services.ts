@@ -49,6 +49,9 @@ import { ContentDownloadService } from '../domains/content/download-service'
 import { PostgresContentObjectRepository } from '../infrastructure/db/content-object-repository'
 import { PostgresContentDownloadRepository } from '../infrastructure/db/content-download-repository'
 import { S3ContentObjectStore } from '../infrastructure/storage/s3-content-object-store'
+import { WriteupService } from '../domains/writeups/service'
+import { PostgresWriteupRepository } from '../infrastructure/db/writeup-repository'
+import { ZipWriteupArchiveBuilder } from '../infrastructure/content/writeup-zip'
 
 export default defineNitroPlugin(async (nitroApp) => {
   const databaseUrl = process.env.DATABASE_URL
@@ -130,6 +133,10 @@ export default defineNitroPlugin(async (nitroApp) => {
     contentDownloads: new ContentDownloadService(
       new PostgresContentDownloadRepository(database.pool),
       contentStore,
+    ),
+    writeups: new WriteupService(
+      new PostgresWriteupRepository(database.pool),
+      new ZipWriteupArchiveBuilder(contentStore),
     ),
   }
 
