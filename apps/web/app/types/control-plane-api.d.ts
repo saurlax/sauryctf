@@ -78,6 +78,18 @@ export interface paths {
   "/api/admin/contests": {
     post: operations["createContestDraft"];
   };
+  "/api/admin/challenge-templates": {
+    post: operations["createChallengeTemplate"];
+  };
+  "/api/admin/challenge-templates/{templateId}": {
+    get: operations["getChallengeTemplate"];
+  };
+  "/api/admin/challenge-templates/{templateId}/versions": {
+    post: operations["createChallengeTemplateVersion"];
+  };
+  "/api/admin/challenge-templates/{templateId}/versions/{versionNumber}": {
+    get: operations["getChallengeTemplateVersion"];
+  };
   "/api/admin/contests/{contestId}": {
     get: operations["getManagedContest"];
     patch: operations["updateContestDraft"];
@@ -1430,6 +1442,406 @@ export interface operations {
       };
       /** @description Stable API error */
       409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  createChallengeTemplate: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          name: string;
+          slug: string;
+          title: string;
+          /** @enum {string} */
+          category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
+          description: string;
+          /** @default null */
+          flag_format: string | null;
+          flag_policy: {
+            [key: string]: unknown;
+          };
+          scoring_policy: {
+            [key: string]: unknown;
+          };
+          /**
+           * @default {
+           *   "type": "none"
+           * }
+           */
+          instance_policy: {
+            [key: string]: unknown;
+          };
+          /** @default [] */
+          assets: {
+              content_object_id: string;
+              display_name: string;
+              /** @default 0 */
+              sort_order: number;
+            }[];
+        };
+      };
+    };
+    responses: {
+      /** @description Challenge template and initial immutable version created */
+      201: {
+        content: {
+          "application/json": {
+            template: {
+              id: string;
+              name: string;
+              slug: string;
+              latest_version: number;
+              version: number;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              updated_at: string;
+            };
+            challenge_version: {
+              id: string;
+              template_id: string;
+              version_number: number;
+              title: string;
+              /** @enum {string} */
+              category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
+              description: string;
+              flag_format: string | null;
+              flag_policy: {
+                [key: string]: unknown;
+              };
+              scoring_policy: {
+                [key: string]: unknown;
+              };
+              instance_policy: {
+                [key: string]: unknown;
+              };
+              assets: {
+                  content_object_id: string;
+                  display_name: string;
+                  /** @default 0 */
+                  sort_order: number;
+                  id: string;
+                }[];
+              created_by: string;
+              /** Format: date-time */
+              created_at: string;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  getChallengeTemplate: {
+    parameters: {
+      path: {
+        templateId: string;
+      };
+    };
+    responses: {
+      /** @description Challenge template with latest immutable version */
+      200: {
+        content: {
+          "application/json": {
+            template: {
+              id: string;
+              name: string;
+              slug: string;
+              latest_version: number;
+              version: number;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              updated_at: string;
+            };
+            challenge_version: {
+              id: string;
+              template_id: string;
+              version_number: number;
+              title: string;
+              /** @enum {string} */
+              category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
+              description: string;
+              flag_format: string | null;
+              flag_policy: {
+                [key: string]: unknown;
+              };
+              scoring_policy: {
+                [key: string]: unknown;
+              };
+              instance_policy: {
+                [key: string]: unknown;
+              };
+              assets: {
+                  content_object_id: string;
+                  display_name: string;
+                  /** @default 0 */
+                  sort_order: number;
+                  id: string;
+                }[];
+              created_by: string;
+              /** Format: date-time */
+              created_at: string;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  createChallengeTemplateVersion: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+        /** @description Strong ETag containing the current resource version. */
+        "If-Match": string;
+      };
+      path: {
+        templateId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title?: string;
+          /** @enum {string} */
+          category?: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
+          description?: string;
+          flag_format?: string | null;
+          flag_policy?: {
+            [key: string]: unknown;
+          };
+          scoring_policy?: {
+            [key: string]: unknown;
+          };
+          instance_policy?: {
+            [key: string]: unknown;
+          };
+          assets?: {
+              content_object_id: string;
+              display_name: string;
+              /** @default 0 */
+              sort_order: number;
+            }[];
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description New immutable challenge template version created */
+      201: {
+        content: {
+          "application/json": {
+            template: {
+              id: string;
+              name: string;
+              slug: string;
+              latest_version: number;
+              version: number;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              updated_at: string;
+            };
+            challenge_version: {
+              id: string;
+              template_id: string;
+              version_number: number;
+              title: string;
+              /** @enum {string} */
+              category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
+              description: string;
+              flag_format: string | null;
+              flag_policy: {
+                [key: string]: unknown;
+              };
+              scoring_policy: {
+                [key: string]: unknown;
+              };
+              instance_policy: {
+                [key: string]: unknown;
+              };
+              assets: {
+                  content_object_id: string;
+                  display_name: string;
+                  /** @default 0 */
+                  sort_order: number;
+                  id: string;
+                }[];
+              created_by: string;
+              /** Format: date-time */
+              created_at: string;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      428: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  getChallengeTemplateVersion: {
+    parameters: {
+      path: {
+        templateId: string;
+        versionNumber: number;
+      };
+    };
+    responses: {
+      /** @description Historical immutable challenge template version */
+      200: {
+        content: {
+          "application/json": {
+            template: {
+              id: string;
+              name: string;
+              slug: string;
+              latest_version: number;
+              version: number;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              updated_at: string;
+            };
+            challenge_version: {
+              id: string;
+              template_id: string;
+              version_number: number;
+              title: string;
+              /** @enum {string} */
+              category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
+              description: string;
+              flag_format: string | null;
+              flag_policy: {
+                [key: string]: unknown;
+              };
+              scoring_policy: {
+                [key: string]: unknown;
+              };
+              instance_policy: {
+                [key: string]: unknown;
+              };
+              assets: {
+                  content_object_id: string;
+                  display_name: string;
+                  /** @default 0 */
+                  sort_order: number;
+                  id: string;
+                }[];
+              created_by: string;
+              /** Format: date-time */
+              created_at: string;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };

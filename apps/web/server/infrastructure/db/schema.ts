@@ -460,6 +460,19 @@ export const challengeTemplateVersions = pgTable('challenge_template_versions', 
   check('challenge_template_versions_instance_policy_object', sql`jsonb_typeof(${table.instancePolicy}) = 'object'`),
 ])
 
+export const challengeTemplateAssets = pgTable('challenge_template_assets', {
+  id: uuid().primaryKey().defaultRandom(),
+  templateVersionId: uuid('template_version_id').notNull().references(() => challengeTemplateVersions.id),
+  contentObjectId: uuid('content_object_id').notNull().references(() => contentObjects.id),
+  displayName: varchar('display_name', { length: 255 }).notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('challenge_template_assets_version_object_unique').on(table.templateVersionId, table.contentObjectId),
+  index('challenge_template_assets_version_order').on(table.templateVersionId, table.sortOrder, table.id),
+  check('challenge_template_assets_display_name_not_empty', sql`length(btrim(${table.displayName})) > 0`),
+])
+
 export const contestChallenges = pgTable('contest_challenges', {
   id: uuid().primaryKey().defaultRandom(),
   contestId: uuid('contest_id').notNull().references(() => contests.id, { onDelete: 'cascade' }),

@@ -24,6 +24,8 @@ import { AnnouncementService } from '../domains/announcements/service'
 import { PostgresAnnouncementRepository } from '../infrastructure/db/announcement-repository'
 import { PublicTimelineService } from '../domains/timeline/service'
 import { PostgresPublicTimelineRepository } from '../infrastructure/db/public-timeline-repository'
+import { ChallengeTemplateService } from '../domains/challenges/service'
+import { PostgresChallengeTemplateRepository } from '../infrastructure/db/challenge-template-repository'
 
 export default defineNitroPlugin(async (nitroApp) => {
   const databaseUrl = process.env.DATABASE_URL
@@ -58,6 +60,7 @@ export default defineNitroPlugin(async (nitroApp) => {
     contests: new ContestService(new PostgresContestRepository(database.pool)),
     announcements: new AnnouncementService(new PostgresAnnouncementRepository(database.pool)),
     timeline: new PublicTimelineService(new PostgresPublicTimelineRepository(database.pool)),
+    challengeTemplates: new ChallengeTemplateService(new PostgresChallengeTemplateRepository(database.pool)),
   }
 
   const smtpHost = process.env.MAIL_SMTP_HOST
