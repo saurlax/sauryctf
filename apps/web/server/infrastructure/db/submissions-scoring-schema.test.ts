@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { Client } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createDatabaseClient, type DatabaseClient } from './client'
@@ -111,9 +111,10 @@ describeWithPostgres('submission and scoring authority schema', () => {
   async function createSubmission(mode: 'official' | 'practice'): Promise<string> {
     const submission = await database.pool.query<{ id: string }>(
       `INSERT INTO submissions
-         (contest_id, contest_challenge_id, participation_id, user_id, mode, result, answer_digest, request_id)
-       VALUES ($1, $2, $3, $4, $5, 'correct', $6, $7) RETURNING id`,
-      [contestId, challengeId, participationId, userId, mode, Buffer.from(randomUUID()), randomUUID()],
+         (contest_id, contest_challenge_id, participation_id, user_id, mode,
+          result, answer_digest, answer_ciphertext, request_id)
+       VALUES ($1, $2, $3, $4, $5, 'correct', $6, $7, $8) RETURNING id`,
+      [contestId, challengeId, participationId, userId, mode, randomBytes(32), randomBytes(33), randomUUID()],
     )
     return submission.rows[0]!.id
   }
@@ -164,6 +165,19 @@ describeWithPostgres('submission and scoring authority schema', () => {
       'DELETE FROM score_adjustments WHERE id = $1',
       [adjustment.rows[0]!.id],
     )).rejects.toMatchObject({ code: '55000' })
+  })
+
+  it('requires fixed-length answer digests and authenticated ciphertext envelopes', async () => {
+    const insert = (digest: Buffer, ciphertext: Buffer | null) => database.pool.query(
+      `INSERT INTO submissions
+         (contest_id, contest_challenge_id, participation_id, user_id, mode,
+          result, answer_digest, answer_ciphertext, request_id)
+       VALUES ($1, $2, $3, $4, 'official', 'incorrect', $5, $6, $7)`,
+      [contestId, challengeId, participationId, userId, digest, ciphertext, randomUUID()],
+    )
+    await expect(insert(randomBytes(31), randomBytes(33))).rejects.toMatchObject({ code: '23514' })
+    await expect(insert(randomBytes(32), randomBytes(32))).rejects.toMatchObject({ code: '23514' })
+    await expect(insert(randomBytes(32), null)).rejects.toMatchObject({ code: '23502' })
   })
 
   it('versions overall scoreboard snapshots without nullable uniqueness gaps', async () => {

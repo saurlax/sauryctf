@@ -5,12 +5,16 @@ import {
 } from '../challenges/flag-verifier'
 import { identityCapability, requireIdentityCapability } from '../identity/capabilities'
 import type { SessionSubject } from '../identity/repository'
+import type { SubmissionAnswerProtector } from './answer-protection'
 import {
   SubmissionChallengeClosedError,
   SubmissionChallengeUnavailableError,
   SubmissionContestNotRunningError,
   SubmissionLimitReachedError,
+  SubmissionCursorInvalidError,
+  SubmissionContestNotFoundError,
   SubmissionParticipationNotAcceptedError,
+  SubmissionRequestConflictError,
   SubmissionTeamRequiredError,
   type SubmissionRepository,
 } from './repository'
@@ -37,9 +41,12 @@ export type SubmissionServiceErrorCode =
   | 'challenge.submission_closed'
   | 'challenge.submission_limit_reached'
   | 'contest.not_running'
+  | 'contest.not_found'
   | 'participation.not_accepted'
   | 'security.rate_limited'
   | 'team.membership_required'
+  | 'submission.cursor_invalid'
+  | 'submission.request_conflict'
 
 const errorMessages: Record<SubmissionServiceErrorCode, string> = {
   'challenge.flag_configuration_invalid': '题目 Flag 校验配置不可用',
@@ -48,9 +55,12 @@ const errorMessages: Record<SubmissionServiceErrorCode, string> = {
   'challenge.submission_closed': '该题目已停止接受正式提交',
   'challenge.submission_limit_reached': '该队伍已达到本题正式提交次数上限',
   'contest.not_running': '当前不在正式提交时间内',
+  'contest.not_found': '比赛不存在',
   'participation.not_accepted': '当前队伍尚未获得比赛提交资格',
   'security.rate_limited': '请求过于频繁，请稍后重试',
   'team.membership_required': '请先加入队伍',
+  'submission.cursor_invalid': '提交记录游标无效或已经过期',
+  'submission.request_conflict': '请求标识已被其他提交使用',
 }
 
 export class SubmissionServiceError extends Error {
@@ -70,6 +80,7 @@ export class SubmissionService {
     private readonly repository: SubmissionRepository,
     private readonly verifier: Pick<FlagVerifier, 'verify'>,
     private readonly rateLimiter: SubmissionRateLimiter,
+    private readonly answers: SubmissionAnswerProtector,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
@@ -77,6 +88,7 @@ export class SubmissionService {
     contestId: string
     challengeId: string
     submittedFlag: string
+    requestId: string
   }): Promise<{ correct: boolean }> {
     requireIdentityCapability(actor, identityCapability.flagSubmit)
 
@@ -129,7 +141,7 @@ export class SubmissionService {
     ])
 
     try {
-      return this.verifier.verify({
+      const verdict = this.verifier.verify({
         contestId: admission.contestId,
         challengeId: admission.challengeId,
         teamId: admission.teamId,
@@ -137,6 +149,25 @@ export class SubmissionService {
         flagFormat: admission.flagFormat,
         policy: admission.flagPolicy,
       })
+      const protectedAnswer = this.answers.protect(input.submittedFlag, {
+        contestId: admission.contestId,
+        challengeId: admission.challengeId,
+        participationId: admission.participationId,
+        teamId: admission.teamId,
+        userId: actor.userId,
+        requestId: input.requestId,
+      })
+      await this.mapRepository(() => this.repository.append({
+        userId: actor.userId,
+        contestId: admission.contestId,
+        challengeId: admission.challengeId,
+        at: this.now(),
+        requestId: input.requestId,
+        result: verdict.correct ? 'correct' : 'incorrect',
+        answerDigest: protectedAnswer.digest,
+        answerCiphertext: protectedAnswer.ciphertext,
+      }))
+      return verdict
     }
     catch (error) {
       if (error instanceof FlagVerificationConfigurationError) {
@@ -147,6 +178,16 @@ export class SubmissionService {
       }
       throw error
     }
+  }
+
+  async listManaged(
+    actor: SessionSubject,
+    contestId: string,
+    cursor: string | undefined,
+    limit: number,
+  ) {
+    requireIdentityCapability(actor, identityCapability.contestJudge)
+    return this.mapRepository(() => this.repository.listManaged(contestId, cursor, limit))
   }
 
   private async enforceLimits(inputs: Array<Parameters<SubmissionRateLimiter['consume']>[0]>) {
@@ -180,6 +221,15 @@ export class SubmissionService {
       }
       if (error instanceof SubmissionLimitReachedError) {
         throw new SubmissionServiceError('challenge.submission_limit_reached')
+      }
+      if (error instanceof SubmissionRequestConflictError) {
+        throw new SubmissionServiceError('submission.request_conflict')
+      }
+      if (error instanceof SubmissionCursorInvalidError) {
+        throw new SubmissionServiceError('submission.cursor_invalid')
+      }
+      if (error instanceof SubmissionContestNotFoundError) {
+        throw new SubmissionServiceError('contest.not_found')
       }
       throw error
     }

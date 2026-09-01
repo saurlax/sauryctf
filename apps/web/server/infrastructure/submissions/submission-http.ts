@@ -1,9 +1,12 @@
 import type { H3Event } from 'h3'
-import { setResponseHeader } from 'h3'
+import { getQuery, setResponseHeader } from 'h3'
 import {
+  managedSubmissionListRequestSchema,
+  managedSubmissionListResponseSchema,
   submitFlagRequestSchema,
   submitFlagResponseSchema,
 } from '../../../shared/contracts/submissions'
+import { requestIdSchema } from '../../../shared/contracts/http'
 import { identityCapability } from '../../domains/identity/capabilities'
 import {
   SubmissionServiceError,
@@ -18,7 +21,7 @@ import { readValidatedJsonBody } from '../http/body'
 import { createApiError } from '../http/errors'
 import { enforceFlagSubmissionNetworkRateLimits } from '../security/request-security'
 
-type SubmissionCommands = Pick<SubmissionService, 'verifyFlag'>
+type SubmissionCommands = Pick<SubmissionService, 'listManaged' | 'verifyFlag'>
 
 export interface SubmissionHttpDependencies {
   identity: IdentityHttpDependencies
@@ -56,9 +59,43 @@ export async function handleSubmitFlag(
     contestId,
     challengeId,
     submittedFlag: input.flag,
+    requestId: requestIdSchema.parse(event.context.requestId),
   }))
   return submitFlagResponseSchema.parse({
     result: verdict.correct ? 'correct' : 'incorrect',
+  })
+}
+
+export async function handleListManagedSubmissions(
+  event: H3Event,
+  contestId: string,
+  dependencies = submissionHttpDependencies(event),
+) {
+  const context = await requireProtectedCapability(
+    event,
+    identityCapability.contestJudge,
+    dependencies.identity,
+  )
+  const query = managedSubmissionListRequestSchema.parse(getQuery(event))
+  const result = await runOperation(event, () => dependencies.submissions.listManaged(
+    context.subject,
+    contestId,
+    query.cursor,
+    query.limit,
+  ))
+  return managedSubmissionListResponseSchema.parse({
+    items: result.items.map(item => ({
+      id: item.id,
+      contest_id: item.contestId,
+      challenge_id: item.challengeId,
+      participation_id: item.participationId,
+      user_id: item.userId,
+      mode: item.mode,
+      result: item.result,
+      answer_masked: '••••••••',
+      submitted_at: item.submittedAt.toISOString(),
+    })),
+    page: { next_cursor: result.nextCursor, has_more: result.hasMore },
   })
 }
 
@@ -78,9 +115,12 @@ async function runOperation<T>(event: H3Event, operation: () => Promise<T>): Pro
       'challenge.submission_closed': 409,
       'challenge.submission_limit_reached': 409,
       'contest.not_running': 409,
+      'contest.not_found': 404,
       'participation.not_accepted': 403,
       'security.rate_limited': 429,
       'team.membership_required': 403,
+      'submission.cursor_invalid': 400,
+      'submission.request_conflict': 409,
     }[error.code]
     throw createApiError(statusCode, error.code, error.message)
   }

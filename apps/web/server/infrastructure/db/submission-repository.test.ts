@@ -6,14 +6,17 @@ import {
   SubmissionChallengeClosedError,
   SubmissionChallengeUnavailableError,
   SubmissionContestNotRunningError,
+  SubmissionCursorInvalidError,
   SubmissionLimitReachedError,
   SubmissionParticipationNotAcceptedError,
+  SubmissionRequestConflictError,
   SubmissionTeamRequiredError,
 } from '../../domains/submissions/repository'
 import { createPublishableChallenge } from '../../test-support/publishable-challenge'
 import { createDatabaseClient, type DatabaseClient } from './client'
 import { runMigrations } from './migrate'
 import { PostgresSubmissionRepository } from './submission-repository'
+import { AesGcmSubmissionAnswerProtector } from '../security/submission-answer-protector'
 
 const adminConnectionString = process.env.TEST_DATABASE_ADMIN_URL
 const describeWithPostgres = adminConnectionString ? describe : describe.skip
@@ -29,6 +32,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
   let admin: Client
   let database: DatabaseClient
   let repository: PostgresSubmissionRepository
+  const answers = new AesGcmSubmissionAnswerProtector(Buffer.alloc(32, 7))
 
   beforeAll(async () => {
     admin = new Client({ connectionString: adminConnectionString })
@@ -172,6 +176,37 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     })
   }
 
+  function appendCommand(
+    input: Awaited<ReturnType<typeof fixture>>,
+    answer: string,
+    result: 'correct' | 'incorrect',
+    requestId = randomUUID(),
+    submittedAt = at,
+  ) {
+    const context = {
+      contestId: input.contestId,
+      challengeId: input.challengeId,
+      participationId: input.participationId,
+      teamId: input.teamId,
+      userId: input.userId,
+      requestId,
+    }
+    const protectedAnswer = answers.protect(answer, context)
+    return {
+      context,
+      command: {
+        userId: input.userId,
+        contestId: input.contestId,
+        challengeId: input.challengeId,
+        at: submittedAt,
+        requestId,
+        result,
+        answerDigest: protectedAnswer.digest,
+        answerCiphertext: protectedAnswer.ciphertext,
+      },
+    }
+  }
+
   it('returns only the authoritative context needed after every eligibility check passes', async () => {
     const input = await fixture()
     await expect(admit(input)).resolves.toEqual({
@@ -219,18 +254,93 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     await database.pool.query(
       `INSERT INTO submissions
          (contest_id, contest_challenge_id, participation_id, user_id,
-          mode, result, answer_digest, request_id, submitted_at)
-       VALUES ($1, $2, $3, $4, 'official', 'incorrect', $5, $6, $7)`,
+          mode, result, answer_digest, answer_ciphertext, request_id, submitted_at)
+       VALUES ($1, $2, $3, $4, 'official', 'incorrect', $5, $6, $7, $8)`,
       [
         input.contestId,
         input.challengeId,
         input.participationId,
         input.userId,
         Buffer.from(staticFlagDigest('flag{wrong}'), 'hex'),
+        Buffer.alloc(33, 1),
         randomUUID(),
         at,
       ],
     )
     await expect(admit(input)).rejects.toBeInstanceOf(SubmissionLimitReachedError)
+  })
+
+  it.each([
+    ['flag{wrong}', 'incorrect'],
+    ['flag{correct}', 'correct'],
+  ] as const)('appends one immutable %s answer fact without plaintext storage', async (answer, result) => {
+    const input = await fixture()
+    const protectedInput = appendCommand(input, answer, result)
+    const stored = await repository.append(protectedInput.command)
+    expect(stored).toMatchObject({
+      contestId: input.contestId,
+      challengeId: input.challengeId,
+      participationId: input.participationId,
+      userId: input.userId,
+      mode: 'official',
+      result,
+      submittedAt: at,
+    })
+
+    const persisted = await database.pool.query<{
+      answer_digest: Buffer
+      answer_ciphertext: Buffer
+    }>(
+      `SELECT answer_digest, answer_ciphertext
+       FROM submissions WHERE id = $1`,
+      [stored.id],
+    )
+    expect(persisted.rows[0]!.answer_digest).toEqual(protectedInput.command.answerDigest)
+    expect(persisted.rows[0]!.answer_ciphertext.includes(Buffer.from(answer))).toBe(false)
+    expect(answers.reveal(persisted.rows[0]!.answer_ciphertext, protectedInput.context)).toBe(answer)
+    await expect(database.pool.query(
+      `UPDATE submissions SET result = 'correct' WHERE id = $1`,
+      [stored.id],
+    )).rejects.toMatchObject({ code: '55000' })
+  })
+
+  it('deduplicates the same request and rejects reuse for a different fact', async () => {
+    const input = await fixture()
+    const protectedInput = appendCommand(input, 'flag{wrong}', 'incorrect')
+    const first = await repository.append(protectedInput.command)
+    const repeated = await repository.append(protectedInput.command)
+    expect(repeated.id).toBe(first.id)
+    const count = await database.pool.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM submissions WHERE request_id = $1',
+      [protectedInput.command.requestId],
+    )
+    expect(count.rows[0]!.count).toBe('1')
+    await expect(repository.append({
+      ...protectedInput.command,
+      result: 'correct',
+    })).rejects.toBeInstanceOf(SubmissionRequestConflictError)
+  })
+
+  it('paginates a management projection that never selects answer protection material', async () => {
+    const input = await fixture()
+    for (const [index, answer] of ['flag{first}', 'flag{second}', 'flag{third}'].entries()) {
+      await repository.append(appendCommand(
+        input,
+        answer,
+        'incorrect',
+        randomUUID(),
+        new Date(at.getTime() + index),
+      ).command)
+    }
+    const first = await repository.listManaged(input.contestId, undefined, 2)
+    expect(first.items).toHaveLength(2)
+    expect(first).toMatchObject({ hasMore: true, nextCursor: expect.any(String) })
+    expect(JSON.stringify(first)).not.toMatch(/answer|digest|ciphertext|flag\{/u)
+    const second = await repository.listManaged(input.contestId, first.nextCursor!, 2)
+    expect(second.items).toHaveLength(1)
+    expect(second.hasMore).toBe(false)
+    await expect(repository.listManaged(input.contestId, randomUUID(), 2)).rejects.toBeInstanceOf(
+      SubmissionCursorInvalidError,
+    )
   })
 })

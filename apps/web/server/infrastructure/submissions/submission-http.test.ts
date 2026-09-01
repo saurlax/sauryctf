@@ -8,6 +8,7 @@ import { SubmissionServiceError } from '../../domains/submissions/service'
 import { normalizeApiError } from '../http/errors'
 import { MemoryRateLimitStore } from '../security/rate-limit'
 import {
+  handleListManagedSubmissions,
   handleSubmitFlag,
   type SubmissionHttpDependencies,
 } from './submission-http'
@@ -31,6 +32,7 @@ const player: SessionSubject = {
   sessionVersion: 1,
   mustChangePassword: false,
 }
+const organizer: SessionSubject = { ...player, role: 'organizer' }
 
 function dependencies(options: {
   subject?: SessionSubject
@@ -38,6 +40,7 @@ function dependencies(options: {
   serviceFailure?: SubmissionServiceError
   correct?: boolean
   rateLimits?: MemoryRateLimitStore
+  managedItems?: Awaited<ReturnType<SubmissionHttpDependencies['submissions']['listManaged']>>['items']
 } = {}): SubmissionHttpDependencies {
   const clear = vi.fn()
   return {
@@ -58,8 +61,31 @@ function dependencies(options: {
         if (options.serviceFailure) throw options.serviceFailure
         return { correct: options.correct ?? true }
       }),
+      listManaged: vi.fn(async () => ({
+        items: options.managedItems ?? [],
+        nextCursor: null,
+        hasMore: false,
+      })),
     },
   }
+}
+
+async function invokeManaged(deps: SubmissionHttpDependencies) {
+  const app = createApp()
+  app.use(eventHandler(async (event) => {
+    event.context.requestId = requestId
+    try {
+      return await handleListManagedSubmissions(event, contestId, deps)
+    }
+    catch (error) {
+      const response = normalizeApiError(error, requestId)
+      setResponseStatus(event, response.statusCode)
+      return response.body
+    }
+  }))
+  return toWebHandler(app)(new Request(
+    `https://ctf.example.test/api/admin/contests/${contestId}/submissions?limit=20`,
+  ))
 }
 
 async function invoke(deps: SubmissionHttpDependencies, flag = 'flag{correct}') {
@@ -98,6 +124,7 @@ describe('Flag submission HTTP admission', () => {
       contestId,
       challengeId,
       submittedFlag: 'flag{correct}',
+      requestId,
     })
   })
 
@@ -145,5 +172,33 @@ describe('Flag submission HTTP admission', () => {
     expect(rejected.status).toBe(429)
     expect(rejected.headers.get('retry-after')).toBeTruthy()
     expect(deps.submissions.verifyFlag).toHaveBeenCalledTimes(30)
+  })
+
+  it('returns a fixed mask and no digest, ciphertext, or answer from ordinary management reads', async () => {
+    const deps = dependencies({
+      subject: organizer,
+      managedItems: [{
+        id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f84',
+        contestId,
+        challengeId,
+        participationId: '018f47a2-4ef8-7e2c-9c24-6d68b7451f85',
+        userId,
+        mode: 'official',
+        result: 'incorrect',
+        submittedAt: new Date('2026-09-01T08:01:00.000Z'),
+      }],
+    })
+    const response = await invokeManaged(deps)
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body).toMatchObject({ items: [{ answer_masked: '••••••••' }] })
+    expect(JSON.stringify(body)).not.toMatch(/digest|ciphertext|submitted_flag|flag\{/u)
+  })
+
+  it('requires the global judge capability for management submission reads', async () => {
+    const deps = dependencies({ subject: player })
+    const response = await invokeManaged(deps)
+    expect(response.status).toBe(403)
+    expect(deps.submissions.listManaged).not.toHaveBeenCalled()
   })
 })

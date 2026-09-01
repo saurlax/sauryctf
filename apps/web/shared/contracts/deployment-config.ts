@@ -32,6 +32,10 @@ export const deploymentConfigSchema = z.strictObject({
   redisUrl: redisUrlSchema,
   publicOrigin: publicOriginSchema,
   sessionPassword: z.string().min(32).max(1024),
+  submissionAnswerKey: z.string().regex(
+    /^[A-Za-z0-9_-]{43}$/u,
+    '必须是未填充的 32 字节 base64url 密钥',
+  ),
   objectStorage: z.strictObject({
     endpoint: z.url(),
     region: z.string().min(1).max(100),
@@ -63,6 +67,7 @@ export function deploymentConfigInput(environment: DeploymentEnvironment) {
     redisUrl: environment.REDIS_URL,
     publicOrigin: environment.PUBLIC_ORIGIN,
     sessionPassword: environment.NUXT_SESSION_PASSWORD,
+    submissionAnswerKey: environment.SUBMISSION_ANSWER_KEY,
     objectStorage: {
       endpoint: environment.S3_ENDPOINT,
       region: environment.S3_REGION,

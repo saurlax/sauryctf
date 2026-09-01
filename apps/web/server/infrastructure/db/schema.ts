@@ -564,13 +564,15 @@ export const submissions = pgTable('submissions', {
   mode: submissionMode().notNull(),
   result: submissionResult().notNull(),
   answerDigest: bytea('answer_digest').notNull(),
-  answerCiphertext: bytea('answer_ciphertext'),
+  answerCiphertext: bytea('answer_ciphertext').notNull(),
   requestId: varchar('request_id', { length: 128 }).notNull(),
   submittedAt: timestamp('submitted_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex('submissions_request_id_unique').on(table.requestId),
   index('submissions_contest_challenge_time').on(table.contestId, table.contestChallengeId, table.submittedAt, table.id),
   index('submissions_participation_time').on(table.participationId, table.submittedAt, table.id),
+  check('submissions_answer_digest_length', sql`octet_length(${table.answerDigest}) = 32`),
+  check('submissions_answer_ciphertext_envelope', sql`octet_length(${table.answerCiphertext}) >= 33`),
 ])
 
 export const solves = pgTable('solves', {

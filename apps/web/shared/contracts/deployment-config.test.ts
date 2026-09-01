@@ -11,6 +11,7 @@ const validEnvironment: DeploymentEnvironment = {
   REDIS_URL: 'redis://127.0.0.1:6379/0',
   PUBLIC_ORIGIN: 'https://ctf.example.test',
   NUXT_SESSION_PASSWORD: 'a-secure-session-password-with-32-characters',
+  SUBMISSION_ANSWER_KEY: 'c2F1cnljdGYtZGV2LXN1Ym1pc3Npb24ta2V5LTAwMDE',
   S3_ENDPOINT: 'http://127.0.0.1:9000',
   S3_REGION: 'us-east-1',
   S3_BUCKET: 'sauryctf',
@@ -28,6 +29,7 @@ describe('production deployment config', () => {
 
   it.each([
     ['NUXT_SESSION_PASSWORD'],
+    ['SUBMISSION_ANSWER_KEY'],
     ['DATABASE_URL'],
     ['REDIS_URL'],
     ['PUBLIC_ORIGIN'],

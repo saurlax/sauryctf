@@ -104,6 +104,9 @@ export interface paths {
   "/api/admin/contests/{contestId}/challenges/{challengeId}/revisions": {
     post: operations["reviseContestChallengeSnapshot"];
   };
+  "/api/admin/contests/{contestId}/submissions": {
+    get: operations["listManagedContestSubmissions"];
+  };
   "/api/admin/contests/{contestId}": {
     get: operations["getManagedContest"];
     patch: operations["updateContestDraft"];
@@ -2573,6 +2576,69 @@ export interface operations {
       };
       /** @description Stable API error */
       428: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  listManagedContestSubmissions: {
+    parameters: {
+      query?: {
+        cursor?: string;
+        limit?: number;
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    responses: {
+      /** @description Paginated immutable submission facts with answers fixed-mask redacted */
+      200: {
+        content: {
+          "application/json": {
+            items: ({
+                id: string;
+                contest_id: string;
+                challenge_id: string;
+                participation_id: string;
+                user_id: string;
+                /** @constant */
+                mode: "official";
+                /** @enum {string} */
+                result: "correct" | "incorrect";
+                /** @constant */
+                answer_masked: "••••••••";
+                /** Format: date-time */
+                submitted_at: string;
+              })[];
+            page: {
+              next_cursor: string | null;
+              has_more: boolean;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };

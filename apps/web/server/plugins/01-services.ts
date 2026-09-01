@@ -32,11 +32,13 @@ import { FlagVerifier, VersionedFlagKeyring } from '../domains/challenges/flag-v
 import { SubmissionService } from '../domains/submissions/service'
 import { PostgresSubmissionRepository } from '../infrastructure/db/submission-repository'
 import { RateLimitStoreSubmissionLimiter } from '../infrastructure/security/submission-rate-limiter'
+import { AesGcmSubmissionAnswerProtector } from '../infrastructure/security/submission-answer-protector'
 
 export default defineNitroPlugin(async (nitroApp) => {
   const databaseUrl = process.env.DATABASE_URL
   const sessionPassword = process.env.NUXT_SESSION_PASSWORD
-  if (!databaseUrl || !sessionPassword) return
+  const submissionAnswerKey = process.env.SUBMISSION_ANSWER_KEY
+  if (!databaseUrl || !sessionPassword || !submissionAnswerKey) return
 
   const database = createDatabaseClient({
     connectionString: databaseUrl,
@@ -72,6 +74,7 @@ export default defineNitroPlugin(async (nitroApp) => {
       new PostgresSubmissionRepository(database.pool),
       new FlagVerifier(new VersionedFlagKeyring({})),
       new RateLimitStoreSubmissionLimiter(rateLimits),
+      new AesGcmSubmissionAnswerProtector(Buffer.from(submissionAnswerKey, 'base64url')),
     ),
   }
 

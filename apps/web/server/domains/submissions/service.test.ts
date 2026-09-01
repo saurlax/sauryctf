@@ -21,6 +21,7 @@ const teamId = '018f47a2-4ef8-7e2c-9c24-6d68b7451f71'
 const contestId = '018f47a2-4ef8-7e2c-9c24-6d68b7451f72'
 const challengeId = '018f47a2-4ef8-7e2c-9c24-6d68b7451f73'
 const participationId = '018f47a2-4ef8-7e2c-9c24-6d68b7451f74'
+const requestId = '018f47a2-4ef8-7e2c-9c24-6d68b7451f75'
 const at = new Date('2026-09-01T08:00:00.000Z')
 
 const actor: SessionSubject = {
@@ -53,6 +54,26 @@ function admissionRepository() {
       flagFormat: 'flag{...}',
       flagPolicy: { type: 'static' as const, digest: 'a'.repeat(64) },
     })),
+    append: vi.fn(async () => ({
+      id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f76',
+      contestId,
+      challengeId,
+      participationId,
+      userId,
+      mode: 'official' as const,
+      result: 'correct' as const,
+      submittedAt: at,
+    })),
+    listManaged: vi.fn(async () => ({ items: [], nextCursor: null, hasMore: false })),
+  }
+}
+
+function answerProtector(onProtect?: () => void) {
+  return {
+    protect: vi.fn(() => {
+      onProtect?.()
+      return { digest: Buffer.alloc(32, 1), ciphertext: Buffer.alloc(33, 2) }
+    }),
   }
 }
 
@@ -78,12 +99,27 @@ describe('submission eligibility pipeline', () => {
         return { correct: true }
       }),
     }
-    const service = new SubmissionService(repository, verifier, limiter, () => at)
+    repository.append.mockImplementation(async () => {
+      order.push('append')
+      return {
+        id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f76',
+        contestId,
+        challengeId,
+        participationId,
+        userId,
+        mode: 'official',
+        result: 'correct',
+        submittedAt: at,
+      }
+    })
+    const answers = answerProtector(() => order.push('protect'))
+    const service = new SubmissionService(repository, verifier, limiter, answers, () => at)
 
     await expect(service.verifyFlag(actor, {
       contestId,
       challengeId,
       submittedFlag: 'flag{correct}',
+      requestId,
     })).resolves.toEqual({ correct: true })
 
     expect(order).toEqual([
@@ -94,8 +130,19 @@ describe('submission eligibility pipeline', () => {
       'team:submission.flag.challenge',
       'challenge:submission.flag',
       'verify',
+      'protect',
+      'append',
     ])
     expect(repository.admit).toHaveBeenCalledWith({ userId, contestId, challengeId, at })
+    expect(repository.append).toHaveBeenCalledWith(expect.objectContaining({
+      userId,
+      contestId,
+      challengeId,
+      requestId,
+      result: 'correct',
+      answerDigest: Buffer.alloc(32, 1),
+      answerCiphertext: Buffer.alloc(33, 2),
+    }))
   })
 
   it.each([
@@ -106,15 +153,20 @@ describe('submission eligibility pipeline', () => {
     [new SubmissionChallengeClosedError(), 'challenge.submission_closed'],
     [new SubmissionLimitReachedError(), 'challenge.submission_limit_reached'],
   ] as const)('does not evaluate either a correct or incorrect Flag after %s', async (failure, code) => {
-    const repository: SubmissionRepository = { admit: vi.fn(async () => { throw failure }) }
+    const repository: SubmissionRepository = {
+      admit: vi.fn(async () => { throw failure }),
+      append: vi.fn(),
+      listManaged: vi.fn(),
+    }
     const verifier = { verify: vi.fn(() => ({ correct: true })) }
-    const service = new SubmissionService(repository, verifier, allowedLimiter(), () => at)
+    const service = new SubmissionService(repository, verifier, allowedLimiter(), answerProtector(), () => at)
 
     for (const submittedFlag of ['flag{correct}', 'flag{wrong}']) {
       await expect(service.verifyFlag(actor, {
         contestId,
         challengeId,
         submittedFlag,
+        requestId,
       })).rejects.toMatchObject({ code })
     }
     expect(verifier.verify).not.toHaveBeenCalled()
@@ -123,12 +175,13 @@ describe('submission eligibility pipeline', () => {
   it('blocks an unverified identity before repository access or Flag validation', async () => {
     const repository = admissionRepository()
     const verifier = { verify: vi.fn(() => ({ correct: true })) }
-    const service = new SubmissionService(repository, verifier, allowedLimiter(), () => at)
+    const service = new SubmissionService(repository, verifier, allowedLimiter(), answerProtector(), () => at)
 
     await expect(service.verifyFlag({ ...actor, emailVerified: false }, {
       contestId,
       challengeId,
       submittedFlag: 'flag{correct}',
+      requestId,
     })).rejects.toBeInstanceOf(IdentityCapabilityError)
     expect(repository.admit).not.toHaveBeenCalled()
     expect(verifier.verify).not.toHaveBeenCalled()
@@ -146,12 +199,13 @@ describe('submission eligibility pipeline', () => {
     }
     const repository = admissionRepository()
     const verifier = { verify: vi.fn(() => ({ correct: true })) }
-    const service = new SubmissionService(repository, verifier, limiter, () => at)
+    const service = new SubmissionService(repository, verifier, limiter, answerProtector(), () => at)
 
     await expect(service.verifyFlag(actor, {
       contestId,
       challengeId,
       submittedFlag: 'flag{correct}',
+      requestId,
     })).rejects.toEqual(expect.objectContaining<Partial<SubmissionServiceError>>({
       code: 'security.rate_limited',
       retryAfterMs: 42_000,

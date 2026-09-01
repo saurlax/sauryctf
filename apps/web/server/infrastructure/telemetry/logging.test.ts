@@ -9,6 +9,8 @@ describe('structured log redaction', () => {
       request: {
         password: 'password-value',
         submitted_flag: 'flag{secret-value}',
+        answer_digest: 'digest-value',
+        answer_ciphertext: 'ciphertext-value',
         safe: 'visible',
       },
       cookie: 'session-value',
@@ -19,6 +21,8 @@ describe('structured log redaction', () => {
     expect(log).not.toContain('token-value')
     expect(log).not.toContain('password-value')
     expect(log).not.toContain('flag{secret-value}')
+    expect(log).not.toContain('digest-value')
+    expect(log).not.toContain('ciphertext-value')
     expect(log).not.toContain('session-value')
   })
 })
