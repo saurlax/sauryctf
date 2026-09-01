@@ -124,6 +124,7 @@ import {
   publicPlatformSettingsResponseSchema,
   updatePlatformSettingsRequestSchema,
 } from '../shared/contracts/platform-settings'
+import { playerInstanceResponseSchema } from '../shared/contracts/instances'
 
 function openApiSchema(schema: z.ZodType): Record<string, unknown> {
   const jsonSchema = z.toJSONSchema(schema, { target: 'draft-7' }) as Record<string, unknown>
@@ -589,6 +590,56 @@ const document = {
     '/api/contests/{contestId}': { get: { operationId: 'getPublicContest', tags: ['Contests'], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }], responses: { 200: jsonResponse('Public published or archived contest projection', contestResponseSchema), 404: errorResponse } } },
     '/api/contests/{contestId}/challenges': { get: { operationId: 'listPlayerContestChallenges', tags: ['Contests', 'Challenges'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }], responses: { 200: jsonResponse('Player-safe contest challenge projections filtered by participation and release state', playerContestChallengeListResponseSchema), 401: errorResponse, 403: errorResponse, 404: errorResponse } } },
     '/api/contests/{contestId}/challenges/{challengeId}': { get: { operationId: 'getPlayerContestChallenge', tags: ['Contests', 'Challenges'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, { name: 'challengeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }], responses: { 200: jsonResponse('Player-safe contest challenge projection without Flag verification material', playerContestChallengeResponseSchema), 401: errorResponse, 403: errorResponse, 404: errorResponse } } },
+    '/api/contests/{contestId}/challenges/{challengeId}/instance': {
+      get: {
+        operationId: 'getPlayerContestChallengeInstance',
+        tags: ['Contests', 'Challenges', 'Instances'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          { name: 'challengeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        ],
+        responses: { 200: jsonResponse('Authoritative instance state with entrypoints only after the current generation is ready', playerInstanceResponseSchema), 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse },
+      },
+      post: {
+        operationId: 'startPlayerContestChallengeInstance',
+        tags: ['Contests', 'Challenges', 'Instances'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          { name: 'challengeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          originParameter,
+          csrfParameter,
+        ],
+        responses: { 202: jsonResponse('Durable instance ensure command accepted; readiness remains observation-driven', playerInstanceResponseSchema), 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse },
+      },
+      delete: {
+        operationId: 'destroyPlayerContestChallengeInstance',
+        tags: ['Contests', 'Challenges', 'Instances'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          { name: 'challengeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          originParameter,
+          csrfParameter,
+        ],
+        responses: { 202: jsonResponse('Durable instance destroy command accepted', playerInstanceResponseSchema), 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse },
+      },
+    },
+    '/api/contests/{contestId}/challenges/{challengeId}/instance/renew': {
+      post: {
+        operationId: 'renewPlayerContestChallengeInstance',
+        tags: ['Contests', 'Challenges', 'Instances'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          { name: 'challengeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          originParameter,
+          csrfParameter,
+        ],
+        responses: { 202: jsonResponse('Lease extension accepted inside the configured renewal window', playerInstanceResponseSchema), 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse },
+      },
+    },
     '/api/contests/{contestId}/challenges/{challengeId}/submissions': { post: { operationId: 'submitContestChallengeFlag', tags: ['Contests', 'Challenges', 'Submissions'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, { name: 'challengeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, originParameter, csrfParameter], requestBody: jsonRequestBody(submitFlagRequestSchema), responses: { 200: jsonResponse('Synchronous redacted Flag verdict after authoritative eligibility and layered rate-limit checks', submitFlagResponseSchema), 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse, 429: errorResponse, 503: errorResponse } } },
     '/api/contests/{contestId}/announcements': {
       get: {

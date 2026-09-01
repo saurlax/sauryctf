@@ -57,6 +57,8 @@ import { PostgresContestPackageRepository } from '../infrastructure/db/contest-p
 import { ContestPackageArchiveCodec } from '../infrastructure/content/contest-package-archive'
 import { PlatformSettingsService } from '../domains/platform-settings/service'
 import { PostgresPlatformSettingsRepository } from '../infrastructure/db/platform-settings-repository'
+import { InstanceService } from '../domains/instances/service'
+import { PostgresInstanceRepository } from '../infrastructure/db/instance-repository'
 
 export default defineNitroPlugin(async (nitroApp) => {
   const databaseUrl = process.env.DATABASE_URL
@@ -153,6 +155,10 @@ export default defineNitroPlugin(async (nitroApp) => {
       new ContestPackageArchiveCodec(contentStore),
     ),
     platformSettings,
+    instances: new InstanceService(
+      new PostgresInstanceRepository(database.pool),
+      instanceLeasePolicy(process.env),
+    ),
   }
 
   const smtpHost = process.env.MAIL_SMTP_HOST
@@ -257,3 +263,25 @@ export default defineNitroPlugin(async (nitroApp) => {
     await database.pool.end()
   })
 })
+
+function instanceLeasePolicy(environment: NodeJS.ProcessEnv) {
+  return {
+    initialDurationMs: positiveMinutes(environment.INSTANCE_LEASE_DURATION_MINUTES, 60) * 60_000,
+    extensionDurationMs: positiveMinutes(environment.INSTANCE_EXTENSION_DURATION_MINUTES, 30) * 60_000,
+    renewalWindowMs: positiveMinutes(environment.INSTANCE_RENEWAL_WINDOW_MINUTES, 10) * 60_000,
+    teamActiveLimit: positiveInteger(environment.INSTANCE_TEAM_ACTIVE_LIMIT, 1),
+  }
+}
+
+function positiveMinutes(value: string | undefined, fallback: number) {
+  return positiveInteger(value, fallback)
+}
+
+function positiveInteger(value: string | undefined, fallback: number) {
+  if (value === undefined || value === '') return fallback
+  const parsed = Number(value)
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new TypeError('实例租约配置必须是正整数')
+  }
+  return parsed
+}

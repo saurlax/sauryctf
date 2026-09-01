@@ -17,6 +17,7 @@ import type { ContentDownloadService } from './domains/content/download-service'
 import type { WriteupService } from './domains/writeups/service'
 import type { ContestPackageService } from './domains/contest-packages/service'
 import type { PlatformSettingsService } from './domains/platform-settings/service'
+import type { InstanceService } from './domains/instances/service'
 
 export interface ControlPlaneServices {
   identity: IdentityService
@@ -38,4 +39,5 @@ export interface ControlPlaneServices {
   writeups: WriteupService
   contestPackages: ContestPackageService
   platformSettings: PlatformSettingsService
+  instances: InstanceService
 }

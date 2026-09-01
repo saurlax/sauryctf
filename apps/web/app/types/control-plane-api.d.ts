@@ -148,6 +148,14 @@ export interface paths {
   "/api/contests/{contestId}/challenges/{challengeId}": {
     get: operations["getPlayerContestChallenge"];
   };
+  "/api/contests/{contestId}/challenges/{challengeId}/instance": {
+    get: operations["getPlayerContestChallengeInstance"];
+    post: operations["startPlayerContestChallengeInstance"];
+    delete: operations["destroyPlayerContestChallengeInstance"];
+  };
+  "/api/contests/{contestId}/challenges/{challengeId}/instance/renew": {
+    post: operations["renewPlayerContestChallengeInstance"];
+  };
   "/api/contests/{contestId}/challenges/{challengeId}/submissions": {
     post: operations["submitContestChallengeFlag"];
   };
@@ -4164,6 +4172,332 @@ export interface operations {
       };
       /** @description Stable API error */
       404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  getPlayerContestChallengeInstance: {
+    parameters: {
+      path: {
+        contestId: string;
+        challengeId: string;
+      };
+    };
+    responses: {
+      /** @description Authoritative instance state with entrypoints only after the current generation is ready */
+      200: {
+        content: {
+          "application/json": {
+            instance: ({
+              id: string;
+              contest_id: string;
+              contest_challenge_id: string;
+              participation_id: string;
+              /** @enum {string} */
+              provider: "docker" | "kubernetes";
+              /** @enum {string} */
+              state: "pending" | "starting" | "running" | "stopping" | "stopped" | "expired" | "failed" | "unknown";
+              desired_generation: number;
+              observed_generation: number;
+              expires_at: string | null;
+              renewable_at: string | null;
+              can_renew: boolean;
+              entrypoints: ({
+                  name: string;
+                  /** @enum {string} */
+                  protocol: "http" | "tcp";
+                  host: string;
+                  port: number;
+                  /** @default null */
+                  url: string | null;
+                })[];
+              last_observed_at: string | null;
+              error: {
+                code: string;
+                message: string;
+              } | null;
+              version: number;
+            }) | null;
+            policy: {
+              initial_duration_seconds: number;
+              extension_duration_seconds: number;
+              renewal_window_seconds: number;
+              team_active_limit: number;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  startPlayerContestChallengeInstance: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+      path: {
+        contestId: string;
+        challengeId: string;
+      };
+    };
+    responses: {
+      /** @description Durable instance ensure command accepted; readiness remains observation-driven */
+      202: {
+        content: {
+          "application/json": {
+            instance: ({
+              id: string;
+              contest_id: string;
+              contest_challenge_id: string;
+              participation_id: string;
+              /** @enum {string} */
+              provider: "docker" | "kubernetes";
+              /** @enum {string} */
+              state: "pending" | "starting" | "running" | "stopping" | "stopped" | "expired" | "failed" | "unknown";
+              desired_generation: number;
+              observed_generation: number;
+              expires_at: string | null;
+              renewable_at: string | null;
+              can_renew: boolean;
+              entrypoints: ({
+                  name: string;
+                  /** @enum {string} */
+                  protocol: "http" | "tcp";
+                  host: string;
+                  port: number;
+                  /** @default null */
+                  url: string | null;
+                })[];
+              last_observed_at: string | null;
+              error: {
+                code: string;
+                message: string;
+              } | null;
+              version: number;
+            }) | null;
+            policy: {
+              initial_duration_seconds: number;
+              extension_duration_seconds: number;
+              renewal_window_seconds: number;
+              team_active_limit: number;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  destroyPlayerContestChallengeInstance: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+      path: {
+        contestId: string;
+        challengeId: string;
+      };
+    };
+    responses: {
+      /** @description Durable instance destroy command accepted */
+      202: {
+        content: {
+          "application/json": {
+            instance: ({
+              id: string;
+              contest_id: string;
+              contest_challenge_id: string;
+              participation_id: string;
+              /** @enum {string} */
+              provider: "docker" | "kubernetes";
+              /** @enum {string} */
+              state: "pending" | "starting" | "running" | "stopping" | "stopped" | "expired" | "failed" | "unknown";
+              desired_generation: number;
+              observed_generation: number;
+              expires_at: string | null;
+              renewable_at: string | null;
+              can_renew: boolean;
+              entrypoints: ({
+                  name: string;
+                  /** @enum {string} */
+                  protocol: "http" | "tcp";
+                  host: string;
+                  port: number;
+                  /** @default null */
+                  url: string | null;
+                })[];
+              last_observed_at: string | null;
+              error: {
+                code: string;
+                message: string;
+              } | null;
+              version: number;
+            }) | null;
+            policy: {
+              initial_duration_seconds: number;
+              extension_duration_seconds: number;
+              renewal_window_seconds: number;
+              team_active_limit: number;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  renewPlayerContestChallengeInstance: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+      path: {
+        contestId: string;
+        challengeId: string;
+      };
+    };
+    responses: {
+      /** @description Lease extension accepted inside the configured renewal window */
+      202: {
+        content: {
+          "application/json": {
+            instance: ({
+              id: string;
+              contest_id: string;
+              contest_challenge_id: string;
+              participation_id: string;
+              /** @enum {string} */
+              provider: "docker" | "kubernetes";
+              /** @enum {string} */
+              state: "pending" | "starting" | "running" | "stopping" | "stopped" | "expired" | "failed" | "unknown";
+              desired_generation: number;
+              observed_generation: number;
+              expires_at: string | null;
+              renewable_at: string | null;
+              can_renew: boolean;
+              entrypoints: ({
+                  name: string;
+                  /** @enum {string} */
+                  protocol: "http" | "tcp";
+                  host: string;
+                  port: number;
+                  /** @default null */
+                  url: string | null;
+                })[];
+              last_observed_at: string | null;
+              error: {
+                code: string;
+                message: string;
+              } | null;
+              version: number;
+            }) | null;
+            policy: {
+              initial_duration_seconds: number;
+              extension_duration_seconds: number;
+              renewal_window_seconds: number;
+              team_active_limit: number;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };
