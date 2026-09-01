@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.888.0",
+    "@aws-sdk/s3-request-presigner": "3.888.0",
     "@nuxt/ui": "^4.8.0",
     "drizzle-orm": "0.45.2",
     "h3": "1.15.11",

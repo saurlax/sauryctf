@@ -9,6 +9,7 @@ export const identityCapability = {
   teamWrite: 'team.write',
   contestRegister: 'contest.register',
   flagSubmit: 'flag.submit',
+  contentDownload: 'content.download',
   writeupWrite: 'writeup.write',
   instanceOperate: 'instance.operate',
   contestManage: 'contest.manage',
@@ -30,6 +31,7 @@ const playerCapabilities = [
   identityCapability.teamWrite,
   identityCapability.contestRegister,
   identityCapability.flagSubmit,
+  identityCapability.contentDownload,
   identityCapability.writeupWrite,
   identityCapability.instanceOperate,
 ] as const

@@ -188,6 +188,12 @@ export interface paths {
   "/api/content/uploads/{contentObjectId}/commit": {
     post: operations["commitContentUpload"];
   };
+  "/api/content/challenge-assets/{assetId}/download": {
+    get: operations["downloadChallengeAsset"];
+  };
+  "/api/content/writeup-attachments/{referenceId}/download": {
+    get: operations["downloadWriteupAttachment"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -5155,6 +5161,102 @@ export interface operations {
       };
       /** @description Stable API error */
       409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  downloadChallengeAsset: {
+    parameters: {
+      path: {
+        assetId: string;
+      };
+    };
+    responses: {
+      /** @description Short-lived authorized challenge attachment download grant */
+      200: {
+        content: {
+          "application/json": {
+            /** Format: uri */
+            url: string;
+            /** Format: date-time */
+            expires_at: string;
+            /** @enum {string} */
+            disposition: "inline" | "attachment";
+            filename: string;
+            media_type: string;
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  downloadWriteupAttachment: {
+    parameters: {
+      path: {
+        referenceId: string;
+      };
+    };
+    responses: {
+      /** @description Short-lived authorized Writeup attachment download grant */
+      200: {
+        content: {
+          "application/json": {
+            /** Format: uri */
+            url: string;
+            /** Format: date-time */
+            expires_at: string;
+            /** @enum {string} */
+            disposition: "inline" | "attachment";
+            filename: string;
+            media_type: string;
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };

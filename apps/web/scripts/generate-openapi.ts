@@ -101,6 +101,7 @@ import {
 } from '../shared/contracts/public-realtime'
 import {
   commitContentUploadRequestSchema,
+  contentDownloadResponseSchema,
   contentObjectResponseSchema,
 } from '../shared/contracts/content'
 
@@ -712,6 +713,40 @@ const document = {
           403: errorResponse,
           404: errorResponse,
           409: errorResponse,
+        },
+      },
+    },
+    '/api/content/challenge-assets/{assetId}/download': {
+      get: {
+        operationId: 'downloadChallengeAsset',
+        tags: ['Content'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'assetId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        ],
+        responses: {
+          200: jsonResponse('Short-lived authorized challenge attachment download grant', contentDownloadResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+        },
+      },
+    },
+    '/api/content/writeup-attachments/{referenceId}/download': {
+      get: {
+        operationId: 'downloadWriteupAttachment',
+        tags: ['Content'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'referenceId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        ],
+        responses: {
+          200: jsonResponse('Short-lived authorized Writeup attachment download grant', contentDownloadResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
         },
       },
     },

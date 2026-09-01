@@ -1,9 +1,15 @@
 import type { H3Event } from 'h3'
-import { getHeader, setResponseStatus } from 'h3'
+import { getHeader, setResponseHeader, setResponseStatus } from 'h3'
 import {
   commitContentUploadRequestSchema,
+  contentDownloadResponseSchema,
   contentObjectResponseSchema,
 } from '../../../shared/contracts/content'
+import { uuidSchema } from '../../../shared/contracts/common-types'
+import {
+  ContentDownloadServiceError,
+  type ContentDownloadService,
+} from '../../domains/content/download-service'
 import {
   ContentObjectServiceError,
   maximumContentObjectBytes,
@@ -20,11 +26,17 @@ import { readValidatedJsonBody } from '../http/body'
 import { createApiError } from '../http/errors'
 
 type ContentCommands = Pick<ContentObjectService, 'uploadTemporary' | 'commitTemporary'>
+type ContentDownloadCommands = Pick<ContentDownloadService, 'challengeAsset' | 'writeupAttachment'>
 
 export interface ContentHttpDependencies {
   identity: IdentityHttpDependencies
   content: ContentCommands
   readUpload(event: H3Event): Promise<Uint8Array>
+}
+
+export interface ContentDownloadHttpDependencies {
+  identity: IdentityHttpDependencies
+  downloads: ContentDownloadCommands
 }
 
 export function contentHttpDependencies(event: H3Event): ContentHttpDependencies {
@@ -35,6 +47,16 @@ export function contentHttpDependencies(event: H3Event): ContentHttpDependencies
     identity: identityHttpDependencies(event),
     content: event.context.services.content,
     readUpload: readLimitedUpload,
+  }
+}
+
+export function contentDownloadHttpDependencies(event: H3Event): ContentDownloadHttpDependencies {
+  if (!event.context.services) {
+    throw createApiError(503, 'platform.not_ready', '控制面内容服务尚未就绪')
+  }
+  return {
+    identity: identityHttpDependencies(event),
+    downloads: event.context.services.contentDownloads,
   }
 }
 
@@ -82,6 +104,36 @@ export async function handleCommitContentUpload(
   )))
 }
 
+export async function handleChallengeAssetDownload(
+  event: H3Event,
+  assetId: string,
+  dependencies = contentDownloadHttpDependencies(event),
+) {
+  const context = await requireProtectedCapability(
+    event,
+    identityCapability.contentDownload,
+    dependencies.identity,
+  )
+  return downloadResponse(event, await runContentDownload(() => (
+    dependencies.downloads.challengeAsset(context.subject, pathId(assetId))
+  )))
+}
+
+export async function handleWriteupAttachmentDownload(
+  event: H3Event,
+  referenceId: string,
+  dependencies = contentDownloadHttpDependencies(event),
+) {
+  const context = await requireProtectedCapability(
+    event,
+    identityCapability.contentDownload,
+    dependencies.identity,
+  )
+  return downloadResponse(event, await runContentDownload(() => (
+    dependencies.downloads.writeupAttachment(context.subject, pathId(referenceId))
+  )))
+}
+
 export async function readLimitedUpload(event: H3Event): Promise<Uint8Array> {
   const declaredLength = getHeader(event, 'content-length')
   if (declaredLength) {
@@ -126,6 +178,37 @@ async function runContentOperation<T>(operation: () => Promise<T>): Promise<T> {
     }[error.code]
     throw createApiError(statusCode, error.code, error.message)
   }
+}
+
+async function runContentDownload<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation()
+  }
+  catch (error) {
+    if (!(error instanceof ContentDownloadServiceError)) throw error
+    throw createApiError(404, error.code, error.message)
+  }
+}
+
+function pathId(value: string): string {
+  const parsed = uuidSchema.safeParse(value)
+  if (!parsed.success) {
+    throw createApiError(400, 'validation.failed', '路径参数无效', {
+      id: ['必须是有效 UUID'],
+    })
+  }
+  return parsed.data
+}
+
+function downloadResponse(event: H3Event, grant: Awaited<ReturnType<ContentDownloadService['challengeAsset']>>) {
+  setResponseHeader(event, 'cache-control', 'private, no-store')
+  return contentDownloadResponseSchema.parse({
+    url: grant.url,
+    expires_at: grant.expiresAt.toISOString(),
+    disposition: grant.disposition,
+    filename: grant.filename,
+    media_type: grant.mediaType,
+  })
 }
 
 function response(content: ContentObject) {

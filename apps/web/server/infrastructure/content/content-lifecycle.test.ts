@@ -95,6 +95,18 @@ describeWithDependencies('PostgreSQL and S3 content lifecycle', () => {
     expect(committed.status).toBe('committed')
     expect(Buffer.from((await restartedStore.read(committed.storageKey))!)).toEqual(body)
 
+    const signedUrl = await restartedStore.signDownloadUrl({
+      storageKey: committed.storageKey,
+      contentDisposition: 'attachment; filename="restart.bin"',
+      responseMediaType: 'application/octet-stream',
+      expiresInSeconds: 60,
+    })
+    const downloaded = await fetch(signedUrl)
+    expect(downloaded.status).toBe(200)
+    expect(downloaded.headers.get('content-disposition')).toBe('attachment; filename="restart.bin"')
+    expect(downloaded.headers.get('content-type')).toBe('application/octet-stream')
+    expect(Buffer.from(await downloaded.arrayBuffer())).toEqual(body)
+
     const redundantKey = `temporary/${randomUUID()}`
     const deduplicatingService = new ContentObjectService(
       new PostgresContentObjectRepository(database.pool),

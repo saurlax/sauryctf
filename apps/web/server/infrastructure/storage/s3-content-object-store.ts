@@ -5,6 +5,10 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import type {
+  ContentDownloadUrlSigner,
+} from '../../domains/content/download-service'
 import type {
   ContentObjectStore,
   StoredContentObject,
@@ -19,7 +23,7 @@ export interface S3ContentObjectStoreConfig {
   forcePathStyle: boolean
 }
 
-export class S3ContentObjectStore implements ContentObjectStore {
+export class S3ContentObjectStore implements ContentObjectStore, ContentDownloadUrlSigner {
   private readonly client: S3Client
 
   constructor(private readonly config: S3ContentObjectStoreConfig) {
@@ -94,6 +98,20 @@ export class S3ContentObjectStore implements ContentObjectStore {
       Bucket: this.config.bucket,
       Key: storageKey,
     }))
+  }
+
+  async signDownloadUrl(input: {
+    storageKey: string
+    contentDisposition: string
+    responseMediaType: string
+    expiresInSeconds: number
+  }): Promise<string> {
+    return getSignedUrl(this.client, new GetObjectCommand({
+      Bucket: this.config.bucket,
+      Key: input.storageKey,
+      ResponseContentDisposition: input.contentDisposition,
+      ResponseContentType: input.responseMediaType,
+    }), { expiresIn: input.expiresInSeconds })
   }
 
   close(): void {

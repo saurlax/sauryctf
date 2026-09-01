@@ -45,7 +45,9 @@ import { PostgresDomainOutboxRepository } from '../infrastructure/db/domain-outb
 import { RedisDomainEventPublisher } from '../infrastructure/events/redis-domain-event-publisher'
 import { RedisPublicRealtimeLog } from '../infrastructure/events/redis-public-realtime-log'
 import { ContentObjectService } from '../domains/content/service'
+import { ContentDownloadService } from '../domains/content/download-service'
 import { PostgresContentObjectRepository } from '../infrastructure/db/content-object-repository'
+import { PostgresContentDownloadRepository } from '../infrastructure/db/content-download-repository'
 import { S3ContentObjectStore } from '../infrastructure/storage/s3-content-object-store'
 
 export default defineNitroPlugin(async (nitroApp) => {
@@ -125,6 +127,10 @@ export default defineNitroPlugin(async (nitroApp) => {
     ),
     publicRealtime,
     content,
+    contentDownloads: new ContentDownloadService(
+      new PostgresContentDownloadRepository(database.pool),
+      contentStore,
+    ),
   }
 
   const smtpHost = process.env.MAIL_SMTP_HOST

@@ -6,6 +6,7 @@ import {
   maximumContentObjectBytes,
   type ContentObject,
 } from '../../domains/content/service'
+import { ContentDownloadServiceError } from '../../domains/content/download-service'
 import { DisabledHumanVerificationProvider } from '../../domains/identity/human-verification'
 import type { SessionSubject } from '../../domains/identity/repository'
 import { normalizeApiError } from '../http/errors'
@@ -13,7 +14,10 @@ import { MemoryRateLimitStore } from '../security/rate-limit'
 import {
   handleCommitContentUpload,
   handleCreateContentUpload,
+  handleChallengeAssetDownload,
+  handleWriteupAttachmentDownload,
   readLimitedUpload,
+  type ContentDownloadHttpDependencies,
   type ContentHttpDependencies,
 } from './content-http'
 
@@ -67,6 +71,31 @@ function dependencies(overrides: Partial<ContentHttpDependencies['content']> = {
       ...overrides,
     },
     readUpload: vi.fn(async () => Buffer.from('content')),
+  }
+}
+
+function downloadDependencies(
+  overrides: Partial<ContentDownloadHttpDependencies['downloads']> = {},
+): ContentDownloadHttpDependencies {
+  return {
+    identity: dependencies().identity,
+    downloads: {
+      challengeAsset: vi.fn(async () => ({
+        url: 'https://objects.example.test/challenge-download',
+        expiresAt: new Date('2026-09-02T04:01:00.000Z'),
+        disposition: 'attachment' as const,
+        filename: 'challenge.zip',
+        mediaType: 'application/zip',
+      })),
+      writeupAttachment: vi.fn(async () => ({
+        url: 'https://objects.example.test/writeup-download',
+        expiresAt: new Date('2026-09-02T04:01:00.000Z'),
+        disposition: 'inline' as const,
+        filename: 'proof.png',
+        mediaType: 'image/png',
+      })),
+      ...overrides,
+    },
   }
 }
 
@@ -174,5 +203,51 @@ describe('content HTTP adapters', () => {
     )
     expect(rejected.status).toBe(409)
     await expect(rejected.json()).resolves.toMatchObject({ error: { code: 'content.digest_mismatch' } })
+  })
+
+  it('returns short-lived grants for challenge and Writeup attachment routes', async () => {
+    const deps = downloadDependencies()
+    const challenge = await invoke(
+      event => handleChallengeAssetDownload(event, objectId, deps),
+      new Request(`https://ctf.example.test/api/content/challenge-assets/${objectId}/download`),
+    )
+    expect(challenge.status).toBe(200)
+    expect(challenge.headers.get('cache-control')).toBe('private, no-store')
+    await expect(challenge.json()).resolves.toEqual({
+      url: 'https://objects.example.test/challenge-download',
+      expires_at: '2026-09-02T04:01:00.000Z',
+      disposition: 'attachment',
+      filename: 'challenge.zip',
+      media_type: 'application/zip',
+    })
+    expect(deps.downloads.challengeAsset).toHaveBeenCalledWith(subject, objectId)
+
+    const writeup = await invoke(
+      event => handleWriteupAttachmentDownload(event, objectId, deps),
+      new Request(`https://ctf.example.test/api/content/writeup-attachments/${objectId}/download`),
+    )
+    expect(writeup.status).toBe(200)
+    await expect(writeup.json()).resolves.toMatchObject({
+      disposition: 'inline',
+      filename: 'proof.png',
+      media_type: 'image/png',
+    })
+    expect(deps.downloads.writeupAttachment).toHaveBeenCalledWith(subject, objectId)
+  })
+
+  it('uses one not-found response for absent and unauthorized downloads', async () => {
+    const deps = downloadDependencies({
+      challengeAsset: vi.fn(async () => {
+        throw new ContentDownloadServiceError('content.download_not_found')
+      }),
+    })
+    const response = await invoke(
+      event => handleChallengeAssetDownload(event, objectId, deps),
+      new Request(`https://ctf.example.test/api/content/challenge-assets/${objectId}/download`),
+    )
+    expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'content.download_not_found' },
+    })
   })
 })

@@ -17,4 +17,13 @@ export const commitContentUploadRequestSchema = z.strictObject({
   sha256: z.string().regex(/^[a-f0-9]{64}$/u, '必须提交 SHA-256 十六进制摘要'),
 })
 
+export const contentDownloadResponseSchema = z.strictObject({
+  url: z.url(),
+  expires_at: z.iso.datetime({ offset: true }),
+  disposition: z.enum(['inline', 'attachment']),
+  filename: z.string().min(1).max(255),
+  media_type: z.string().min(3).max(255),
+})
+
 export type ContentObjectResponse = z.infer<typeof contentObjectResponseSchema>
+export type ContentDownloadResponse = z.infer<typeof contentDownloadResponseSchema>

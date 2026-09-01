@@ -33,6 +33,7 @@ describe('unverified identity capability gate', () => {
     identityCapability.teamWrite,
     identityCapability.contestRegister,
     identityCapability.flagSubmit,
+    identityCapability.contentDownload,
     identityCapability.writeupWrite,
     identityCapability.instanceOperate,
     identityCapability.contestManage,
