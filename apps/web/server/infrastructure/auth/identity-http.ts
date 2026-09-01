@@ -22,6 +22,7 @@ import {
   userStatusChangedSchema,
 } from '../../../shared/contracts/identity'
 import type { AuthSessionData } from '../../../shared/contracts/auth-session'
+import { requestIdSchema } from '../../../shared/contracts/http'
 import {
   IdentityCapabilityError,
   type IdentityCapability,
@@ -226,8 +227,12 @@ export async function handleChangeUserStatus(
   const input = await readValidatedJsonBody(event, changeUserStatusRequestSchema)
   const result = await runIdentityOperation(() => dependencies.identity.changeUserStatus(
     context.subject,
-    targetUserId,
-    input.status,
+    {
+      targetUserId,
+      status: input.status,
+      reason: input.reason,
+      requestId: requestIdSchema.parse(event.context.requestId),
+    },
   ))
   return userStatusChangedSchema.parse({
     user_id: result.userId,
@@ -247,8 +252,12 @@ export async function handleChangeGlobalRole(
   const input = await readValidatedJsonBody(event, changeGlobalRoleRequestSchema)
   const result = await runIdentityOperation(() => dependencies.identity.changeGlobalRole(
     context.subject,
-    targetUserId,
-    input.role,
+    {
+      targetUserId,
+      role: input.role,
+      reason: input.reason,
+      requestId: requestIdSchema.parse(event.context.requestId),
+    },
   ))
   return globalRoleChangedSchema.parse({
     user_id: result.userId,

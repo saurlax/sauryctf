@@ -34,6 +34,7 @@ import {
 const adminConnectionString = process.env.TEST_DATABASE_ADMIN_URL
 const describeWithPostgres = adminConnectionString ? describe : describe.skip
 const databaseName = `sauryctf_test_${randomUUID().replaceAll('-', '')}`
+const requestId = '018f47a2-4ef8-7e2c-9c24-6d68b7451e2e'
 
 const testPasswordHasher: PasswordHasher = {
   async hash(password) {
@@ -83,11 +84,12 @@ async function request(
 ): Promise<Response> {
   const app = createApp()
   app.use(eventHandler(async (event) => {
+    event.context.requestId = requestId
     try {
       return await handler(event, dependencies)
     }
     catch (error) {
-      const normalized = normalizeApiError(error, '018f47a2-4ef8-7e2c-9c24-6d68b7451e2e')
+      const normalized = normalizeApiError(error, requestId)
       setResponseStatus(event, normalized.statusCode)
       return normalized.body
     }
@@ -215,15 +217,34 @@ describeWithPostgres('identity HTTP to PostgreSQL flow', () => {
     const role = await request(
       (event, deps) => handleChangeGlobalRole(event, deps, playerId),
       adminDependencies,
-      { body: { role: 'organizer' } },
+      { body: { role: 'organizer', reason: 'Assign contest operations' } },
     )
     expect(role.status).toBe(200)
     const banned = await request(
       (event, deps) => handleChangeUserStatus(event, deps, playerId),
       adminDependencies,
-      { body: { status: 'banned' } },
+      { body: { status: 'banned', reason: 'Confirmed account abuse' } },
     )
     expect(banned.status).toBe(200)
+    const audits = await database.pool.query<{ action: string, actor_user_id: string, reason: string }>(
+      `SELECT action, actor_user_id, reason
+       FROM audit_events
+       WHERE request_id = $1 AND target_id = $2
+       ORDER BY action`,
+      [requestId, playerId],
+    )
+    expect(audits.rows).toEqual([
+      {
+        action: 'identity.role_changed',
+        actor_user_id: adminIdentity.userId,
+        reason: 'Assign contest operations',
+      },
+      {
+        action: 'identity.status_changed',
+        actor_user_id: adminIdentity.userId,
+        reason: 'Confirmed account abuse',
+      },
+    ])
 
     playerJar.set(activePlayerSession)
     const revoked = await request(handleCurrentIdentity, player, { method: 'GET' })

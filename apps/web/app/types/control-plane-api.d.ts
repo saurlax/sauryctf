@@ -787,6 +787,7 @@ export interface operations {
         "application/json": {
           /** @enum {string} */
           role: "user" | "organizer" | "admin";
+          reason: string;
         };
       };
     };
@@ -896,6 +897,7 @@ export interface operations {
         "application/json": {
           /** @enum {string} */
           status: "active" | "banned";
+          reason: string;
         };
       };
     };

@@ -650,8 +650,13 @@ paths:
                     - user
                     - organizer
                     - admin
+                reason:
+                  type: string
+                  minLength: 3
+                  maxLength: 1000
               required:
                 - role
+                - reason
               additionalProperties: false
       responses:
         "200":
@@ -840,8 +845,13 @@ paths:
                   enum:
                     - active
                     - banned
+                reason:
+                  type: string
+                  minLength: 3
+                  maxLength: 1000
               required:
                 - status
+                - reason
               additionalProperties: false
       responses:
         "200":

@@ -60,8 +60,12 @@ describe('password reset anti-enumeration response', () => {
 
   it('accepts only the three global roles and returns the invalidated session version', () => {
     expect(globalRoleSchema.options).toEqual(['user', 'organizer', 'admin'])
-    expect(changeGlobalRoleRequestSchema.parse({ role: 'organizer' })).toEqual({ role: 'organizer' })
-    expect(() => changeGlobalRoleRequestSchema.parse({ role: 'judge' })).toThrow()
+    expect(changeGlobalRoleRequestSchema.parse({
+      role: 'organizer',
+      reason: 'Assign contest operations',
+    })).toEqual({ role: 'organizer', reason: 'Assign contest operations' })
+    expect(() => changeGlobalRoleRequestSchema.parse({ role: 'organizer' })).toThrow()
+    expect(() => changeGlobalRoleRequestSchema.parse({ role: 'judge', reason: 'Invalid legacy role' })).toThrow()
     expect(globalRoleChangedSchema.parse({
       user_id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f2d',
       previous_role: 'user',
@@ -80,7 +84,11 @@ describe('password reset anti-enumeration response', () => {
     expect(loginIdentityRequestSchema.parse({ identifier: 'PlayerOne', password: 'password value' }))
       .toMatchObject({ identifier: 'PlayerOne' })
     expect(managedUserStatusSchema.options).toEqual(['active', 'banned'])
-    expect(changeUserStatusRequestSchema.parse({ status: 'banned' })).toEqual({ status: 'banned' })
+    expect(changeUserStatusRequestSchema.parse({
+      status: 'banned',
+      reason: 'Confirmed account abuse',
+    })).toEqual({ status: 'banned', reason: 'Confirmed account abuse' })
+    expect(() => changeUserStatusRequestSchema.parse({ status: 'banned', reason: '  ' })).toThrow()
 
     const user = {
       id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f2d',

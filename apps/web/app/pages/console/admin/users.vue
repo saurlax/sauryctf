@@ -14,6 +14,7 @@ const loading = ref(true)
 const saving = ref(false)
 const confirmOpen = ref(false)
 const pending = ref<ManagedIdentity | null>(null)
+const managementReason = ref('')
 const keyword = ref('')
 const roleDrafts = reactive<Record<string, GlobalRole>>({})
 const statusDrafts = reactive<Record<string, ManagedUserStatus>>({})
@@ -51,6 +52,7 @@ const summary = computed(() => ({
   privileged: users.value.filter(user => user.role !== 'user').length,
   banned: users.value.filter(user => user.status === 'banned').length,
 }))
+const normalizedManagementReason = computed(() => managementReason.value.normalize('NFKC').trim())
 
 function syncDrafts() {
   for (const user of users.value) {
@@ -97,13 +99,20 @@ function openConfirm(user: ManagedIdentity) {
     syncDrafts()
     return
   }
+  managementReason.value = ''
   pending.value = user
   confirmOpen.value = true
 }
 
+function resetConfirmation() {
+  pending.value = null
+  managementReason.value = ''
+}
+
 async function saveUser() {
   const user = pending.value
-  if (!user) return
+  const reason = normalizedManagementReason.value
+  if (!user || reason.length < 3) return
   saving.value = true
   try {
     const nextRole = roleDrafts[user.id] ?? user.role
@@ -112,20 +121,20 @@ async function saveUser() {
     if (nextRole !== user.role) {
       const result = await $controlApi('patch', '/api/admin/users/{userId}/role', {
         params: { userId: user.id },
-        body: { role: nextRole },
+        body: { role: nextRole, reason },
       })
       sessionVersion = result.session_version
     }
     if (nextStatus !== user.status) {
       const result = await $controlApi('patch', '/api/admin/users/{userId}/status', {
         params: { userId: user.id },
-        body: { status: nextStatus },
+        body: { status: nextStatus, reason },
       })
       sessionVersion = result.session_version
     }
     Object.assign(user, { role: nextRole, status: nextStatus, session_version: sessionVersion })
     confirmOpen.value = false
-    pending.value = null
+    resetConfirmation()
     toast.add({ title: '用户权限已更新', description: '目标用户的旧登录状态已失效。', color: 'success' })
   }
   catch (error) {
@@ -138,7 +147,7 @@ async function saveUser() {
 }
 
 watch(confirmOpen, (open) => {
-  if (!open && !saving.value) pending.value = null
+  if (!open && !saving.value) resetConfirmation()
 })
 
 onMounted(loadUsers)
@@ -191,15 +200,20 @@ onMounted(loadUsers)
 
     <UModal v-model:open="confirmOpen" title="确认账号调整" description="角色或状态变化会递增 Session 版本，使目标账号的全部旧 Cookie 失效。" :dismissible="!saving" :ui="{ footer: 'justify-end' }">
       <template #body>
-        <div v-if="pending" class="space-y-2 rounded-lg border border-default p-4 text-sm">
-          <div class="flex justify-between gap-4"><span class="text-muted">用户</span><span>{{ pending.username }}</span></div>
-          <div class="flex justify-between gap-4"><span class="text-muted">角色</span><span>{{ pending.role }} → {{ roleDrafts[pending.id] }}</span></div>
-          <div class="flex justify-between gap-4"><span class="text-muted">状态</span><span>{{ pending.status }} → {{ statusDrafts[pending.id] }}</span></div>
+        <div v-if="pending" class="space-y-4">
+          <div class="space-y-2 rounded-lg border border-default p-4 text-sm">
+            <div class="flex justify-between gap-4"><span class="text-muted">用户</span><span>{{ pending.username }}</span></div>
+            <div class="flex justify-between gap-4"><span class="text-muted">角色</span><span>{{ pending.role }} → {{ roleDrafts[pending.id] }}</span></div>
+            <div class="flex justify-between gap-4"><span class="text-muted">状态</span><span>{{ pending.status }} → {{ statusDrafts[pending.id] }}</span></div>
+          </div>
+          <UFormField label="变更原因" description="原因将写入不可变审计记录。" required>
+            <UTextarea v-model="managementReason" :rows="3" :maxlength="1000" placeholder="说明本次角色或状态调整的依据" class="w-full" />
+          </UFormField>
         </div>
       </template>
       <template #footer>
         <UButton color="neutral" variant="outline" :disabled="saving" @click="() => { confirmOpen = false }">取消</UButton>
-        <UButton :loading="saving" @click="saveUser">确认保存</UButton>
+        <UButton :loading="saving" :disabled="normalizedManagementReason.length < 3" @click="saveUser">确认保存</UButton>
       </template>
     </UModal>
   </div>

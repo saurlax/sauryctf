@@ -18,6 +18,7 @@ import {
   handleChangeEmail,
   handleChangeGlobalRole,
   handleChangePassword,
+  handleChangeUserStatus,
   handleEmailVerificationConfirm,
   handleEmailVerificationRequest,
   handlePasswordResetConfirm,
@@ -62,17 +63,17 @@ function createDependencies(overrides: Partial<IdentityHttpDependencies['identit
         authoritativeVersion += 1
         return { userId, sessionVersion: authoritativeVersion }
       }),
-      changeGlobalRole: vi.fn(async (_actor, targetUserId, role) => ({
-        userId: targetUserId,
+      changeGlobalRole: vi.fn(async (_actor, input) => ({
+        userId: input.targetUserId,
         previousRole: 'user' as const,
-        role,
+        role: input.role,
         sessionVersion: 2,
         changed: true,
       })),
-      changeUserStatus: vi.fn(async (_actor, targetUserId, status) => ({
-        userId: targetUserId,
+      changeUserStatus: vi.fn(async (_actor, input) => ({
+        userId: input.targetUserId,
         previousStatus: 'active' as const,
-        status,
+        status: input.status,
         sessionVersion: 2,
         changed: true,
       })),
@@ -124,6 +125,7 @@ async function invoke(
 ): Promise<Response> {
   const app = createApp()
   app.use(eventHandler(async (event) => {
+    event.context.requestId = requestId
     try {
       return await handler(event, dependencies)
     }
@@ -317,7 +319,7 @@ describe('identity HTTP adapters', () => {
     const response = await invoke(
       (event, deps) => handleChangeGlobalRole(event, deps, '018f47a2-4ef8-7e2c-9c24-6d68b7451f30'),
       dependencies,
-      { role: 'organizer' },
+      { role: 'organizer', reason: 'Adjust global responsibilities' },
     )
 
     expect(response.status).toBe(403)
@@ -334,7 +336,7 @@ describe('identity HTTP adapters', () => {
     const response = await invoke(
       (event, deps) => handleChangeGlobalRole(event, deps, targetUserId),
       dependencies,
-      { role: 'organizer' },
+      { role: 'organizer', reason: 'Assign contest operations' },
     )
 
     expect(response.status).toBe(200)
@@ -347,8 +349,69 @@ describe('identity HTTP adapters', () => {
     })
     expect(dependencies.identity.changeGlobalRole).toHaveBeenCalledWith(
       expect.objectContaining({ role: 'admin' }),
-      targetUserId,
-      'organizer',
+      {
+        targetUserId,
+        role: 'organizer',
+        reason: 'Assign contest operations',
+        requestId,
+      },
+    )
+  })
+
+  it.each([
+    {
+      name: 'role',
+      handler: (event: H3Event, deps: IdentityHttpDependencies) => handleChangeGlobalRole(
+        event,
+        deps,
+        '018f47a2-4ef8-7e2c-9c24-6d68b7451f30',
+      ),
+      body: { role: 'organizer' },
+      method: 'changeGlobalRole' as const,
+    },
+    {
+      name: 'status',
+      handler: (event: H3Event, deps: IdentityHttpDependencies) => handleChangeUserStatus(
+        event,
+        deps,
+        '018f47a2-4ef8-7e2c-9c24-6d68b7451f30',
+      ),
+      body: { status: 'banned' },
+      method: 'changeUserStatus' as const,
+    },
+  ])('rejects an admin $name change without a management reason', async ({ handler, body, method }) => {
+    const { dependencies } = createDependencies()
+    dependencies.sessions.validate = vi.fn(async () => ({ ...verifiedSubject, role: 'admin' as const }))
+
+    const response = await invoke(handler, dependencies, body)
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'validation.failed', request_id: requestId },
+    })
+    expect(dependencies.identity[method]).not.toHaveBeenCalled()
+  })
+
+  it('passes the actor, reason, and request id to a status change', async () => {
+    const { dependencies } = createDependencies()
+    dependencies.sessions.validate = vi.fn(async () => ({ ...verifiedSubject, role: 'admin' as const }))
+    const targetUserId = '018f47a2-4ef8-7e2c-9c24-6d68b7451f30'
+
+    const response = await invoke(
+      (event, deps) => handleChangeUserStatus(event, deps, targetUserId),
+      dependencies,
+      { status: 'banned', reason: 'Confirmed account abuse' },
+    )
+
+    expect(response.status).toBe(200)
+    expect(dependencies.identity.changeUserStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'admin' }),
+      {
+        targetUserId,
+        status: 'banned',
+        reason: 'Confirmed account abuse',
+        requestId,
+      },
     )
   })
 })

@@ -47,6 +47,7 @@ export type IdentityServiceErrorCode =
   | 'identity.conflict'
   | 'identity.invalid_credentials'
   | 'identity.not_found'
+  | 'identity.management_reason_required'
   | 'identity.password_unchanged'
   | 'identity.registration_disabled'
   | 'identity.self_management_forbidden'
@@ -58,6 +59,7 @@ export class IdentityServiceError extends Error {
       'identity.conflict': '账号标识已被使用',
       'identity.invalid_credentials': '账号或密码错误',
       'identity.not_found': '账号不存在',
+      'identity.management_reason_required': '用户管理变更必须填写原因',
       'identity.password_unchanged': '密码已被其他请求修改，请重新登录',
       'identity.registration_disabled': '平台当前未开放公开注册',
       'identity.self_management_forbidden': '不能在用户管理中修改当前账号',
@@ -257,15 +259,22 @@ export class IdentityService {
 
   async changeGlobalRole(
     actor: SessionSubject,
-    targetUserId: string,
-    role: GlobalRole,
+    input: { targetUserId: string, role: GlobalRole, reason: string, requestId: string },
   ): Promise<GlobalRoleMutationResult> {
     requireIdentityCapability(actor, identityCapability.roleManage)
-    if (actor.userId === targetUserId) {
+    if (actor.userId === input.targetUserId) {
       throw new IdentityServiceError('identity.self_management_forbidden')
     }
+    const reason = this.managementReason(input.reason)
     try {
-      return await this.repository.changeGlobalRole(targetUserId, role, this.now())
+      return await this.repository.changeGlobalRole({
+        actorId: actor.userId,
+        targetUserId: input.targetUserId,
+        role: input.role,
+        reason,
+        requestId: input.requestId,
+        changedAt: this.now(),
+      })
     }
     catch (error) {
       if (error instanceof IdentityNotFoundError) throw new IdentityServiceError('identity.not_found')
@@ -284,15 +293,22 @@ export class IdentityService {
 
   async changeUserStatus(
     actor: SessionSubject,
-    targetUserId: string,
-    status: ManagedUserStatus,
+    input: { targetUserId: string, status: ManagedUserStatus, reason: string, requestId: string },
   ): Promise<UserStatusMutationResult> {
     requireIdentityCapability(actor, identityCapability.userManage)
-    if (actor.userId === targetUserId) {
+    if (actor.userId === input.targetUserId) {
       throw new IdentityServiceError('identity.self_management_forbidden')
     }
+    const reason = this.managementReason(input.reason)
     try {
-      return await this.repository.changeUserStatus(targetUserId, status, this.now())
+      return await this.repository.changeUserStatus({
+        actorId: actor.userId,
+        targetUserId: input.targetUserId,
+        status: input.status,
+        reason,
+        requestId: input.requestId,
+        changedAt: this.now(),
+      })
     }
     catch (error) {
       if (error instanceof IdentityNotFoundError) throw new IdentityServiceError('identity.not_found')
@@ -308,5 +324,11 @@ export class IdentityService {
   private requireMailTokenProtector(): IdentityMailTokenProtector {
     if (!this.mailTokens) throw new Error('Identity mail token protector is not configured')
     return this.mailTokens
+  }
+
+  private managementReason(reason: string) {
+    const normalized = reason.normalize('NFKC').trim()
+    if (normalized.length < 3) throw new IdentityServiceError('identity.management_reason_required')
+    return normalized
   }
 }

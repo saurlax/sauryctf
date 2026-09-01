@@ -98,6 +98,7 @@ export const adminUserListResponseSchema = z.strictObject({
 
 export const changeUserStatusRequestSchema = z.strictObject({
   status: managedUserStatusSchema,
+  reason: z.string().trim().min(3).max(1000),
 })
 
 export const userStatusChangedSchema = z.strictObject({
@@ -110,6 +111,7 @@ export const userStatusChangedSchema = z.strictObject({
 
 export const changeGlobalRoleRequestSchema = z.strictObject({
   role: globalRoleSchema,
+  reason: z.string().trim().min(3).max(1000),
 })
 
 export const globalRoleChangedSchema = z.strictObject({

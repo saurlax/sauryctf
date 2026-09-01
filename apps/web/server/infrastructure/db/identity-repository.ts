@@ -7,6 +7,8 @@ import {
   PublicRegistrationDisabledError,
   type GlobalRole,
   type GlobalRoleMutationResult,
+  type ChangeGlobalRoleCommand,
+  type ChangeUserStatusCommand,
   type ManagedIdentityPage,
   type ManagedUserStatus,
   type DefaultAdministratorBootstrapResult,
@@ -504,11 +506,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
     }
   }
 
-  async changeGlobalRole(
-    userId: string,
-    role: GlobalRole,
-    changedAt: Date,
-  ): Promise<GlobalRoleMutationResult> {
+  async changeGlobalRole(command: ChangeGlobalRoleCommand): Promise<GlobalRoleMutationResult> {
     const connection = await this.pool.connect()
     try {
       await connection.query('BEGIN')
@@ -522,17 +520,17 @@ export class PostgresIdentityRepository implements IdentityRepository {
          JOIN user_roles r ON r.user_id = u.id
          WHERE u.id = $1
          FOR UPDATE OF u, r`,
-        [userId],
+        [command.targetUserId],
       )
       const existing = current.rows[0]
       if (!existing) throw new IdentityNotFoundError()
 
-      if (existing.role === role) {
+      if (existing.role === command.role) {
         await connection.query('COMMIT')
         return {
-          userId,
+          userId: command.targetUserId,
           previousRole: existing.role,
-          role,
+          role: command.role,
           sessionVersion: Number(existing.session_version),
           changed: false,
         }
@@ -540,7 +538,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
 
       await connection.query(
         `UPDATE user_roles SET role = $2, updated_at = $3 WHERE user_id = $1`,
-        [userId, role, changedAt],
+        [command.targetUserId, command.role, command.changedAt],
       )
       const user = await connection.query<{ session_version: string }>(
         `UPDATE users
@@ -549,21 +547,35 @@ export class PostgresIdentityRepository implements IdentityRepository {
              updated_at = $2
          WHERE id = $1
          RETURNING session_version::text`,
-        [userId, changedAt],
+        [command.targetUserId, command.changedAt],
       )
       await this.appendSecurityEvent(connection, {
-        userId,
+        userId: command.targetUserId,
         recipientNormalized: existing.email_normalized,
         templateKey: 'identity.role_changed',
-        dedupeKey: `identity.role_changed:${userId}:${user.rows[0]!.session_version}`,
-        occurredAt: changedAt,
-        eventPayload: { previous_role: existing.role, role },
+        dedupeKey: `identity.role_changed:${command.targetUserId}:${user.rows[0]!.session_version}`,
+        occurredAt: command.changedAt,
+        eventPayload: { previous_role: existing.role, role: command.role },
+      })
+      await this.appendManagementAudit(connection, {
+        actorId: command.actorId,
+        action: 'identity.role_changed',
+        targetType: 'user_role',
+        targetId: command.targetUserId,
+        reason: command.reason,
+        requestId: command.requestId,
+        occurredAt: command.changedAt,
+        changes: {
+          previous_role: existing.role,
+          role: command.role,
+          session_version: Number(user.rows[0]!.session_version),
+        },
       })
       await connection.query('COMMIT')
       return {
-        userId,
+        userId: command.targetUserId,
         previousRole: existing.role,
-        role,
+        role: command.role,
         sessionVersion: Number(user.rows[0]!.session_version),
         changed: true,
       }
@@ -577,11 +589,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
     }
   }
 
-  async changeUserStatus(
-    userId: string,
-    status: ManagedUserStatus,
-    changedAt: Date,
-  ): Promise<UserStatusMutationResult> {
+  async changeUserStatus(command: ChangeUserStatusCommand): Promise<UserStatusMutationResult> {
     const connection = await this.pool.connect()
     try {
       await connection.query('BEGIN')
@@ -594,16 +602,16 @@ export class PostgresIdentityRepository implements IdentityRepository {
          FROM users
          WHERE id = $1 AND status <> 'deleted'
          FOR UPDATE`,
-        [userId],
+        [command.targetUserId],
       )
       const existing = current.rows[0]
       if (!existing) throw new IdentityNotFoundError()
-      if (existing.status === status) {
+      if (existing.status === command.status) {
         await connection.query('COMMIT')
         return {
-          userId,
+          userId: command.targetUserId,
           previousStatus: existing.status,
-          status,
+          status: command.status,
           sessionVersion: Number(existing.session_version),
           changed: false,
         }
@@ -617,21 +625,35 @@ export class PostgresIdentityRepository implements IdentityRepository {
              updated_at = $3
          WHERE id = $1
          RETURNING session_version::text`,
-        [userId, status, changedAt],
+        [command.targetUserId, command.status, command.changedAt],
       )
       await this.appendSecurityEvent(connection, {
-        userId,
+        userId: command.targetUserId,
         recipientNormalized: existing.email_normalized,
-        templateKey: status === 'banned' ? 'identity.account_banned' : 'identity.account_reactivated',
-        dedupeKey: `identity.account_status_changed:${userId}:${user.rows[0]!.session_version}`,
-        occurredAt: changedAt,
-        eventPayload: { previous_status: existing.status, status },
+        templateKey: command.status === 'banned' ? 'identity.account_banned' : 'identity.account_reactivated',
+        dedupeKey: `identity.account_status_changed:${command.targetUserId}:${user.rows[0]!.session_version}`,
+        occurredAt: command.changedAt,
+        eventPayload: { previous_status: existing.status, status: command.status },
+      })
+      await this.appendManagementAudit(connection, {
+        actorId: command.actorId,
+        action: 'identity.status_changed',
+        targetType: 'user',
+        targetId: command.targetUserId,
+        reason: command.reason,
+        requestId: command.requestId,
+        occurredAt: command.changedAt,
+        changes: {
+          previous_status: existing.status,
+          status: command.status,
+          session_version: Number(user.rows[0]!.session_version),
+        },
       })
       await connection.query('COMMIT')
       return {
-        userId,
+        userId: command.targetUserId,
         previousStatus: existing.status,
-        status,
+        status: command.status,
         sessionVersion: Number(user.rows[0]!.session_version),
         changed: true,
       }
@@ -643,6 +665,32 @@ export class PostgresIdentityRepository implements IdentityRepository {
     finally {
       connection.release()
     }
+  }
+
+  private async appendManagementAudit(connection: PoolClient, input: {
+    actorId: string
+    action: string
+    targetType: string
+    targetId: string
+    reason: string
+    requestId: string
+    changes: Record<string, unknown>
+    occurredAt: Date
+  }) {
+    await connection.query(`
+      INSERT INTO audit_events
+        (actor_user_id, action, target_type, target_id, reason,
+         outcome, request_id, changes, metadata, occurred_at)
+      VALUES ($1, $2, $3, $4, $5, 'succeeded', $6, $7, '{}'::jsonb, $8)`, [
+      input.actorId,
+      input.action,
+      input.targetType,
+      input.targetId,
+      input.reason,
+      input.requestId,
+      input.changes,
+      input.occurredAt,
+    ])
   }
 
   async changeEmail(

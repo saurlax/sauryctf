@@ -44,6 +44,7 @@ class TestScryptHasher implements PasswordHasher {
 describeWithPostgres('scrypt identity registration and login', () => {
   let admin: Client
   let database: DatabaseClient
+  let repository: PostgresIdentityRepository
   let service: IdentityService
   let hasher: TestScryptHasher
   let currentTime: Date
@@ -58,8 +59,9 @@ describeWithPostgres('scrypt identity registration and login', () => {
     await runMigrations(database)
     hasher = new TestScryptHasher()
     currentTime = new Date('2026-09-01T08:00:00.000Z')
+    repository = new PostgresIdentityRepository(database.pool)
     service = new IdentityService(
-      new PostgresIdentityRepository(database.pool),
+      repository,
       hasher,
       identityTokenCodec,
       () => new Date(currentTime),
@@ -224,7 +226,12 @@ describeWithPostgres('scrypt identity registration and login', () => {
       sessionVersion: 1,
       mustChangePassword: false,
     }
-    await expect(service.changeGlobalRole(userActor, registered.userId, 'organizer'))
+    await expect(service.changeGlobalRole(userActor, {
+      targetUserId: registered.userId,
+      role: 'organizer',
+      reason: 'Unauthorized role attempt',
+      requestId: randomUUID(),
+    }))
       .rejects.toMatchObject({ code: 'identity.capability_forbidden' })
 
     const before = await database.pool.query<{ role: string, session_version: string }>(
@@ -234,11 +241,35 @@ describeWithPostgres('scrypt identity registration and login', () => {
     )
     expect(before.rows).toEqual([{ role: 'user', session_version: '1' }])
 
-    const result = await service.changeGlobalRole(
-      { ...userActor, role: 'admin' },
-      registered.userId,
-      'organizer',
+    const actorRegistration = await service.register({
+      username: 'RoleAdministrator',
+      email: 'role-administrator@example.test',
+      password: 'role administrator password',
+    })
+    await database.pool.query(
+      `UPDATE users SET email_verified_at = $2 WHERE id = $1`,
+      [actorRegistration.userId, currentTime],
     )
+    await database.pool.query(
+      `UPDATE user_roles SET role = 'admin', updated_at = $2 WHERE user_id = $1`,
+      [actorRegistration.userId, currentTime],
+    )
+    const administrator = await repository.findSessionSubject(actorRegistration.userId)
+    expect(administrator).not.toBeNull()
+    await expect(service.changeGlobalRole(administrator!, {
+      targetUserId: registered.userId,
+      role: 'organizer',
+      reason: '  ',
+      requestId: randomUUID(),
+    })).rejects.toMatchObject({ code: 'identity.management_reason_required' })
+
+    const requestId = randomUUID()
+    const result = await service.changeGlobalRole(administrator!, {
+      targetUserId: registered.userId,
+      role: 'organizer',
+      reason: '  Assign contest operations  ',
+      requestId,
+    })
     expect(result).toEqual({
       userId: registered.userId,
       previousRole: 'user',
@@ -250,6 +281,7 @@ describeWithPostgres('scrypt identity registration and login', () => {
       event_count: string
       notification_count: string
       delivery_count: string
+      audit_count: string
     }>(
       `SELECT
          (SELECT count(*)::text FROM domain_outbox
@@ -258,13 +290,28 @@ describeWithPostgres('scrypt identity registration and login', () => {
           WHERE user_id = $1 AND template_key = 'identity.role_changed') AS notification_count,
          (SELECT count(*)::text FROM mail_deliveries
           WHERE recipient_normalized = 'role-target@example.test'
-            AND template_key = 'identity.role_changed') AS delivery_count`,
-      [registered.userId],
+            AND template_key = 'identity.role_changed') AS delivery_count,
+         (SELECT count(*)::text FROM audit_events
+          WHERE actor_user_id = $2
+            AND request_id = $3
+            AND action = 'identity.role_changed'
+            AND target_type = 'user_role'
+            AND target_id = $1
+            AND reason = 'Assign contest operations'
+            AND outcome = 'succeeded'
+            AND changes = jsonb_build_object(
+              'previous_role', 'user',
+              'role', 'organizer',
+              'session_version', 2
+            )
+            AND occurred_at = $4) AS audit_count`,
+      [registered.userId, administrator!.userId, requestId, currentTime],
     )
     expect(securityRecords.rows).toEqual([{
       event_count: '1',
       notification_count: '1',
       delivery_count: '1',
+      audit_count: '1',
     }])
 
     const sessions = new IdentitySessionService(new PostgresIdentityRepository(database.pool))
@@ -279,11 +326,177 @@ describeWithPostgres('scrypt identity registration and login', () => {
       logged_in_at: '2026-09-01T07:08:09.123Z',
     })).resolves.toMatchObject({ role: 'organizer' })
 
-    await expect(service.changeGlobalRole(
-      { ...userActor, role: 'admin' },
-      registered.userId,
-      'organizer',
-    )).resolves.toMatchObject({ sessionVersion: 2, changed: false })
+    await expect(service.changeGlobalRole(administrator!, {
+      targetUserId: registered.userId,
+      role: 'organizer',
+      reason: 'Confirm existing role assignment',
+      requestId: randomUUID(),
+    })).resolves.toMatchObject({ sessionVersion: 2, changed: false })
+  })
+
+  it('audits account status changes with their security notifications in one transaction', async () => {
+    const target = await service.register({
+      username: 'StatusTarget',
+      email: 'status-target@example.test',
+      password: 'status target password',
+    })
+    const actor = await service.register({
+      username: 'StatusAdministrator',
+      email: 'status-administrator@example.test',
+      password: 'status administrator password',
+    })
+    await database.pool.query(
+      `UPDATE users SET email_verified_at = $2 WHERE id = $1`,
+      [actor.userId, currentTime],
+    )
+    await database.pool.query(
+      `UPDATE user_roles SET role = 'admin', updated_at = $2 WHERE user_id = $1`,
+      [actor.userId, currentTime],
+    )
+    const administrator = await repository.findSessionSubject(actor.userId)
+    expect(administrator).not.toBeNull()
+    const requestId = randomUUID()
+
+    const result = await service.changeUserStatus(administrator!, {
+      targetUserId: target.userId,
+      status: 'banned',
+      reason: '  Confirmed account abuse  ',
+      requestId,
+    })
+
+    expect(result).toMatchObject({
+      userId: target.userId,
+      previousStatus: 'active',
+      status: 'banned',
+      sessionVersion: 2,
+      changed: true,
+    })
+    const evidence = await database.pool.query<{
+      event_count: string
+      notification_count: string
+      delivery_count: string
+      audit_count: string
+    }>(`
+      SELECT
+        (SELECT count(*)::text FROM domain_outbox
+         WHERE aggregate_id = $1 AND event_type = 'identity.account_banned') AS event_count,
+        (SELECT count(*)::text FROM notifications
+         WHERE user_id = $1 AND template_key = 'identity.account_banned') AS notification_count,
+        (SELECT count(*)::text FROM mail_deliveries
+         WHERE recipient_normalized = 'status-target@example.test'
+           AND template_key = 'identity.account_banned') AS delivery_count,
+        (SELECT count(*)::text FROM audit_events
+         WHERE actor_user_id = $2
+           AND request_id = $3
+           AND action = 'identity.status_changed'
+           AND target_type = 'user'
+           AND target_id = $1
+           AND reason = 'Confirmed account abuse'
+           AND outcome = 'succeeded'
+           AND changes = jsonb_build_object(
+             'previous_status', 'active',
+             'status', 'banned',
+             'session_version', 2
+           )
+           AND occurred_at = $4) AS audit_count`,
+    [target.userId, administrator!.userId, requestId, currentTime])
+    expect(evidence.rows).toEqual([{
+      event_count: '1',
+      notification_count: '1',
+      delivery_count: '1',
+      audit_count: '1',
+    }])
+  })
+
+  it('rolls back role, status, session, and notifications when a management audit cannot append', async () => {
+    const actor = await service.register({
+      username: 'RollbackAdministrator',
+      email: 'rollback-administrator@example.test',
+      password: 'rollback administrator password',
+    })
+    const roleTarget = await service.register({
+      username: 'RoleRollbackTarget',
+      email: 'role-rollback-target@example.test',
+      password: 'role rollback target password',
+    })
+    const statusTarget = await service.register({
+      username: 'StatusRollbackTarget',
+      email: 'status-rollback-target@example.test',
+      password: 'status rollback target password',
+    })
+    await database.pool.query(
+      `UPDATE users SET email_verified_at = $2 WHERE id = $1`,
+      [actor.userId, currentTime],
+    )
+    await database.pool.query(
+      `UPDATE user_roles SET role = 'admin', updated_at = $2 WHERE user_id = $1`,
+      [actor.userId, currentTime],
+    )
+    const administrator = await repository.findSessionSubject(actor.userId)
+    expect(administrator).not.toBeNull()
+    const roleRequestId = randomUUID()
+    const statusRequestId = randomUUID()
+    await database.pool.query(
+      `INSERT INTO audit_events
+        (actor_user_id, action, target_type, target_id, reason, outcome, request_id)
+       VALUES
+        ($1, 'identity.role_changed', 'user_role', $2, 'Existing role audit', 'succeeded', $3),
+        ($1, 'identity.status_changed', 'user', $4, 'Existing status audit', 'succeeded', $5)`,
+      [actor.userId, roleTarget.userId, roleRequestId, statusTarget.userId, statusRequestId],
+    )
+
+    await expect(service.changeGlobalRole(administrator!, {
+      targetUserId: roleTarget.userId,
+      role: 'organizer',
+      reason: 'Trigger duplicate role audit',
+      requestId: roleRequestId,
+    })).rejects.toMatchObject({ code: '23505' })
+    await expect(service.changeUserStatus(administrator!, {
+      targetUserId: statusTarget.userId,
+      status: 'banned',
+      reason: 'Trigger duplicate status audit',
+      requestId: statusRequestId,
+    })).rejects.toMatchObject({ code: '23505' })
+
+    const facts = await database.pool.query<{
+      role: string
+      role_session_version: string
+      status: string
+      status_session_version: string
+      security_events: string
+      notifications: string
+      deliveries: string
+      audits: string
+    }>(`
+      SELECT
+        (SELECT role::text FROM user_roles WHERE user_id = $1) AS role,
+        (SELECT session_version::text FROM users WHERE id = $1) AS role_session_version,
+        (SELECT status::text FROM users WHERE id = $2) AS status,
+        (SELECT session_version::text FROM users WHERE id = $2) AS status_session_version,
+        (SELECT count(*)::text FROM domain_outbox
+         WHERE aggregate_id IN ($1, $2)
+           AND event_type IN ('identity.role_changed', 'identity.account_banned')) AS security_events,
+        (SELECT count(*)::text FROM notifications
+         WHERE user_id IN ($1, $2)
+           AND template_key IN ('identity.role_changed', 'identity.account_banned')) AS notifications,
+        (SELECT count(*)::text FROM mail_deliveries
+         WHERE recipient_normalized IN (
+           'role-rollback-target@example.test',
+           'status-rollback-target@example.test'
+         ) AND template_key IN ('identity.role_changed', 'identity.account_banned')) AS deliveries,
+        (SELECT count(*)::text FROM audit_events
+         WHERE request_id IN ($3, $4)) AS audits`,
+    [roleTarget.userId, statusTarget.userId, roleRequestId, statusRequestId])
+    expect(facts.rows).toEqual([{
+      role: 'user',
+      role_session_version: '1',
+      status: 'active',
+      status_session_version: '1',
+      security_events: '0',
+      notifications: '0',
+      deliveries: '0',
+      audits: '2',
+    }])
   })
 
   it('does not mutate the credential or session version for a wrong current password', async () => {

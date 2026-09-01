@@ -74,6 +74,24 @@ export interface UserStatusMutationResult {
   changed: boolean
 }
 
+export interface ChangeGlobalRoleCommand {
+  actorId: string
+  targetUserId: string
+  role: GlobalRole
+  reason: string
+  requestId: string
+  changedAt: Date
+}
+
+export interface ChangeUserStatusCommand {
+  actorId: string
+  targetUserId: string
+  status: ManagedUserStatus
+  reason: string
+  requestId: string
+  changedAt: Date
+}
+
 export interface NewEmailToken {
   userId: string
   purpose: EmailTokenPurpose
@@ -113,12 +131,8 @@ export interface IdentityRepository {
   resetPassword(tokenDigest: Buffer, nextHash: string, consumedAt: Date): Promise<PasswordMutationResult>
   issueEmailToken(token: NewEmailToken): Promise<void>
   verifyEmail(tokenDigest: Buffer, consumedAt: Date): Promise<PasswordMutationResult>
-  changeGlobalRole(userId: string, role: GlobalRole, changedAt: Date): Promise<GlobalRoleMutationResult>
-  changeUserStatus(
-    userId: string,
-    status: ManagedUserStatus,
-    changedAt: Date,
-  ): Promise<UserStatusMutationResult>
+  changeGlobalRole(command: ChangeGlobalRoleCommand): Promise<GlobalRoleMutationResult>
+  changeUserStatus(command: ChangeUserStatusCommand): Promise<UserStatusMutationResult>
   changeEmail(
     userId: string,
     email: string,
