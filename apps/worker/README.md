@@ -93,4 +93,23 @@ labels match. Missing resources make `Inspect` return a safe `unknown` state and
 make repeated `Destroy` calls return `stopped`. Set `TEST_DOCKER_HOST` (and
 optionally `TEST_DOCKER_IMAGE`) to include the real Engine lifecycle test.
 
+The Kubernetes adapter uses `client-go` against one explicitly configured
+namespace. It declaratively creates or updates one deterministic Deployment,
+ClusterIP Service, and optional opaque Secret for each instance generation.
+All three resources carry the complete ownership labels; conflicting resources
+are rejected instead of adopted or deleted. Deployment availability is read
+from the current observed generation, ready replicas, available replicas, and
+the `Available=True` condition. Until the routing adapter is implemented, a
+ready workload and Service remain `starting` and publish no player entrypoint.
+The Secret currently stores only the sealed envelope JSON; decryption, runtime
+injection, and post-completion clearing belong to the dedicated sensitive
+payload task.
+
+The Kubernetes package has fake-client contract tests and an API-server-backed
+envtest lifecycle test. Install matching envtest assets and run it with
+`TEST_KUBERNETES_ENVTEST=1` plus `KUBEBUILDER_ASSETS` pointing at that asset
+directory. The integration test creates its own ephemeral API server and etcd,
+so it does not use the developer's current kubeconfig or mutate a shared
+cluster.
+
 Run locally with `pnpm dev:worker` after configuring the Worker variables.
