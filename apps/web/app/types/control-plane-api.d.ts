@@ -2606,8 +2606,8 @@ export interface operations {
                 challenge_id: string;
                 participation_id: string;
                 user_id: string;
-                /** @constant */
-                mode: "official";
+                /** @enum {string} */
+                mode: "official" | "practice";
                 /** @enum {string} */
                 result: "correct" | "incorrect" | "already_solved";
                 /** @constant */
@@ -3759,6 +3759,8 @@ export interface operations {
           "application/json": {
             /** @enum {string} */
             result: "correct" | "incorrect" | "already_solved";
+            /** @enum {string} */
+            mode: "official" | "practice";
           };
         };
       };

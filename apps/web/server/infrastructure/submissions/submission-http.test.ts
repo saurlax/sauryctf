@@ -40,6 +40,7 @@ function dependencies(options: {
   sessionFailure?: Error
   serviceFailure?: SubmissionServiceError
   result?: 'correct' | 'incorrect' | 'already_solved'
+  mode?: 'official' | 'practice'
   rateLimits?: MemoryRateLimitStore
   managedItems?: Awaited<ReturnType<SubmissionHttpDependencies['submissions']['listManaged']>>['items']
 } = {}): SubmissionHttpDependencies {
@@ -61,7 +62,7 @@ function dependencies(options: {
       verifyFlag: vi.fn(async () => {
         if (options.serviceFailure) throw options.serviceFailure
         const result = options.result ?? 'correct'
-        return { correct: result !== 'incorrect', result }
+        return { correct: result !== 'incorrect', result, mode: options.mode ?? 'official' }
       }),
       listManaged: vi.fn(async () => ({
         items: options.managedItems ?? [],
@@ -163,13 +164,19 @@ describe('Flag submission HTTP admission', () => {
     const deps = dependencies({ result })
     const response = await invoke(deps)
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ result })
+    await expect(response.json()).resolves.toEqual({ result, mode: 'official' })
     expect(deps.submissions.verifyFlag).toHaveBeenCalledWith(player, {
       contestId,
       challengeId,
       submittedFlag: 'flag{correct}',
       requestId,
     })
+  })
+
+  it('returns the server-derived practice mode without accepting it as client input', async () => {
+    const deps = dependencies({ mode: 'practice' })
+    const response = await invoke(deps)
+    await expect(response.json()).resolves.toEqual({ result: 'correct', mode: 'practice' })
   })
 
   it('rejects an unverified email before the submission service sees the Flag', async () => {

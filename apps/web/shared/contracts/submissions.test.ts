@@ -13,9 +13,15 @@ describe('submission contracts', () => {
   })
 
   it('exposes only the redacted synchronous verdict', () => {
-    expect(submitFlagResponseSchema.parse({ result: 'correct' })).toEqual({ result: 'correct' })
-    expect(submitFlagResponseSchema.parse({ result: 'already_solved' })).toEqual({ result: 'already_solved' })
-    expect(() => submitFlagResponseSchema.parse({ result: 'correct', submitted_flag: 'flag{answer}' })).toThrow()
+    expect(submitFlagResponseSchema.parse({ result: 'correct', mode: 'official' }))
+      .toEqual({ result: 'correct', mode: 'official' })
+    expect(submitFlagResponseSchema.parse({ result: 'already_solved', mode: 'practice' }))
+      .toEqual({ result: 'already_solved', mode: 'practice' })
+    expect(() => submitFlagResponseSchema.parse({
+      result: 'correct',
+      mode: 'official',
+      submitted_flag: 'flag{answer}',
+    })).toThrow()
   })
 
   it('allows ordinary management projections to expose only a fixed answer mask', () => {

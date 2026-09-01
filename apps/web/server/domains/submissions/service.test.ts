@@ -55,6 +55,7 @@ function admissionRepository() {
       flagFormat: 'flag{...}',
       flagPolicy: { type: 'static' as const, digest: 'a'.repeat(64) },
       scoringPolicy: { type: 'fixed-v1' as const, points: 500 },
+      mode: 'official' as const,
     })),
     append: vi.fn(async () => ({
       id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f76',
@@ -104,6 +105,7 @@ describe('submission eligibility pipeline', () => {
         flagFormat: 'flag{...}',
         flagPolicy: { type: 'static' as const, digest: 'a'.repeat(64) },
         scoringPolicy: { type: 'fixed-v1' as const, points: 500 },
+        mode: 'official' as const,
       }
     })
     const limiter = allowedLimiter(input => order.push(`${input.scope}:${input.action}`))
@@ -134,7 +136,7 @@ describe('submission eligibility pipeline', () => {
       challengeId,
       submittedFlag: 'flag{correct}',
       requestId,
-    })).resolves.toEqual({ correct: true, result: 'correct' })
+    })).resolves.toEqual({ correct: true, result: 'correct', mode: 'official' })
 
     expect(order).toEqual([
       'user:submission.flag',

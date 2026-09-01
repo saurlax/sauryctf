@@ -104,7 +104,11 @@ export class SubmissionService {
     challengeId: string
     submittedFlag: string
     requestId: string
-  }): Promise<{ correct: boolean, result: 'correct' | 'incorrect' | 'already_solved' }> {
+  }): Promise<{
+      correct: boolean
+      result: 'correct' | 'incorrect' | 'already_solved'
+      mode: 'official' | 'practice'
+    }> {
     requireIdentityCapability(actor, identityCapability.flagSubmit)
 
     await this.enforceLimits([
@@ -182,7 +186,7 @@ export class SubmissionService {
         answerDigest: protectedAnswer.digest,
         answerCiphertext: protectedAnswer.ciphertext,
       }))
-      return { correct: verdict.correct, result: submission.result }
+      return { correct: verdict.correct, result: submission.result, mode: submission.mode }
     }
     catch (error) {
       if (error instanceof FlagVerificationConfigurationError) {

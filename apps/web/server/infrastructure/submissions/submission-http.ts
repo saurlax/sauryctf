@@ -68,6 +68,7 @@ export async function handleSubmitFlag(
   }))
   return submitFlagResponseSchema.parse({
     result: outcome.result,
+    mode: outcome.mode,
   })
 }
 

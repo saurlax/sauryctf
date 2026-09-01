@@ -19,6 +19,7 @@ export interface SubmissionAdmission {
   flagFormat: string | null
   flagPolicy: ChallengeFlagPolicy
   scoringPolicy: ChallengeScoringPolicy
+  mode: SubmissionMode
 }
 
 export interface SubmissionRepository {
@@ -30,6 +31,7 @@ export interface SubmissionRepository {
 
 export type VerifiedSubmissionResult = 'correct' | 'incorrect'
 export type SubmissionResult = VerifiedSubmissionResult | 'already_solved'
+export type SubmissionMode = 'official' | 'practice'
 
 export interface AppendSubmissionCommand extends SubmissionAdmissionCommand {
   requestId: string
@@ -44,7 +46,7 @@ export interface StoredSubmission {
   challengeId: string
   participationId: string
   userId: string
-  mode: 'official'
+  mode: SubmissionMode
   result: SubmissionResult
   submittedAt: Date
 }

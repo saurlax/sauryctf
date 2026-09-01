@@ -5206,7 +5206,9 @@ paths:
                               pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
                         mode:
                           type: string
-                          const: official
+                          enum:
+                            - official
+                            - practice
                         result:
                           type: string
                           enum:
@@ -7841,8 +7843,14 @@ paths:
                       - correct
                       - incorrect
                       - already_solved
+                  mode:
+                    type: string
+                    enum:
+                      - official
+                      - practice
                 required:
                   - result
+                  - mode
                 additionalProperties: false
         "400": *a1
         "401": *a1

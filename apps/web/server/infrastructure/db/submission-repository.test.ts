@@ -70,6 +70,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     closeAt?: Date | null
     submissionLimit?: number | null
     scoringPolicy?: ChallengeScoringPolicy
+    practiceEnabled?: boolean
   } = {}) {
     const suffix = randomUUID()
     const user = await database.pool.query<{ id: string }>(
@@ -118,14 +119,15 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     }
     const contest = await database.pool.query<{ id: string }>(
       `INSERT INTO contests
-         (title, slug, start_at, end_at, created_by)
-       VALUES ($1, $2, $3, $4, $5)
+         (title, slug, start_at, end_at, practice_enabled, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id`,
       [
         `Contest-${suffix}`,
         `contest-${suffix}`,
         options.startAt ?? new Date(at.getTime() - 60_000),
         options.endAt ?? new Date(at.getTime() + 60_000),
+        options.practiceEnabled ?? false,
         userId,
       ],
     )
@@ -305,6 +307,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       flagFormat: 'flag{...}',
       flagPolicy: { type: 'static', digest: staticFlagDigest('flag{correct}') },
       scoringPolicy: { type: 'fixed-v1', points: 500 },
+      mode: 'official',
     })
   })
 
@@ -326,6 +329,11 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       startAt: new Date(at.getTime() + 60_000),
       endAt: new Date(at.getTime() + 120_000),
     })
+    await expect(admit(input)).rejects.toBeInstanceOf(SubmissionContestNotRunningError)
+  })
+
+  it('rejects an ended contest when post-contest practice is disabled', async () => {
+    const input = await fixture({ endAt: new Date(at.getTime() - 1) })
     await expect(admit(input)).rejects.toBeInstanceOf(SubmissionContestNotRunningError)
   })
 
@@ -575,6 +583,81 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       [input.contestId],
     )
     expect(unchanged.rows[0]!.count).toBe('2')
+  })
+
+  it('isolates post-contest practice submissions from every official scoring fact', async () => {
+    const input = await fixture({
+      scoringPolicy: {
+        type: 'decay-v1',
+        initial_points: 500,
+        minimum_points: 100,
+        decay_solves: 10,
+      },
+    })
+    const official = await repository.append(
+      appendCommand(input, 'flag{correct}', 'correct').command,
+    )
+    expect(official).toMatchObject({ mode: 'official', result: 'correct' })
+
+    await database.pool.query(
+      `UPDATE contests
+       SET end_at = $2, practice_enabled = true, updated_at = $3
+       WHERE id = $1`,
+      [input.contestId, new Date(at.getTime() - 1), at],
+    )
+    await expect(admit(input)).resolves.toMatchObject({ mode: 'practice' })
+    const practice = await repository.append(
+      appendCommand(input, 'flag{correct}', 'correct').command,
+    )
+    const repeatedPractice = await repository.append(
+      appendCommand(input, 'flag{correct}', 'correct').command,
+    )
+    expect(practice).toMatchObject({ mode: 'practice', result: 'correct' })
+    expect(repeatedPractice).toMatchObject({ mode: 'practice', result: 'already_solved' })
+
+    const facts = await database.pool.query<{
+      official_submissions: string
+      practice_submissions: string
+      official_solves: string
+      practice_solves: string
+      official_score: string
+      practice_score: string
+      scoreboard_version: string
+      scoreboard_events: string
+      first_solve_events: string
+    }>(
+      `SELECT
+         (SELECT count(*)::text FROM submissions
+          WHERE contest_id = $1 AND mode = 'official') AS official_submissions,
+         (SELECT count(*)::text FROM submissions
+          WHERE contest_id = $1 AND mode = 'practice') AS practice_submissions,
+         (SELECT count(*)::text FROM solves
+          WHERE contest_id = $1 AND mode = 'official') AS official_solves,
+         (SELECT count(*)::text FROM solves
+          WHERE contest_id = $1 AND mode = 'practice') AS practice_solves,
+         (SELECT coalesce(sum(awarded_score), 0)::text FROM solves
+          WHERE contest_id = $1 AND mode = 'official') AS official_score,
+         (SELECT coalesce(sum(awarded_score), 0)::text FROM solves
+          WHERE contest_id = $1 AND mode = 'practice') AS practice_score,
+         (SELECT version::text FROM scoreboard_versions
+          WHERE contest_id = $1) AS scoreboard_version,
+         (SELECT count(*)::text FROM domain_outbox
+          WHERE aggregate_id = $1 AND event_type = 'scoreboard.version_changed') AS scoreboard_events,
+         (SELECT count(*)::text FROM contest_events
+          WHERE contest_id = $1 AND event_type = 'first_solve') AS first_solve_events`,
+      [input.contestId],
+    )
+    expect(facts.rows[0]).toEqual({
+      official_submissions: '1',
+      practice_submissions: '2',
+      official_solves: '1',
+      practice_solves: '1',
+      official_score: '500',
+      practice_score: '0',
+      scoreboard_version: '1',
+      scoreboard_events: '1',
+      first_solve_events: '1',
+    })
   })
 
   it('paginates a management projection that never selects answer protection material', async () => {

@@ -26,6 +26,7 @@ import {
   type StoredSubmission,
   type SubmissionAdmission,
   type SubmissionAdmissionCommand,
+  type SubmissionMode,
   type SubmissionRepository,
   type SubmissionResult,
 } from '../../domains/submissions/repository'
@@ -35,6 +36,7 @@ interface ContestRow {
   publication_status: 'draft' | 'published' | 'archived'
   start_at: Date
   end_at: Date
+  practice_enabled: boolean
 }
 
 interface ParticipationRow {
@@ -59,7 +61,7 @@ interface SubmissionRow {
   contest_challenge_id: string
   participation_id: string
   user_id: string
-  mode: 'official'
+  mode: SubmissionMode
   result: SubmissionResult
   submitted_at: Date
 }
@@ -116,7 +118,12 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
 
       const admission = await this.admitWith(connection, command, 'append')
       const alreadySolved = command.result === 'correct'
-        ? await this.hasOfficialSolve(connection, admission.participationId, admission.challengeId)
+        ? await this.hasSolve(
+            connection,
+            admission.participationId,
+            admission.challengeId,
+            admission.mode,
+          )
         : false
       const result = alreadySolved ? 'already_solved' : command.result
       const inserted = await connection.query<SubmissionRow>(
@@ -124,7 +131,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
            (contest_id, contest_challenge_id, participation_id, user_id,
             mode, result, answer_digest, answer_ciphertext, request_id,
             submitted_at)
-         VALUES ($1, $2, $3, $4, 'official', $5, $6, $7, $8, $9)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING id, contest_id, contest_challenge_id, participation_id,
                    user_id, mode::text, result::text, submitted_at`,
         [
@@ -132,6 +139,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
           admission.challengeId,
           admission.participationId,
           command.userId,
+          admission.mode,
           result,
           command.answerDigest,
           command.answerCiphertext,
@@ -140,12 +148,13 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
         ],
       )
       if (result === 'correct') {
-        await this.createOfficialSolve(
+        await this.createSolve(
           connection,
           inserted.rows[0]!,
           admission.teamId,
           admission.teamName,
           admission.scoringPolicy,
+          admission.mode,
         )
       }
       await connection.query('COMMIT')
@@ -328,7 +337,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
     const participationLock = operation === 'append' ? 'FOR UPDATE' : 'FOR SHARE'
     const challengeLock = operation === 'append' ? 'FOR UPDATE' : 'FOR SHARE'
     const contestResult = await connection.query<ContestRow>(
-      `SELECT publication_status::text, start_at, end_at
+      `SELECT publication_status::text, start_at, end_at, practice_enabled
        FROM contests
        WHERE id = $1
        FOR SHARE`,
@@ -337,10 +346,13 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
     const contest = contestResult.rows[0]
     if (!contest
       || contest.publication_status !== 'published'
-      || command.at.getTime() < contest.start_at.getTime()
-      || command.at.getTime() >= contest.end_at.getTime()) {
+      || command.at.getTime() < contest.start_at.getTime()) {
       throw new SubmissionContestNotRunningError()
     }
+    let mode: SubmissionMode
+    if (command.at.getTime() < contest.end_at.getTime()) mode = 'official'
+    else if (contest.practice_enabled) mode = 'practice'
+    else throw new SubmissionContestNotRunningError()
 
     const membership = await connection.query<{ team_id: string, team_name: string }>(
       `SELECT tm.team_id, t.name AS team_name
@@ -381,7 +393,9 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
         && command.at.getTime() < challenge.publish_at.getTime())) {
       throw new SubmissionChallengeUnavailableError()
     }
-    if (challenge.close_at !== null && command.at.getTime() >= challenge.close_at.getTime()) {
+    if (mode === 'official'
+      && challenge.close_at !== null
+      && command.at.getTime() >= challenge.close_at.getTime()) {
       throw new SubmissionChallengeClosedError()
     }
 
@@ -391,8 +405,8 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
          FROM submissions
          WHERE participation_id = $1
            AND contest_challenge_id = $2
-           AND mode = 'official'`,
-        [participation.id, challenge.id],
+           AND mode = $3`,
+        [participation.id, challenge.id, mode],
       )
       if (Number(count.rows[0]?.count ?? '0') >= challenge.submission_limit) {
         throw new SubmissionLimitReachedError()
@@ -408,56 +422,63 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
       flagFormat: challenge.flag_format,
       flagPolicy: challengeFlagPolicySchema.parse(challenge.flag_policy),
       scoringPolicy: challengeScoringPolicySchema.parse(challenge.scoring_policy),
+      mode,
     }
   }
 
-  private async hasOfficialSolve(
+  private async hasSolve(
     connection: PoolClient,
     participationId: string,
     challengeId: string,
+    mode: SubmissionMode,
   ) {
     const result = await connection.query(
       `SELECT 1
        FROM solves
        WHERE participation_id = $1
          AND contest_challenge_id = $2
-         AND mode = 'official'`,
-      [participationId, challengeId],
+         AND mode = $3`,
+      [participationId, challengeId, mode],
     )
     return Boolean(result.rows[0])
   }
 
-  private async createOfficialSolve(
+  private async createSolve(
     connection: PoolClient,
     submission: SubmissionRow,
     teamId: string,
     teamName: string,
     scoringPolicy: ChallengeScoringPolicy,
+    mode: SubmissionMode,
   ) {
     const orderResult = await connection.query<{ solve_order: number }>(
       `SELECT count(*)::integer + 1 AS solve_order
        FROM solves
-       WHERE contest_challenge_id = $1 AND mode = 'official'`,
-      [submission.contest_challenge_id],
+       WHERE contest_challenge_id = $1 AND mode = $2`,
+      [submission.contest_challenge_id, mode],
     )
     const solveOrder = orderResult.rows[0]!.solve_order
-    const awardedScore = calculateChallengeScore(scoringPolicy, solveOrder)
+    const awardedScore = mode === 'official'
+      ? calculateChallengeScore(scoringPolicy, solveOrder)
+      : 0
     const solve = await connection.query<SolveRow>(
       `INSERT INTO solves
          (submission_id, contest_id, contest_challenge_id, participation_id,
           mode, awarded_score, solve_order, solved_at)
-       VALUES ($1, $2, $3, $4, 'official', $5, $6, $7)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING solve_order`,
       [
         submission.id,
         submission.contest_id,
         submission.contest_challenge_id,
         submission.participation_id,
+        mode,
         awardedScore,
         solveOrder,
         submission.submitted_at,
       ],
     )
+    if (mode === 'practice') return
     const scoreboardVersion = await this.advanceScoreboardVersion(
       connection,
       submission.contest_id,
@@ -569,7 +590,6 @@ function sameRequest(existing: ExistingSubmissionRow, command: AppendSubmissionC
   return existing.contest_id === command.contestId
     && existing.contest_challenge_id === command.challengeId
     && existing.user_id === command.userId
-    && existing.mode === 'official'
     && (existing.result === command.result
       || (command.result === 'correct' && existing.result === 'already_solved'))
     && existing.answer_digest.byteLength === command.answerDigest.byteLength
