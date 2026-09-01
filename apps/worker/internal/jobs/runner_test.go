@@ -16,14 +16,18 @@ import (
 )
 
 type fakeRepository struct {
-	mu            sync.Mutex
-	lease         Lease
-	claimed       bool
-	renewError    error
-	completeCalls int
-	releaseCalls  int
-	completed     chan struct{}
-	released      chan struct{}
+	mu             sync.Mutex
+	lease          Lease
+	claimed        bool
+	renewError     error
+	completeCalls  int
+	failCalls      int
+	interruptCalls int
+	failure        Failure
+	retryPolicy    RetryPolicy
+	completed      chan struct{}
+	failed         chan struct{}
+	interrupted    chan struct{}
 }
 
 func (repository *fakeRepository) ClaimBatch(context.Context, string, int, time.Duration) ([]Lease, error) {
@@ -40,20 +44,30 @@ func (repository *fakeRepository) Renew(context.Context, Lease, time.Duration) e
 	return repository.renewError
 }
 
-func (repository *fakeRepository) Complete(context.Context, Lease) error {
+func (repository *fakeRepository) Complete(context.Context, Lease) (JobStatus, error) {
 	repository.mu.Lock()
 	defer repository.mu.Unlock()
 	repository.completeCalls++
 	closeOnce(repository.completed)
-	return nil
+	return StatusSucceeded, nil
 }
 
-func (repository *fakeRepository) Release(context.Context, Lease) error {
+func (repository *fakeRepository) Fail(_ context.Context, _ Lease, failure Failure, retryPolicy RetryPolicy) (JobStatus, error) {
 	repository.mu.Lock()
 	defer repository.mu.Unlock()
-	repository.releaseCalls++
-	closeOnce(repository.released)
-	return nil
+	repository.failCalls++
+	repository.failure = failure
+	repository.retryPolicy = retryPolicy
+	closeOnce(repository.failed)
+	return StatusRetryWait, nil
+}
+
+func (repository *fakeRepository) Interrupt(context.Context, Lease, string) (JobStatus, error) {
+	repository.mu.Lock()
+	defer repository.mu.Unlock()
+	repository.interruptCalls++
+	closeOnce(repository.interrupted)
+	return StatusReady, nil
 }
 
 type processorFunc func(context.Context, contracts.InstanceJob) error
@@ -75,26 +89,70 @@ func TestRunnerCompletesSuccessfulJob(t *testing.T) {
 
 	repository.mu.Lock()
 	defer repository.mu.Unlock()
-	if repository.completeCalls != 1 || repository.releaseCalls != 0 {
-		t.Fatalf("complete/release calls = %d/%d, want 1/0", repository.completeCalls, repository.releaseCalls)
+	if repository.completeCalls != 1 || repository.failCalls != 0 || repository.interruptCalls != 0 {
+		t.Fatalf("complete/fail/interrupt calls = %d/%d/%d, want 1/0/0", repository.completeCalls, repository.failCalls, repository.interruptCalls)
 	}
 }
 
-func TestRunnerReleasesFailedJob(t *testing.T) {
+func TestRunnerClassifiesAndRetriesUnknownFailure(t *testing.T) {
 	repository := newFakeRepository(t)
 	runner := newTestRunner(repository, processorFunc(func(context.Context, contracts.InstanceJob) error {
 		return errors.New("provider failed")
 	}))
 
 	cancel, stopped := runRunner(t, runner)
-	waitClosed(t, repository.released, "job release")
+	waitClosed(t, repository.failed, "job failure")
 	cancel()
 	waitRunner(t, stopped)
 
 	repository.mu.Lock()
 	defer repository.mu.Unlock()
-	if repository.completeCalls != 0 || repository.releaseCalls != 1 {
-		t.Fatalf("complete/release calls = %d/%d, want 0/1", repository.completeCalls, repository.releaseCalls)
+	if repository.completeCalls != 0 || repository.failCalls != 1 || repository.interruptCalls != 0 {
+		t.Fatalf("complete/fail/interrupt calls = %d/%d/%d, want 0/1/0", repository.completeCalls, repository.failCalls, repository.interruptCalls)
+	}
+	if repository.failure.Kind != FailureRetryable || repository.failure.Code != defaultRetryableCode {
+		t.Fatalf("failure = %+v, want safe retryable fallback", repository.failure)
+	}
+	if repository.retryPolicy.InitialDelay != time.Second || repository.retryPolicy.MaxDelay != time.Minute {
+		t.Fatalf("retry policy = %+v", repository.retryPolicy)
+	}
+}
+
+func TestRunnerPropagatesTypedFailureClassification(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want Failure
+	}{
+		{
+			name: "permanent",
+			err:  PermanentError("provider.image_missing", "Configured image does not exist", errors.New("registry detail")),
+			want: Failure{Kind: FailurePermanent, Code: "provider.image_missing", Summary: "Configured image does not exist"},
+		},
+		{
+			name: "cancelled",
+			err:  CancelledError("job.cancelled", "The requested operation was cancelled", context.Canceled),
+			want: Failure{Kind: FailureCancelled, Code: "job.cancelled", Summary: "The requested operation was cancelled"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repository := newFakeRepository(t)
+			runner := newTestRunner(repository, processorFunc(func(context.Context, contracts.InstanceJob) error {
+				return test.err
+			}))
+
+			cancel, stopped := runRunner(t, runner)
+			waitClosed(t, repository.failed, "job failure")
+			cancel()
+			waitRunner(t, stopped)
+
+			repository.mu.Lock()
+			defer repository.mu.Unlock()
+			if repository.failure != test.want {
+				t.Fatalf("failure = %+v, want %+v", repository.failure, test.want)
+			}
+		})
 	}
 }
 
@@ -111,7 +169,7 @@ func TestRunnerCancelsProcessorAndReleasesOnRenewalFailure(t *testing.T) {
 
 	cancel, stopped := runRunner(t, runner)
 	waitClosed(t, processorCancelled, "processor cancellation")
-	waitClosed(t, repository.released, "job release")
+	waitClosed(t, repository.interrupted, "job interruption")
 	cancel()
 	waitRunner(t, stopped)
 }
@@ -128,7 +186,7 @@ func TestRunnerGracefulStopWaitsForActiveJobRelease(t *testing.T) {
 	cancel, stopped := runRunner(t, runner)
 	waitClosed(t, processorStarted, "processor start")
 	cancel()
-	waitClosed(t, repository.released, "job release")
+	waitClosed(t, repository.interrupted, "job interruption")
 	waitRunner(t, stopped)
 }
 
@@ -136,13 +194,15 @@ func newFakeRepository(t *testing.T) *fakeRepository {
 	t.Helper()
 	return &fakeRepository{
 		lease: Lease{
-			Job:          loadInspectFixture(t),
-			Owner:        "worker-test-1",
-			FencingToken: 1,
-			LeaseUntil:   time.Now().Add(time.Minute),
+			Job:           loadInspectFixture(t),
+			Owner:         "worker-test-1",
+			FencingToken:  1,
+			AttemptNumber: 1,
+			LeaseUntil:    time.Now().Add(time.Minute),
 		},
-		completed: make(chan struct{}),
-		released:  make(chan struct{}),
+		completed:   make(chan struct{}),
+		failed:      make(chan struct{}),
+		interrupted: make(chan struct{}),
 	}
 }
 
@@ -155,6 +215,7 @@ func newTestRunner(repository Repository, processor Processor) *Runner {
 		RenewInterval:    30 * time.Second,
 		PollInterval:     5 * time.Millisecond,
 		OperationTimeout: time.Second,
+		RetryPolicy:      RetryPolicy{InitialDelay: time.Second, MaxDelay: time.Minute},
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 

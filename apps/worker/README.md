@@ -31,6 +31,8 @@ Optional configuration:
 - `WORKER_LEASE_DURATION` (default `30s`)
 - `WORKER_LEASE_RENEW_INTERVAL` (default `10s`, must be shorter than the lease)
 - `WORKER_POLL_INTERVAL` (default `1s`)
+- `WORKER_RETRY_INITIAL_DELAY` (default `1s`)
+- `WORKER_RETRY_MAX_DELAY` (default `1m`)
 
 The process starts even while PostgreSQL is temporarily unavailable: liveness
 continues to succeed and readiness fails until the restricted role and instance
@@ -45,5 +47,13 @@ cancels active provider operations, returns their current leases to the queue,
 and waits for those operations to finish. Provider implementations are wired
 into the process by later OpenSpec tasks, so the current executable does not
 consume jobs with a placeholder processor.
+
+Every claim also opens an immutable numbered attempt. Provider failures use
+safe typed classifications: retryable failures enter capped exponential
+backoff, permanent failures and exhausted retry budgets enter `dead`, and
+explicit cancellations enter `cancelled`. A newer desired generation makes an
+older job `superseded`; expired fencing owners are recorded as `lease_lost`.
+Queue rows retain the latest safe error code and summary while the attempts
+table preserves the complete execution history for later dead-letter replay.
 
 Run locally with `pnpm dev:worker` after configuring the Worker variables.

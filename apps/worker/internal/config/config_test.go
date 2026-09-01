@@ -36,7 +36,7 @@ func TestLoadAppliesPrivateWorkerDefaults(t *testing.T) {
 	if config.ReadinessTimeout != 2*time.Second || config.ShutdownTimeout != 15*time.Second {
 		t.Fatalf("unexpected lifecycle defaults: %+v", config)
 	}
-	if config.ClaimBatchSize != 16 || config.JobConcurrency != 16 || config.LeaseDuration != 30*time.Second || config.LeaseRenewInterval != 10*time.Second || config.PollInterval != time.Second {
+	if config.ClaimBatchSize != 16 || config.JobConcurrency != 16 || config.LeaseDuration != 30*time.Second || config.LeaseRenewInterval != 10*time.Second || config.PollInterval != time.Second || config.RetryInitialDelay != time.Second || config.RetryMaxDelay != time.Minute {
 		t.Fatalf("unexpected job defaults: %+v", config)
 	}
 }
@@ -56,6 +56,8 @@ func TestLoadRejectsUnsafeOrUnboundedValues(t *testing.T) {
 		"WORKER_LEASE_DURATION":           "4s",
 		"WORKER_LEASE_RENEW_INTERVAL":     "61s",
 		"WORKER_POLL_INTERVAL":            "40ms",
+		"WORKER_RETRY_INITIAL_DELAY":      "50ms",
+		"WORKER_RETRY_MAX_DELAY":          "61m",
 	}
 	_, err := Load(func(key string) string { return environment[key] })
 	if err == nil {
@@ -75,10 +77,25 @@ func TestLoadRejectsUnsafeOrUnboundedValues(t *testing.T) {
 		"WORKER_LEASE_DURATION",
 		"WORKER_LEASE_RENEW_INTERVAL",
 		"WORKER_POLL_INTERVAL",
+		"WORKER_RETRY_INITIAL_DELAY",
+		"WORKER_RETRY_MAX_DELAY",
 	} {
 		if !strings.Contains(err.Error(), expected) {
 			t.Fatalf("Load() error %q does not mention %s", err, expected)
 		}
+	}
+}
+
+func TestLoadRequiresRetryInitialDelayWithinMaximum(t *testing.T) {
+	environment := map[string]string{
+		"WORKER_ID":                  "worker-pod-1",
+		"WORKER_DATABASE_URL":        "postgresql://worker:secret@postgres.internal/sauryctf",
+		"WORKER_RETRY_INITIAL_DELAY": "2m",
+		"WORKER_RETRY_MAX_DELAY":     "1m",
+	}
+	_, err := Load(func(key string) string { return environment[key] })
+	if err == nil || !strings.Contains(err.Error(), "WORKER_RETRY_INITIAL_DELAY must not exceed") {
+		t.Fatalf("Load() error = %v, want retry delay relationship error", err)
 	}
 }
 

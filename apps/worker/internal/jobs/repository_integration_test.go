@@ -34,10 +34,10 @@ func TestPostgresRepositoryUsesFencingForExpiredLeases(t *testing.T) {
 	if second.FencingToken != 2 {
 		t.Fatalf("second fencing token = %d, want 2", second.FencingToken)
 	}
-	if err := repository.Complete(ctx, first); !errors.Is(err, ErrLeaseLost) {
+	if _, err := repository.Complete(ctx, first); !errors.Is(err, ErrLeaseLost) {
 		t.Fatalf("stale Complete() error = %v, want ErrLeaseLost", err)
 	}
-	if err := repository.Complete(ctx, second); err != nil {
+	if _, err := repository.Complete(ctx, second); err != nil {
 		t.Fatalf("current Complete() error = %v", err)
 	}
 
@@ -50,6 +50,8 @@ func TestPostgresRepositoryUsesFencingForExpiredLeases(t *testing.T) {
 	if status != "succeeded" || fencingToken != 2 || attemptCount != 2 {
 		t.Fatalf("final status/token/attempts = %s/%d/%d, want succeeded/2/2", status, fencingToken, attemptCount)
 	}
+	assertAttempt(t, pool, jobID, 1, "lease_lost", "worker.lease_expired")
+	assertSuccessfulAttempt(t, pool, jobID, 2)
 }
 
 func TestPostgresRepositoryRenewsOnlyCurrentLease(t *testing.T) {
@@ -76,6 +78,185 @@ func TestPostgresRepositoryRenewsOnlyCurrentLease(t *testing.T) {
 	if err := repository.Renew(ctx, stale, 20*time.Second); !errors.Is(err, ErrLeaseLost) {
 		t.Fatalf("stale Renew() error = %v, want ErrLeaseLost", err)
 	}
+}
+
+func TestFailureInjectionPersistsEveryJobOutcome(t *testing.T) {
+	retryPolicy := RetryPolicy{InitialDelay: 2 * time.Second, MaxDelay: 5 * time.Second}
+	tests := []struct {
+		name          string
+		index         int
+		failure       Failure
+		wantStatus    JobStatus
+		wantOutcome   string
+		wantFinished  bool
+		wantErrorCode string
+	}{
+		{
+			name:          "retryable waits",
+			index:         101,
+			failure:       Failure{Kind: FailureRetryable, Code: "provider.unavailable", Summary: "Provider is temporarily unavailable"},
+			wantStatus:    StatusRetryWait,
+			wantOutcome:   "retryable_error",
+			wantFinished:  false,
+			wantErrorCode: "provider.unavailable",
+		},
+		{
+			name:          "permanent dies",
+			index:         102,
+			failure:       Failure{Kind: FailurePermanent, Code: "provider.image_missing", Summary: "Configured image does not exist"},
+			wantStatus:    StatusDead,
+			wantOutcome:   "permanent_error",
+			wantFinished:  true,
+			wantErrorCode: "provider.image_missing",
+		},
+		{
+			name:          "cancelled terminates",
+			index:         103,
+			failure:       Failure{Kind: FailureCancelled, Code: "job.cancelled", Summary: "The requested operation was cancelled"},
+			wantStatus:    StatusCancelled,
+			wantOutcome:   "cancelled",
+			wantFinished:  true,
+			wantErrorCode: "job.cancelled",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			pool := openJobsTestDatabase(t)
+			repository := NewPostgresRepository(pool)
+			jobID := insertInspectJob(t, pool, test.index)
+			lease := claimOne(t, repository, "worker-a", 5*time.Second)
+			failedAt := time.Now()
+			status, err := repository.Fail(context.Background(), lease, test.failure, retryPolicy)
+			if err != nil {
+				t.Fatalf("Fail() error = %v", err)
+			}
+			if status != test.wantStatus {
+				t.Fatalf("Fail() status = %s, want %s", status, test.wantStatus)
+			}
+
+			var jobStatus string
+			var availableAt time.Time
+			var finishedAt *time.Time
+			var errorCode *string
+			if err := pool.QueryRow(context.Background(), `
+				SELECT status::text, available_at, finished_at, error_code
+				FROM instance_jobs WHERE id = $1`, jobID).Scan(&jobStatus, &availableAt, &finishedAt, &errorCode); err != nil {
+				t.Fatal(err)
+			}
+			if jobStatus != string(test.wantStatus) || (finishedAt != nil) != test.wantFinished || errorCode == nil || *errorCode != test.wantErrorCode {
+				t.Fatalf("job state = %s/%v/%v, want %s/finished=%v/%s", jobStatus, finishedAt, errorCode, test.wantStatus, test.wantFinished, test.wantErrorCode)
+			}
+			if test.wantStatus == StatusRetryWait {
+				if availableAt.Before(failedAt.Add(1500*time.Millisecond)) || availableAt.After(failedAt.Add(3*time.Second)) {
+					t.Fatalf("retry available_at = %s, want approximately two seconds after %s", availableAt, failedAt)
+				}
+			}
+			assertAttempt(t, pool, jobID, 1, test.wantOutcome, test.wantErrorCode)
+		})
+	}
+}
+
+func TestRetryableFailureBacksOffExponentiallyThenDeadLetters(t *testing.T) {
+	pool := openJobsTestDatabase(t)
+	repository := NewPostgresRepository(pool)
+	jobID := insertInspectJob(t, pool, 110)
+	if _, err := pool.Exec(context.Background(), "UPDATE instance_jobs SET max_attempts = 3 WHERE id = $1", jobID); err != nil {
+		t.Fatal(err)
+	}
+	failure := Failure{Kind: FailureRetryable, Code: "provider.unavailable", Summary: "Provider is temporarily unavailable"}
+	policy := RetryPolicy{InitialDelay: time.Second, MaxDelay: 10 * time.Second}
+
+	for attempt, expectedDelay := range []time.Duration{time.Second, 2 * time.Second} {
+		lease := claimOne(t, repository, "worker-a", 5*time.Second)
+		failedAt := time.Now()
+		status, err := repository.Fail(context.Background(), lease, failure, policy)
+		if err != nil || status != StatusRetryWait {
+			t.Fatalf("attempt %d Fail() = %s/%v, want retry_wait", attempt+1, status, err)
+		}
+		var availableAt time.Time
+		if err := pool.QueryRow(context.Background(), "SELECT available_at FROM instance_jobs WHERE id = $1", jobID).Scan(&availableAt); err != nil {
+			t.Fatal(err)
+		}
+		if availableAt.Before(failedAt.Add(expectedDelay-250*time.Millisecond)) || availableAt.After(failedAt.Add(expectedDelay+time.Second)) {
+			t.Fatalf("attempt %d backoff = %s from %s, want %s", attempt+1, availableAt, failedAt, expectedDelay)
+		}
+		if _, err := pool.Exec(context.Background(), "UPDATE instance_jobs SET available_at = clock_timestamp() - interval '1 second' WHERE id = $1", jobID); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	lastLease := claimOne(t, repository, "worker-b", 5*time.Second)
+	status, err := repository.Fail(context.Background(), lastLease, failure, policy)
+	if err != nil || status != StatusDead {
+		t.Fatalf("final Fail() = %s/%v, want dead", status, err)
+	}
+	var attempts int
+	if err := pool.QueryRow(context.Background(), `
+		SELECT count(*) FROM instance_job_attempts
+		WHERE job_id = $1 AND outcome = 'retryable_error'`, jobID).Scan(&attempts); err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 3 {
+		t.Fatalf("retryable attempt history = %d, want 3", attempts)
+	}
+}
+
+func TestNewGenerationSupersedesLeasedAndQueuedJobs(t *testing.T) {
+	t.Run("leased", func(t *testing.T) {
+		pool := openJobsTestDatabase(t)
+		repository := NewPostgresRepository(pool)
+		jobID := insertInspectJob(t, pool, 120)
+		lease := claimOne(t, repository, "worker-a", 5*time.Second)
+		if _, err := pool.Exec(context.Background(), "UPDATE instances SET desired_generation = desired_generation + 1 WHERE id = $1", instanceIDFor(120)); err != nil {
+			t.Fatal(err)
+		}
+		status, err := repository.Complete(context.Background(), lease)
+		if err != nil || status != StatusSuperseded {
+			t.Fatalf("Complete() = %s/%v, want superseded", status, err)
+		}
+		assertJobStatus(t, pool, jobID, StatusSuperseded, "job.superseded")
+		assertAttempt(t, pool, jobID, 1, "cancelled", "job.superseded")
+	})
+
+	t.Run("queued", func(t *testing.T) {
+		pool := openJobsTestDatabase(t)
+		repository := NewPostgresRepository(pool)
+		jobID := insertInspectJob(t, pool, 121)
+		if _, err := pool.Exec(context.Background(), "UPDATE instances SET desired_generation = desired_generation + 1 WHERE id = $1", instanceIDFor(121)); err != nil {
+			t.Fatal(err)
+		}
+		leases, err := repository.ClaimBatch(context.Background(), "worker-a", 1, 5*time.Second)
+		if err != nil || len(leases) != 0 {
+			t.Fatalf("ClaimBatch() = %d/%v, want no stale job", len(leases), err)
+		}
+		assertJobStatus(t, pool, jobID, StatusSuperseded, "job.superseded")
+		var attempts int
+		if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM instance_job_attempts WHERE job_id = $1", jobID).Scan(&attempts); err != nil {
+			t.Fatal(err)
+		}
+		if attempts != 0 {
+			t.Fatalf("queued superseded job has %d attempts, want 0", attempts)
+		}
+	})
+}
+
+func TestExpiredFinalAttemptMovesToDeadLetter(t *testing.T) {
+	pool := openJobsTestDatabase(t)
+	repository := NewPostgresRepository(pool)
+	jobID := insertInspectJob(t, pool, 130)
+	if _, err := pool.Exec(context.Background(), "UPDATE instance_jobs SET max_attempts = 1 WHERE id = $1", jobID); err != nil {
+		t.Fatal(err)
+	}
+	claimOne(t, repository, "worker-a", 5*time.Second)
+	if _, err := pool.Exec(context.Background(), "UPDATE instance_jobs SET lease_until = clock_timestamp() - interval '1 second' WHERE id = $1", jobID); err != nil {
+		t.Fatal(err)
+	}
+	leases, err := repository.ClaimBatch(context.Background(), "worker-b", 1, 5*time.Second)
+	if err != nil || len(leases) != 0 {
+		t.Fatalf("ClaimBatch() = %d/%v, want exhausted job not reclaimed", len(leases), err)
+	}
+	assertJobStatus(t, pool, jobID, StatusDead, "worker.attempts_exhausted")
+	assertAttempt(t, pool, jobID, 1, "lease_lost", "worker.lease_expired")
 }
 
 func TestTwoRunnersCompleteEachJobOnce(t *testing.T) {
@@ -155,6 +336,14 @@ func TestTwoRunnersCompleteEachJobOnce(t *testing.T) {
 	if invalidRows != 0 {
 		t.Fatalf("found %d jobs without single effective completion", invalidRows)
 	}
+	if err := pool.QueryRow(context.Background(), `
+		SELECT count(*) FROM instance_job_attempts
+		WHERE outcome <> 'succeeded' OR finished_at IS NULL OR error_code IS NOT NULL`).Scan(&invalidRows); err != nil {
+		t.Fatal(err)
+	}
+	if invalidRows != 0 {
+		t.Fatalf("found %d invalid successful attempt records", invalidRows)
+	}
 }
 
 type claimRecordingRepository struct {
@@ -215,6 +404,7 @@ func TestRunnerGracefulStopReturnsLeaseToQueue(t *testing.T) {
 	if status != "ready" || owner != nil || leaseUntil != nil {
 		t.Fatalf("released job state = %s/%v/%v, want ready/nil/nil", status, owner, leaseUntil)
 	}
+	assertAttempt(t, pool, jobID, 1, "cancelled", "worker.interrupted")
 }
 
 func openJobsTestDatabase(t *testing.T) *pgxpool.Pool {
@@ -274,7 +464,12 @@ func insertInspectJob(t *testing.T, pool *pgxpool.Pool, index int) string {
 		t.Fatal(err)
 	}
 	jobID := fmt.Sprintf("018f47a2-4ef8-7e2c-9c24-%012x", index)
-	instanceID := fmt.Sprintf("018f47a2-4ef8-7e2c-9c24-%012x", index+0x100000)
+	instanceID := instanceIDFor(index)
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO instances (id, desired_generation)
+		VALUES ($1, $2) ON CONFLICT (id) DO NOTHING`, instanceID, fixture.DesiredGeneration); err != nil {
+		t.Fatal(err)
+	}
 	_, err = pool.Exec(context.Background(), `
 		INSERT INTO instance_jobs (
 			id, instance_id, operation, payload_version, payload,
@@ -287,6 +482,58 @@ func insertInspectJob(t *testing.T, pool *pgxpool.Pool, index int) string {
 		t.Fatal(err)
 	}
 	return jobID
+}
+
+func instanceIDFor(index int) string {
+	return fmt.Sprintf("018f47a2-4ef8-7e2c-9c24-%012x", index+0x100000)
+}
+
+func assertJobStatus(t *testing.T, pool *pgxpool.Pool, jobID string, wantStatus JobStatus, wantErrorCode string) {
+	t.Helper()
+	var status string
+	var errorCode *string
+	var finishedAt *time.Time
+	if err := pool.QueryRow(context.Background(), `
+		SELECT status::text, error_code, finished_at
+		FROM instance_jobs WHERE id = $1`, jobID).Scan(&status, &errorCode, &finishedAt); err != nil {
+		t.Fatal(err)
+	}
+	if status != string(wantStatus) || errorCode == nil || *errorCode != wantErrorCode || finishedAt == nil {
+		t.Fatalf("job state = %s/%v/%v, want %s/%s/finished", status, errorCode, finishedAt, wantStatus, wantErrorCode)
+	}
+}
+
+func assertAttempt(t *testing.T, pool *pgxpool.Pool, jobID string, attemptNumber int, wantOutcome, wantErrorCode string) {
+	t.Helper()
+	var outcome string
+	var errorCode *string
+	var finishedAt *time.Time
+	if err := pool.QueryRow(context.Background(), `
+		SELECT outcome::text, error_code, finished_at
+		FROM instance_job_attempts
+		WHERE job_id = $1 AND attempt_number = $2`, jobID, attemptNumber).Scan(&outcome, &errorCode, &finishedAt); err != nil {
+		t.Fatal(err)
+	}
+	if outcome != wantOutcome || errorCode == nil || *errorCode != wantErrorCode || finishedAt == nil {
+		t.Fatalf("attempt state = %s/%v/%v, want %s/%s/finished", outcome, errorCode, finishedAt, wantOutcome, wantErrorCode)
+	}
+}
+
+func assertSuccessfulAttempt(t *testing.T, pool *pgxpool.Pool, jobID string, attemptNumber int) {
+	t.Helper()
+	var outcome string
+	var errorCode *string
+	var errorSummary *string
+	var finishedAt *time.Time
+	if err := pool.QueryRow(context.Background(), `
+		SELECT outcome::text, error_code, error_summary, finished_at
+		FROM instance_job_attempts
+		WHERE job_id = $1 AND attempt_number = $2`, jobID, attemptNumber).Scan(&outcome, &errorCode, &errorSummary, &finishedAt); err != nil {
+		t.Fatal(err)
+	}
+	if outcome != "succeeded" || errorCode != nil || errorSummary != nil || finishedAt == nil {
+		t.Fatalf("successful attempt state = %s/%v/%v/%v", outcome, errorCode, errorSummary, finishedAt)
+	}
 }
 
 func claimOne(t *testing.T, repository Repository, owner string, duration time.Duration) Lease {
@@ -314,15 +561,25 @@ func eventually(t *testing.T, timeout time.Duration, condition func() bool) {
 }
 
 const instanceJobsTestSchema = `
+CREATE TYPE instance_job_status AS ENUM (
+  'ready', 'leased', 'retry_wait', 'succeeded', 'dead', 'cancelled', 'superseded'
+);
+CREATE TYPE instance_attempt_outcome AS ENUM (
+  'running', 'succeeded', 'retryable_error', 'permanent_error', 'cancelled', 'lease_lost'
+);
+CREATE TABLE instances (
+  id uuid PRIMARY KEY,
+  desired_generation bigint NOT NULL
+);
 CREATE TABLE instance_jobs (
   id uuid PRIMARY KEY,
-  instance_id uuid NOT NULL,
+  instance_id uuid NOT NULL REFERENCES instances(id),
   operation text NOT NULL,
   payload_version integer NOT NULL,
   payload jsonb NOT NULL,
   desired_generation bigint NOT NULL,
   idempotency_key text NOT NULL UNIQUE,
-  status text NOT NULL DEFAULT 'ready',
+  status instance_job_status NOT NULL DEFAULT 'ready',
   available_at timestamptz NOT NULL DEFAULT now(),
   lease_owner text,
   lease_until timestamptz,
@@ -334,4 +591,17 @@ CREATE TABLE instance_jobs (
   created_at timestamptz NOT NULL DEFAULT now(),
   started_at timestamptz,
   finished_at timestamptz
+);
+CREATE TABLE instance_job_attempts (
+  id uuid PRIMARY KEY,
+  job_id uuid NOT NULL REFERENCES instance_jobs(id) ON DELETE CASCADE,
+  attempt_number integer NOT NULL,
+  worker_id text NOT NULL,
+  fencing_token bigint NOT NULL,
+  outcome instance_attempt_outcome NOT NULL DEFAULT 'running',
+  error_code text,
+  error_summary text,
+  started_at timestamptz NOT NULL DEFAULT now(),
+  finished_at timestamptz,
+  UNIQUE (job_id, attempt_number)
 );`

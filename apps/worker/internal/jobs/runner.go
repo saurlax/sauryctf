@@ -24,6 +24,7 @@ type RunnerConfig struct {
 	RenewInterval    time.Duration
 	PollInterval     time.Duration
 	OperationTimeout time.Duration
+	RetryPolicy      RetryPolicy
 }
 
 type Runner struct {
@@ -100,14 +101,32 @@ func (runner *Runner) process(parent context.Context, lease Lease) {
 
 	operationContext, cancelOperation := context.WithTimeout(context.Background(), runner.config.OperationTimeout)
 	defer cancelOperation()
-	if renewError != nil || parent.Err() != nil || processError != nil {
-		if err := runner.repository.Release(operationContext, lease); err != nil && !errors.Is(err, ErrLeaseLost) {
-			runner.logger.Error("cannot release instance job lease", "job_id", lease.Job.JobID, "error", err)
+	if renewError != nil || parent.Err() != nil {
+		reason := "Lease renewal failure interrupted the worker operation"
+		if parent.Err() != nil {
+			reason = "Worker shutdown interrupted the worker operation"
 		}
+		_, err := runner.repository.Interrupt(operationContext, lease, reason)
+		runner.logFinalizationError("interrupt", lease, err)
 		return
 	}
-	if err := runner.repository.Complete(operationContext, lease); err != nil && !errors.Is(err, ErrLeaseLost) {
-		runner.logger.Error("cannot complete instance job lease", "job_id", lease.Job.JobID, "error", err)
+	if processError != nil {
+		_, err := runner.repository.Fail(operationContext, lease, ClassifyFailure(processError), runner.config.RetryPolicy)
+		runner.logFinalizationError("fail", lease, err)
+		return
+	}
+	_, err := runner.repository.Complete(operationContext, lease)
+	runner.logFinalizationError("complete", lease, err)
+}
+
+func (runner *Runner) logFinalizationError(action string, lease Lease, err error) {
+	if err != nil && !errors.Is(err, ErrLeaseLost) {
+		runner.logger.Error("cannot finalize instance job lease",
+			"action", action,
+			"job_id", lease.Job.JobID,
+			"attempt", lease.AttemptNumber,
+			"error", err,
+		)
 	}
 }
 

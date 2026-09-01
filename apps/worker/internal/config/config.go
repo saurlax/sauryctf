@@ -23,6 +23,8 @@ const (
 	defaultLeaseDuration        = 30 * time.Second
 	defaultLeaseRenewInterval   = 10 * time.Second
 	defaultPollInterval         = time.Second
+	defaultRetryInitialDelay    = time.Second
+	defaultRetryMaxDelay        = time.Minute
 )
 
 var (
@@ -46,6 +48,8 @@ type Config struct {
 	LeaseDuration          time.Duration
 	LeaseRenewInterval     time.Duration
 	PollInterval           time.Duration
+	RetryInitialDelay      time.Duration
+	RetryMaxDelay          time.Duration
 }
 
 // Load reads and validates Worker configuration without opening external connections.
@@ -105,8 +109,19 @@ func Load(getenv func(string) string) (Config, error) {
 	if err != nil {
 		problems = append(problems, fmt.Errorf("WORKER_POLL_INTERVAL: %w", err))
 	}
+	retryInitialDelay, err := boundedDuration(getenv("WORKER_RETRY_INITIAL_DELAY"), defaultRetryInitialDelay, 100*time.Millisecond, 5*time.Minute)
+	if err != nil {
+		problems = append(problems, fmt.Errorf("WORKER_RETRY_INITIAL_DELAY: %w", err))
+	}
+	retryMaxDelay, err := boundedDuration(getenv("WORKER_RETRY_MAX_DELAY"), defaultRetryMaxDelay, 100*time.Millisecond, time.Hour)
+	if err != nil {
+		problems = append(problems, fmt.Errorf("WORKER_RETRY_MAX_DELAY: %w", err))
+	}
 	if leaseDuration > 0 && leaseRenewInterval >= leaseDuration {
 		problems = append(problems, errors.New("WORKER_LEASE_RENEW_INTERVAL must be shorter than WORKER_LEASE_DURATION"))
+	}
+	if retryInitialDelay > retryMaxDelay {
+		problems = append(problems, errors.New("WORKER_RETRY_INITIAL_DELAY must not exceed WORKER_RETRY_MAX_DELAY"))
 	}
 	if err := errors.Join(problems...); err != nil {
 		return Config{}, err
@@ -126,6 +141,8 @@ func Load(getenv func(string) string) (Config, error) {
 		LeaseDuration:          leaseDuration,
 		LeaseRenewInterval:     leaseRenewInterval,
 		PollInterval:           pollInterval,
+		RetryInitialDelay:      retryInitialDelay,
+		RetryMaxDelay:          retryMaxDelay,
 	}, nil
 }
 
