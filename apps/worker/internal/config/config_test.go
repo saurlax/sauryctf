@@ -36,6 +36,9 @@ func TestLoadAppliesPrivateWorkerDefaults(t *testing.T) {
 	if config.ReadinessTimeout != 2*time.Second || config.ShutdownTimeout != 15*time.Second {
 		t.Fatalf("unexpected lifecycle defaults: %+v", config)
 	}
+	if config.ClaimBatchSize != 16 || config.JobConcurrency != 16 || config.LeaseDuration != 30*time.Second || config.LeaseRenewInterval != 10*time.Second || config.PollInterval != time.Second {
+		t.Fatalf("unexpected job defaults: %+v", config)
+	}
 }
 
 func TestLoadRejectsUnsafeOrUnboundedValues(t *testing.T) {
@@ -48,6 +51,11 @@ func TestLoadRejectsUnsafeOrUnboundedValues(t *testing.T) {
 		"WORKER_HEALTH_ADDRESS":           "0.0.0.0:70000",
 		"WORKER_READINESS_TIMEOUT":        "50ms",
 		"WORKER_SHUTDOWN_TIMEOUT":         "0s",
+		"WORKER_CLAIM_BATCH_SIZE":         "0",
+		"WORKER_JOB_CONCURRENCY":          "101",
+		"WORKER_LEASE_DURATION":           "4s",
+		"WORKER_LEASE_RENEW_INTERVAL":     "61s",
+		"WORKER_POLL_INTERVAL":            "40ms",
 	}
 	_, err := Load(func(key string) string { return environment[key] })
 	if err == nil {
@@ -62,9 +70,27 @@ func TestLoadRejectsUnsafeOrUnboundedValues(t *testing.T) {
 		"WORKER_HEALTH_ADDRESS",
 		"WORKER_READINESS_TIMEOUT",
 		"WORKER_SHUTDOWN_TIMEOUT",
+		"WORKER_CLAIM_BATCH_SIZE",
+		"WORKER_JOB_CONCURRENCY",
+		"WORKER_LEASE_DURATION",
+		"WORKER_LEASE_RENEW_INTERVAL",
+		"WORKER_POLL_INTERVAL",
 	} {
 		if !strings.Contains(err.Error(), expected) {
 			t.Fatalf("Load() error %q does not mention %s", err, expected)
 		}
+	}
+}
+
+func TestLoadRequiresRenewalBeforeLeaseExpiry(t *testing.T) {
+	environment := map[string]string{
+		"WORKER_ID":                   "worker-pod-1",
+		"WORKER_DATABASE_URL":         "postgresql://worker:secret@postgres.internal/sauryctf",
+		"WORKER_LEASE_DURATION":       "30s",
+		"WORKER_LEASE_RENEW_INTERVAL": "30s",
+	}
+	_, err := Load(func(key string) string { return environment[key] })
+	if err == nil || !strings.Contains(err.Error(), "WORKER_LEASE_RENEW_INTERVAL must be shorter") {
+		t.Fatalf("Load() error = %v, want renewal/lease relationship error", err)
 	}
 }

@@ -26,6 +26,11 @@ Optional configuration:
 - `WORKER_HEALTH_ADDRESS` (default `:8081`)
 - `WORKER_READINESS_TIMEOUT` (default `2s`)
 - `WORKER_SHUTDOWN_TIMEOUT` (default `15s`)
+- `WORKER_CLAIM_BATCH_SIZE` (default `16`, maximum `100`)
+- `WORKER_JOB_CONCURRENCY` (default `16`, maximum `100`)
+- `WORKER_LEASE_DURATION` (default `30s`)
+- `WORKER_LEASE_RENEW_INTERVAL` (default `10s`, must be shorter than the lease)
+- `WORKER_POLL_INTERVAL` (default `1s`)
 
 The process starts even while PostgreSQL is temporarily unavailable: liveness
 continues to succeed and readiness fails until the restricted role and instance
@@ -33,5 +38,12 @@ job schema are available. Apply `deploy/postgres/worker-role.sql` after the Web
 migrations, then grant that group role to the deployment-specific login role.
 Passwords stay in deployment Secrets and are never stored in this repository.
 
-Run locally with `pnpm dev:worker` after configuring the Worker variables. Job
-consumption and providers are introduced by later OpenSpec tasks.
+The job runner claims bounded batches with PostgreSQL `FOR UPDATE SKIP LOCKED`.
+Every claim increments a fencing token; renewal and completion require the
+current Worker identity and token. On shutdown the runner stops claiming,
+cancels active provider operations, returns their current leases to the queue,
+and waits for those operations to finish. Provider implementations are wired
+into the process by later OpenSpec tasks, so the current executable does not
+consume jobs with a placeholder processor.
+
+Run locally with `pnpm dev:worker` after configuring the Worker variables.

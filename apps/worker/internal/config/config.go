@@ -18,6 +18,11 @@ const (
 	defaultConnectTimeout       = 5 * time.Second
 	defaultReadinessTimeout     = 2 * time.Second
 	defaultShutdownTimeout      = 15 * time.Second
+	defaultClaimBatchSize       = 16
+	defaultJobConcurrency       = 16
+	defaultLeaseDuration        = 30 * time.Second
+	defaultLeaseRenewInterval   = 10 * time.Second
+	defaultPollInterval         = time.Second
 )
 
 var (
@@ -36,6 +41,11 @@ type Config struct {
 	HealthAddress          string
 	ReadinessTimeout       time.Duration
 	ShutdownTimeout        time.Duration
+	ClaimBatchSize         int
+	JobConcurrency         int
+	LeaseDuration          time.Duration
+	LeaseRenewInterval     time.Duration
+	PollInterval           time.Duration
 }
 
 // Load reads and validates Worker configuration without opening external connections.
@@ -75,6 +85,29 @@ func Load(getenv func(string) string) (Config, error) {
 	if err != nil {
 		problems = append(problems, fmt.Errorf("WORKER_SHUTDOWN_TIMEOUT: %w", err))
 	}
+	claimBatchSize, err := boundedInt(getenv("WORKER_CLAIM_BATCH_SIZE"), defaultClaimBatchSize, 1, 100)
+	if err != nil {
+		problems = append(problems, fmt.Errorf("WORKER_CLAIM_BATCH_SIZE: %w", err))
+	}
+	jobConcurrency, err := boundedInt(getenv("WORKER_JOB_CONCURRENCY"), defaultJobConcurrency, 1, 100)
+	if err != nil {
+		problems = append(problems, fmt.Errorf("WORKER_JOB_CONCURRENCY: %w", err))
+	}
+	leaseDuration, err := boundedDuration(getenv("WORKER_LEASE_DURATION"), defaultLeaseDuration, 5*time.Second, 5*time.Minute)
+	if err != nil {
+		problems = append(problems, fmt.Errorf("WORKER_LEASE_DURATION: %w", err))
+	}
+	leaseRenewInterval, err := boundedDuration(getenv("WORKER_LEASE_RENEW_INTERVAL"), defaultLeaseRenewInterval, time.Second, time.Minute)
+	if err != nil {
+		problems = append(problems, fmt.Errorf("WORKER_LEASE_RENEW_INTERVAL: %w", err))
+	}
+	pollInterval, err := boundedDuration(getenv("WORKER_POLL_INTERVAL"), defaultPollInterval, 50*time.Millisecond, 30*time.Second)
+	if err != nil {
+		problems = append(problems, fmt.Errorf("WORKER_POLL_INTERVAL: %w", err))
+	}
+	if leaseDuration > 0 && leaseRenewInterval >= leaseDuration {
+		problems = append(problems, errors.New("WORKER_LEASE_RENEW_INTERVAL must be shorter than WORKER_LEASE_DURATION"))
+	}
 	if err := errors.Join(problems...); err != nil {
 		return Config{}, err
 	}
@@ -88,6 +121,11 @@ func Load(getenv func(string) string) (Config, error) {
 		HealthAddress:          healthAddress,
 		ReadinessTimeout:       readinessTimeout,
 		ShutdownTimeout:        shutdownTimeout,
+		ClaimBatchSize:         claimBatchSize,
+		JobConcurrency:         jobConcurrency,
+		LeaseDuration:          leaseDuration,
+		LeaseRenewInterval:     leaseRenewInterval,
+		PollInterval:           pollInterval,
 	}, nil
 }
 
@@ -123,6 +161,17 @@ func boundedInt32(raw string, fallback, minimum, maximum int32) (int32, error) {
 		return 0, fmt.Errorf("must be an integer from %d to %d", minimum, maximum)
 	}
 	return int32(value), nil
+}
+
+func boundedInt(raw string, fallback, minimum, maximum int) (int, error) {
+	if strings.TrimSpace(raw) == "" {
+		return fallback, nil
+	}
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || value < minimum || value > maximum {
+		return 0, fmt.Errorf("must be an integer from %d to %d", minimum, maximum)
+	}
+	return value, nil
 }
 
 func boundedDuration(raw string, fallback, minimum, maximum time.Duration) (time.Duration, error) {
