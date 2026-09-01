@@ -1,2488 +1,381 @@
-openapi: "3.0.3"
+openapi: 3.1.0
 info:
-  title: SauryCTF API
-  version: "0.1.0"
-  description: Next-generation CTF/AWD platform API
-
-servers:
-  - url: http://localhost:8080
-    description: Development server
-
-security: []
-
-components:
-  securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-
-  schemas:
-    # ── Error ──────────────────────────────────────────────
-    ErrorResponse:
-      type: object
-      required: [error]
-      properties:
-        error:
-          type: string
-
-    MessageResponse:
-      type: object
-      required: [message]
-      properties:
-        message:
-          type: string
-
-    # ── Auth ───────────────────────────────────────────────
-    UserInfo:
-      type: object
-      required: [id, username, email, role, status]
-      properties:
-        id:
-          type: integer
-        username:
-          type: string
-        email:
-          type: string
-        role:
-          type: string
-          enum: [user, team_captain, judge, admin, super_admin]
-        status:
-          type: string
-          enum: [active, banned]
-        created_at:
-          type: string
-          format: date-time
-
-    RegisterRequest:
-      type: object
-      required: [username, email, password]
-      properties:
-        username:
-          type: string
-          minLength: 3
-          maxLength: 64
-        email:
-          type: string
-          format: email
-        password:
-          type: string
-          minLength: 6
-
-    LoginRequest:
-      type: object
-      required: [username, password]
-      properties:
-        username:
-          type: string
-          description: Username or email
-        password:
-          type: string
-
-    ChangePasswordRequest:
-      type: object
-      required: [current_password, new_password]
-      properties:
-        current_password:
-          type: string
-          minLength: 6
-        new_password:
-          type: string
-          minLength: 6
-
-    UpdateUserAccountRequest:
-      type: object
-      required: [role, status]
-      properties:
-        role:
-          type: string
-          enum: [user, team_captain, judge, admin, super_admin]
-        status:
-          type: string
-          enum: [active, banned]
-
-    AuditLog:
-      type: object
-      required: [id, actor_user_id, actor_username, action, target_type, target_id, summary, detail, created_at]
-      properties:
-        id:
-          type: integer
-        actor_user_id:
-          type: integer
-        actor_username:
-          type: string
-        action:
-          type: string
-        target_type:
-          type: string
-        target_id:
-          type: integer
-        summary:
-          type: string
-        detail:
-          type: string
-        created_at:
-          type: string
-          format: date-time
-
-    AuthResponse:
-      type: object
-      required: [token, user]
-      properties:
-        token:
-          type: string
-        user:
-          $ref: "#/components/schemas/UserInfo"
-
-    AuthSetupStatusResponse:
-      type: object
-      required: [bootstrap_admin_available]
-      properties:
-        bootstrap_admin_available:
-          type: boolean
-
-    AuthSecurityStatusResponse:
-      type: object
-      required: [password_change_recommended]
-      properties:
-        password_change_recommended:
-          type: boolean
-
-    # ── Teams ──────────────────────────────────────────────
-    Team:
-      type: object
-      required: [id, name, invite_code]
-      properties:
-        id:
-          type: integer
-        name:
-          type: string
-        invite_code:
-          type: string
-        created_at:
-          type: string
-          format: date-time
-        members:
-          type: array
-          items:
-            $ref: "#/components/schemas/TeamMember"
-        lock:
-          $ref: "#/components/schemas/TeamLockSummary"
-
-    TeamLockSummary:
-      type: object
-      required: [locked, games]
-      properties:
-        locked:
-          type: boolean
-        reason:
-          type: string
-        games:
-          type: array
-          items:
-            $ref: "#/components/schemas/TeamLockGame"
-
-    TeamLockGame:
-      type: object
-      required: [game_id, name, start_time, end_time]
-      properties:
-        game_id:
-          type: integer
-        name:
-          type: string
-        start_time:
-          type: string
-          format: date-time
-        end_time:
-          type: string
-          format: date-time
-
-    TeamMember:
-      type: object
-      required: [id, user_id, team_id, role]
-      properties:
-        id:
-          type: integer
-        user_id:
-          type: integer
-        team_id:
-          type: integer
-        role:
-          type: string
-
-    CreateTeamRequest:
-      type: object
-      required: [name]
-      properties:
-        name:
-          type: string
-          minLength: 2
-          maxLength: 128
-
-    JoinTeamRequest:
-      type: object
-      required: [invite_code]
-      properties:
-        invite_code:
-          type: string
-
-    TransferCaptainRequest:
-      type: object
-      required: [target_user_id]
-      properties:
-        target_user_id:
-          type: integer
-
-    # ── Challenges ─────────────────────────────────────────
-    Challenge:
-      type: object
-      required: [id, title, category, type]
-      properties:
-        id:
-          type: integer
-        title:
-          type: string
-        description:
-          type: string
-        category:
-          type: string
-          enum: [web, pwn, crypto, reverse, misc, forensics, awd]
-        type:
-          type: string
-          enum: [static, dynamic]
-        difficulty:
-          type: string
-          enum: [easy, medium, hard]
-        base_score:
-          type: integer
-        min_score:
-          type: integer
-        decay_rate:
-          type: number
-        hints:
-          type: string
-        attachments:
-          type: string
-        is_visible:
-          type: boolean
-        created_at:
-          type: string
-          format: date-time
-
-    CreateChallengeRequest:
-      type: object
-      required: [title, category, flag]
-      properties:
-        title:
-          type: string
-        description:
-          type: string
-        category:
-          type: string
-          enum: [web, pwn, crypto, reverse, misc, forensics, awd]
-        type:
-          type: string
-          enum: [static, dynamic]
-        difficulty:
-          type: string
-          enum: [easy, medium, hard]
-        flag:
-          type: string
-        flag_format:
-          type: string
-        base_score:
-          type: integer
-        min_score:
-          type: integer
-        decay_rate:
-          type: number
-        max_attempts:
-          type: integer
-        hints:
-          type: string
-        attachments:
-          type: string
-        container_spec:
-          type: string
-        is_visible:
-          type: boolean
-
-    UpdateChallengeRequest:
-      type: object
-      properties:
-        title:
-          type: string
-        description:
-          type: string
-        category:
-          type: string
-        type:
-          type: string
-        difficulty:
-          type: string
-        flag:
-          type: string
-        flag_format:
-          type: string
-        base_score:
-          type: integer
-        min_score:
-          type: integer
-        decay_rate:
-          type: number
-        max_attempts:
-          type: integer
-        hints:
-          type: string
-        attachments:
-          type: string
-        container_spec:
-          type: string
-        is_visible:
-          type: boolean
-
-    ChallengeAttachmentUploadResponse:
-      type: object
-      required: [name, url]
-      properties:
-        name:
-          type: string
-        url:
-          type: string
-
-    SubmitFlagRequest:
-      type: object
-      required: [flag, game_id]
-      properties:
-        flag:
-          type: string
-        game_id:
-          type: integer
-
-    SubmitResult:
-      type: object
-      required: [correct, message]
-      properties:
-        correct:
-          type: boolean
-        is_practice:
-          type: boolean
-        score:
-          type: integer
-        blood_type:
-          type: string
-          enum: [first, second, third]
-        message:
-          type: string
-
-    # ── Games ──────────────────────────────────────────────
-    Game:
-      type: object
-      required: [id, name, start_time, end_time, status]
-      properties:
-        id:
-          type: integer
-        name:
-          type: string
-        description:
-          type: string
-        notice:
-          type: string
-        invitation_code:
-          type: string
-        divisions:
-          type: array
-          items:
-            type: string
-        start_time:
-          type: string
-          format: date-time
-        end_time:
-          type: string
-          format: date-time
-        scoreboard_freeze_at:
-          type: string
-          format: date-time
-          nullable: true
-        status:
-          type: string
-          enum: [draft, active, ended]
-        registration_mode:
-          type: string
-          enum: [review, auto_accept]
-        max_team_members:
-          type: integer
-        practice_mode:
-          type: boolean
-        writeup_required:
-          type: boolean
-        writeup_deadline:
-          type: string
-          format: date-time
-          nullable: true
-        is_public:
-          type: boolean
-        invitation_required:
-          type: boolean
-        created_by:
-          type: integer
-        created_at:
-          type: string
-          format: date-time
-
-    CreateGameRequest:
-      type: object
-      required: [name, start_time, end_time]
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-        notice:
-          type: string
-        invitation_code:
-          type: string
-        divisions:
-          type: array
-          items:
-            type: string
-        start_time:
-          type: string
-          format: date-time
-        end_time:
-          type: string
-          format: date-time
-        scoreboard_freeze_at:
-          type: string
-          format: date-time
-          nullable: true
-        registration_mode:
-          type: string
-          enum: [review, auto_accept]
-        max_team_members:
-          type: integer
-        practice_mode:
-          type: boolean
-        writeup_required:
-          type: boolean
-        writeup_deadline:
-          type: string
-          format: date-time
-          nullable: true
-        is_public:
-          type: boolean
-
-    UpdateGameRequest:
-      type: object
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-        notice:
-          type: string
-        invitation_code:
-          type: string
-        divisions:
-          type: array
-          items:
-            type: string
-        start_time:
-          type: string
-          format: date-time
-        end_time:
-          type: string
-          format: date-time
-        scoreboard_freeze_at:
-          type: string
-          format: date-time
-          nullable: true
-        status:
-          type: string
-          enum: [draft, active, ended]
-        registration_mode:
-          type: string
-          enum: [review, auto_accept]
-        max_team_members:
-          type: integer
-        practice_mode:
-          type: boolean
-        writeup_required:
-          type: boolean
-        writeup_deadline:
-          type: string
-          format: date-time
-          nullable: true
-        is_public:
-          type: boolean
-
-    AddChallengeToGameRequest:
-      type: object
-      required: [challenge_id]
-      properties:
-        challenge_id:
-          type: integer
-        score_override:
-          type: integer
-
-    GameChallengeDetail:
-      type: object
-      required: [id, title, category, type, score]
-      properties:
-        id:
-          type: integer
-        title:
-          type: string
-        description:
-          type: string
-        category:
-          type: string
-          enum: [web, pwn, crypto, reverse, misc, forensics, awd]
-        type:
-          type: string
-          enum: [static, dynamic]
-        difficulty:
-          type: string
-        hints:
-          type: string
-        attachments:
-          type: string
-        container_spec:
-          type: string
-        flag_format:
-          type: string
-        score:
-          type: integer
-        solved:
-          type: boolean
-        solve_count:
-          type: integer
-        blood_team:
-          type: string
-        second_blood_team:
-          type: string
-        third_blood_team:
-          type: string
-
-    ChallengeInstance:
-      type: object
-      required: [game_id, challenge_id, team_id, status, policy, seconds_left, can_start, can_renew, message]
-      properties:
-        game_id:
-          type: integer
-        challenge_id:
-          type: integer
-        team_id:
-          type: integer
-        status:
-          type: string
-          enum: [idle, running]
-        policy:
-          $ref: "#/components/schemas/ChallengeInstancePolicy"
-        provider:
-          type: string
-        image:
-          type: string
-        launch_url:
-          type: string
-        host:
-          type: string
-        port:
-          type: string
-        command:
-          type: string
-        note:
-          type: string
-        started_at:
-          type: string
-          format: date-time
-          nullable: true
-        last_renewed_at:
-          type: string
-          format: date-time
-          nullable: true
-        expires_at:
-          type: string
-          format: date-time
-          nullable: true
-        seconds_left:
-          type: integer
-        can_start:
-          type: boolean
-        can_renew:
-          type: boolean
-        message:
-          type: string
-
-    ChallengeInstancePolicy:
-      type: object
-      required: [lease_duration_minutes, extension_duration_minutes, renewal_window_minutes, team_active_limit]
-      properties:
-        lease_duration_minutes:
-          type: integer
-        extension_duration_minutes:
-          type: integer
-        renewal_window_minutes:
-          type: integer
-        team_active_limit:
-          type: integer
-
-    AdminGameInstanceLease:
-      type: object
-      required: [id, game_id, team_id, team_name, challenge_id, challenge_title, status, started_at, last_renewed_at, expires_at, seconds_left, is_expired]
-      properties:
-        id:
-          type: integer
-        game_id:
-          type: integer
-        team_id:
-          type: integer
-        team_name:
-          type: string
-        challenge_id:
-          type: integer
-        challenge_title:
-          type: string
-        status:
-          type: string
-        provider:
-          type: string
-        image:
-          type: string
-        launch_url:
-          type: string
-        host:
-          type: string
-        port:
-          type: string
-        started_at:
-          type: string
-          format: date-time
-        last_renewed_at:
-          type: string
-          format: date-time
-        expires_at:
-          type: string
-          format: date-time
-        stopped_at:
-          type: string
-          format: date-time
-          nullable: true
-        seconds_left:
-          type: integer
-        is_expired:
-          type: boolean
-
-    JoinGameRequest:
-      type: object
-      required: [team_id]
-      properties:
-        team_id:
-          type: integer
-        invitation_code:
-          type: string
-
-    GameSubmitFlagRequest:
-      type: object
-      required: [flag, team_id]
-      properties:
-        flag:
-          type: string
-        team_id:
-          type: integer
-
-    ScoreboardEntry:
-      type: object
-      required: [rank, team_id, team_name, score, solve_count]
-      properties:
-        rank:
-          type: integer
-        team_id:
-          type: integer
-        team_name:
-          type: string
-        score:
-          type: integer
-        solve_count:
-          type: integer
-        last_solve:
-          type: string
-          format: date-time
-
-    ScoreboardChallengeStat:
-      type: object
-      required: [id, title, category, score, solved_count]
-      properties:
-        id:
-          type: integer
-        title:
-          type: string
-        category:
-          type: string
-        score:
-          type: integer
-        solved_count:
-          type: integer
-        blood_team:
-          type: string
-        second_blood_team:
-          type: string
-        third_blood_team:
-          type: string
-
-    Scoreboard:
-      type: object
-      required: [game_id, entries]
-      properties:
-        game_id:
-          type: integer
-        division:
-          type: string
-        divisions:
-          type: array
-          items:
-            type: string
-        is_frozen:
-          type: boolean
-        freeze_time:
-          type: string
-          format: date-time
-        entries:
-          type: array
-          items:
-            $ref: "#/components/schemas/ScoreboardEntry"
-        challenges:
-          type: array
-          items:
-            $ref: "#/components/schemas/ScoreboardChallengeStat"
-
-    GameParticipation:
-      type: object
-      required: [has_team, participated]
-      properties:
-        has_team:
-          type: boolean
-        participated:
-          type: boolean
-        status:
-          type: string
-          enum: [pending, accepted, rejected]
-        division:
-          type: string
-        team:
-          type: object
-          required: [id, name]
-          properties:
-            id:
-              type: integer
-            name:
-              type: string
-        writeup_required:
-          type: boolean
-        writeup_submitted:
-          type: boolean
-        writeup_status:
-          type: string
-          enum: [submitted, approved, rejected]
-        writeup_deadline:
-          type: string
-          format: date-time
-          nullable: true
-        writeup_deadline_passed:
-          type: boolean
-        missing_writeup:
-          type: boolean
-        divisions:
-          type: array
-          items:
-            type: string
-
-    GameParticipantEntry:
-      type: object
-      required: [team_id, team_name, status, joined_at, score, solve_count]
-      properties:
-        team_id:
-          type: integer
-        team_name:
-          type: string
-        status:
-          type: string
-          enum: [pending, accepted, rejected]
-        division:
-          type: string
-        joined_at:
-          type: string
-          format: date-time
-        score:
-          type: integer
-        solve_count:
-          type: integer
-
-    UpdateParticipationStatusRequest:
-      type: object
-      required: [status]
-      properties:
-        status:
-          type: string
-          enum: [pending, accepted, rejected]
-        division:
-          type: string
-          nullable: true
-
-    ReviewGameWriteupRequest:
-      type: object
-      required: [status]
-      properties:
-        status:
-          type: string
-          enum: [approved, rejected]
-        remark:
-          type: string
-
-    CreateGameAnnouncementRequest:
-      type: object
-      required: [content]
-      properties:
-        content:
-          type: string
-
-    UpdateGameAnnouncementRequest:
-      type: object
-      required: [content]
-      properties:
-        content:
-          type: string
-
-    GameAnnouncement:
-      type: object
-      required: [id, game_id, content, created_by, created_at]
-      properties:
-        id:
-          type: integer
-        game_id:
-          type: integer
-        content:
-          type: string
-        created_by:
-          type: integer
-        created_at:
-          type: string
-          format: date-time
-
-    GameWriteup:
-      type: object
-      required: [game_id, team_id, team_name, submitted_by, content, status, review_remark, submitted_at, can_submit]
-      properties:
-        game_id:
-          type: integer
-        team_id:
-          type: integer
-        team_name:
-          type: string
-        submitted_by:
-          type: integer
-        content:
-          type: string
-        status:
-          type: string
-          enum: [submitted, approved, rejected]
-        reviewer_id:
-          type: integer
-          nullable: true
-        review_remark:
-          type: string
-        submitted_at:
-          type: string
-          format: date-time
-        reviewed_at:
-          type: string
-          format: date-time
-          nullable: true
-        can_submit:
-          type: boolean
-
-    SubmitGameWriteupRequest:
-      type: object
-      required: [content]
-      properties:
-        content:
-          type: string
-
-    HealthResponse:
-      type: object
-      required: [status, version]
-      properties:
-        status:
-          type: string
-        version:
-          type: string
-
+  title: SauryCTF Control Plane API
+  version: 1.0.0-alpha.1
+  description: Nuxt/Nitro Jeopardy control-plane API. Generated from shared Zod contracts.
 paths:
-  # ── Health ─────────────────────────────────────────────
-  /api/healthz:
+  /api/health/live:
     get:
-      operationId: healthz
-      summary: Health check
-      tags: [system]
+      operationId: getControlPlaneLiveness
+      tags:
+        - Health
       responses:
         "200":
-          description: OK
+          description: Nitro process is alive
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HealthResponse"
-
-  # ── Auth ───────────────────────────────────────────────
-  /api/auth/register:
-    post:
-      operationId: register
-      summary: Register a new user
-      tags: [auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RegisterRequest"
-      responses:
-        "201":
-          description: Registered and logged in
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthResponse"
-        "400":
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
-          description: Username or email already exists
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/auth/login:
-    post:
-      operationId: login
-      summary: Login with username or email
-      tags: [auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/LoginRequest"
-      responses:
-        "200":
-          description: Login successful
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthResponse"
-        "400":
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Invalid credentials
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/auth/setup-status:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    const: ok
+                  component:
+                    type: string
+                    const: control-plane
+                required:
+                  - status
+                  - component
+                additionalProperties: false
+  /api/health/ready:
     get:
-      operationId: getAuthSetupStatus
-      summary: Get auth bootstrap setup status
-      tags: [auth]
+      operationId: getControlPlaneReadiness
+      tags:
+        - Health
       responses:
         "200":
-          description: Current bootstrap auth availability
+          description: Control plane has required deployment configuration
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthSetupStatusResponse"
-        "500":
-          description: Failed to inspect auth setup status
+                type: object
+                properties:
+                  status:
+                    type: string
+                    const: ready
+                  component:
+                    type: string
+                    const: control-plane
+                required:
+                  - status
+                  - component
+                additionalProperties: false
+        "503":
+          description: Control plane is not ready
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-
-  /api/auth/security-status:
-    get:
-      operationId: getAuthSecurityStatus
-      summary: Get auth security status for current session
-      tags: [auth]
-      security:
-        - BearerAuth: []
-      responses:
-        "200":
-          description: Current auth security status
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthSecurityStatusResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Failed to inspect auth security status
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/auth/logout:
-    post:
-      operationId: logout
-      summary: Invalidate session
-      tags: [auth]
-      security:
-        - BearerAuth: []
-      responses:
-        "200":
-          description: Logged out
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
-
-  /api/auth/change-password:
+  /api/auth/password/change:
     post:
       operationId: changePassword
-      summary: Change current user password
-      tags: [auth]
+      tags:
+        - Identity
       security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ChangePasswordRequest"
-      responses:
-        "200":
-          description: Password updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
-        "409":
-          description: Cannot change password
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/auth/me:
-    get:
-      operationId: getMe
-      summary: Get current user info
-      tags: [auth]
-      security:
-        - BearerAuth: []
-      responses:
-        "200":
-          description: Current user
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [user]
-                properties:
-                  user:
-                    $ref: "#/components/schemas/UserInfo"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  # ── Teams ──────────────────────────────────────────────
-  /api/teams:
-    post:
-      operationId: createTeam
-      summary: Create a team
-      tags: [teams]
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateTeamRequest"
-      responses:
-        "201":
-          description: Team created
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [team]
-                properties:
-                  team:
-                    $ref: "#/components/schemas/Team"
-        "409":
-          description: Conflict
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/teams/my:
-    get:
-      operationId: getMyTeam
-      summary: Get my team
-      tags: [teams]
-      security:
-        - BearerAuth: []
-      responses:
-        "200":
-          description: My team
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [team]
-                properties:
-                  team:
-                    $ref: "#/components/schemas/Team"
-        "404":
-          description: Not in any team
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/teams/join:
-    post:
-      operationId: joinTeam
-      summary: Join a team by invite code
-      tags: [teams]
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/JoinTeamRequest"
-      responses:
-        "200":
-          description: Joined
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
-        "409":
-          description: Already in a team
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/teams/leave:
-    post:
-      operationId: leaveTeam
-      summary: Leave current team
-      tags: [teams]
-      security:
-        - BearerAuth: []
-      responses:
-        "200":
-          description: Left
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
-        "409":
-          description: Cannot leave
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/teams/{teamId}/members/{memberId}:
-    delete:
-      operationId: removeTeamMember
-      summary: Remove a team member (captain only)
-      tags: [teams]
-      security:
-        - BearerAuth: []
+        - cookieSession: []
       parameters:
-        - name: teamId
-          in: path
+        - &a2
+          name: Origin
+          in: header
           required: true
-          schema:
-            type: integer
-        - name: memberId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Removed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
-        "409":
-          description: Cannot remove
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  # ── Challenges ─────────────────────────────────────────
-  /api/challenges:
-    get:
-      operationId: listChallenges
-      summary: List challenges
-      tags: [challenges]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: category
-          in: query
           schema:
             type: string
-        - name: show_hidden
-          in: query
-          schema:
-            type: boolean
-      responses:
-        "200":
-          description: Challenge list
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Challenge"
-
-    post:
-      operationId: createChallenge
-      summary: Create a challenge (admin)
-      tags: [challenges]
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateChallengeRequest"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Challenge"
-
-  /api/challenges/{id}:
-    get:
-      operationId: getChallenge
-      summary: Get a challenge
-      tags: [challenges]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
+            format: uri
+          description: Must match the configured public control-plane origin.
+        - &a3
+          name: X-CSRF-Token
+          in: header
           required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Challenge
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Challenge"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    put:
-      operationId: updateChallenge
-      summary: Update a challenge (admin)
-      tags: [challenges]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateChallengeRequest"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Challenge"
-
-    delete:
-      operationId: deleteChallenge
-      summary: Delete a challenge (admin)
-      tags: [challenges]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Deleted
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
-
-  /api/challenges/{id}/submit:
-    post:
-      operationId: submitChallengeFlag
-      summary: Submit flag for standalone challenge
-      tags: [challenges]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SubmitFlagRequest"
-      responses:
-        "200":
-          description: Correct flag
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SubmitResult"
-        "403":
-          description: Wrong flag
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SubmitResult"
-
-  # ── Games ──────────────────────────────────────────────
-  /api/games:
-    get:
-      operationId: listGames
-      summary: List games
-      tags: [games]
-      parameters:
-        - name: all
-          in: query
-          schema:
-            type: boolean
-      responses:
-        "200":
-          description: Game list
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Game"
-
-    post:
-      operationId: createGame
-      summary: Create a game (admin)
-      tags: [games]
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateGameRequest"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Game"
-
-  /api/games/{id}:
-    get:
-      operationId: getGame
-      summary: Get a game
-      tags: [games]
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Game
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Game"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    put:
-      operationId: updateGame
-      summary: Update a game (admin)
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateGameRequest"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Game"
-
-  /api/games/{id}/join:
-    post:
-      operationId: joinGame
-      summary: Join a game with a team
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/JoinGameRequest"
-      responses:
-        "200":
-          description: Joined
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
-        "409":
-          description: Already joined
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/games/{id}/participation:
-    get:
-      operationId: getGameParticipation
-      summary: Get my participation status in a game
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Participation status
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GameParticipation"
-        "404":
-          description: Game not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/games/{id}/writeup:
-    get:
-      operationId: getGameWriteup
-      summary: Get my game writeup
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Writeup
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GameWriteup"
-        "404":
-          description: Game not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    put:
-      operationId: submitGameWriteup
-      summary: Submit or update my game writeup
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SubmitGameWriteupRequest"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GameWriteup"
-
-  /api/games/{id}/leave:
-    delete:
-      operationId: leaveGame
-      summary: Leave a game
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/JoinGameRequest"
-      responses:
-        "200":
-          description: Left
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
-
-  /api/games/{id}/challenges:
-    get:
-      operationId: getGameChallenges
-      summary: Get challenges in a game
-      tags: [games]
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Challenge list
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/GameChallengeDetail"
-
-    post:
-      operationId: addChallengeToGame
-      summary: Add a challenge to a game (admin)
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AddChallengeToGameRequest"
-      responses:
-        "200":
-          description: Added
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
-
-  /api/games/{id}/challenges/{challengeId}:
-    delete:
-      operationId: removeChallengeFromGame
-      summary: Remove a challenge from a game (admin)
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: challengeId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Removed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
-
-  /api/games/{id}/challenges/{challengeId}/submit:
-    post:
-      operationId: submitGameFlag
-      summary: Submit flag for a challenge in a game
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: challengeId
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/GameSubmitFlagRequest"
-      responses:
-        "200":
-          description: Correct
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SubmitResult"
-        "403":
-          description: Wrong flag
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SubmitResult"
-
-  /api/admin/challenges/attachments:
-    post:
-      operationId: uploadChallengeAttachment
-      summary: Upload a local challenge attachment (admin)
-      tags: [challenges]
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required: [file]
-              properties:
-                file:
-                  type: string
-                  format: binary
-      responses:
-        "201":
-          description: Uploaded
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ChallengeAttachmentUploadResponse"
-
-  /api/games/{id}/challenges/{challengeId}/instance:
-    get:
-      operationId: getChallengeInstance
-      summary: Get current team challenge instance lease
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: challengeId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Current challenge instance lease
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ChallengeInstance"
-        "400":
-          description: Instance lease unavailable in current state
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Game or challenge not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    post:
-      operationId: ensureChallengeInstance
-      summary: Start or renew current team challenge instance lease
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: challengeId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Lease started or renewed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ChallengeInstance"
-        "400":
-          description: Instance lease unavailable in current state
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Game or challenge not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    delete:
-      operationId: destroyChallengeInstance
-      summary: Destroy current team challenge instance lease
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: challengeId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Lease destroyed or already idle
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ChallengeInstance"
-        "400":
-          description: Instance lease unavailable in current state
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Game or challenge not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/games/{id}/scoreboard:
-    get:
-      operationId: getScoreboard
-      summary: Get game scoreboard
-      tags: [games]
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: division
-          in: query
           schema:
             type: string
-      responses:
-        "200":
-          description: Scoreboard
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Scoreboard"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/games/{id}/participants:
-    get:
-      operationId: getGameParticipants
-      summary: Get game participants (admin)
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Participants
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/GameParticipantEntry"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/games/{id}/participants/{teamId}:
-    put:
-      operationId: updateGameParticipant
-      summary: Update participant status in a game (admin)
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: teamId
-          in: path
-          required: true
-          schema:
-            type: integer
+            minLength: 43
+            maxLength: 43
+          description: Double-submit proof matching the sauryctf-csrf cookie.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateParticipationStatusRequest"
+              type: object
+              properties:
+                current_password:
+                  type: string
+                  minLength: 1
+                  maxLength: 1024
+                new_password:
+                  type: string
+                  minLength: 1
+                  maxLength: 1024
+              required:
+                - current_password
+                - new_password
+              additionalProperties: false
       responses:
         "200":
-          description: Updated participant
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GameParticipantEntry"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    delete:
-      operationId: deleteGameParticipant
-      summary: Remove participant from a game (admin)
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: teamId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Removed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
-
-  /api/teams/{teamId}/transfer:
-    post:
-      operationId: transferTeamCaptain
-      summary: Transfer team captain role (captain only)
-      tags: [teams]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: teamId
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/TransferCaptainRequest"
-      responses:
-        "200":
-          description: Captain transferred
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
-        "409":
-          description: Cannot transfer
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/teams/{teamId}/invite-code/reset:
-    post:
-      operationId: resetTeamInviteCode
-      summary: Reset team invite code (captain only)
-      tags: [teams]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: teamId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Invite code reset
+          description: Password changed and current session refreshed
           content:
             application/json:
               schema:
                 type: object
-                required: [message, invite_code]
                 properties:
-                  message:
-                    type: string
-                  invite_code:
-                    type: string
-        "409":
-          description: Cannot reset invite code
+                  changed:
+                    type: boolean
+                    const: true
+                required:
+                  - changed
+                additionalProperties: false
+        "400": &a1
+          description: Stable API error
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-
-  /api/admin/games/{id}:
-    delete:
-      operationId: deleteAdminGame
-      summary: Delete a game and its game-scoped relations (admin)
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Deleted
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
-
-  /api/admin/games/import:
+        "401": *a1
+        "409": *a1
+  /api/auth/password/reset/request:
     post:
-      operationId: importAdminGamePackage
-      summary: Import a game package (admin)
-      tags: [games]
-      security:
-        - BearerAuth: []
+      operationId: requestPasswordReset
+      tags:
+        - Identity
+      parameters:
+        - *a2
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
               type: object
-              required: [file]
               properties:
-                file:
+                email:
                   type: string
-                  format: binary
+                  maxLength: 320
+                  format: email
+                  pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+                turnstile_token:
+                  type: string
+                  minLength: 1
+                  maxLength: 2048
+              required:
+                - email
+              additionalProperties: false
       responses:
-        "201":
-          description: Imported
+        "202":
+          description: Reset request accepted without account disclosure
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Game"
-
-  /api/admin/games/{id}/export:
+                type: object
+                properties:
+                  accepted:
+                    type: boolean
+                    const: true
+                required:
+                  - accepted
+                additionalProperties: false
+        "400": *a1
+        "403": *a1
+        "429": *a1
+  /api/auth/password/reset/confirm:
     post:
-      operationId: exportAdminGamePackage
-      summary: Export a game package (admin)
-      tags: [games]
-      security:
-        - BearerAuth: []
+      operationId: confirmPasswordReset
+      tags:
+        - Identity
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
+        - *a2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  minLength: 32
+                  maxLength: 512
+                  pattern: ^[A-Za-z0-9_-]+$
+                new_password:
+                  type: string
+                  minLength: 1
+                  maxLength: 1024
+              required:
+                - token
+                - new_password
+              additionalProperties: false
       responses:
         "200":
-          description: ZIP package download
+          description: Password reset and any browser session cleared
           content:
-            application/zip:
+            application/json:
               schema:
+                type: object
+                properties:
+                  changed:
+                    type: boolean
+                    const: true
+                required:
+                  - changed
+                additionalProperties: false
+        "400": *a1
+        "429": *a1
+  /api/auth/email/verification/request:
+    post:
+      operationId: requestEmailVerification
+      tags:
+        - Identity
+      security:
+        - cookieSession: []
+      parameters:
+        - *a2
+        - *a3
+      responses:
+        "202":
+          description: Verification request accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accepted:
+                    type: boolean
+                    const: true
+                required:
+                  - accepted
+                additionalProperties: false
+        "401": *a1
+        "429": *a1
+  /api/auth/email/verification/confirm:
+    post:
+      operationId: confirmEmailVerification
+      tags:
+        - Identity
+      parameters:
+        - *a2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  minLength: 32
+                  maxLength: 512
+                  pattern: ^[A-Za-z0-9_-]+$
+              required:
+                - token
+              additionalProperties: false
+      responses:
+        "200":
+          description: Email verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verified:
+                    type: boolean
+                    const: true
+                required:
+                  - verified
+                additionalProperties: false
+        "400": *a1
+        "429": *a1
+  /api/auth/csrf:
+    get:
+      operationId: getCsrfToken
+      tags:
+        - Identity
+      responses:
+        "200":
+          description: Double-submit CSRF token and matching cookie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  csrf_token:
+                    type: string
+                    minLength: 43
+                    maxLength: 43
+                    pattern: ^[A-Za-z0-9_-]+$
+                required:
+                  - csrf_token
+                additionalProperties: false
+components:
+  securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: sauryctf-session
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              minLength: 3
+              maxLength: 96
+              pattern: ^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$
+            message:
+              type: string
+              minLength: 1
+              maxLength: 500
+            request_id:
+              type: string
+              allOf:
+                - type: string
+                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                - type: string
+                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+            fields:
+              default: {}
+              type: object
+              propertyNames:
                 type: string
-                format: binary
-
-  /api/admin/games/{id}/announcements:
-    get:
-      operationId: listAdminGameAnnouncements
-      summary: List game announcements (admin)
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Announcement list
-          content:
-            application/json:
-              schema:
+                minLength: 1
+              additionalProperties:
+                minItems: 1
                 type: array
                 items:
-                  $ref: "#/components/schemas/GameAnnouncement"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    post:
-      operationId: createAdminGameAnnouncement
-      summary: Create a game announcement (admin)
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateGameAnnouncementRequest"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GameAnnouncement"
-        "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/admin/games/{id}/announcements/{announcementId}:
-    put:
-      operationId: updateAdminGameAnnouncement
-      summary: Update a game announcement (admin)
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: announcementId
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateGameAnnouncementRequest"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GameAnnouncement"
-        "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    delete:
-      operationId: deleteAdminGameAnnouncement
-      summary: Delete a game announcement (admin)
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: announcementId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Deleted
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
-
-  /api/admin/games/{id}/challenges:
-    get:
-      operationId: getAdminGameChallenges
-      summary: Get full mounted challenges for management (admin)
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Mounted challenge list
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/GameChallengeDetail"
-
-  /api/admin/games/{id}/instances:
-    get:
-      operationId: getAdminGameInstances
-      summary: List current instance leases for a game (admin)
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Instance lease list
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/AdminGameInstanceLease"
-  /api/admin/games/{id}/instances/{leaseId}:
-    delete:
-      operationId: deleteAdminGameInstance
-      summary: Destroy a game instance lease (admin)
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: leaseId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Lease destroyed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
-
-  /api/admin/games/{id}/writeups:
-    get:
-      operationId: getAdminGameWriteups
-      summary: List game writeups for review (admin)
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Writeup list
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/GameWriteup"
-
-  /api/admin/games/{id}/writeups/{teamId}:
-    put:
-      operationId: updateAdminGameWriteup
-      summary: Review a game writeup (admin)
-      tags: [games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: teamId
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ReviewGameWriteupRequest"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GameWriteup"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/admin/users:
-    get:
-      operationId: listAdminUsers
-      summary: List users for account management (admin)
-      tags: [auth]
-      security:
-        - BearerAuth: []
-      responses:
-        "200":
-          description: User list
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                $ref: "#/components/schemas/UserInfo"
-
-  /api/admin/audit-logs:
-    get:
-      operationId: listAdminAuditLogs
-      summary: List admin audit logs
-      tags: [auth]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: actor_user_id
-          in: query
-          schema:
-            type: integer
-        - name: action
-          in: query
-          schema:
-            type: string
-        - name: target_type
-          in: query
-          schema:
-            type: string
-        - name: limit
-          in: query
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Audit log list
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/AuditLog"
-
-  /api/admin/users/{userId}:
-    put:
-      operationId: updateAdminUser
-      summary: Update user role or status (admin)
-      tags: [auth]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: userId
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateUserAccountRequest"
-      responses:
-        "200":
-          description: Updated user
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/UserInfo"
-        "409":
-          description: Update rejected
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                  type: string
+                  minLength: 1
+          required:
+            - code
+            - message
+            - request_id
+            - fields
+          additionalProperties: false
+      required:
+        - error
+      additionalProperties: false
+    PageInfo:
+      type: object
+      properties:
+        next_cursor:
+          anyOf:
+            - type: string
+              minLength: 1
+              maxLength: 512
+              pattern: ^[A-Za-z0-9_-]+$
+            - type: "null"
+        has_more:
+          type: boolean
+      required:
+        - next_cursor
+        - has_more
+      additionalProperties: false
+    PaginationRequest:
+      type: object
+      properties:
+        cursor:
+          type: string
+          minLength: 1
+          maxLength: 512
+          pattern: ^[A-Za-z0-9_-]+$
+        limit:
+          default: 20
+          type: integer
+          minimum: 1
+          maximum: 100
+      required:
+        - limit
+      additionalProperties: false
+    ResourceVersion:
+      type: integer
+      exclusiveMinimum: 0
+      maximum: 9007199254740991

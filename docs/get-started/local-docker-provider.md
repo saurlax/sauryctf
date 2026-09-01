@@ -1,6 +1,7 @@
-# 本地容器实例题
+# 遗留本地 Docker Provider
 
-这份文档面向本机真实拉起 Docker 动态题的最小检查场景。
+这份文档只描述 `legacy/go-monolith` 的迁移期 Docker CLI Provider，用于核对
+旧行为。新 `apps/worker` 将使用 Docker Engine API，不能复用这里的实现。
 
 ## 开启方式
 

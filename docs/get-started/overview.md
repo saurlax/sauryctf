@@ -1,154 +1,78 @@
 # 开始使用
 
-SauryCTF 是一个基于 Go + Gin + GORM + Nuxt SSG 的 CTF 平台。
+SauryCTF 当前采用 monorepo，活动应用只有两个：
 
-当前仓库已经具备这些基础能力：
+- `apps/web`：Nuxt 4/Nitro 控制面，是浏览器和公网 API 的唯一业务入口；
+- `apps/worker`：私有 Go 实例 Worker，只负责动态实例任务与资源对账。
 
-- 用户登录、会话鉴权、仅空库触发的默认管理员初始化
-- 队伍创建、加入、退出
-- 比赛创建、题目挂载、比赛报名与列表状态提示
-- 比赛报名审核与参赛队伍状态管理
-- 比赛报名模式配置（人工审核 / 自动通过）
-- 比赛公告编辑与详情展示
-- 比赛时间配置校验（开始/结束/封榜时间）
-- 题面、提示、附件链接的录入与比赛页展示
-- 比赛详情页、题目列表、排行榜
-- 控制台首页导航与管理入口
-- 管理端比赛导出 ZIP 包
-- 动态计分与一血/二血/三血元数据（公开榜单与管理端挂题视图）
+`legacy/go-monolith` 是迁移期间的实现参考，不属于目标部署，也没有加入根
+Go workspace。首期只实现 Jeopardy。
 
-## 空库默认管理员
+## 准备工具链
 
-完成数据库迁移后，只有在 `users` 表为空时，后端才会自动创建默认管理员：
-
-- 用户名：`admin`
-- 密码：`sauryctf`
-
-这一步发生在后端服务启动时。空库第一次启动后即可直接访问 `/login` 使用默认管理员登录，不需要额外的初始化页面或手工预置步骤。
-
-`/login` 页面不会直接预填或展示默认口令；空库场景下如需使用默认管理员，请按本文档中的初始账号信息手动登录。
-
-前端当前提供独立的 `/login` 与 `/register` 页面，右上角导航也固定提供两个按钮入口：
-
-- `登录`
-- `注册`
-- 普通选手注册后会先进入队伍页；若来自比赛页，注册成功后会先完成队伍准备再回到原比赛
-- 公开比赛入口直接跳到 `/games`，便于先浏览公开信息和榜单
-
-首页 Hero 也会根据登录态显示入口：
-
-- 未登录时显示 `登录`、`注册`
-- 已登录时显示 `进入控制台`
-- `/login` 与 `/register` 现在都使用统一的访客中间件：
-  - 未登录用户正常停留在页面
-  - 已登录用户会自动回到 `redirect` 指定页面，或默认进入 `/console`
-- `/login` 页面当前只保留正式登录入口，不再承载默认管理员初始化说明
-- 前端登录态恢复现在通过 `useAuth().ensureInitialized()` 统一收口：
-  - 路由中间件和关键页面会等待一次共享的会话恢复
-  - 避免公开页、控制台页各自重复触发一套登录态初始化
-- 公开比赛列表与控制台首页现在也共享同一套批量报名状态加载逻辑：
-  - 同一批 `/api/games/{id}/participation` 请求会复用统一的兜底行为
-  - 后续调整报名状态展示时，不需要再手动同步两套请求实现
-- 公开比赛列表与比赛详情页现在共享同一套报名状态解释：
-  - 登录、组队、待审核、被拒绝、待补 Writeup、已报名等状态会保持一致语义
-  - 页面只负责各自的展示布局，不再分别维护两套核心状态判断
-- 公开比赛列表与比赛详情页里的登录、注册、队伍入口现在也会保留当前比赛地址：
-  - 从列表或详情页点进去后，完成登录、注册、建队后都会尽量回到原比赛继续操作
-
-登录成功后，前端会在客户端启动时自动恢复当前 Cookie 会话。即使刷新公开页面，导航栏也会继续显示正确的登录状态。
-
-如果你是在本地第一次跑起整套项目，可以先直接检查这组默认入口：
-
-- 前端登录页：`http://127.0.0.1:3000/login`
-- 默认管理员：`admin / sauryctf`
-- 只有在 `users` 表为空时，后端才会创建这组账号
-- 登录成功后，浏览器会收到 `token` Cookie；随后刷新页面或访问 `/api/auth/me` 都应仍能识别当前登录态
-- 重复登录会生成新的独立会话，不需要手动清理旧会话或重置数据库
-- 队长现在也可以直接从 `/console/team` 复制邀请链接，发给队友后会自动填入邀请码
-- 认证入口回跳也可以单独做一次前端自检：
-  - 先启动 `pnpm dev:frontend`
-  - 再运行 `pnpm check:auth-redirects`
-  - 会检查 `/login`、`/register` 对比赛 `redirect` 的保留与默认回退是否正确
-
-完整的本地运行检查步骤现在已经拆到单独文档：
-
-- `docs/get-started/smoke-flow.md`
-- `docs/guide/authentication.md`
-
-其中会覆盖：
-
-- 空库后的管理员建赛最小链路
-- 普通选手的注册、建队、报名、提 Flag、看榜最小链路
-- 以及几个最容易卡住的本地运行检查点
-
-如果你想更快补齐一轮本地演练所需配置，管理端现在也提供了两类默认值入口：
-
-- 创建比赛时可直接点“写入比赛默认值”，补齐一场公开比赛的基础配置
-- 创建题目时可直接点“静态题”，补齐题目结构；正式发布前仍需自行填写题面、入口和 Flag
-
-## 本地开发
-
-后端：
+按 [工具链与锁文件](./toolchain.md) 安装固定版本，然后在仓库根目录执行：
 
 ```bash
-go run ./cmd/server
+corepack enable
+pnpm install --frozen-lockfile
 ```
 
-前端：
+## 启动控制面
+
+复制 `.env.example` 为 `.env`，启动 PostgreSQL、Redis、MinIO 和 Mailpit：
 
 ```bash
-pnpm dev:frontend
+pnpm dev:dependencies
+pnpm db:migrate
+pnpm dev:web
 ```
 
-整体启动：
+Nuxt 默认监听 `http://127.0.0.1:3000`。`/api/**` 由 Nitro 自己处理，不代理
+到 Go 服务。
+
+生产构建与启动：
 
 ```bash
-pnpm dev
+pnpm build
+node apps/web/.output/server/index.mjs
 ```
 
-如果只想在前端目录里单独启动，也可以直接运行：
+## Worker
+
+`apps/worker` 已建立独立 Go module 和依赖边界。Worker 的进程入口、任务领取、
+Provider 和 Reconciler 会按 OpenSpec 第 8、9 阶段逐步实现；在这些任务完成前，
+不使用遗留 Go 单体伪装成新 Worker。
+
+当前可以单独验证 module：
 
 ```bash
-cd frontend
-pnpm dev:local
+pnpm test:worker
 ```
 
-当前仓库里 `dev:frontend` 已经固定为本地可访问的 `127.0.0.1:3000`，便于直接验证登录态和 Cookie 会话。
+## 遗留实现
 
-前端开发环境当前也已经关闭远程 Google 字体 provider 依赖：
+需要对照旧行为或运行迁移期 smoke 时，使用显式遗留命令：
 
-- 本地 `pnpm dev:frontend` 不再因为外网字体元数据请求失败而直接报 Vite 500
-- 即使当前机器无法访问 Google Fonts，前端本地开发也应保持可打开状态
+```bash
+pnpm dev:legacy
+pnpm test:legacy
+```
 
-本地登录调试时，有两个约束最好保持不变：
+这些命令不会把 `legacy/go-monolith` 加回活动 workspace，也不能作为新功能的
+落点。迁移完成后整个遗留目录将删除。
 
-- 浏览器入口优先使用 `http://127.0.0.1:3000`，不要在同一轮调试里混用 `localhost:3000`
-- 前端请求保持走同源 `/api/**`
-  - 当前 Nuxt 开发环境已经通过 `nitro.devProxy` 把 `/api/**` 转发到 `http://localhost:8080`
-  - `frontend/app/plugins/api.ts` 里的 `$apiFetch` 也固定带上了 `credentials: 'include'`
-  - 这样浏览器收到的是来自前端源站的 `token` Cookie，刷新页面后 `/api/auth/me` 才能稳定恢复登录态
+## 建议验证顺序
 
-如果登录后仍然是访客态，可以先按这个顺序排查：
+```bash
+pnpm check:toolchain
+pnpm check:boundaries
+pnpm check:jeopardy-scope
+pnpm generate:api
+pnpm test:contracts
+pnpm test:db
+pnpm typecheck
+pnpm build
+pnpm test:worker
+```
 
-1. 确认后端实际跑在 `127.0.0.1:8080` 或 `localhost:8080`
-2. 打开浏览器开发者工具，确认登录请求地址是 `http://127.0.0.1:3000/api/auth/login`，而不是直接跨源请求 `http://localhost:8080/api/auth/login`
-3. 确认登录响应里出现了 `Set-Cookie: token=...`
-4. 刷新后访问 `http://127.0.0.1:3000/api/auth/me`，确认仍然返回当前用户
-
-## 当前前端原则
-
-- 只使用 Nuxt UI 做极简页面拼接
-- 先优先完成核心赛事流程，再逐步补齐管理功能
-- 文档使用 Markdown，按 `get-started` 和 `guide` 分类沉淀
-
-## 阅读顺序
-
-- `docs/README.md`
-- `docs/get-started/overview.md`
-- `docs/get-started/smoke-flow.md`
-- `docs/guide/authentication.md`
-- `docs/guide/console-home.md`
-- `docs/guide/team-management.md`
-- `docs/guide/game-participation.md`
-- `docs/guide/writeup-workflow.md`
-- `AGENTS.md`
+详细设计见 [文档索引](../README.md) 与当前 OpenSpec change。

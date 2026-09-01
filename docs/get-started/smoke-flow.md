@@ -1,21 +1,23 @@
-# 本地检查流程
+# 迁移期遗留本地检查流程
 
-这份文档面向空库首次启动后的最小检查流程。
+这份文档只用于对照 `legacy/go-monolith` 的既有 Jeopardy 行为。它不是新
+`apps/web` + `apps/worker` 架构的发布验收；新控制面能力应按 OpenSpec 任务和
+对应集成测试验收。
 
 目标是确认项目已经能跑通一条管理员建赛链路，以及一条选手参赛链路。
 
 ## 前置条件
 
-先启动后后端与前端：
+如需人工对照旧行为，显式启动遗留 API 与当前 Web 工作区：
 
 ```bash
-pnpm dev
+pnpm dev:legacy
 ```
 
 默认访问入口：
 
-- 前端：`http://127.0.0.1:3000`
-- 后端：`http://127.0.0.1:8080`
+- Web：`http://127.0.0.1:3000`
+- 遗留 API：`http://127.0.0.1:8080`
 
 动态题实例策略可通过以下环境变量调整：
 
@@ -113,7 +115,7 @@ pnpm smoke:local
 如果你只想先确认前端认证入口的回跳链接是否正确，也可以单独运行：
 
 ```bash
-pnpm dev:frontend
+pnpm dev:web
 pnpm check:auth-redirects
 ```
 

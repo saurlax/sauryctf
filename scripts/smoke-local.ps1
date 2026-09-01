@@ -280,6 +280,7 @@ function Start-TemporaryBackend {
   )
 
   $repoRoot = Split-Path -Parent $PSScriptRoot
+  $legacyRoot = Join-Path $repoRoot "legacy/go-monolith"
   $stamp = Get-Date -Format "yyyyMMddHHmmss"
 
   $script:ArtifactsDir = Join-Path ([System.IO.Path]::GetTempPath()) "sauryctf-smoke-$stamp"
@@ -296,6 +297,7 @@ function Start-TemporaryBackend {
     "`$env:SQLITE_PATH='$dbPath'"
     "`$env:INSTANCE_DOCKER_PROVIDER_ENABLED='" + ($(if ($Mode -eq "docker") { "true" } else { "false" })) + "'"
     "`$env:INSTANCE_DOCKER_HOST='127.0.0.1'"
+    "`$env:GOWORK='off'"
     "go run ./cmd/server"
   ) -join "; "
 
@@ -305,7 +307,7 @@ function Start-TemporaryBackend {
   $script:BackendProcess = Start-Process `
     -FilePath "powershell" `
     -ArgumentList @("-NoProfile", "-Command", $envSetup) `
-    -WorkingDirectory $repoRoot `
+    -WorkingDirectory $legacyRoot `
     -RedirectStandardOutput $script:BackendLogPath `
     -RedirectStandardError $script:BackendErrorLogPath `
     -PassThru `

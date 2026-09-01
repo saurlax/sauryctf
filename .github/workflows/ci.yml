@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      TEST_DATABASE_ADMIN_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: .go-version
+          cache-dependency-path: |
+            apps/worker/go.mod
+            legacy/go-monolith/go.sum
+
+      - name: Install JavaScript dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check pinned toolchain
+        run: pnpm check:toolchain
+
+      - name: Check Jeopardy scope
+        run: pnpm check:jeopardy-scope
+
+      - name: Check control-plane boundaries
+        run: pnpm check:boundaries
+
+      - name: Run contract tests
+        run: pnpm test:contracts
+
+      - name: Test PostgreSQL migrations
+        run: pnpm test:db
+
+      - name: Verify generated API artifacts
+        run: |
+          pnpm generate:api
+          git diff --exit-code -- api/openapi.yaml apps/web/app/types/control-plane-api.d.ts
+
+      - name: Type-check Nuxt
+        run: pnpm typecheck
+
+      - name: Build Nuxt/Nitro
+        run: pnpm --filter sauryctf-web build
+
+      - name: Test instance worker
+        run: go test ./apps/worker/...
+
+      - name: Test isolated legacy monolith
+        working-directory: legacy/go-monolith
+        env:
+          GOWORK: "off"
+        run: GOWORK=off go test ./...

@@ -1,0 +1,43 @@
+{
+  "name": "sauryctf-web",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": "24.20.0",
+    "pnpm": "10.34.5"
+  },
+  "scripts": {
+    "build": "nuxt build",
+    "db:generate": "drizzle-kit generate --config drizzle.config.ts",
+    "db:migrate": "tsx server/infrastructure/db/migrate-cli.ts",
+    "dev": "nuxt dev",
+    "dev:local": "nuxt dev --host 127.0.0.1 --port 3000",
+    "generate": "nuxt build",
+    "generate:openapi": "tsx scripts/generate-openapi.ts",
+    "test:contracts": "vitest run shared/contracts server/domains/administration/readiness.test.ts server/infrastructure/http server/infrastructure/security server/infrastructure/telemetry",
+    "typecheck": "nuxt typecheck",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@nuxt/ui": "^4.8.0",
+    "drizzle-orm": "0.45.2",
+    "h3": "1.15.11",
+    "nuxt": "^4.4.2",
+    "nuxt-auth-utils": "^0.5.30",
+    "pg": "8.23.0",
+    "redis": "5.8.2",
+    "tailwindcss": "^4.3.0",
+    "vue": "^3.5.30",
+    "vue-router": "^5.0.4",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1",
+    "drizzle-kit": "0.31.10",
+    "tsx": "4.23.13",
+    "typescript": "5.9.3",
+    "vitest": "^3.2.4",
+    "vue-tsc": "3.3.11",
+    "yaml": "2.9.0"
+  }
+}
