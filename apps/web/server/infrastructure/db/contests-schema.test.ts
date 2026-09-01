@@ -183,6 +183,42 @@ describeWithPostgres('Jeopardy contest authority schema', () => {
     )).resolves.toMatchObject({ rowCount: 1 })
   })
 
+  it('has no contest mode storage and leaves contests and runtime resources unchanged on mode writes', async () => {
+    const columns = await database.pool.query<{ column_name: string }>(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'contests' AND column_name = 'mode'`,
+    )
+    expect(columns.rows).toEqual([])
+
+    const before = await database.pool.query<{
+      contests: string
+      instances: string
+      jobs: string
+    }>(
+      `SELECT
+         (SELECT count(*)::text FROM contests) AS contests,
+         (SELECT count(*)::text FROM instances) AS instances,
+         (SELECT count(*)::text FROM instance_jobs) AS jobs`,
+    )
+    await expect(database.pool.query(
+      `INSERT INTO contests (title, slug, mode, start_at, end_at, created_by)
+       VALUES ('Unsupported Mode', $1, $2, now(), now() + interval '1 hour', $3)`,
+      [`unsupported-mode-${randomUUID()}`, 'awd', organizerId],
+    )).rejects.toMatchObject({ code: '42703' })
+    const after = await database.pool.query<{
+      contests: string
+      instances: string
+      jobs: string
+    }>(
+      `SELECT
+         (SELECT count(*)::text FROM contests) AS contests,
+         (SELECT count(*)::text FROM instances) AS instances,
+         (SELECT count(*)::text FROM instance_jobs) AS jobs`,
+    )
+    expect(after.rows[0]).toEqual(before.rows[0])
+  })
+
   it('deduplicates public timeline events within a contest', async () => {
     const contestId = await createContest(`timeline-${randomUUID()}`)
     await database.pool.query(

@@ -13,6 +13,10 @@ import {
   versionFromIfMatch,
 } from '../../../shared/contracts/http'
 import { identityCapability } from '../../domains/identity/capabilities'
+import {
+  assertImplicitJeopardyContestPayload,
+  ContestModeUnsupportedError,
+} from '../../domains/contests/admission'
 import type { ContestRecord } from '../../domains/contests/repository'
 import { ContestServiceError, type ContestService } from '../../domains/contests/service'
 import {
@@ -20,7 +24,7 @@ import {
   requireProtectedCapability,
   type IdentityHttpDependencies,
 } from '../auth/identity-http'
-import { readValidatedJsonBody } from '../http/body'
+import { readJsonBody, readValidatedJsonBody } from '../http/body'
 import { createApiError } from '../http/errors'
 
 type ContestCommands = Pick<ContestService,
@@ -105,12 +109,26 @@ function respond(event: H3Event, record: ContestRecord) {
   return contestResponseSchema.parse({ contest: projection(record) })
 }
 
+async function readContestJsonBody<Output>(event: H3Event, schema: { parse(value: unknown): Output }) {
+  const payload = await readJsonBody(event)
+  try {
+    assertImplicitJeopardyContestPayload(payload, 'api')
+  }
+  catch (error) {
+    if (!(error instanceof ContestModeUnsupportedError)) throw error
+    throw createApiError(400, 'contest.mode_unsupported', error.message, {
+      [error.field]: ['首期比赛不得声明赛制字段'],
+    })
+  }
+  return schema.parse(payload)
+}
+
 export async function handleCreateContestDraft(
   event: H3Event,
   dependencies = contestHttpDependencies(event),
 ) {
   const subject = await manager(event, dependencies)
-  const input = await readValidatedJsonBody(event, createContestDraftRequestSchema)
+  const input = await readContestJsonBody(event, createContestDraftRequestSchema)
   const result = await runContestOperation(() => dependencies.contests.createDraft(subject, {
     requestId: requestIdSchema.parse(event.context.requestId),
     title: input.title,
@@ -146,7 +164,7 @@ export async function handleUpdateContestDraft(
       if_match: ['请提交当前资源的强 ETag，例如 "3"'],
     })
   }
-  const input = await readValidatedJsonBody(event, updateContestDraftRequestSchema)
+  const input = await readContestJsonBody(event, updateContestDraftRequestSchema)
   const result = await runContestOperation(() => dependencies.contests.updateDraft(subject, {
     requestId: requestIdSchema.parse(event.context.requestId),
     contestId,

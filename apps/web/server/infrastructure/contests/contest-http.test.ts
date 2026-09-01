@@ -141,6 +141,29 @@ describe('contest HTTP adapters', () => {
     expect(deps.contests.createDraft).not.toHaveBeenCalled()
   })
 
+  it.each(['awd', 'mixed', 'unknown', 'jeopardy'])(
+    'rejects explicit contest mode %s before invoking the creation service',
+    async (mode) => {
+      const deps = dependencies()
+      const response = await invoke(event => handleCreateContestDraft(event, deps), {
+        title: 'Unsupported Mode Contest',
+        slug: 'unsupported-mode-contest',
+        description: '',
+        start_at: '2026-10-01T00:00:00.000Z',
+        end_at: '2026-10-01T08:00:00.000Z',
+        mode,
+      })
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toMatchObject({
+        error: {
+          code: 'contest.mode_unsupported',
+          fields: { mode: expect.any(Array) },
+        },
+      })
+      expect(deps.contests.createDraft).not.toHaveBeenCalled()
+    },
+  )
+
   it('requires and forwards a strong resource version for draft updates', async () => {
     const deps = dependencies()
     const missing = await invoke(
@@ -163,6 +186,20 @@ describe('contest HTTP adapters', () => {
     expect(deps.contests.updateDraft).toHaveBeenCalledWith(organizer, expect.objectContaining({
       contestId, expectedVersion: 1, practiceEnabled: true,
     }))
+  })
+
+  it('rejects a mode discriminator on updates before invoking the domain service', async () => {
+    const deps = dependencies()
+    const response = await invoke(
+      event => handleUpdateContestDraft(event, contestId, deps),
+      { mode: 'awd', reason: 'Attempt unsupported mode change' },
+      { method: 'PATCH', headers: { 'if-match': '"1"' } },
+    )
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'contest.mode_unsupported', fields: { mode: expect.any(Array) } },
+    })
+    expect(deps.contests.updateDraft).not.toHaveBeenCalled()
   })
 
   it('projects lifecycle transitions and request audit context', async () => {

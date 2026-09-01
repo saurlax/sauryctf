@@ -28,6 +28,13 @@ export async function readValidatedJsonBody<Output>(
   schema: ZodType<Output>,
   maximumBytes = defaultMaximumJsonBodyBytes,
 ): Promise<Output> {
+  return schema.parse(await readJsonBody(event, maximumBytes))
+}
+
+export async function readJsonBody(
+  event: H3Event,
+  maximumBytes = defaultMaximumJsonBodyBytes,
+): Promise<unknown> {
   const rawBody = await readRawBody(event)
-  return schema.parse(parseJsonText(rawBody, maximumBytes))
+  return parseJsonText(rawBody, maximumBytes)
 }
