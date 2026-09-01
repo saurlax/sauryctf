@@ -1,0 +1,48 @@
+{
+  "job_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451001",
+  "instance_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451011",
+  "operation": "ensure",
+  "payload_version": 1,
+  "desired_generation": 4,
+  "idempotency_key": "instance:018f47a2-4ef8-7e2c-9c24-6d68b7451011:generation:4:ensure",
+  "payload": {
+    "schema": "instance-job.v1",
+    "provider": "docker",
+    "target": {
+      "contest_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451021",
+      "contest_challenge_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451031",
+      "participation_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451041",
+      "team_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451051"
+    },
+    "expires_at": "2026-09-02T09:30:00.000Z",
+    "spec": {
+      "image": "registry.example.test/challenges/web-demo@sha256:0123456789abcdef",
+      "entrypoints": [
+        {
+          "name": "web",
+          "protocol": "http",
+          "container_port": 8080
+        }
+      ],
+      "environment": [
+        {
+          "name": "CHALLENGE_MODE",
+          "value": "competition"
+        }
+      ],
+      "resources": {
+        "cpu_millicores": 500,
+        "memory_bytes": 268435456,
+        "ephemeral_storage_bytes": 536870912
+      },
+      "network": {
+        "egress": "deny"
+      },
+      "secret_envelope": {
+        "schema": "instance-secrets.v1",
+        "key_id": "worker-key-v1",
+        "ciphertext_base64": "AAECAwQFBgcICQ=="
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "job_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451004",
+  "instance_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451014",
+  "operation": "reconcile",
+  "payload_version": 1,
+  "desired_generation": 11,
+  "idempotency_key": "instance:018f47a2-4ef8-7e2c-9c24-6d68b7451014:generation:11:reconcile",
+  "payload": {
+    "schema": "instance-job.v1",
+    "provider": "kubernetes",
+    "target": {
+      "contest_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451024",
+      "contest_challenge_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451034",
+      "participation_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451044",
+      "team_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451054"
+    },
+    "expires_at": null,
+    "desired_state": "stopped",
+    "spec": null
+  }
+}

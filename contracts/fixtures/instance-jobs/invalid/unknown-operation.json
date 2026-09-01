@@ -1,0 +1,19 @@
+{
+  "job_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451099",
+  "instance_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451199",
+  "operation": "unsupported",
+  "payload_version": 1,
+  "desired_generation": 1,
+  "idempotency_key": "instance:unknown-operation",
+  "payload": {
+    "schema": "instance-job.v1",
+    "provider": "docker",
+    "target": {
+      "contest_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451299",
+      "contest_challenge_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451399",
+      "participation_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451499",
+      "team_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451599"
+    },
+    "expires_at": null
+  }
+}

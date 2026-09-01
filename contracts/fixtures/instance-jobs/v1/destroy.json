@@ -1,0 +1,19 @@
+{
+  "job_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451003",
+  "instance_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451013",
+  "operation": "destroy",
+  "payload_version": 1,
+  "desired_generation": 9,
+  "idempotency_key": "instance:018f47a2-4ef8-7e2c-9c24-6d68b7451013:generation:9:destroy",
+  "payload": {
+    "schema": "instance-job.v1",
+    "provider": "docker",
+    "target": {
+      "contest_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451023",
+      "contest_challenge_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451033",
+      "participation_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451043",
+      "team_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451053"
+    },
+    "expires_at": null
+  }
+}

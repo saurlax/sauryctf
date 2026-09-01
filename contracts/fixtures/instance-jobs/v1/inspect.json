@@ -1,0 +1,19 @@
+{
+  "job_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451002",
+  "instance_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451012",
+  "operation": "inspect",
+  "payload_version": 1,
+  "desired_generation": 7,
+  "idempotency_key": "instance:018f47a2-4ef8-7e2c-9c24-6d68b7451012:generation:7:inspect",
+  "payload": {
+    "schema": "instance-job.v1",
+    "provider": "kubernetes",
+    "target": {
+      "contest_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451022",
+      "contest_challenge_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451032",
+      "participation_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451042",
+      "team_id": "018f47a2-4ef8-7e2c-9c24-6d68b7451052"
+    },
+    "expires_at": "2026-09-02T10:00:00.000Z"
+  }
+}
