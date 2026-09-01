@@ -73,6 +73,9 @@ func TestProviderAgainstEnvtest(t *testing.T) {
 	if _, err := client.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{}); err != nil {
 		t.Fatalf("get Secret: %v", err)
 	}
+	if _, err := client.NetworkingV1().NetworkPolicies(namespace).Get(ctx, networkPolicyName(name), metav1.GetOptions{}); err != nil {
+		t.Fatalf("get NetworkPolicy: %v", err)
+	}
 	httpIngress, err := client.NetworkingV1().Ingresses(namespace).Get(ctx, httpRouteName(name), metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("get Ingress: %v", err)
@@ -124,7 +127,8 @@ func TestProviderAgainstEnvtest(t *testing.T) {
 		_, secretErr := client.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{})
 		_, ingressErr := client.NetworkingV1().Ingresses(namespace).Get(ctx, httpRouteName(name), metav1.GetOptions{})
 		_, tcpServiceErr := client.CoreV1().Services(namespace).Get(ctx, tcpRouteName(name), metav1.GetOptions{})
-		return apierrors.IsNotFound(deploymentErr) && apierrors.IsNotFound(serviceErr) && apierrors.IsNotFound(secretErr) && apierrors.IsNotFound(ingressErr) && apierrors.IsNotFound(tcpServiceErr), nil
+		_, networkPolicyErr := client.NetworkingV1().NetworkPolicies(namespace).Get(ctx, networkPolicyName(name), metav1.GetOptions{})
+		return apierrors.IsNotFound(deploymentErr) && apierrors.IsNotFound(serviceErr) && apierrors.IsNotFound(secretErr) && apierrors.IsNotFound(ingressErr) && apierrors.IsNotFound(tcpServiceErr) && apierrors.IsNotFound(networkPolicyErr), nil
 	}); err != nil {
 		t.Fatalf("wait for resource deletion: %v", err)
 	}

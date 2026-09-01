@@ -59,11 +59,16 @@ func TestEnsureCreatesAndUpdatesOwnedResources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	networkPolicy, err := client.NetworkingV1().NetworkPolicies("challenge-test").Get(ctx, networkPolicyName(name), metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	assertOwnershipLabels(t, workload.Labels, spec.Key)
 	assertOwnershipLabels(t, service.Labels, spec.Key)
 	assertOwnershipLabels(t, secret.Labels, spec.Key)
 	assertOwnershipLabels(t, httpIngress.Labels, spec.Key)
 	assertOwnershipLabels(t, tcpService.Labels, spec.Key)
+	assertOwnershipLabels(t, networkPolicy.Labels, spec.Key)
 	assertOwnershipLabels(t, workload.Spec.Template.Labels, spec.Key)
 
 	if workload.Spec.Selector.MatchLabels["sauryctf.io/resource-name"] != name || workload.Spec.Template.Labels["sauryctf.io/resource-name"] != name {
@@ -120,8 +125,9 @@ func TestEnsureCreatesAndUpdatesOwnedResources(t *testing.T) {
 	services, _ := client.CoreV1().Services("challenge-test").List(ctx, metav1.ListOptions{})
 	secrets, _ := client.CoreV1().Secrets("challenge-test").List(ctx, metav1.ListOptions{})
 	ingresses, _ := client.NetworkingV1().Ingresses("challenge-test").List(ctx, metav1.ListOptions{})
-	if len(workloads.Items) != 1 || len(services.Items) != 2 || len(secrets.Items) != 1 || len(ingresses.Items) != 1 {
-		t.Fatalf("resource counts after repeated Ensure() = %d/%d/%d/%d", len(workloads.Items), len(services.Items), len(secrets.Items), len(ingresses.Items))
+	networkPolicies, _ := client.NetworkingV1().NetworkPolicies("challenge-test").List(ctx, metav1.ListOptions{})
+	if len(workloads.Items) != 1 || len(services.Items) != 2 || len(secrets.Items) != 1 || len(ingresses.Items) != 1 || len(networkPolicies.Items) != 1 {
+		t.Fatalf("resource counts after repeated Ensure() = %d/%d/%d/%d/%d", len(workloads.Items), len(services.Items), len(secrets.Items), len(ingresses.Items), len(networkPolicies.Items))
 	}
 	updated, _ := client.AppsV1().Deployments("challenge-test").Get(ctx, name, metav1.GetOptions{})
 	if updated.Spec.Template.Spec.Containers[0].Image != spec.Runtime.Image || updated.Spec.Template.Spec.Containers[0].Env[0].Value != "updated" {
@@ -333,11 +339,12 @@ func TestDestroyOwnedResourcesIsIdempotent(t *testing.T) {
 		}
 	}
 	for kind, err := range map[string]error{
-		"deployment":  getDeploymentError(ctx, client, name),
-		"service":     getServiceError(ctx, client, name),
-		"secret":      getSecretError(ctx, client, name),
-		"ingress":     getIngressError(ctx, client, name),
-		"tcp service": getTCPServiceError(ctx, client, name),
+		"deployment":     getDeploymentError(ctx, client, name),
+		"service":        getServiceError(ctx, client, name),
+		"secret":         getSecretError(ctx, client, name),
+		"ingress":        getIngressError(ctx, client, name),
+		"tcp service":    getTCPServiceError(ctx, client, name),
+		"network policy": getNetworkPolicyError(ctx, client, name),
 	} {
 		if !apierrors.IsNotFound(err) {
 			t.Fatalf("%s remains after Destroy(): %v", kind, err)
@@ -496,5 +503,10 @@ func getIngressError(ctx context.Context, client *fake.Clientset, name string) e
 
 func getTCPServiceError(ctx context.Context, client *fake.Clientset, name string) error {
 	_, err := client.CoreV1().Services("challenge-test").Get(ctx, tcpRouteName(name), metav1.GetOptions{})
+	return err
+}
+
+func getNetworkPolicyError(ctx context.Context, client *fake.Clientset, name string) error {
+	_, err := client.NetworkingV1().NetworkPolicies("challenge-test").Get(ctx, networkPolicyName(name), metav1.GetOptions{})
 	return err
 }

@@ -109,6 +109,18 @@ are ready. The Secret currently stores only the sealed envelope JSON;
 decryption, runtime injection, and post-completion clearing belong to the
 dedicated sensitive payload task.
 
+Kubernetes workloads always run with `runAsNonRoot`, RuntimeDefault seccomp, a
+read-only root filesystem, all Linux capabilities dropped, privilege escalation
+disabled, ServiceAccount token automount disabled, and service-link injection
+disabled. CPU, memory, and ephemeral-storage requests equal their validated
+limits; the only writable filesystem is a size-bounded `/tmp` EmptyDir. Every
+instance also owns a NetworkPolicy that permits inbound traffic only on declared
+challenge ports. The `deny` egress mode has no egress rule, while `internet`
+allows public IPv4 destinations plus DNS and excludes private, link-local,
+loopback, metadata, multicast, and reserved ranges. `Inspect` refuses to publish
+an entrypoint if the workload security fields or NetworkPolicy drift from these
+generated defaults.
+
 The Kubernetes package has fake-client contract tests and an API-server-backed
 envtest lifecycle test. Install matching envtest assets and run it with
 `TEST_KUBERNETES_ENVTEST=1` plus `KUBEBUILDER_ASSETS` pointing at that asset

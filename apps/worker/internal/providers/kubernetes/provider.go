@@ -10,7 +10,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -65,6 +64,9 @@ func (provider *Provider) Ensure(ctx context.Context, spec providers.InstanceSpe
 	if err := provider.ensureDeployment(ctx, name, spec); err != nil {
 		return jobs.Observation{}, err
 	}
+	if err := provider.ensureNetworkPolicy(ctx, name, spec); err != nil {
+		return jobs.Observation{}, err
+	}
 	if err := provider.ensureRoutes(ctx, name, spec); err != nil {
 		return jobs.Observation{}, err
 	}
@@ -96,12 +98,26 @@ func (provider *Provider) Inspect(ctx context.Context, key providers.InstanceKey
 	if err := validateLabels(service.Labels, key); err != nil {
 		return jobs.Observation{}, ownershipError(err)
 	}
-	if !deploymentReady(deployment) {
-		return jobs.Observation{State: jobs.ObservedStarting, ProviderResourceID: resourceID(provider.namespace, name)}, nil
+	if err := validateDeploymentSecurity(deployment); err != nil {
+		return jobs.Observation{}, jobs.PermanentError("provider.security_policy_drift", "Kubernetes workload no longer matches the required security policy", err)
 	}
 	entrypointSpecs, err := deploymentEntrypoints(deployment)
 	if err != nil {
 		return jobs.Observation{}, jobs.PermanentError("provider.invalid_entrypoints", "Kubernetes workload entrypoint metadata is invalid", err)
+	}
+	egress, err := deploymentNetworkPolicy(deployment)
+	if err != nil {
+		return jobs.Observation{}, jobs.PermanentError("provider.security_policy_drift", "Kubernetes workload network policy metadata is invalid", err)
+	}
+	policyReady, err := provider.inspectNetworkPolicy(ctx, name, key, entrypointSpecs, egress)
+	if err != nil {
+		return jobs.Observation{}, err
+	}
+	if !policyReady {
+		return jobs.Observation{State: jobs.ObservedStarting, ProviderResourceID: resourceID(provider.namespace, name)}, nil
+	}
+	if !deploymentReady(deployment) {
+		return jobs.Observation{State: jobs.ObservedStarting, ProviderResourceID: resourceID(provider.namespace, name)}, nil
 	}
 	entrypoints, ready, err := provider.inspectRoutes(ctx, name, key, entrypointSpecs)
 	if err != nil {
@@ -137,6 +153,9 @@ func (provider *Provider) Destroy(ctx context.Context, key providers.InstanceKey
 		},
 		"tcp service": func() error {
 			return provider.client.CoreV1().Services(provider.namespace).Delete(ctx, tcpRouteName(name), metav1.DeleteOptions{})
+		},
+		"network policy": func() error {
+			return provider.client.NetworkingV1().NetworkPolicies(provider.namespace).Delete(ctx, networkPolicyName(name), metav1.DeleteOptions{})
 		},
 	} {
 		if err := remove(); err != nil && !apierrors.IsNotFound(err) {
@@ -234,7 +253,8 @@ func deployment(name, namespace string, spec providers.InstanceSpec) *appsv1.Dep
 		env = append(env, corev1.EnvVar{Name: item.Name, Value: item.Value})
 	}
 	entrypoints, _ := json.Marshal(spec.Runtime.Entrypoints)
-	return &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: spec.Key.Labels(), Annotations: map[string]string{AnnotationEntrypoints: string(entrypoints)}}, Spec: appsv1.DeploymentSpec{Replicas: &replicas, Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"sauryctf.io/resource-name": name}}, Template: corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: podLabels}, Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "challenge", Image: spec.Runtime.Image, Env: env, Ports: ports, Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{corev1.ResourceCPU: *resource.NewMilliQuantity(spec.Runtime.Resources.CPUMillicores, resource.DecimalSI), corev1.ResourceMemory: *resource.NewQuantity(spec.Runtime.Resources.MemoryBytes, resource.BinarySI), corev1.ResourceEphemeralStorage: *resource.NewQuantity(spec.Runtime.Resources.EphemeralStorageBytes, resource.BinarySI)}}}}}}}}
+	container := corev1.Container{Name: "challenge", Image: spec.Runtime.Image, Env: env, Ports: ports}
+	return &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: spec.Key.Labels(), Annotations: map[string]string{AnnotationEntrypoints: string(entrypoints), AnnotationNetworkEgress: spec.Runtime.Network.Egress}}, Spec: appsv1.DeploymentSpec{Replicas: &replicas, Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"sauryctf.io/resource-name": name}}, Template: corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: podLabels}, Spec: securePodSpec(container, spec.Runtime.Resources)}}}
 }
 
 func service(name, namespace string, spec providers.InstanceSpec) *corev1.Service {
@@ -311,6 +331,16 @@ func (provider *Provider) verifyOwnedObjects(ctx context.Context, name string, k
 		}},
 		{"tcp service", func() (map[string]string, error) {
 			o, e := provider.client.CoreV1().Services(provider.namespace).Get(ctx, tcpRouteName(name), metav1.GetOptions{})
+			if apierrors.IsNotFound(e) {
+				return nil, nil
+			}
+			if e != nil {
+				return nil, e
+			}
+			return o.Labels, nil
+		}},
+		{"network policy", func() (map[string]string, error) {
+			o, e := provider.client.NetworkingV1().NetworkPolicies(provider.namespace).Get(ctx, networkPolicyName(name), metav1.GetOptions{})
 			if apierrors.IsNotFound(e) {
 				return nil, nil
 			}
