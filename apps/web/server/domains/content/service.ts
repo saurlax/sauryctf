@@ -49,6 +49,7 @@ export interface ContentObjectRepository {
     createdAt: Date
   }): Promise<{ object: ContentObject, inserted: boolean }>
   findOwned(objectId: string, userId: string): Promise<ContentObject | null>
+  find(objectId: string): Promise<ContentObject | null>
   commitTemporary(objectId: string, userId: string, sha256Digest: Buffer, committedAt: Date): Promise<ContentObject | null>
   claimGarbage(cutoff: Date, limit: number): Promise<ContentObject[]>
   confirmGarbageUnreferenced(objectId: string, storageKey: string): Promise<boolean>
@@ -181,6 +182,20 @@ export class ContentObjectService {
     return committed
   }
 
+  async createCommitted(userId: string, input: {
+    body: Uint8Array
+    mediaType: string
+    originalFilename: string
+  }): Promise<ContentObject> {
+    const uploaded = await this.uploadTemporary(userId, input)
+    if (uploaded.status === 'committed') return uploaded
+    return this.commitTemporary(userId, uploaded.id, uploaded.sha256Hex)
+  }
+
+  async readCommitted(objectId: string): Promise<{ object: ContentObject, body: Uint8Array }> {
+    return this.readCommittedObject(await this.repository.find(objectId))
+  }
+
   async collectGarbage(limit = 100): Promise<{ collected: number }> {
     const boundedLimit = Math.max(1, Math.min(500, Math.trunc(limit)))
     const cutoff = new Date(this.now().getTime() - contentGarbageGracePeriodMs)
@@ -208,6 +223,28 @@ export class ContentObjectService {
     catch {
       // The random temporary prefix is also covered by the bucket lifecycle.
     }
+  }
+
+  private async readCommittedObject(object: ContentObject | null): Promise<{
+    object: ContentObject
+    body: Uint8Array
+  }> {
+    if (!object || object.status !== 'committed' || !object.committedAt) {
+      throw new ContentObjectServiceError('content.object_not_found', '已提交内容对象不存在')
+    }
+    const [stored, body] = await Promise.all([
+      this.store.stat(object.storageKey),
+      this.store.read(object.storageKey),
+    ])
+    if (!stored || !body
+      || stored.sizeBytes !== object.sizeBytes
+      || stored.sha256Hex !== object.sha256Hex
+      || stored.mediaType !== object.mediaType
+      || body.byteLength !== object.sizeBytes
+      || createHash('sha256').update(body).digest('hex') !== object.sha256Hex) {
+      throw new ContentObjectServiceError('content.storage_mismatch', '对象存储内容与权威元数据不一致')
+    }
+    return { object, body }
   }
 }
 

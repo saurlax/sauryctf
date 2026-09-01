@@ -52,6 +52,9 @@ import { S3ContentObjectStore } from '../infrastructure/storage/s3-content-objec
 import { WriteupService } from '../domains/writeups/service'
 import { PostgresWriteupRepository } from '../infrastructure/db/writeup-repository'
 import { ZipWriteupArchiveBuilder } from '../infrastructure/content/writeup-zip'
+import { ContestPackageService } from '../domains/contest-packages/service'
+import { PostgresContestPackageRepository } from '../infrastructure/db/contest-package-repository'
+import { ContestPackageArchiveCodec } from '../infrastructure/content/contest-package-archive'
 
 export default defineNitroPlugin(async (nitroApp) => {
   const databaseUrl = process.env.DATABASE_URL
@@ -137,6 +140,11 @@ export default defineNitroPlugin(async (nitroApp) => {
     writeups: new WriteupService(
       new PostgresWriteupRepository(database.pool),
       new ZipWriteupArchiveBuilder(contentStore),
+    ),
+    contestPackages: new ContestPackageService(
+      new PostgresContestPackageRepository(database.pool),
+      content,
+      new ContestPackageArchiveCodec(contentStore),
     ),
   }
 

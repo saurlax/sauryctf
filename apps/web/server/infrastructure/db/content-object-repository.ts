@@ -77,6 +77,14 @@ export class PostgresContentObjectRepository implements ContentObjectRepository 
     return result.rows[0] ? mapContentObject(result.rows[0]) : null
   }
 
+  async find(objectId: string): Promise<ContentObject | null> {
+    const result = await this.pool.query<ContentObjectRow>(`
+      SELECT ${contentObjectProjection}
+      FROM content_objects
+      WHERE id = $1`, [objectId])
+    return result.rows[0] ? mapContentObject(result.rows[0]) : null
+  }
+
   async commitTemporary(
     objectId: string,
     userId: string,

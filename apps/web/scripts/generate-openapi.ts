@@ -113,6 +113,12 @@ import {
   saveWriteupRequestSchema,
   writeupResponseSchema,
 } from '../shared/contracts/writeups'
+import {
+  contestPackageExportResponseSchema,
+  contestPackageImportResponseSchema,
+  createContestPackageExportRequestSchema,
+  importContestPackageRequestSchema,
+} from '../shared/contracts/contest-packages'
 
 function openApiSchema(schema: z.ZodType): Record<string, unknown> {
   const jsonSchema = z.toJSONSchema(schema, { target: 'draft-7' }) as Record<string, unknown>
@@ -185,6 +191,14 @@ const writeupIfMatchParameter = {
   required: true,
   schema: { type: 'string', pattern: '^"(?:0|[1-9][0-9]*)"$' },
   description: 'Strong ETag containing the current Writeup aggregate version; use "0" when no aggregate exists.',
+}
+
+const idempotencyKeyParameter = {
+  name: 'Idempotency-Key',
+  in: 'header',
+  required: true,
+  schema: { type: 'string', minLength: 16, maxLength: 128, pattern: '^[A-Za-z0-9._:-]+$' },
+  description: 'Stable caller-generated key for one logical package operation.',
 }
 
 const document = {
@@ -909,6 +923,69 @@ const document = {
             content: { 'application/zip': { schema: { type: 'string', format: 'binary' } } },
           },
           400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+        },
+      },
+    },
+    '/api/admin/contests/{contestId}/exports': {
+      post: {
+        operationId: 'createContestPackageExport',
+        tags: ['Administration', 'Contests', 'Content'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          originParameter,
+          csrfParameter,
+          idempotencyKeyParameter,
+        ],
+        requestBody: jsonRequestBody(createContestPackageExportRequestSchema),
+        responses: {
+          201: jsonResponse('Versioned Jeopardy package persisted as an immutable content object', contestPackageExportResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          413: errorResponse,
+          428: errorResponse,
+        },
+      },
+    },
+    '/api/admin/contest-imports': {
+      post: {
+        operationId: 'importContestPackage',
+        tags: ['Administration', 'Contests', 'Content'],
+        security: [{ cookieSession: [] }],
+        parameters: [originParameter, csrfParameter, idempotencyKeyParameter],
+        requestBody: jsonRequestBody(importContestPackageRequestSchema),
+        responses: {
+          201: jsonResponse('Fully validated package imported atomically as a new draft contest', contestPackageImportResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          413: errorResponse,
+          428: errorResponse,
+        },
+      },
+    },
+    '/api/admin/contest-exports/{exportId}/download': {
+      get: {
+        operationId: 'downloadContestPackageExport',
+        tags: ['Administration', 'Contests', 'Content'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          { name: 'exportId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        ],
+        responses: {
+          200: {
+            description: 'Authorized immutable Jeopardy contest package',
+            content: { 'application/zip': { schema: { type: 'string', format: 'binary' } } },
+          },
           401: errorResponse,
           403: errorResponse,
           404: errorResponse,

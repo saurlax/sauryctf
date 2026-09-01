@@ -213,6 +213,15 @@ export interface paths {
   "/api/admin/contests/{contestId}/writeups/export": {
     get: operations["exportSubmittedWriteups"];
   };
+  "/api/admin/contests/{contestId}/exports": {
+    post: operations["createContestPackageExport"];
+  };
+  "/api/admin/contest-imports": {
+    post: operations["importContestPackage"];
+  };
+  "/api/admin/contest-exports/{exportId}/download": {
+    get: operations["downloadContestPackageExport"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -5962,6 +5971,211 @@ export interface operations {
       400: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  createContestPackageExport: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+        /** @description Stable caller-generated key for one logical package operation. */
+        "Idempotency-Key": string;
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Versioned Jeopardy package persisted as an immutable content object */
+      201: {
+        content: {
+          "application/json": {
+            export: {
+              id: string;
+              contest_id: string;
+              package_object_id: string;
+              /** @constant */
+              package_version: "sauryctf.jeopardy.v1";
+              filename: string;
+              sha256: string;
+              size_bytes: number;
+              /** Format: date-time */
+              created_at: string;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      413: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      428: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  importContestPackage: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+        /** @description Stable caller-generated key for one logical package operation. */
+        "Idempotency-Key": string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          package_object_id: string;
+          invite_code?: string;
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Fully validated package imported atomically as a new draft contest */
+      201: {
+        content: {
+          "application/json": {
+            import: {
+              id: string;
+              package_object_id: string;
+              /** @constant */
+              package_version: "sauryctf.jeopardy.v1";
+              contest_id: string;
+              /** Format: date-time */
+              created_at: string;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      413: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      428: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  downloadContestPackageExport: {
+    parameters: {
+      path: {
+        exportId: string;
+      };
+    };
+    responses: {
+      /** @description Authorized immutable Jeopardy contest package */
+      200: {
+        content: {
+          "application/zip": string;
         };
       };
       /** @description Stable API error */

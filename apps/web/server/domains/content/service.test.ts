@@ -47,6 +47,11 @@ class MemoryContentRepository implements ContentObjectRepository {
     return object?.createdBy === userId ? structuredClone(object) : null
   }
 
+  async find(objectId: string) {
+    const object = this.objects.get(objectId)
+    return object ? structuredClone(object) : null
+  }
+
   async commitTemporary(objectId: string, userId: string, sha256Digest: Buffer, committedAt: Date) {
     const object = this.objects.get(objectId)
     if (!object || object.createdBy !== userId || object.status !== 'temporary'
@@ -166,6 +171,31 @@ describe('content object lifecycle', () => {
     expect(reused.status).toBe('committed')
     expect(store.objects.has('temporary/upload-a')).toBe(true)
     expect(store.objects.has('temporary/upload-b')).toBe(false)
+  })
+
+  it('creates and re-reads a committed object with storage verification', async () => {
+    const repository = new MemoryContentRepository()
+    const store = new MemoryContentStore()
+    const service = new ContentObjectService(
+      repository,
+      store,
+      () => new Date('2026-09-02T05:00:00.000Z'),
+      () => 'temporary/package',
+    )
+    const body = Buffer.from('portable package')
+    const object = await service.createCommitted(firstUser, {
+      body,
+      mediaType: 'application/zip',
+      originalFilename: 'contest.zip',
+    })
+
+    const read = await service.readCommitted(object.id)
+    expect(read.object).toMatchObject({ id: object.id, status: 'committed' })
+    expect(Buffer.from(read.body)).toEqual(body)
+
+    store.objects.get(object.storageKey)!.body = Buffer.from('tampered package')
+    await expect(service.readCommitted(object.id))
+      .rejects.toMatchObject({ code: 'content.storage_mismatch' })
   })
 
   it('collects only objects older than 24 hours without references', async () => {
