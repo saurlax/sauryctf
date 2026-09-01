@@ -10,6 +10,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -45,7 +46,7 @@ func TestProviderAgainstEnvtest(t *testing.T) {
 	if _, err := client.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("create test namespace: %v", err)
 	}
-	provider, err := New(client, namespace)
+	provider, err := New(client, namespace, kubernetesTestRouteConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,6 +73,17 @@ func TestProviderAgainstEnvtest(t *testing.T) {
 	if _, err := client.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{}); err != nil {
 		t.Fatalf("get Secret: %v", err)
 	}
+	httpIngress, err := client.NetworkingV1().Ingresses(namespace).Get(ctx, httpRouteName(name), metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get Ingress: %v", err)
+	}
+	tcpService, err := client.CoreV1().Services(namespace).Get(ctx, tcpRouteName(name), metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get TCP Service: %v", err)
+	}
+	if tcpService.Spec.AllocateLoadBalancerNodePorts == nil || *tcpService.Spec.AllocateLoadBalancerNodePorts || tcpService.Spec.Ports[0].NodePort != 0 {
+		t.Fatalf("TCP Service allocated a NodePort: %+v", tcpService.Spec)
+	}
 
 	workload.Status.ObservedGeneration = workload.Generation
 	workload.Status.Replicas = 1
@@ -87,9 +99,17 @@ func TestProviderAgainstEnvtest(t *testing.T) {
 	if _, err := client.AppsV1().Deployments(namespace).UpdateStatus(ctx, workload, metav1.UpdateOptions{}); err != nil {
 		t.Fatalf("mark Deployment ready: %v", err)
 	}
+	httpIngress.Status.LoadBalancer.Ingress = []networkingv1.IngressLoadBalancerIngress{{Hostname: "ingress.envtest.example"}}
+	if _, err := client.NetworkingV1().Ingresses(namespace).UpdateStatus(ctx, httpIngress, metav1.UpdateOptions{}); err != nil {
+		t.Fatalf("mark Ingress ready: %v", err)
+	}
+	tcpService.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{{IP: "192.0.2.60"}}
+	if _, err := client.CoreV1().Services(namespace).UpdateStatus(ctx, tcpService, metav1.UpdateOptions{}); err != nil {
+		t.Fatalf("mark TCP Service ready: %v", err)
+	}
 	inspected, err := provider.Inspect(ctx, spec.Key)
-	if err != nil || inspected.State != jobs.ObservedStarting || len(inspected.Entrypoints) != 0 {
-		t.Fatalf("Inspect() ready workload before route = %+v/%v", inspected, err)
+	if err != nil || inspected.State != jobs.ObservedRunning || len(inspected.Entrypoints) != 2 {
+		t.Fatalf("Inspect() ready workload and routes = %+v/%v", inspected, err)
 	}
 	resources, err := provider.List(ctx, spec.Key.Platform)
 	if err != nil || len(resources) != 1 || resources[0].ResourceID != resourceID(namespace, name) {
@@ -102,7 +122,9 @@ func TestProviderAgainstEnvtest(t *testing.T) {
 		_, deploymentErr := client.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 		_, serviceErr := client.CoreV1().Services(namespace).Get(ctx, name, metav1.GetOptions{})
 		_, secretErr := client.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{})
-		return apierrors.IsNotFound(deploymentErr) && apierrors.IsNotFound(serviceErr) && apierrors.IsNotFound(secretErr), nil
+		_, ingressErr := client.NetworkingV1().Ingresses(namespace).Get(ctx, httpRouteName(name), metav1.GetOptions{})
+		_, tcpServiceErr := client.CoreV1().Services(namespace).Get(ctx, tcpRouteName(name), metav1.GetOptions{})
+		return apierrors.IsNotFound(deploymentErr) && apierrors.IsNotFound(serviceErr) && apierrors.IsNotFound(secretErr) && apierrors.IsNotFound(ingressErr) && apierrors.IsNotFound(tcpServiceErr), nil
 	}); err != nil {
 		t.Fatalf("wait for resource deletion: %v", err)
 	}

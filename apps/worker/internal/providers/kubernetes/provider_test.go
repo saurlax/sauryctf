@@ -9,6 +9,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,7 +24,7 @@ import (
 func TestEnsureCreatesAndUpdatesOwnedResources(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewSimpleClientset()
-	provider, err := New(client, "challenge-test")
+	provider, err := New(client, "challenge-test", kubernetesTestRouteConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,9 +51,19 @@ func TestEnsureCreatesAndUpdatesOwnedResources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	httpIngress, err := client.NetworkingV1().Ingresses("challenge-test").Get(ctx, httpRouteName(name), metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tcpService, err := client.CoreV1().Services("challenge-test").Get(ctx, tcpRouteName(name), metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	assertOwnershipLabels(t, workload.Labels, spec.Key)
 	assertOwnershipLabels(t, service.Labels, spec.Key)
 	assertOwnershipLabels(t, secret.Labels, spec.Key)
+	assertOwnershipLabels(t, httpIngress.Labels, spec.Key)
+	assertOwnershipLabels(t, tcpService.Labels, spec.Key)
 	assertOwnershipLabels(t, workload.Spec.Template.Labels, spec.Key)
 
 	if workload.Spec.Selector.MatchLabels["sauryctf.io/resource-name"] != name || workload.Spec.Template.Labels["sauryctf.io/resource-name"] != name {
@@ -78,6 +89,18 @@ func TestEnsureCreatesAndUpdatesOwnedResources(t *testing.T) {
 	if service.Spec.Ports[0].Name != "web" || service.Spec.Ports[0].TargetPort.StrVal != "web" || service.Spec.Ports[1].Name != "shell" || service.Spec.Ports[1].TargetPort.StrVal != "shell" {
 		t.Fatalf("service ports = %+v", service.Spec.Ports)
 	}
+	if httpIngress.Spec.IngressClassName == nil || *httpIngress.Spec.IngressClassName != "challenge-ingress" || len(httpIngress.Spec.Rules) != 1 || len(httpIngress.Spec.TLS) != 1 {
+		t.Fatalf("http ingress = %+v", httpIngress.Spec)
+	}
+	if httpIngress.Spec.Rules[0].Host != entrypointHost(name, "web", "challenges.example.test") || httpIngress.Spec.Rules[0].HTTP.Paths[0].Backend.Service.Name != name || httpIngress.Spec.Rules[0].HTTP.Paths[0].Backend.Service.Port.Name != "web" {
+		t.Fatalf("http ingress rule = %+v", httpIngress.Spec.Rules[0])
+	}
+	if tcpService.Spec.Type != corev1.ServiceTypeLoadBalancer || tcpService.Spec.AllocateLoadBalancerNodePorts == nil || *tcpService.Spec.AllocateLoadBalancerNodePorts || tcpService.Spec.LoadBalancerClass == nil || *tcpService.Spec.LoadBalancerClass != "example.test/challenge" {
+		t.Fatalf("tcp service exposure policy = %+v", tcpService.Spec)
+	}
+	if len(tcpService.Spec.Ports) != 1 || tcpService.Spec.Ports[0].Name != "shell" || tcpService.Spec.Ports[0].Port != 30000 || tcpService.Spec.Ports[0].TargetPort.StrVal != "shell" || tcpService.Spec.Ports[0].NodePort != 0 {
+		t.Fatalf("tcp service ports = %+v", tcpService.Spec.Ports)
+	}
 
 	var storedEnvelope contracts.InstanceSecretEnvelope
 	if err := json.Unmarshal(secret.Data["envelope.json"], &storedEnvelope); err != nil {
@@ -96,8 +119,9 @@ func TestEnsureCreatesAndUpdatesOwnedResources(t *testing.T) {
 	workloads, _ := client.AppsV1().Deployments("challenge-test").List(ctx, metav1.ListOptions{})
 	services, _ := client.CoreV1().Services("challenge-test").List(ctx, metav1.ListOptions{})
 	secrets, _ := client.CoreV1().Secrets("challenge-test").List(ctx, metav1.ListOptions{})
-	if len(workloads.Items) != 1 || len(services.Items) != 1 || len(secrets.Items) != 1 {
-		t.Fatalf("resource counts after repeated Ensure() = %d/%d/%d", len(workloads.Items), len(services.Items), len(secrets.Items))
+	ingresses, _ := client.NetworkingV1().Ingresses("challenge-test").List(ctx, metav1.ListOptions{})
+	if len(workloads.Items) != 1 || len(services.Items) != 2 || len(secrets.Items) != 1 || len(ingresses.Items) != 1 {
+		t.Fatalf("resource counts after repeated Ensure() = %d/%d/%d/%d", len(workloads.Items), len(services.Items), len(secrets.Items), len(ingresses.Items))
 	}
 	updated, _ := client.AppsV1().Deployments("challenge-test").Get(ctx, name, metav1.GetOptions{})
 	if updated.Spec.Template.Spec.Containers[0].Image != spec.Runtime.Image || updated.Spec.Template.Spec.Containers[0].Env[0].Value != "updated" {
@@ -108,7 +132,7 @@ func TestEnsureCreatesAndUpdatesOwnedResources(t *testing.T) {
 func TestInspectObservesWorkloadReadinessWithoutPublishingRoute(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewSimpleClientset()
-	provider, err := New(client, "challenge-test")
+	provider, err := New(client, "challenge-test", kubernetesTestRouteConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,42 +146,134 @@ func TestInspectObservesWorkloadReadinessWithoutPublishingRoute(t *testing.T) {
 	if err := missing.Validate(); err != nil {
 		t.Fatalf("missing observation is invalid: %v", err)
 	}
-
-	workload := deployment(name, "challenge-test", spec)
-	if _, err := client.AppsV1().Deployments("challenge-test").Create(ctx, workload, metav1.CreateOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	withoutService, err := provider.Inspect(ctx, spec.Key)
-	if err != nil || withoutService.State != jobs.ObservedStarting || withoutService.ProviderResourceID == "" {
-		t.Fatalf("Inspect() without service = %+v/%v", withoutService, err)
-	}
-	if _, err := client.CoreV1().Services("challenge-test").Create(ctx, service(name, "challenge-test", spec), metav1.CreateOptions{}); err != nil {
+	if _, err := provider.Ensure(ctx, spec); err != nil {
 		t.Fatal(err)
 	}
 
-	workload, _ = client.AppsV1().Deployments("challenge-test").Get(ctx, name, metav1.GetOptions{})
-	workload.Generation = 3
-	workload.Status.ObservedGeneration = 2
+	workload, _ := client.AppsV1().Deployments("challenge-test").Get(ctx, name, metav1.GetOptions{})
+	stale := workload.DeepCopy()
+	stale.Generation = 3
+	stale.Status.ObservedGeneration = 2
+	stale.Status.ReadyReplicas = 1
+	stale.Status.AvailableReplicas = 1
+	stale.Status.Conditions = []appsv1.DeploymentCondition{{Type: appsv1.DeploymentAvailable, Status: corev1.ConditionTrue}}
+	if deploymentReady(stale) {
+		t.Fatal("deploymentReady() accepted a stale observed generation")
+	}
+	stale.Status.ObservedGeneration = 3
+	if !deploymentReady(stale) {
+		t.Fatal("deploymentReady() rejected an available current generation")
+	}
+
+	httpIngress, _ := client.NetworkingV1().Ingresses("challenge-test").Get(ctx, httpRouteName(name), metav1.GetOptions{})
+	httpIngress.Status.LoadBalancer.Ingress = []networkingv1.IngressLoadBalancerIngress{{Hostname: "ingress.example.test"}}
+	if _, err := client.NetworkingV1().Ingresses("challenge-test").UpdateStatus(ctx, httpIngress, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	tcpService, _ := client.CoreV1().Services("challenge-test").Get(ctx, tcpRouteName(name), metav1.GetOptions{})
+	tcpService.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{{IP: "192.0.2.50"}}
+	if _, err := client.CoreV1().Services("challenge-test").UpdateStatus(ctx, tcpService, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	routesOnly, err := provider.Inspect(ctx, spec.Key)
+	if err != nil || routesOnly.State != jobs.ObservedStarting || len(routesOnly.Entrypoints) != 0 {
+		t.Fatalf("Inspect() ready routes before workload = %+v/%v", routesOnly, err)
+	}
+
+	workload.Status.ObservedGeneration = workload.Generation
 	workload.Status.ReadyReplicas = 1
 	workload.Status.AvailableReplicas = 1
 	workload.Status.Conditions = []appsv1.DeploymentCondition{{Type: appsv1.DeploymentAvailable, Status: corev1.ConditionTrue}}
-	if deploymentReady(workload) {
-		t.Fatal("deploymentReady() accepted a stale observed generation")
-	}
-	workload.Status.ObservedGeneration = 3
-	if !deploymentReady(workload) {
-		t.Fatal("deploymentReady() rejected an available current generation")
-	}
-	if _, err := client.AppsV1().Deployments("challenge-test").Update(ctx, workload, metav1.UpdateOptions{}); err != nil {
+	if _, err := client.AppsV1().Deployments("challenge-test").UpdateStatus(ctx, workload, metav1.UpdateOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	readyWorkload, err := provider.Inspect(ctx, spec.Key)
-	if err != nil || readyWorkload.State != jobs.ObservedStarting || len(readyWorkload.Entrypoints) != 0 {
-		t.Fatalf("Inspect() ready workload without route = %+v/%v", readyWorkload, err)
+	ready, err := provider.Inspect(ctx, spec.Key)
+	if err != nil || ready.State != jobs.ObservedRunning || len(ready.Entrypoints) != 2 {
+		t.Fatalf("Inspect() ready workload and routes = %+v/%v", ready, err)
 	}
-	if err := readyWorkload.Validate(); err != nil {
-		t.Fatalf("ready workload observation is invalid: %v", err)
+	if ready.Entrypoints[0].Name != "web" || ready.Entrypoints[0].Protocol != "http" || ready.Entrypoints[0].Port != 443 || ready.Entrypoints[0].URL != "https://"+entrypointHost(name, "web", "challenges.example.test") {
+		t.Fatalf("HTTP entrypoint = %+v", ready.Entrypoints[0])
 	}
+	if ready.Entrypoints[1] != (jobs.Entrypoint{Name: "shell", Protocol: "tcp", Host: "192.0.2.50", Port: 30000}) {
+		t.Fatalf("TCP entrypoint = %+v", ready.Entrypoints[1])
+	}
+	if err := ready.Validate(); err != nil {
+		t.Fatalf("running observation is invalid: %v", err)
+	}
+}
+
+func TestEnsureRequiresExplicitRouteMechanisms(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewSimpleClientset()
+	provider, err := New(client, "challenge-test", RouteConfig{HTTPDomain: "challenges.example.test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = provider.Ensure(ctx, kubernetesTestSpec())
+	failure := jobs.ClassifyFailure(err)
+	if failure.Kind != jobs.FailurePermanent || failure.Code != "provider.routes_unavailable" {
+		t.Fatalf("Ensure() failure = %+v/%v", failure, err)
+	}
+	workloads, listErr := client.AppsV1().Deployments("challenge-test").List(ctx, metav1.ListOptions{})
+	if listErr != nil || len(workloads.Items) != 0 {
+		t.Fatalf("Ensure() created resources before route validation: %+v/%v", workloads.Items, listErr)
+	}
+}
+
+func TestInspectReadyWorkloadWaitsForEveryRoute(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewSimpleClientset()
+	provider, err := New(client, "challenge-test", kubernetesTestRouteConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := kubernetesTestSpec()
+	name, _ := spec.Key.ResourceName()
+	if _, err := provider.Ensure(ctx, spec); err != nil {
+		t.Fatal(err)
+	}
+	workload, _ := client.AppsV1().Deployments("challenge-test").Get(ctx, name, metav1.GetOptions{})
+	workload.Status.ObservedGeneration = workload.Generation
+	workload.Status.ReadyReplicas = 1
+	workload.Status.AvailableReplicas = 1
+	workload.Status.Conditions = []appsv1.DeploymentCondition{{Type: appsv1.DeploymentAvailable, Status: corev1.ConditionTrue}}
+	if _, err := client.AppsV1().Deployments("challenge-test").UpdateStatus(ctx, workload, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	observation, err := provider.Inspect(ctx, spec.Key)
+	if err != nil || observation.State != jobs.ObservedStarting || len(observation.Entrypoints) != 0 {
+		t.Fatalf("Inspect() ready workload before routes = %+v/%v", observation, err)
+	}
+}
+
+func TestInspectRejectsRoutePolicyDrift(t *testing.T) {
+	t.Run("Ingress backend is missing", func(t *testing.T) {
+		provider, client, spec, name := readyFakeKubernetesProvider(t)
+		ctx := context.Background()
+		httpIngress, _ := client.NetworkingV1().Ingresses("challenge-test").Get(ctx, httpRouteName(name), metav1.GetOptions{})
+		httpIngress.Spec.Rules[0].HTTP = nil
+		if _, err := client.NetworkingV1().Ingresses("challenge-test").Update(ctx, httpIngress, metav1.UpdateOptions{}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := provider.Inspect(ctx, spec.Key); jobs.ClassifyFailure(err).Code != "provider.invalid_route" {
+			t.Fatalf("Inspect() error = %v", err)
+		}
+	})
+
+	t.Run("TCP Service enables NodePort allocation", func(t *testing.T) {
+		provider, client, spec, name := readyFakeKubernetesProvider(t)
+		ctx := context.Background()
+		tcpService, _ := client.CoreV1().Services("challenge-test").Get(ctx, tcpRouteName(name), metav1.GetOptions{})
+		allocateNodePorts := true
+		tcpService.Spec.AllocateLoadBalancerNodePorts = &allocateNodePorts
+		if _, err := client.CoreV1().Services("challenge-test").Update(ctx, tcpService, metav1.UpdateOptions{}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := provider.Inspect(ctx, spec.Key); jobs.ClassifyFailure(err).Code != "provider.invalid_route" {
+			t.Fatalf("Inspect() error = %v", err)
+		}
+	})
 }
 
 func TestEnsureAndDestroyRefuseConflictingOwnership(t *testing.T) {
@@ -169,7 +285,7 @@ func TestEnsureAndDestroyRefuseConflictingOwnership(t *testing.T) {
 	foreignService := service(name, "challenge-test", spec)
 	foreignService.Labels = foreignLabels
 	client := fake.NewSimpleClientset(foreignService)
-	provider, err := New(client, "challenge-test")
+	provider, err := New(client, "challenge-test", kubernetesTestRouteConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +317,7 @@ func TestKubernetesProviderSharedDestroyContract(t *testing.T) {
 func TestDestroyOwnedResourcesIsIdempotent(t *testing.T) {
 	ctx := context.Background()
 	client := fake.NewSimpleClientset()
-	provider, err := New(client, "challenge-test")
+	provider, err := New(client, "challenge-test", kubernetesTestRouteConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,9 +333,11 @@ func TestDestroyOwnedResourcesIsIdempotent(t *testing.T) {
 		}
 	}
 	for kind, err := range map[string]error{
-		"deployment": getDeploymentError(ctx, client, name),
-		"service":    getServiceError(ctx, client, name),
-		"secret":     getSecretError(ctx, client, name),
+		"deployment":  getDeploymentError(ctx, client, name),
+		"service":     getServiceError(ctx, client, name),
+		"secret":      getSecretError(ctx, client, name),
+		"ingress":     getIngressError(ctx, client, name),
+		"tcp service": getTCPServiceError(ctx, client, name),
 	} {
 		if !apierrors.IsNotFound(err) {
 			t.Fatalf("%s remains after Destroy(): %v", kind, err)
@@ -252,6 +370,9 @@ func TestNewRejectsMissingClientAndInvalidNamespace(t *testing.T) {
 	if _, err := New(fake.NewSimpleClientset(), "Invalid_Namespace"); err == nil {
 		t.Fatal("New() accepted an invalid namespace")
 	}
+	if _, err := New(fake.NewSimpleClientset(), "challenge-test", RouteConfig{HTTPDomain: "invalid_domain"}); err == nil {
+		t.Fatal("New() accepted an invalid route configuration")
+	}
 }
 
 func kubernetesTestSpec() providers.InstanceSpec {
@@ -275,6 +396,50 @@ func kubernetesTestSpec() providers.InstanceSpec {
 			},
 		},
 	}
+}
+
+func kubernetesTestRouteConfig() RouteConfig {
+	return RouteConfig{
+		HTTPDomain:        "challenges.example.test",
+		IngressClassName:  "challenge-ingress",
+		TLSSecretName:     "challenge-tls",
+		TCPPortStart:      30000,
+		LoadBalancerClass: "example.test/challenge",
+	}
+}
+
+func readyFakeKubernetesProvider(t *testing.T) (*Provider, *fake.Clientset, providers.InstanceSpec, string) {
+	t.Helper()
+	ctx := context.Background()
+	client := fake.NewSimpleClientset()
+	provider, err := New(client, "challenge-test", kubernetesTestRouteConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := kubernetesTestSpec()
+	name, _ := spec.Key.ResourceName()
+	if _, err := provider.Ensure(ctx, spec); err != nil {
+		t.Fatal(err)
+	}
+	workload, _ := client.AppsV1().Deployments("challenge-test").Get(ctx, name, metav1.GetOptions{})
+	workload.Status.ObservedGeneration = workload.Generation
+	workload.Status.ReadyReplicas = 1
+	workload.Status.AvailableReplicas = 1
+	workload.Status.Conditions = []appsv1.DeploymentCondition{{Type: appsv1.DeploymentAvailable, Status: corev1.ConditionTrue}}
+	if _, err := client.AppsV1().Deployments("challenge-test").UpdateStatus(ctx, workload, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	httpIngress, _ := client.NetworkingV1().Ingresses("challenge-test").Get(ctx, httpRouteName(name), metav1.GetOptions{})
+	httpIngress.Status.LoadBalancer.Ingress = []networkingv1.IngressLoadBalancerIngress{{Hostname: "ingress.example.test"}}
+	if _, err := client.NetworkingV1().Ingresses("challenge-test").UpdateStatus(ctx, httpIngress, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	tcpService, _ := client.CoreV1().Services("challenge-test").Get(ctx, tcpRouteName(name), metav1.GetOptions{})
+	tcpService.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{{IP: "192.0.2.50"}}
+	if _, err := client.CoreV1().Services("challenge-test").UpdateStatus(ctx, tcpService, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	return provider, client, spec, name
 }
 
 func assertOwnershipLabels(t *testing.T, actual map[string]string, key providers.InstanceKey) {
@@ -321,5 +486,15 @@ func getServiceError(ctx context.Context, client *fake.Clientset, name string) e
 
 func getSecretError(ctx context.Context, client *fake.Clientset, name string) error {
 	_, err := client.CoreV1().Secrets("challenge-test").Get(ctx, name, metav1.GetOptions{})
+	return err
+}
+
+func getIngressError(ctx context.Context, client *fake.Clientset, name string) error {
+	_, err := client.NetworkingV1().Ingresses("challenge-test").Get(ctx, httpRouteName(name), metav1.GetOptions{})
+	return err
+}
+
+func getTCPServiceError(ctx context.Context, client *fake.Clientset, name string) error {
+	_, err := client.CoreV1().Services("challenge-test").Get(ctx, tcpRouteName(name), metav1.GetOptions{})
 	return err
 }

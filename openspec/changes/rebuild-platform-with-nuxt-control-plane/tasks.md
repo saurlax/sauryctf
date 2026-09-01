@@ -95,7 +95,7 @@
 - [x] 9.1 定义 `Ensure/Inspect/Destroy` Provider 契约和确定性资源命名，使用共享契约测试验证缺失资源销毁幂等
 - [x] 9.2 使用 Docker Engine API 实现镜像、环境、资源限制、端口和标签管理，验证不通过 shell 拼接命令
 - [x] 9.3 使用 `client-go` 实现 Kubernetes workload、Service、Secret 和就绪观察，运行 envtest 或测试 k3s 集成测试
-- [ ] 9.4 实现 Gateway API/Ingress HTTP 入口和受控 TCP 入口适配，验证仅在 workload 与路由 Ready 后回写入口
+- [x] 9.4 实现 Gateway API/Ingress HTTP 入口和受控 TCP 入口适配，验证仅在 workload 与路由 Ready 后回写入口
 - [ ] 9.5 实现非 root、安全上下文、禁用 ServiceAccount token、资源配额和 NetworkPolicy 默认值，使用资源快照验证危险配置被拒绝
 - [ ] 9.6 实现动态 Flag 敏感载荷信封加密、注入和完成后清除，验证日志、普通任务查询和资源标签不包含 Flag
 - [ ] 9.7 注入创建后回写前崩溃、重复启动、Provider 超时和资源被外部删除，验证 Reconcile 收敛且不产生重复资源

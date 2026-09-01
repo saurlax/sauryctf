@@ -99,11 +99,15 @@ ClusterIP Service, and optional opaque Secret for each instance generation.
 All three resources carry the complete ownership labels; conflicting resources
 are rejected instead of adopted or deleted. Deployment availability is read
 from the current observed generation, ready replicas, available replicas, and
-the `Available=True` condition. Until the routing adapter is implemented, a
-ready workload and Service remain `starting` and publish no player entrypoint.
-The Secret currently stores only the sealed envelope JSON; decryption, runtime
-injection, and post-completion clearing belong to the dedicated sensitive
-payload task.
+the `Available=True` condition. HTTP entrypoints use deterministic hosts on a
+configured Ingress domain and become ready only after the Ingress reports a
+load-balancer address. TCP entrypoints use an explicitly enabled consecutive
+port range on a dedicated LoadBalancer Service; the adapter always sets
+`allocateLoadBalancerNodePorts=false` and never falls back to NodePort. The
+Worker publishes no entrypoint until both the workload and every required route
+are ready. The Secret currently stores only the sealed envelope JSON;
+decryption, runtime injection, and post-completion clearing belong to the
+dedicated sensitive payload task.
 
 The Kubernetes package has fake-client contract tests and an API-server-backed
 envtest lifecycle test. Install matching envtest assets and run it with

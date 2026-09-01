@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"regexp"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -25,13 +26,24 @@ var namespacePattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?
 type Provider struct {
 	client    kubernetes.Interface
 	namespace string
+	routes    RouteConfig
 }
 
-func New(client kubernetes.Interface, namespace string) (*Provider, error) {
+func New(client kubernetes.Interface, namespace string, routeConfig ...RouteConfig) (*Provider, error) {
 	if client == nil || !namespacePattern.MatchString(namespace) {
 		return nil, errors.New("Kubernetes provider requires a client and DNS-label namespace")
 	}
-	return &Provider{client: client, namespace: namespace}, nil
+	if len(routeConfig) > 1 {
+		return nil, errors.New("Kubernetes provider accepts at most one route configuration")
+	}
+	routes := RouteConfig{}
+	if len(routeConfig) == 1 {
+		routes = routeConfig[0]
+		if err := routes.Validate(); err != nil {
+			return nil, fmt.Errorf("validate Kubernetes route configuration: %w", err)
+		}
+	}
+	return &Provider{client: client, namespace: namespace, routes: routes}, nil
 }
 
 func (provider *Provider) Kind() contracts.InstanceProvider { return contracts.ProviderKubernetes }
@@ -39,6 +51,9 @@ func (provider *Provider) Kind() contracts.InstanceProvider { return contracts.P
 func (provider *Provider) Ensure(ctx context.Context, spec providers.InstanceSpec) (jobs.Observation, error) {
 	if err := spec.Validate(); err != nil || spec.Key.Provider != contracts.ProviderKubernetes {
 		return jobs.Observation{}, jobs.PermanentError("provider.invalid_spec", "Kubernetes instance configuration is invalid", err)
+	}
+	if err := provider.routes.ValidateEntrypoints(spec.Runtime.Entrypoints); err != nil {
+		return jobs.Observation{}, jobs.PermanentError("provider.routes_unavailable", "Kubernetes entrypoint routing is not configured", err)
 	}
 	name, _ := spec.Key.ResourceName()
 	if err := provider.ensureSecret(ctx, name, spec); err != nil {
@@ -48,6 +63,9 @@ func (provider *Provider) Ensure(ctx context.Context, spec providers.InstanceSpe
 		return jobs.Observation{}, err
 	}
 	if err := provider.ensureDeployment(ctx, name, spec); err != nil {
+		return jobs.Observation{}, err
+	}
+	if err := provider.ensureRoutes(ctx, name, spec); err != nil {
 		return jobs.Observation{}, err
 	}
 	return provider.Inspect(ctx, spec.Key)
@@ -81,10 +99,18 @@ func (provider *Provider) Inspect(ctx context.Context, key providers.InstanceKey
 	if !deploymentReady(deployment) {
 		return jobs.Observation{State: jobs.ObservedStarting, ProviderResourceID: resourceID(provider.namespace, name)}, nil
 	}
-	// Public entrypoints are deliberately withheld until the routing task creates
-	// and observes a ready Gateway/Ingress resource. A ready Deployment and its
-	// internal Service therefore remain "starting" at this provider boundary.
-	return jobs.Observation{State: jobs.ObservedStarting, ProviderResourceID: resourceID(provider.namespace, name)}, nil
+	entrypointSpecs, err := deploymentEntrypoints(deployment)
+	if err != nil {
+		return jobs.Observation{}, jobs.PermanentError("provider.invalid_entrypoints", "Kubernetes workload entrypoint metadata is invalid", err)
+	}
+	entrypoints, ready, err := provider.inspectRoutes(ctx, name, key, entrypointSpecs)
+	if err != nil {
+		return jobs.Observation{}, err
+	}
+	if !ready {
+		return jobs.Observation{State: jobs.ObservedStarting, ProviderResourceID: resourceID(provider.namespace, name)}, nil
+	}
+	return jobs.Observation{State: jobs.ObservedRunning, ProviderResourceID: resourceID(provider.namespace, name), Entrypoints: entrypoints}, nil
 }
 
 func (provider *Provider) Destroy(ctx context.Context, key providers.InstanceKey) (jobs.Observation, error) {
@@ -105,6 +131,12 @@ func (provider *Provider) Destroy(ctx context.Context, key providers.InstanceKey
 		},
 		"secret": func() error {
 			return provider.client.CoreV1().Secrets(provider.namespace).Delete(ctx, name, metav1.DeleteOptions{})
+		},
+		"http ingress": func() error {
+			return provider.client.NetworkingV1().Ingresses(provider.namespace).Delete(ctx, httpRouteName(name), metav1.DeleteOptions{})
+		},
+		"tcp service": func() error {
+			return provider.client.CoreV1().Services(provider.namespace).Delete(ctx, tcpRouteName(name), metav1.DeleteOptions{})
 		},
 	} {
 		if err := remove(); err != nil && !apierrors.IsNotFound(err) {
@@ -201,7 +233,8 @@ func deployment(name, namespace string, spec providers.InstanceSpec) *appsv1.Dep
 	for _, item := range spec.Runtime.Environment {
 		env = append(env, corev1.EnvVar{Name: item.Name, Value: item.Value})
 	}
-	return &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: spec.Key.Labels()}, Spec: appsv1.DeploymentSpec{Replicas: &replicas, Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"sauryctf.io/resource-name": name}}, Template: corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: podLabels}, Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "challenge", Image: spec.Runtime.Image, Env: env, Ports: ports, Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{corev1.ResourceCPU: *resource.NewMilliQuantity(spec.Runtime.Resources.CPUMillicores, resource.DecimalSI), corev1.ResourceMemory: *resource.NewQuantity(spec.Runtime.Resources.MemoryBytes, resource.BinarySI), corev1.ResourceEphemeralStorage: *resource.NewQuantity(spec.Runtime.Resources.EphemeralStorageBytes, resource.BinarySI)}}}}}}}}
+	entrypoints, _ := json.Marshal(spec.Runtime.Entrypoints)
+	return &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: spec.Key.Labels(), Annotations: map[string]string{AnnotationEntrypoints: string(entrypoints)}}, Spec: appsv1.DeploymentSpec{Replicas: &replicas, Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"sauryctf.io/resource-name": name}}, Template: corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: podLabels}, Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "challenge", Image: spec.Runtime.Image, Env: env, Ports: ports, Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{corev1.ResourceCPU: *resource.NewMilliQuantity(spec.Runtime.Resources.CPUMillicores, resource.DecimalSI), corev1.ResourceMemory: *resource.NewQuantity(spec.Runtime.Resources.MemoryBytes, resource.BinarySI), corev1.ResourceEphemeralStorage: *resource.NewQuantity(spec.Runtime.Resources.EphemeralStorageBytes, resource.BinarySI)}}}}}}}}
 }
 
 func service(name, namespace string, spec providers.InstanceSpec) *corev1.Service {
@@ -258,6 +291,26 @@ func (provider *Provider) verifyOwnedObjects(ctx context.Context, name string, k
 		}},
 		{"secret", func() (map[string]string, error) {
 			o, e := provider.client.CoreV1().Secrets(provider.namespace).Get(ctx, name, metav1.GetOptions{})
+			if apierrors.IsNotFound(e) {
+				return nil, nil
+			}
+			if e != nil {
+				return nil, e
+			}
+			return o.Labels, nil
+		}},
+		{"http ingress", func() (map[string]string, error) {
+			o, e := provider.client.NetworkingV1().Ingresses(provider.namespace).Get(ctx, httpRouteName(name), metav1.GetOptions{})
+			if apierrors.IsNotFound(e) {
+				return nil, nil
+			}
+			if e != nil {
+				return nil, e
+			}
+			return o.Labels, nil
+		}},
+		{"tcp service", func() (map[string]string, error) {
+			o, e := provider.client.CoreV1().Services(provider.namespace).Get(ctx, tcpRouteName(name), metav1.GetOptions{})
 			if apierrors.IsNotFound(e) {
 				return nil, nil
 			}
