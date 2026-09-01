@@ -1,6 +1,11 @@
 import { isDeepStrictEqual } from 'node:util'
 import type { Pool, PoolClient } from 'pg'
-import type { ChallengeCategory } from '../../../shared/contracts/challenges'
+import type {
+  ChallengeCategory,
+  ChallengeFlagPolicy,
+  ChallengeInstancePolicy,
+  ChallengeScoringPolicy,
+} from '../../../shared/contracts/challenges'
 import {
   ContestChallengeArchivedError,
   ContestChallengeConfigurationLockedError,
@@ -34,9 +39,9 @@ interface ChallengeRow {
   category: ChallengeCategory
   description: string
   flag_format: string | null
-  flag_policy: Record<string, unknown>
-  scoring_policy: Record<string, unknown>
-  instance_policy: Record<string, unknown>
+  flag_policy: ChallengeFlagPolicy
+  scoring_policy: ChallengeScoringPolicy
+  instance_policy: ChallengeInstancePolicy
   enabled: boolean
   publish_at: Date | null
   close_at: Date | null
@@ -55,9 +60,9 @@ interface TemplateVersionRow {
   category: ChallengeCategory
   description: string
   flag_format: string | null
-  flag_policy: Record<string, unknown>
-  scoring_policy: Record<string, unknown>
-  instance_policy: Record<string, unknown>
+  flag_policy: ChallengeFlagPolicy
+  scoring_policy: ChallengeScoringPolicy
+  instance_policy: ChallengeInstancePolicy
 }
 
 function isTitleConflict(error: unknown) {
@@ -521,9 +526,9 @@ export class PostgresContestChallengeRepository implements ContestChallengeRepos
     category: ChallengeCategory
     description: string
     flagFormat: string | null
-    flagPolicy: Record<string, unknown>
-    scoringPolicy: Record<string, unknown>
-    instancePolicy: Record<string, unknown>
+    flagPolicy: ChallengeFlagPolicy
+    scoringPolicy: ChallengeScoringPolicy
+    instancePolicy: ChallengeInstancePolicy
     assets: ContestChallengeAssetCommand[] | ContestChallengeAssetRecord[]
     hints: ContestChallengeHintCommand[] | ContestChallengeHintRecord[]
     enabled: boolean

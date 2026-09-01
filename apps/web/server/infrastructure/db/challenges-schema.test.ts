@@ -88,6 +88,62 @@ describeWithPostgres('challenge library and snapshot schema', () => {
     )).rejects.toMatchObject({ code: '22P02' })
   })
 
+  it('rejects unknown or missing policy strategy types at both persistence boundaries', async () => {
+    await expect(database.pool.query(
+      `INSERT INTO challenge_template_versions
+         (template_id, version_number, title, category, description,
+          flag_policy, scoring_policy, instance_policy, created_by)
+       VALUES ($1, 50, 'Unknown Policy', 'web', 'Rejected strategy',
+               $2, $3, $4, $5)`,
+      [
+        templateId,
+        { type: 'remote-checker' },
+        { type: 'fixed-v1', points: 500 },
+        { type: 'none' },
+        organizerId,
+      ],
+    )).rejects.toMatchObject({
+      code: '23514',
+      constraint: 'challenge_template_versions_flag_policy_type',
+    })
+    await expect(database.pool.query(
+      `INSERT INTO challenge_template_versions
+         (template_id, version_number, title, category, description,
+          flag_policy, scoring_policy, instance_policy, created_by)
+       VALUES ($1, 51, 'Missing Policy Type', 'web', 'Rejected strategy',
+               '{}', $2, $3, $4)`,
+      [
+        templateId,
+        { type: 'fixed-v1', points: 500 },
+        { type: 'none' },
+        organizerId,
+      ],
+    )).rejects.toMatchObject({
+      code: '23514',
+      constraint: 'challenge_template_versions_flag_policy_type',
+    })
+
+    const versionId = await createVersion(52, 'Valid Policy Source')
+    await expect(database.pool.query(
+      `INSERT INTO contest_challenges
+         (contest_id, source_template_id, source_version_id, title, category,
+          description, flag_policy, scoring_policy, instance_policy)
+       VALUES ($1, $2, $3, 'Unknown Snapshot Policy', 'web', 'Rejected strategy',
+               $4, $5, $6)`,
+      [
+        contestId,
+        templateId,
+        versionId,
+        { type: 'static', digest: 'masked' },
+        { type: 'percentage-v1' },
+        { type: 'none' },
+      ],
+    )).rejects.toMatchObject({
+      code: '23514',
+      constraint: 'contest_challenges_scoring_policy_type',
+    })
+  })
+
   it('keeps template versions immutable and snapshots independent from later versions', async () => {
     const versionId = await createVersion(2, 'Original Title')
     const snapshot = await database.pool.query<{ id: string }>(

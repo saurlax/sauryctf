@@ -70,14 +70,18 @@ describeWithPostgres('submission and scoring authority schema', () => {
       const version = await database.pool.query<{ id: string }>(
         `INSERT INTO challenge_template_versions
            (template_id, version_number, title, category, description, flag_policy, scoring_policy, created_by)
-         VALUES ($1, 1, 'Score Me', 'misc', 'Statement', '{}', '{"type":"fixed-v1","points":500}', $2)
+         VALUES ($1, 1, 'Score Me', 'misc', 'Statement',
+                 '{"type":"static","digest":"masked"}',
+                 '{"type":"fixed-v1","points":500}', $2)
          RETURNING id`,
         [template.rows[0]!.id, userId],
       )
       const challenge = await database.pool.query<{ id: string }>(
         `INSERT INTO contest_challenges
            (contest_id, source_template_id, source_version_id, title, category, description, flag_policy, scoring_policy)
-         VALUES ($1, $2, $3, 'Score Me', 'misc', 'Statement', '{}', '{"type":"fixed-v1","points":500}')
+         VALUES ($1, $2, $3, 'Score Me', 'misc', 'Statement',
+                 '{"type":"static","digest":"masked"}',
+                 '{"type":"fixed-v1","points":500}')
          RETURNING id`,
         [contestId, template.rows[0]!.id, version.rows[0]!.id],
       )

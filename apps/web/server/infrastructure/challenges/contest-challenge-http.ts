@@ -53,7 +53,7 @@ async function runOperation<T>(operation: () => Promise<T>): Promise<T> {
   }
   catch (error) {
     if (!(error instanceof ContestChallengeServiceError)) throw error
-    if (error.code === 'challenge.revision_reason_required') {
+    if (error.code === 'challenge.policy_invalid' || error.code === 'challenge.revision_reason_required') {
       throw createApiError(400, 'validation.failed', '请求字段无效', error.fields)
     }
     const statusCode = {

@@ -2016,22 +2016,128 @@ paths:
                       maxLength: 160
                     - type: "null"
                 flag_policy:
-                  type: object
-                  propertyNames:
-                    type: string
-                  additionalProperties: {}
+                  oneOf:
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: static
+                        digest:
+                          type: string
+                          minLength: 1
+                          maxLength: 512
+                      required:
+                        - type
+                        - digest
+                      additionalProperties: false
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: team-derived
+                        key_version:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 9007199254740991
+                      required:
+                        - type
+                        - key_version
+                      additionalProperties: false
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: synchronous
+                        validator:
+                          type: string
+                          minLength: 1
+                          maxLength: 128
+                          pattern: ^[a-z0-9]+(?:[._-][a-z0-9]+)*$
+                      required:
+                        - type
+                        - validator
+                      additionalProperties: false
                 scoring_policy:
-                  type: object
-                  propertyNames:
-                    type: string
-                  additionalProperties: {}
+                  oneOf:
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: fixed-v1
+                        points:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 1000000
+                      required:
+                        - type
+                        - points
+                      additionalProperties: false
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: decay-v1
+                        initial_points:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 1000000
+                        minimum_points:
+                          type: integer
+                          minimum: 0
+                          maximum: 1000000
+                        decay_solves:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 1000000
+                      required:
+                        - type
+                        - initial_points
+                        - minimum_points
+                        - decay_solves
+                      additionalProperties: false
                 instance_policy:
                   default:
                     type: none
-                  type: object
-                  propertyNames:
-                    type: string
-                  additionalProperties: {}
+                  oneOf:
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: none
+                      required:
+                        - type
+                      additionalProperties: false
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: dynamic
+                        provider:
+                          type: string
+                          enum:
+                            - docker
+                            - kubernetes
+                        image:
+                          type: string
+                          minLength: 1
+                          maxLength: 512
+                        entry_port:
+                          type: integer
+                          minimum: 1
+                          maximum: 65535
+                        entry_protocol:
+                          default: tcp
+                          type: string
+                          enum:
+                            - http
+                            - tcp
+                      required:
+                        - type
+                        - provider
+                        - image
+                        - entry_port
+                        - entry_protocol
+                      additionalProperties: false
                 assets:
                   default: []
                   maxItems: 100
@@ -2202,20 +2308,126 @@ paths:
                             maxLength: 160
                           - type: "null"
                       flag_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: static
+                              digest:
+                                type: string
+                                minLength: 1
+                                maxLength: 512
+                            required:
+                              - type
+                              - digest
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: team-derived
+                              key_version:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 9007199254740991
+                            required:
+                              - type
+                              - key_version
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: synchronous
+                              validator:
+                                type: string
+                                minLength: 1
+                                maxLength: 128
+                                pattern: ^[a-z0-9]+(?:[._-][a-z0-9]+)*$
+                            required:
+                              - type
+                              - validator
+                            additionalProperties: false
                       scoring_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: fixed-v1
+                              points:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                            required:
+                              - type
+                              - points
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: decay-v1
+                              initial_points:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                              minimum_points:
+                                type: integer
+                                minimum: 0
+                                maximum: 1000000
+                              decay_solves:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                            required:
+                              - type
+                              - initial_points
+                              - minimum_points
+                              - decay_solves
+                            additionalProperties: false
                       instance_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: none
+                            required:
+                              - type
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: dynamic
+                              provider:
+                                type: string
+                                enum:
+                                  - docker
+                                  - kubernetes
+                              image:
+                                type: string
+                                minLength: 1
+                                maxLength: 512
+                              entry_port:
+                                type: integer
+                                minimum: 1
+                                maximum: 65535
+                              entry_protocol:
+                                default: tcp
+                                type: string
+                                enum:
+                                  - http
+                                  - tcp
+                            required:
+                              - type
+                              - provider
+                              - image
+                              - entry_port
+                              - entry_protocol
+                            additionalProperties: false
                       assets:
                         type: array
                         items:
@@ -2435,20 +2647,126 @@ paths:
                             maxLength: 160
                           - type: "null"
                       flag_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: static
+                              digest:
+                                type: string
+                                minLength: 1
+                                maxLength: 512
+                            required:
+                              - type
+                              - digest
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: team-derived
+                              key_version:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 9007199254740991
+                            required:
+                              - type
+                              - key_version
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: synchronous
+                              validator:
+                                type: string
+                                minLength: 1
+                                maxLength: 128
+                                pattern: ^[a-z0-9]+(?:[._-][a-z0-9]+)*$
+                            required:
+                              - type
+                              - validator
+                            additionalProperties: false
                       scoring_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: fixed-v1
+                              points:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                            required:
+                              - type
+                              - points
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: decay-v1
+                              initial_points:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                              minimum_points:
+                                type: integer
+                                minimum: 0
+                                maximum: 1000000
+                              decay_solves:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                            required:
+                              - type
+                              - initial_points
+                              - minimum_points
+                              - decay_solves
+                            additionalProperties: false
                       instance_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: none
+                            required:
+                              - type
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: dynamic
+                              provider:
+                                type: string
+                                enum:
+                                  - docker
+                                  - kubernetes
+                              image:
+                                type: string
+                                minLength: 1
+                                maxLength: 512
+                              entry_port:
+                                type: integer
+                                minimum: 1
+                                maximum: 65535
+                              entry_protocol:
+                                default: tcp
+                                type: string
+                                enum:
+                                  - http
+                                  - tcp
+                            required:
+                              - type
+                              - provider
+                              - image
+                              - entry_port
+                              - entry_protocol
+                            additionalProperties: false
                       assets:
                         type: array
                         items:
@@ -2612,20 +2930,126 @@ paths:
                       maxLength: 160
                     - type: "null"
                 flag_policy:
-                  type: object
-                  propertyNames:
-                    type: string
-                  additionalProperties: {}
+                  oneOf:
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: static
+                        digest:
+                          type: string
+                          minLength: 1
+                          maxLength: 512
+                      required:
+                        - type
+                        - digest
+                      additionalProperties: false
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: team-derived
+                        key_version:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 9007199254740991
+                      required:
+                        - type
+                        - key_version
+                      additionalProperties: false
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: synchronous
+                        validator:
+                          type: string
+                          minLength: 1
+                          maxLength: 128
+                          pattern: ^[a-z0-9]+(?:[._-][a-z0-9]+)*$
+                      required:
+                        - type
+                        - validator
+                      additionalProperties: false
                 scoring_policy:
-                  type: object
-                  propertyNames:
-                    type: string
-                  additionalProperties: {}
+                  oneOf:
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: fixed-v1
+                        points:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 1000000
+                      required:
+                        - type
+                        - points
+                      additionalProperties: false
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: decay-v1
+                        initial_points:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 1000000
+                        minimum_points:
+                          type: integer
+                          minimum: 0
+                          maximum: 1000000
+                        decay_solves:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 1000000
+                      required:
+                        - type
+                        - initial_points
+                        - minimum_points
+                        - decay_solves
+                      additionalProperties: false
                 instance_policy:
-                  type: object
-                  propertyNames:
-                    type: string
-                  additionalProperties: {}
+                  oneOf:
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: none
+                      required:
+                        - type
+                      additionalProperties: false
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: dynamic
+                        provider:
+                          type: string
+                          enum:
+                            - docker
+                            - kubernetes
+                        image:
+                          type: string
+                          minLength: 1
+                          maxLength: 512
+                        entry_port:
+                          type: integer
+                          minimum: 1
+                          maximum: 65535
+                        entry_protocol:
+                          default: tcp
+                          type: string
+                          enum:
+                            - http
+                            - tcp
+                      required:
+                        - type
+                        - provider
+                        - image
+                        - entry_port
+                        - entry_protocol
+                      additionalProperties: false
                 assets:
                   maxItems: 100
                   type: array
@@ -2788,20 +3212,126 @@ paths:
                             maxLength: 160
                           - type: "null"
                       flag_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: static
+                              digest:
+                                type: string
+                                minLength: 1
+                                maxLength: 512
+                            required:
+                              - type
+                              - digest
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: team-derived
+                              key_version:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 9007199254740991
+                            required:
+                              - type
+                              - key_version
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: synchronous
+                              validator:
+                                type: string
+                                minLength: 1
+                                maxLength: 128
+                                pattern: ^[a-z0-9]+(?:[._-][a-z0-9]+)*$
+                            required:
+                              - type
+                              - validator
+                            additionalProperties: false
                       scoring_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: fixed-v1
+                              points:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                            required:
+                              - type
+                              - points
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: decay-v1
+                              initial_points:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                              minimum_points:
+                                type: integer
+                                minimum: 0
+                                maximum: 1000000
+                              decay_solves:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                            required:
+                              - type
+                              - initial_points
+                              - minimum_points
+                              - decay_solves
+                            additionalProperties: false
                       instance_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: none
+                            required:
+                              - type
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: dynamic
+                              provider:
+                                type: string
+                                enum:
+                                  - docker
+                                  - kubernetes
+                              image:
+                                type: string
+                                minLength: 1
+                                maxLength: 512
+                              entry_port:
+                                type: integer
+                                minimum: 1
+                                maximum: 65535
+                              entry_protocol:
+                                default: tcp
+                                type: string
+                                enum:
+                                  - http
+                                  - tcp
+                            required:
+                              - type
+                              - provider
+                              - image
+                              - entry_port
+                              - entry_protocol
+                            additionalProperties: false
                       assets:
                         type: array
                         items:
@@ -3029,20 +3559,126 @@ paths:
                             maxLength: 160
                           - type: "null"
                       flag_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: static
+                              digest:
+                                type: string
+                                minLength: 1
+                                maxLength: 512
+                            required:
+                              - type
+                              - digest
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: team-derived
+                              key_version:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 9007199254740991
+                            required:
+                              - type
+                              - key_version
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: synchronous
+                              validator:
+                                type: string
+                                minLength: 1
+                                maxLength: 128
+                                pattern: ^[a-z0-9]+(?:[._-][a-z0-9]+)*$
+                            required:
+                              - type
+                              - validator
+                            additionalProperties: false
                       scoring_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: fixed-v1
+                              points:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                            required:
+                              - type
+                              - points
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: decay-v1
+                              initial_points:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                              minimum_points:
+                                type: integer
+                                minimum: 0
+                                maximum: 1000000
+                              decay_solves:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                            required:
+                              - type
+                              - initial_points
+                              - minimum_points
+                              - decay_solves
+                            additionalProperties: false
                       instance_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: none
+                            required:
+                              - type
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: dynamic
+                              provider:
+                                type: string
+                                enum:
+                                  - docker
+                                  - kubernetes
+                              image:
+                                type: string
+                                minLength: 1
+                                maxLength: 512
+                              entry_port:
+                                type: integer
+                                minimum: 1
+                                maximum: 65535
+                              entry_protocol:
+                                default: tcp
+                                type: string
+                                enum:
+                                  - http
+                                  - tcp
+                            required:
+                              - type
+                              - provider
+                              - image
+                              - entry_port
+                              - entry_protocol
+                            additionalProperties: false
                       assets:
                         type: array
                         items:
@@ -3290,20 +3926,126 @@ paths:
                             maxLength: 160
                           - type: "null"
                       flag_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: static
+                              digest:
+                                type: string
+                                minLength: 1
+                                maxLength: 512
+                            required:
+                              - type
+                              - digest
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: team-derived
+                              key_version:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 9007199254740991
+                            required:
+                              - type
+                              - key_version
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: synchronous
+                              validator:
+                                type: string
+                                minLength: 1
+                                maxLength: 128
+                                pattern: ^[a-z0-9]+(?:[._-][a-z0-9]+)*$
+                            required:
+                              - type
+                              - validator
+                            additionalProperties: false
                       scoring_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: fixed-v1
+                              points:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                            required:
+                              - type
+                              - points
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: decay-v1
+                              initial_points:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                              minimum_points:
+                                type: integer
+                                minimum: 0
+                                maximum: 1000000
+                              decay_solves:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                            required:
+                              - type
+                              - initial_points
+                              - minimum_points
+                              - decay_solves
+                            additionalProperties: false
                       instance_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: none
+                            required:
+                              - type
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: dynamic
+                              provider:
+                                type: string
+                                enum:
+                                  - docker
+                                  - kubernetes
+                              image:
+                                type: string
+                                minLength: 1
+                                maxLength: 512
+                              entry_port:
+                                type: integer
+                                minimum: 1
+                                maximum: 65535
+                              entry_protocol:
+                                default: tcp
+                                type: string
+                                enum:
+                                  - http
+                                  - tcp
+                            required:
+                              - type
+                              - provider
+                              - image
+                              - entry_port
+                              - entry_protocol
+                            additionalProperties: false
                       assets:
                         type: array
                         items:
@@ -3537,20 +4279,126 @@ paths:
                             maxLength: 160
                           - type: "null"
                       flag_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: static
+                              digest:
+                                type: string
+                                minLength: 1
+                                maxLength: 512
+                            required:
+                              - type
+                              - digest
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: team-derived
+                              key_version:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 9007199254740991
+                            required:
+                              - type
+                              - key_version
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: synchronous
+                              validator:
+                                type: string
+                                minLength: 1
+                                maxLength: 128
+                                pattern: ^[a-z0-9]+(?:[._-][a-z0-9]+)*$
+                            required:
+                              - type
+                              - validator
+                            additionalProperties: false
                       scoring_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: fixed-v1
+                              points:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                            required:
+                              - type
+                              - points
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: decay-v1
+                              initial_points:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                              minimum_points:
+                                type: integer
+                                minimum: 0
+                                maximum: 1000000
+                              decay_solves:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                            required:
+                              - type
+                              - initial_points
+                              - minimum_points
+                              - decay_solves
+                            additionalProperties: false
                       instance_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: none
+                            required:
+                              - type
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: dynamic
+                              provider:
+                                type: string
+                                enum:
+                                  - docker
+                                  - kubernetes
+                              image:
+                                type: string
+                                minLength: 1
+                                maxLength: 512
+                              entry_port:
+                                type: integer
+                                minimum: 1
+                                maximum: 65535
+                              entry_protocol:
+                                default: tcp
+                                type: string
+                                enum:
+                                  - http
+                                  - tcp
+                            required:
+                              - type
+                              - provider
+                              - image
+                              - entry_port
+                              - entry_protocol
+                            additionalProperties: false
                       assets:
                         type: array
                         items:
@@ -3745,20 +4593,126 @@ paths:
                       maxLength: 160
                     - type: "null"
                 flag_policy:
-                  type: object
-                  propertyNames:
-                    type: string
-                  additionalProperties: {}
+                  oneOf:
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: static
+                        digest:
+                          type: string
+                          minLength: 1
+                          maxLength: 512
+                      required:
+                        - type
+                        - digest
+                      additionalProperties: false
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: team-derived
+                        key_version:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 9007199254740991
+                      required:
+                        - type
+                        - key_version
+                      additionalProperties: false
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: synchronous
+                        validator:
+                          type: string
+                          minLength: 1
+                          maxLength: 128
+                          pattern: ^[a-z0-9]+(?:[._-][a-z0-9]+)*$
+                      required:
+                        - type
+                        - validator
+                      additionalProperties: false
                 scoring_policy:
-                  type: object
-                  propertyNames:
-                    type: string
-                  additionalProperties: {}
+                  oneOf:
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: fixed-v1
+                        points:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 1000000
+                      required:
+                        - type
+                        - points
+                      additionalProperties: false
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: decay-v1
+                        initial_points:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 1000000
+                        minimum_points:
+                          type: integer
+                          minimum: 0
+                          maximum: 1000000
+                        decay_solves:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 1000000
+                      required:
+                        - type
+                        - initial_points
+                        - minimum_points
+                        - decay_solves
+                      additionalProperties: false
                 instance_policy:
-                  type: object
-                  propertyNames:
-                    type: string
-                  additionalProperties: {}
+                  oneOf:
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: none
+                      required:
+                        - type
+                      additionalProperties: false
+                    - type: object
+                      properties:
+                        type:
+                          type: string
+                          const: dynamic
+                        provider:
+                          type: string
+                          enum:
+                            - docker
+                            - kubernetes
+                        image:
+                          type: string
+                          minLength: 1
+                          maxLength: 512
+                        entry_port:
+                          type: integer
+                          minimum: 1
+                          maximum: 65535
+                        entry_protocol:
+                          default: tcp
+                          type: string
+                          enum:
+                            - http
+                            - tcp
+                      required:
+                        - type
+                        - provider
+                        - image
+                        - entry_port
+                        - entry_protocol
+                      additionalProperties: false
                 assets:
                   maxItems: 100
                   type: array
@@ -3919,20 +4873,126 @@ paths:
                             maxLength: 160
                           - type: "null"
                       flag_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: static
+                              digest:
+                                type: string
+                                minLength: 1
+                                maxLength: 512
+                            required:
+                              - type
+                              - digest
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: team-derived
+                              key_version:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 9007199254740991
+                            required:
+                              - type
+                              - key_version
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: synchronous
+                              validator:
+                                type: string
+                                minLength: 1
+                                maxLength: 128
+                                pattern: ^[a-z0-9]+(?:[._-][a-z0-9]+)*$
+                            required:
+                              - type
+                              - validator
+                            additionalProperties: false
                       scoring_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: fixed-v1
+                              points:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                            required:
+                              - type
+                              - points
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: decay-v1
+                              initial_points:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                              minimum_points:
+                                type: integer
+                                minimum: 0
+                                maximum: 1000000
+                              decay_solves:
+                                type: integer
+                                exclusiveMinimum: 0
+                                maximum: 1000000
+                            required:
+                              - type
+                              - initial_points
+                              - minimum_points
+                              - decay_solves
+                            additionalProperties: false
                       instance_policy:
-                        type: object
-                        propertyNames:
-                          type: string
-                        additionalProperties: {}
+                        oneOf:
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: none
+                            required:
+                              - type
+                            additionalProperties: false
+                          - type: object
+                            properties:
+                              type:
+                                type: string
+                                const: dynamic
+                              provider:
+                                type: string
+                                enum:
+                                  - docker
+                                  - kubernetes
+                              image:
+                                type: string
+                                minLength: 1
+                                maxLength: 512
+                              entry_port:
+                                type: integer
+                                minimum: 1
+                                maximum: 65535
+                              entry_protocol:
+                                default: tcp
+                                type: string
+                                enum:
+                                  - http
+                                  - tcp
+                            required:
+                              - type
+                              - provider
+                              - image
+                              - entry_port
+                              - entry_protocol
+                            additionalProperties: false
                       assets:
                         type: array
                         items:

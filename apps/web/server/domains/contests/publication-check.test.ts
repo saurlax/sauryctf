@@ -233,4 +233,24 @@ describeWithPostgres('contest publication preflight', () => {
       })],
     })
   })
+
+  it.each([
+    [{ type: 'fixed-v1', points: 0 }, 'points'],
+    [{ type: 'decay-v1', minimum_points: 100, decay_solves: 50 }, 'initial_points'],
+    [{ type: 'decay-v1', initial_points: 100, minimum_points: 200, decay_solves: 50 }, 'minimum_points'],
+  ] as const)('locates invalid scoring policy field %s', async (scoringPolicy, field) => {
+    const organizer = await user()
+    const target = await draft(organizer)
+    const challenge = await createPublishableChallenge(database.pool, target.id, organizer.userId, { scoringPolicy })
+
+    await expect(contests.checkPublication(organizer, target.id)).resolves.toMatchObject({
+      ready: false,
+      issues: [expect.objectContaining({
+        code: 'challenge.scoring_policy_invalid',
+        resourceType: 'challenge',
+        resourceId: challenge.challengeId,
+        field: `challenges.${challenge.challengeId}.scoring_policy.${field}`,
+      })],
+    })
+  })
 })

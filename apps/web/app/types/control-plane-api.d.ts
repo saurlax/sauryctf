@@ -4,6 +4,11 @@
  */
 
 
+/** OneOf type helpers */
+type Without<T, U> = { [P in Exclude<keyof T, keyof U>]?: never };
+type XOR<T, U> = (T | U) extends object ? (Without<T, U> & U) | (Without<U, T> & T) : T | U;
+type OneOf<T extends any[]> = T extends [infer Only] ? Only : T extends [infer A, infer B, ...infer Rest] ? OneOf<[XOR<A, B>, ...Rest]> : never;
+
 export interface paths {
   "/api/health/live": {
     get: operations["getControlPlaneLiveness"];
@@ -1477,20 +1482,51 @@ export interface operations {
           description: string;
           /** @default null */
           flag_format: string | null;
-          flag_policy: {
-            [key: string]: unknown;
-          };
-          scoring_policy: {
-            [key: string]: unknown;
-          };
+          flag_policy: OneOf<[{
+            /** @constant */
+            type: "static";
+            digest: string;
+          }, {
+            /** @constant */
+            type: "team-derived";
+            key_version: number;
+          }, {
+            /** @constant */
+            type: "synchronous";
+            validator: string;
+          }]>;
+          scoring_policy: OneOf<[{
+            /** @constant */
+            type: "fixed-v1";
+            points: number;
+          }, {
+            /** @constant */
+            type: "decay-v1";
+            initial_points: number;
+            minimum_points: number;
+            decay_solves: number;
+          }]>;
           /**
            * @default {
            *   "type": "none"
            * }
            */
-          instance_policy: {
-            [key: string]: unknown;
-          };
+          instance_policy: OneOf<[{
+            /** @constant */
+            type: "none";
+          }, {
+            /** @constant */
+            type: "dynamic";
+            /** @enum {string} */
+            provider: "docker" | "kubernetes";
+            image: string;
+            entry_port: number;
+            /**
+             * @default tcp
+             * @enum {string}
+             */
+            entry_protocol: "http" | "tcp";
+          }]>;
           /** @default [] */
           assets: {
               content_object_id: string;
@@ -1535,15 +1571,46 @@ export interface operations {
               category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
               description: string;
               flag_format: string | null;
-              flag_policy: {
-                [key: string]: unknown;
-              };
-              scoring_policy: {
-                [key: string]: unknown;
-              };
-              instance_policy: {
-                [key: string]: unknown;
-              };
+              flag_policy: OneOf<[{
+                /** @constant */
+                type: "static";
+                digest: string;
+              }, {
+                /** @constant */
+                type: "team-derived";
+                key_version: number;
+              }, {
+                /** @constant */
+                type: "synchronous";
+                validator: string;
+              }]>;
+              scoring_policy: OneOf<[{
+                /** @constant */
+                type: "fixed-v1";
+                points: number;
+              }, {
+                /** @constant */
+                type: "decay-v1";
+                initial_points: number;
+                minimum_points: number;
+                decay_solves: number;
+              }]>;
+              instance_policy: OneOf<[{
+                /** @constant */
+                type: "none";
+              }, {
+                /** @constant */
+                type: "dynamic";
+                /** @enum {string} */
+                provider: "docker" | "kubernetes";
+                image: string;
+                entry_port: number;
+                /**
+                 * @default tcp
+                 * @enum {string}
+                 */
+                entry_protocol: "http" | "tcp";
+              }]>;
               assets: {
                   content_object_id: string;
                   display_name: string;
@@ -1624,15 +1691,46 @@ export interface operations {
               category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
               description: string;
               flag_format: string | null;
-              flag_policy: {
-                [key: string]: unknown;
-              };
-              scoring_policy: {
-                [key: string]: unknown;
-              };
-              instance_policy: {
-                [key: string]: unknown;
-              };
+              flag_policy: OneOf<[{
+                /** @constant */
+                type: "static";
+                digest: string;
+              }, {
+                /** @constant */
+                type: "team-derived";
+                key_version: number;
+              }, {
+                /** @constant */
+                type: "synchronous";
+                validator: string;
+              }]>;
+              scoring_policy: OneOf<[{
+                /** @constant */
+                type: "fixed-v1";
+                points: number;
+              }, {
+                /** @constant */
+                type: "decay-v1";
+                initial_points: number;
+                minimum_points: number;
+                decay_solves: number;
+              }]>;
+              instance_policy: OneOf<[{
+                /** @constant */
+                type: "none";
+              }, {
+                /** @constant */
+                type: "dynamic";
+                /** @enum {string} */
+                provider: "docker" | "kubernetes";
+                image: string;
+                entry_port: number;
+                /**
+                 * @default tcp
+                 * @enum {string}
+                 */
+                entry_protocol: "http" | "tcp";
+              }]>;
               assets: {
                   content_object_id: string;
                   display_name: string;
@@ -1698,15 +1796,46 @@ export interface operations {
           category?: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
           description?: string;
           flag_format?: string | null;
-          flag_policy?: {
-            [key: string]: unknown;
-          };
-          scoring_policy?: {
-            [key: string]: unknown;
-          };
-          instance_policy?: {
-            [key: string]: unknown;
-          };
+          flag_policy?: OneOf<[{
+            /** @constant */
+            type: "static";
+            digest: string;
+          }, {
+            /** @constant */
+            type: "team-derived";
+            key_version: number;
+          }, {
+            /** @constant */
+            type: "synchronous";
+            validator: string;
+          }]>;
+          scoring_policy?: OneOf<[{
+            /** @constant */
+            type: "fixed-v1";
+            points: number;
+          }, {
+            /** @constant */
+            type: "decay-v1";
+            initial_points: number;
+            minimum_points: number;
+            decay_solves: number;
+          }]>;
+          instance_policy?: OneOf<[{
+            /** @constant */
+            type: "none";
+          }, {
+            /** @constant */
+            type: "dynamic";
+            /** @enum {string} */
+            provider: "docker" | "kubernetes";
+            image: string;
+            entry_port: number;
+            /**
+             * @default tcp
+             * @enum {string}
+             */
+            entry_protocol: "http" | "tcp";
+          }]>;
           assets?: {
               content_object_id: string;
               display_name: string;
@@ -1750,15 +1879,46 @@ export interface operations {
               category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
               description: string;
               flag_format: string | null;
-              flag_policy: {
-                [key: string]: unknown;
-              };
-              scoring_policy: {
-                [key: string]: unknown;
-              };
-              instance_policy: {
-                [key: string]: unknown;
-              };
+              flag_policy: OneOf<[{
+                /** @constant */
+                type: "static";
+                digest: string;
+              }, {
+                /** @constant */
+                type: "team-derived";
+                key_version: number;
+              }, {
+                /** @constant */
+                type: "synchronous";
+                validator: string;
+              }]>;
+              scoring_policy: OneOf<[{
+                /** @constant */
+                type: "fixed-v1";
+                points: number;
+              }, {
+                /** @constant */
+                type: "decay-v1";
+                initial_points: number;
+                minimum_points: number;
+                decay_solves: number;
+              }]>;
+              instance_policy: OneOf<[{
+                /** @constant */
+                type: "none";
+              }, {
+                /** @constant */
+                type: "dynamic";
+                /** @enum {string} */
+                provider: "docker" | "kubernetes";
+                image: string;
+                entry_port: number;
+                /**
+                 * @default tcp
+                 * @enum {string}
+                 */
+                entry_protocol: "http" | "tcp";
+              }]>;
               assets: {
                   content_object_id: string;
                   display_name: string;
@@ -1852,15 +2012,46 @@ export interface operations {
               category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
               description: string;
               flag_format: string | null;
-              flag_policy: {
-                [key: string]: unknown;
-              };
-              scoring_policy: {
-                [key: string]: unknown;
-              };
-              instance_policy: {
-                [key: string]: unknown;
-              };
+              flag_policy: OneOf<[{
+                /** @constant */
+                type: "static";
+                digest: string;
+              }, {
+                /** @constant */
+                type: "team-derived";
+                key_version: number;
+              }, {
+                /** @constant */
+                type: "synchronous";
+                validator: string;
+              }]>;
+              scoring_policy: OneOf<[{
+                /** @constant */
+                type: "fixed-v1";
+                points: number;
+              }, {
+                /** @constant */
+                type: "decay-v1";
+                initial_points: number;
+                minimum_points: number;
+                decay_solves: number;
+              }]>;
+              instance_policy: OneOf<[{
+                /** @constant */
+                type: "none";
+              }, {
+                /** @constant */
+                type: "dynamic";
+                /** @enum {string} */
+                provider: "docker" | "kubernetes";
+                image: string;
+                entry_port: number;
+                /**
+                 * @default tcp
+                 * @enum {string}
+                 */
+                entry_protocol: "http" | "tcp";
+              }]>;
               assets: {
                   content_object_id: string;
                   display_name: string;
@@ -1956,15 +2147,46 @@ export interface operations {
               category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
               description: string;
               flag_format: string | null;
-              flag_policy: {
-                [key: string]: unknown;
-              };
-              scoring_policy: {
-                [key: string]: unknown;
-              };
-              instance_policy: {
-                [key: string]: unknown;
-              };
+              flag_policy: OneOf<[{
+                /** @constant */
+                type: "static";
+                digest: string;
+              }, {
+                /** @constant */
+                type: "team-derived";
+                key_version: number;
+              }, {
+                /** @constant */
+                type: "synchronous";
+                validator: string;
+              }]>;
+              scoring_policy: OneOf<[{
+                /** @constant */
+                type: "fixed-v1";
+                points: number;
+              }, {
+                /** @constant */
+                type: "decay-v1";
+                initial_points: number;
+                minimum_points: number;
+                decay_solves: number;
+              }]>;
+              instance_policy: OneOf<[{
+                /** @constant */
+                type: "none";
+              }, {
+                /** @constant */
+                type: "dynamic";
+                /** @enum {string} */
+                provider: "docker" | "kubernetes";
+                image: string;
+                entry_port: number;
+                /**
+                 * @default tcp
+                 * @enum {string}
+                 */
+                entry_protocol: "http" | "tcp";
+              }]>;
               assets: {
                   content_object_id: string;
                   display_name: string;
@@ -2050,15 +2272,46 @@ export interface operations {
               category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
               description: string;
               flag_format: string | null;
-              flag_policy: {
-                [key: string]: unknown;
-              };
-              scoring_policy: {
-                [key: string]: unknown;
-              };
-              instance_policy: {
-                [key: string]: unknown;
-              };
+              flag_policy: OneOf<[{
+                /** @constant */
+                type: "static";
+                digest: string;
+              }, {
+                /** @constant */
+                type: "team-derived";
+                key_version: number;
+              }, {
+                /** @constant */
+                type: "synchronous";
+                validator: string;
+              }]>;
+              scoring_policy: OneOf<[{
+                /** @constant */
+                type: "fixed-v1";
+                points: number;
+              }, {
+                /** @constant */
+                type: "decay-v1";
+                initial_points: number;
+                minimum_points: number;
+                decay_solves: number;
+              }]>;
+              instance_policy: OneOf<[{
+                /** @constant */
+                type: "none";
+              }, {
+                /** @constant */
+                type: "dynamic";
+                /** @enum {string} */
+                provider: "docker" | "kubernetes";
+                image: string;
+                entry_port: number;
+                /**
+                 * @default tcp
+                 * @enum {string}
+                 */
+                entry_protocol: "http" | "tcp";
+              }]>;
               assets: {
                   content_object_id: string;
                   display_name: string;
@@ -2131,15 +2384,46 @@ export interface operations {
           category?: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
           description?: string;
           flag_format?: string | null;
-          flag_policy?: {
-            [key: string]: unknown;
-          };
-          scoring_policy?: {
-            [key: string]: unknown;
-          };
-          instance_policy?: {
-            [key: string]: unknown;
-          };
+          flag_policy?: OneOf<[{
+            /** @constant */
+            type: "static";
+            digest: string;
+          }, {
+            /** @constant */
+            type: "team-derived";
+            key_version: number;
+          }, {
+            /** @constant */
+            type: "synchronous";
+            validator: string;
+          }]>;
+          scoring_policy?: OneOf<[{
+            /** @constant */
+            type: "fixed-v1";
+            points: number;
+          }, {
+            /** @constant */
+            type: "decay-v1";
+            initial_points: number;
+            minimum_points: number;
+            decay_solves: number;
+          }]>;
+          instance_policy?: OneOf<[{
+            /** @constant */
+            type: "none";
+          }, {
+            /** @constant */
+            type: "dynamic";
+            /** @enum {string} */
+            provider: "docker" | "kubernetes";
+            image: string;
+            entry_port: number;
+            /**
+             * @default tcp
+             * @enum {string}
+             */
+            entry_protocol: "http" | "tcp";
+          }]>;
           assets?: {
               content_object_id: string;
               display_name: string;
@@ -2179,15 +2463,46 @@ export interface operations {
               category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
               description: string;
               flag_format: string | null;
-              flag_policy: {
-                [key: string]: unknown;
-              };
-              scoring_policy: {
-                [key: string]: unknown;
-              };
-              instance_policy: {
-                [key: string]: unknown;
-              };
+              flag_policy: OneOf<[{
+                /** @constant */
+                type: "static";
+                digest: string;
+              }, {
+                /** @constant */
+                type: "team-derived";
+                key_version: number;
+              }, {
+                /** @constant */
+                type: "synchronous";
+                validator: string;
+              }]>;
+              scoring_policy: OneOf<[{
+                /** @constant */
+                type: "fixed-v1";
+                points: number;
+              }, {
+                /** @constant */
+                type: "decay-v1";
+                initial_points: number;
+                minimum_points: number;
+                decay_solves: number;
+              }]>;
+              instance_policy: OneOf<[{
+                /** @constant */
+                type: "none";
+              }, {
+                /** @constant */
+                type: "dynamic";
+                /** @enum {string} */
+                provider: "docker" | "kubernetes";
+                image: string;
+                entry_port: number;
+                /**
+                 * @default tcp
+                 * @enum {string}
+                 */
+                entry_protocol: "http" | "tcp";
+              }]>;
               assets: {
                   content_object_id: string;
                   display_name: string;

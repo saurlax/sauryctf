@@ -50,6 +50,9 @@ async function runOperation<T>(operation: () => Promise<T>): Promise<T> {
   }
   catch (error) {
     if (!(error instanceof ChallengeTemplateServiceError)) throw error
+    if (error.code === 'challenge.policy_invalid') {
+      throw createApiError(400, 'validation.failed', '请求字段无效', error.fields)
+    }
     const statusCode = {
       'challenge.asset_unavailable': 409,
       'challenge.template_not_found': 404,

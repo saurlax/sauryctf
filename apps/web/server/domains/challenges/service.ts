@@ -1,8 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
-import type { ChallengeCategory } from '../../../shared/contracts/challenges'
+import type {
+  ChallengeCategory,
+  ChallengeFlagPolicy,
+  ChallengeInstancePolicy,
+  ChallengeScoringPolicy,
+} from '../../../shared/contracts/challenges'
 import { identityCapability, requireIdentityCapability } from '../identity/capabilities'
 import type { SessionSubject } from '../identity/repository'
+import { assertChallengePolicies, ChallengePolicyValidationError } from './policies'
 import {
   ChallengeContentObjectUnavailableError,
   ChallengeTemplateNotFoundError,
@@ -19,6 +25,7 @@ export type ChallengeTemplateServiceErrorCode =
   | 'challenge.asset_unavailable'
   | 'challenge.template_not_found'
   | 'challenge.template_slug_conflict'
+  | 'challenge.policy_invalid'
   | 'challenge.version_unchanged'
   | 'resource.version_conflict'
 
@@ -31,6 +38,7 @@ export class ChallengeTemplateServiceError extends Error {
       'challenge.asset_unavailable': '题目附件尚未处于可引用状态',
       'challenge.template_not_found': '题库模板或指定版本不存在',
       'challenge.template_slug_conflict': '题库模板路径标识已被使用',
+      'challenge.policy_invalid': '题目策略配置无效',
       'challenge.version_unchanged': '题目版本内容没有变化',
       'resource.version_conflict': '资源版本冲突，请刷新后重试',
     }[code])
@@ -43,9 +51,9 @@ interface VersionInput {
   category: ChallengeCategory
   description: string
   flagFormat: string | null
-  flagPolicy: Record<string, unknown>
-  scoringPolicy: Record<string, unknown>
-  instancePolicy: Record<string, unknown>
+  flagPolicy: ChallengeFlagPolicy
+  scoringPolicy: ChallengeScoringPolicy
+  instancePolicy: ChallengeInstancePolicy
   assets: ChallengeTemplateAssetCommand[]
   hints: ChallengeTemplateHintCommand[]
 }
@@ -59,6 +67,11 @@ export class ChallengeTemplateService {
     slug: string
   }): Promise<ChallengeTemplateDetail> {
     requireIdentityCapability(actor, identityCapability.contestManage)
+    this.validatePolicies({
+      flag_policy: input.flagPolicy,
+      scoring_policy: input.scoringPolicy,
+      instance_policy: input.instancePolicy,
+    })
     return this.map(() => this.repository.create({
       actorId: actor.userId,
       requestId: input.requestId,
@@ -84,9 +97,9 @@ export class ChallengeTemplateService {
     category?: ChallengeCategory
     description?: string
     flagFormat?: string | null
-    flagPolicy?: Record<string, unknown>
-    scoringPolicy?: Record<string, unknown>
-    instancePolicy?: Record<string, unknown>
+    flagPolicy?: ChallengeFlagPolicy
+    scoringPolicy?: ChallengeScoringPolicy
+    instancePolicy?: ChallengeInstancePolicy
     assets?: ChallengeTemplateAssetCommand[]
     hints?: ChallengeTemplateHintCommand[]
   }): Promise<ChallengeTemplateDetail> {
@@ -118,6 +131,11 @@ export class ChallengeTemplateService {
     if (isDeepStrictEqual(this.snapshot(current.challengeVersion), next)) {
       throw new ChallengeTemplateServiceError('challenge.version_unchanged')
     }
+    this.validatePolicies({
+      flag_policy: next.flagPolicy,
+      scoring_policy: next.scoringPolicy,
+      instance_policy: next.instancePolicy,
+    })
     return this.map(() => this.repository.createVersion({
       actorId: actor.userId,
       requestId: input.requestId,
@@ -149,6 +167,18 @@ export class ChallengeTemplateService {
         releaseAfterSeconds: hint.releaseAfterSeconds,
         sortOrder: hint.sortOrder,
       })),
+    }
+  }
+
+  private validatePolicies(input: Parameters<typeof assertChallengePolicies>[0]) {
+    try {
+      assertChallengePolicies(input)
+    }
+    catch (error) {
+      if (error instanceof ChallengePolicyValidationError) {
+        throw new ChallengeTemplateServiceError('challenge.policy_invalid', error.fields)
+      }
+      throw error
     }
   }
 

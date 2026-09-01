@@ -458,6 +458,9 @@ export const challengeTemplateVersions = pgTable('challenge_template_versions', 
   check('challenge_template_versions_flag_policy_object', sql`jsonb_typeof(${table.flagPolicy}) = 'object'`),
   check('challenge_template_versions_scoring_policy_object', sql`jsonb_typeof(${table.scoringPolicy}) = 'object'`),
   check('challenge_template_versions_instance_policy_object', sql`jsonb_typeof(${table.instancePolicy}) = 'object'`),
+  check('challenge_template_versions_flag_policy_type', sql`(${table.flagPolicy} ? 'type') AND ${table.flagPolicy} ->> 'type' IN ('static', 'team-derived', 'synchronous')`),
+  check('challenge_template_versions_scoring_policy_type', sql`(${table.scoringPolicy} ? 'type') AND ${table.scoringPolicy} ->> 'type' IN ('fixed-v1', 'decay-v1')`),
+  check('challenge_template_versions_instance_policy_type', sql`(${table.instancePolicy} ? 'type') AND ${table.instancePolicy} ->> 'type' IN ('none', 'dynamic')`),
 ])
 
 export const challengeTemplateAssets = pgTable('challenge_template_assets', {
@@ -521,6 +524,9 @@ export const contestChallenges = pgTable('contest_challenges', {
   check('contest_challenges_publish_window', sql`${table.closeAt} IS NULL OR ${table.publishAt} IS NULL OR ${table.closeAt} > ${table.publishAt}`),
   check('contest_challenges_submission_limit_positive', sql`${table.submissionLimit} IS NULL OR ${table.submissionLimit} > 0`),
   check('contest_challenges_policy_objects', sql`jsonb_typeof(${table.flagPolicy}) = 'object' AND jsonb_typeof(${table.scoringPolicy}) = 'object' AND jsonb_typeof(${table.instancePolicy}) = 'object'`),
+  check('contest_challenges_flag_policy_type', sql`(${table.flagPolicy} ? 'type') AND ${table.flagPolicy} ->> 'type' IN ('static', 'team-derived', 'synchronous')`),
+  check('contest_challenges_scoring_policy_type', sql`(${table.scoringPolicy} ? 'type') AND ${table.scoringPolicy} ->> 'type' IN ('fixed-v1', 'decay-v1')`),
+  check('contest_challenges_instance_policy_type', sql`(${table.instancePolicy} ? 'type') AND ${table.instancePolicy} ->> 'type' IN ('none', 'dynamic')`),
   check('contest_challenges_version_positive', sql`${table.version} > 0`),
 ])
 

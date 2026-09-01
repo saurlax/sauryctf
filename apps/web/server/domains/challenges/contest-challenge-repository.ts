@@ -1,4 +1,9 @@
-import type { ChallengeCategory } from '../../../shared/contracts/challenges'
+import type {
+  ChallengeCategory,
+  ChallengeFlagPolicy,
+  ChallengeInstancePolicy,
+  ChallengeScoringPolicy,
+} from '../../../shared/contracts/challenges'
 
 export interface ContestChallengeAssetRecord {
   id: string
@@ -26,9 +31,9 @@ export interface ContestChallengeRecord {
   category: ChallengeCategory
   description: string
   flagFormat: string | null
-  flagPolicy: Record<string, unknown>
-  scoringPolicy: Record<string, unknown>
-  instancePolicy: Record<string, unknown>
+  flagPolicy: ChallengeFlagPolicy
+  scoringPolicy: ChallengeScoringPolicy
+  instancePolicy: ChallengeInstancePolicy
   assets: ContestChallengeAssetRecord[]
   hints: ContestChallengeHintRecord[]
   enabled: boolean
@@ -78,9 +83,9 @@ export interface ReviseContestChallengeCommand {
   category?: ChallengeCategory
   description?: string
   flagFormat?: string | null
-  flagPolicy?: Record<string, unknown>
-  scoringPolicy?: Record<string, unknown>
-  instancePolicy?: Record<string, unknown>
+  flagPolicy?: ChallengeFlagPolicy
+  scoringPolicy?: ChallengeScoringPolicy
+  instancePolicy?: ChallengeInstancePolicy
   assets?: ContestChallengeAssetCommand[]
   hints?: ContestChallengeHintCommand[]
   enabled?: boolean

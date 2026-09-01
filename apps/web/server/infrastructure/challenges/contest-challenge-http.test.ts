@@ -1,6 +1,7 @@
 import { createApp, eventHandler, setResponseStatus, toWebHandler, type H3Event } from 'h3'
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthSessionData } from '../../../shared/contracts/auth-session'
+import type { ContestChallengeRecord } from '../../domains/challenges/contest-challenge-repository'
 import { ContestChallengeServiceError } from '../../domains/challenges/contest-challenge-service'
 import { DisabledHumanVerificationProvider } from '../../domains/identity/human-verification'
 import type { SessionSubject } from '../../domains/identity/repository'
@@ -37,7 +38,7 @@ const organizer: SessionSubject = {
   sessionVersion: 1,
   mustChangePassword: false,
 }
-const record = {
+const record: ContestChallengeRecord = {
   id: challengeId,
   contestId,
   sourceTemplateId: templateId,

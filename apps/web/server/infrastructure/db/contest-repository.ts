@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from 'pg'
+import { firstChallengePolicyIssue } from '../../domains/challenges/policies'
 import {
   ContestNotEndedError,
   ContestNotFoundError,
@@ -498,64 +499,15 @@ export class PostgresContestRepository implements ContestRepository {
   }
 
   private flagPolicyIssue(value: unknown): { field: string, message: string } | null {
-    if (!this.isObject(value) || typeof value.type !== 'string') {
-      return { field: 'type', message: 'Flag 策略必须声明受支持的类型' }
-    }
-    if (value.type === 'static') {
-      return typeof value.digest === 'string' && value.digest.trim()
-        ? null
-        : { field: 'digest', message: '静态 Flag 策略缺少答案摘要' }
-    }
-    if (value.type === 'team-derived') {
-      return Number.isInteger(value.key_version) && Number(value.key_version) > 0
-        ? null
-        : { field: 'key_version', message: '每队派生 Flag 策略缺少有效密钥版本' }
-    }
-    if (value.type === 'synchronous') {
-      return typeof value.validator === 'string' && value.validator.trim()
-        ? null
-        : { field: 'validator', message: '同步校验策略缺少校验器标识' }
-    }
-    return { field: 'type', message: 'Flag 策略类型不受首期平台支持' }
+    return firstChallengePolicyIssue('flag_policy', value)
   }
 
   private scoringPolicyIssue(value: unknown): { field: string, message: string } | null {
-    if (!this.isObject(value) || typeof value.type !== 'string') {
-      return { field: 'type', message: '计分策略必须声明受支持的类型' }
-    }
-    if (value.type === 'fixed-v1') {
-      return Number.isInteger(value.points) && Number(value.points) > 0
-        ? null
-        : { field: 'points', message: '固定计分策略缺少正整数分值' }
-    }
-    if (value.type === 'decay-v1') return null
-    return { field: 'type', message: '计分策略类型不受首期平台支持' }
+    return firstChallengePolicyIssue('scoring_policy', value)
   }
 
   private instancePolicyIssue(value: unknown): { field: string, message: string } | null {
-    if (!this.isObject(value) || typeof value.type !== 'string') {
-      return { field: 'type', message: '实例策略必须声明受支持的类型' }
-    }
-    if (value.type === 'none') return null
-    if (value.type !== 'dynamic') {
-      return { field: 'type', message: '实例策略类型不受首期平台支持' }
-    }
-    if (!['docker', 'kubernetes'].includes(String(value.provider))) {
-      return { field: 'provider', message: '动态实例缺少受支持的 Provider' }
-    }
-    if (typeof value.image !== 'string' || !value.image.trim()) {
-      return { field: 'image', message: '动态实例缺少运行镜像' }
-    }
-    if (!Number.isInteger(value.entry_port)
-      || Number(value.entry_port) < 1
-      || Number(value.entry_port) > 65_535) {
-      return { field: 'entry_port', message: '动态实例缺少有效入口端口' }
-    }
-    return null
-  }
-
-  private isObject(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value)
+    return firstChallengePolicyIssue('instance_policy', value)
   }
 
   private async writeAudit(

@@ -11,7 +11,12 @@ import {
   type CreateChallengeTemplateCommand,
   type CreateChallengeTemplateVersionCommand,
 } from '../../domains/challenges/repository'
-import type { ChallengeCategory } from '../../../shared/contracts/challenges'
+import type {
+  ChallengeCategory,
+  ChallengeFlagPolicy,
+  ChallengeInstancePolicy,
+  ChallengeScoringPolicy,
+} from '../../../shared/contracts/challenges'
 
 interface DetailRow {
   template_id: string
@@ -27,9 +32,9 @@ interface DetailRow {
   category: ChallengeCategory
   description: string
   flag_format: string | null
-  flag_policy: Record<string, unknown>
-  scoring_policy: Record<string, unknown>
-  instance_policy: Record<string, unknown>
+  flag_policy: ChallengeFlagPolicy
+  scoring_policy: ChallengeScoringPolicy
+  instance_policy: ChallengeInstancePolicy
   created_by: string
   version_created_at: Date
 }

@@ -253,4 +253,57 @@ describeWithPostgres('challenge template immutable version maintenance', () => {
       code: 'identity.capability_forbidden',
     })
   })
+
+  it('rejects invalid orthogonal policies at the domain boundary', async () => {
+    const organizer = await user()
+    sequence++
+    await expect(templates.create(organizer, {
+      requestId: randomUUID(),
+      name: `Invalid Policy Template ${sequence}`,
+      slug: `invalid-policy-template-${sequence}`,
+      title: 'Invalid Policy Challenge',
+      category: 'web',
+      description: 'Invalid policy input must not reach persistence',
+      flagFormat: 'flag{...}',
+      flagPolicy: { type: 'team-derived', key_version: 0 },
+      scoringPolicy: { type: 'fixed-v1', points: 500 },
+      instancePolicy: { type: 'none' },
+      assets: [],
+      hints: [],
+    })).rejects.toMatchObject({
+      code: 'challenge.policy_invalid',
+      fields: { 'flag_policy.key_version': expect.any(Array) },
+    })
+  })
+
+  it('accepts independent category, Flag, scoring, and instance policy choices', async () => {
+    const organizer = await user()
+    sequence++
+    await expect(templates.create(organizer, {
+      requestId: randomUUID(),
+      name: `Orthogonal Policy Template ${sequence}`,
+      slug: `orthogonal-policy-template-${sequence}`,
+      title: 'Orthogonal Policy Challenge',
+      category: 'pwn',
+      description: 'The strategy axes are independent from the display category',
+      flagFormat: 'flag{...}',
+      flagPolicy: { type: 'team-derived', key_version: 2 },
+      scoringPolicy: {
+        type: 'decay-v1',
+        initial_points: 500,
+        minimum_points: 100,
+        decay_solves: 50,
+      },
+      instancePolicy: { type: 'none' },
+      assets: [],
+      hints: [],
+    })).resolves.toMatchObject({
+      challengeVersion: {
+        category: 'pwn',
+        flagPolicy: { type: 'team-derived', key_version: 2 },
+        scoringPolicy: { type: 'decay-v1', minimum_points: 100 },
+        instancePolicy: { type: 'none' },
+      },
+    })
+  })
 })

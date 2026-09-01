@@ -1,8 +1,14 @@
 import { randomUUID } from 'node:crypto'
-import type { ChallengeCategory } from '../../../shared/contracts/challenges'
+import type {
+  ChallengeCategory,
+  ChallengeFlagPolicy,
+  ChallengeInstancePolicy,
+  ChallengeScoringPolicy,
+} from '../../../shared/contracts/challenges'
 import { identityCapability, requireIdentityCapability } from '../identity/capabilities'
 import type { SessionSubject } from '../identity/repository'
 import { ChallengeContentObjectUnavailableError } from './repository'
+import { assertChallengePolicies, ChallengePolicyValidationError } from './policies'
 import {
   ContestChallengeArchivedError,
   ContestChallengeConfigurationLockedError,
@@ -24,6 +30,7 @@ export type ContestChallengeServiceErrorCode =
   | 'challenge.contest_archived'
   | 'challenge.not_found'
   | 'challenge.revision_not_allowed'
+  | 'challenge.policy_invalid'
   | 'challenge.revision_reason_required'
   | 'challenge.revision_unchanged'
   | 'challenge.template_version_not_found'
@@ -41,6 +48,7 @@ export class ContestChallengeServiceError extends Error {
       'challenge.contest_archived': '归档比赛的题目快照不可修改',
       'challenge.not_found': '比赛或比赛题目不存在',
       'challenge.revision_not_allowed': '紧急修订只适用于已发布比赛',
+      'challenge.policy_invalid': '比赛题目策略配置无效',
       'challenge.revision_reason_required': '紧急修订必须填写原因',
       'challenge.revision_unchanged': '比赛题目快照没有发生变化',
       'challenge.template_version_not_found': '指定的不可变题库版本不存在',
@@ -94,9 +102,9 @@ export class ContestChallengeService {
     category?: ChallengeCategory
     description?: string
     flagFormat?: string | null
-    flagPolicy?: Record<string, unknown>
-    scoringPolicy?: Record<string, unknown>
-    instancePolicy?: Record<string, unknown>
+    flagPolicy?: ChallengeFlagPolicy
+    scoringPolicy?: ChallengeScoringPolicy
+    instancePolicy?: ChallengeInstancePolicy
     assets?: ContestChallengeAssetCommand[]
     hints?: ContestChallengeHintCommand[]
     enabled?: boolean
@@ -111,6 +119,11 @@ export class ContestChallengeService {
         reason: ['紧急修订必须填写原因'],
       })
     }
+    this.validatePolicies({
+      flag_policy: input.flagPolicy,
+      scoring_policy: input.scoringPolicy,
+      instance_policy: input.instancePolicy,
+    })
     return this.map(() => this.repository.revise({
       ...input,
       actorId: actor.userId,
@@ -165,6 +178,18 @@ export class ContestChallengeService {
         throw new ContestChallengeServiceError('challenge.asset_unavailable', Object.fromEntries(
           error.contentObjectIds.map(id => [`assets.${id}`, ['内容对象不存在、未提交或已被隔离']]),
         ))
+      }
+      throw error
+    }
+  }
+
+  private validatePolicies(input: Parameters<typeof assertChallengePolicies>[0]) {
+    try {
+      assertChallengePolicies(input)
+    }
+    catch (error) {
+      if (error instanceof ChallengePolicyValidationError) {
+        throw new ContestChallengeServiceError('challenge.policy_invalid', error.fields)
       }
       throw error
     }

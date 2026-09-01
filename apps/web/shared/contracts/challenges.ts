@@ -10,7 +10,68 @@ export const challengeCategorySchema = z.enum([
   'forensics',
 ])
 
-const policySchema = z.record(z.string(), z.unknown())
+export const staticFlagPolicySchema = z.strictObject({
+  type: z.literal('static'),
+  digest: z.string().trim().min(1).max(512),
+})
+
+export const teamDerivedFlagPolicySchema = z.strictObject({
+  type: z.literal('team-derived'),
+  key_version: z.number().int().positive(),
+})
+
+export const synchronousFlagPolicySchema = z.strictObject({
+  type: z.literal('synchronous'),
+  validator: z.string().trim().min(1).max(128).regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u),
+})
+
+export const challengeFlagPolicySchema = z.discriminatedUnion('type', [
+  staticFlagPolicySchema,
+  teamDerivedFlagPolicySchema,
+  synchronousFlagPolicySchema,
+])
+
+export const fixedScoringPolicySchema = z.strictObject({
+  type: z.literal('fixed-v1'),
+  points: z.number().int().positive().max(1_000_000),
+})
+
+export const decayScoringPolicySchema = z.strictObject({
+  type: z.literal('decay-v1'),
+  initial_points: z.number().int().positive().max(1_000_000),
+  minimum_points: z.number().int().nonnegative().max(1_000_000),
+  decay_solves: z.number().int().positive().max(1_000_000),
+})
+
+export const challengeScoringPolicySchema = z.discriminatedUnion('type', [
+  fixedScoringPolicySchema,
+  decayScoringPolicySchema,
+]).superRefine((policy, context) => {
+  if (policy.type === 'decay-v1' && policy.minimum_points > policy.initial_points) {
+    context.addIssue({
+      code: 'custom',
+      path: ['minimum_points'],
+      message: '动态计分最低分不得高于初始分',
+    })
+  }
+})
+
+export const noInstancePolicySchema = z.strictObject({
+  type: z.literal('none'),
+})
+
+export const dynamicInstancePolicySchema = z.strictObject({
+  type: z.literal('dynamic'),
+  provider: z.enum(['docker', 'kubernetes']),
+  image: z.string().trim().min(1).max(512),
+  entry_port: z.number().int().min(1).max(65_535),
+  entry_protocol: z.enum(['http', 'tcp']).default('tcp'),
+})
+
+export const challengeInstancePolicySchema = z.discriminatedUnion('type', [
+  noInstancePolicySchema,
+  dynamicInstancePolicySchema,
+])
 
 export const challengeTemplateAssetInputSchema = z.strictObject({
   content_object_id: uuidSchema,
@@ -38,9 +99,9 @@ const versionFields = {
   category: challengeCategorySchema,
   description: z.string().trim().min(1).max(100_000),
   flag_format: z.string().trim().min(1).max(160).nullable(),
-  flag_policy: policySchema,
-  scoring_policy: policySchema,
-  instance_policy: policySchema,
+  flag_policy: challengeFlagPolicySchema,
+  scoring_policy: challengeScoringPolicySchema,
+  instance_policy: challengeInstancePolicySchema,
   assets: z.array(challengeTemplateAssetInputSchema).max(100),
   hints: z.array(challengeTemplateHintInputSchema).max(100),
 } as const
@@ -123,6 +184,9 @@ export const challengeTemplateResponseSchema = z.strictObject({
 })
 
 export type ChallengeCategory = z.infer<typeof challengeCategorySchema>
+export type ChallengeFlagPolicy = z.infer<typeof challengeFlagPolicySchema>
+export type ChallengeScoringPolicy = z.infer<typeof challengeScoringPolicySchema>
+export type ChallengeInstancePolicy = z.infer<typeof challengeInstancePolicySchema>
 export type ChallengeTemplateAssetInput = z.infer<typeof challengeTemplateAssetInputSchema>
 export type ChallengeTemplateHintInput = z.infer<typeof challengeTemplateHintInputSchema>
 export type ChallengeTemplate = z.infer<typeof challengeTemplateSchema>

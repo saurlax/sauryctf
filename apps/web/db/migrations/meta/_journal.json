@@ -99,6 +99,13 @@
       "when": 1788277500000,
       "tag": "0013_contest_challenge_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1788280200000,
+      "tag": "0014_challenge_policy_types",
+      "breakpoints": true
     }
   ]
 }
