@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  adminUserListResponseSchema,
+  changeUserStatusRequestSchema,
   changeGlobalRoleRequestSchema,
   changeEmailRequestSchema,
   changePasswordRequestSchema,
@@ -8,11 +10,15 @@ import {
   emailVerifiedSchema,
   globalRoleChangedSchema,
   globalRoleSchema,
+  identitySessionResponseSchema,
+  loginIdentityRequestSchema,
+  managedUserStatusSchema,
   passwordChangedSchema,
   passwordResetAcceptedSchema,
   passwordResetConfirmRequestSchema,
   passwordResetRequestSchema,
   publicPasswordResetResponse,
+  registerIdentityRequestSchema,
 } from './identity'
 
 describe('password reset anti-enumeration response', () => {
@@ -63,5 +69,33 @@ describe('password reset anti-enumeration response', () => {
       session_version: 2,
       changed: true,
     })).toMatchObject({ role: 'organizer', session_version: 2 })
+  })
+
+  it('defines the new browser identity and user-management projections without legacy roles', () => {
+    expect(registerIdentityRequestSchema.parse({
+      username: 'PlayerOne',
+      email: 'player@example.test',
+      password: 'password value',
+    })).toMatchObject({ username: 'PlayerOne' })
+    expect(loginIdentityRequestSchema.parse({ identifier: 'PlayerOne', password: 'password value' }))
+      .toMatchObject({ identifier: 'PlayerOne' })
+    expect(managedUserStatusSchema.options).toEqual(['active', 'banned'])
+    expect(changeUserStatusRequestSchema.parse({ status: 'banned' })).toEqual({ status: 'banned' })
+
+    const user = {
+      id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f2d',
+      username: 'PlayerOne',
+      email: 'player@example.test',
+      email_verified: false,
+      status: 'active' as const,
+      role: 'user' as const,
+      session_version: 1,
+      must_change_password: false,
+    }
+    expect(identitySessionResponseSchema.parse({ user })).toEqual({ user })
+    expect(adminUserListResponseSchema.parse({
+      items: [{ ...user, created_at: '2026-09-01T08:00:00.000Z' }],
+      page: { next_cursor: null, has_more: false },
+    }).items).toHaveLength(1)
   })
 })

@@ -6,10 +6,11 @@ definePageMeta({
   middleware: 'guest',
 })
 
-const { register } = useAuth()
+const { register, requestEmailVerification } = useAuth()
 const router = useRouter()
 const route = useRoute()
 const toast = useToast()
+const config = useRuntimeConfig()
 const submitting = ref(false)
 
 const redirectTarget = computed(() => {
@@ -21,6 +22,7 @@ const registerSchema = z.object({
   email: z.string().email('请输入有效邮箱'),
   password: z.string().min(6, '密码至少 6 个字符'),
   confirm_password: z.string().min(6, '确认密码至少 6 个字符'),
+  turnstile_token: z.string().optional(),
 }).refine(value => value.password === value.confirm_password, {
   message: '两次输入的密码不一致',
   path: ['confirm_password'],
@@ -33,17 +35,24 @@ const state = reactive<Partial<RegisterSchema>>({
   email: '',
   password: '',
   confirm_password: '',
+  turnstile_token: '',
 })
 
 async function onRegister(payload: FormSubmitEvent<RegisterSchema>) {
   submitting.value = true
   try {
-    await register(payload.data.username, payload.data.email, payload.data.password)
-    toast.add({ title: '注册成功', description: '已自动登录，正在跳转。', color: 'success' })
+    await register(payload.data.username, payload.data.email, payload.data.password, payload.data.turnstile_token)
+    try {
+      await requestEmailVerification()
+      toast.add({ title: '注册成功', description: '验证邮件已进入发送队列。', color: 'success' })
+    }
+    catch {
+      toast.add({ title: '注册成功', description: '请在账号页重新发送验证邮件。', color: 'warning' })
+    }
     await router.push(resolveRedirect())
   }
   catch (e: any) {
-    toast.add({ title: '注册失败', description: e.data?.message || e.message, color: 'error' })
+    toast.add({ title: '注册失败', description: controlPlaneErrorMessage(e), color: 'error' })
   }
   finally {
     submitting.value = false
@@ -92,6 +101,13 @@ const loginTo = computed(() => {
         <UFormField name="confirm_password" label="确认密码" required>
           <UInput v-model="state.confirm_password" class="w-full" type="password" placeholder="请再次输入密码" :disabled="submitting" />
         </UFormField>
+
+        <TurnstileField
+          v-if="config.public.turnstileSiteKey"
+          v-model="state.turnstile_token"
+          :site-key="config.public.turnstileSiteKey"
+          action="register"
+        />
 
         <UButton type="submit" block label="注册账号" icon="i-lucide-user-round-plus" :loading="submitting" />
       </UForm>

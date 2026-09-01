@@ -20,6 +20,7 @@ export default defineNuxtConfig({
     },
     public: {
       apiBase: '/api',
+      turnstileSiteKey: process.env.TURNSTILE_SITE_KEY || '',
     },
   },
 

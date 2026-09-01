@@ -11,12 +11,14 @@ function repositoryFor(subject: SessionSubject | null): IdentityRepository {
     findCredential: vi.fn(),
     findPasswordResetRecipient: vi.fn(),
     findSessionSubject: vi.fn().mockResolvedValue(subject),
+    listManagedIdentities: vi.fn(),
     replacePasswordHash: vi.fn(),
     changePassword: vi.fn(),
     resetPassword: vi.fn(),
     issueEmailToken: vi.fn(),
     verifyEmail: vi.fn(),
     changeGlobalRole: vi.fn(),
+    changeUserStatus: vi.fn(),
     changeEmail: vi.fn(),
   }
 }

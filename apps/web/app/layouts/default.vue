@@ -43,7 +43,7 @@ const registerTo = computed(() => buildAuthEntryPath('/register', authRedirect.v
                 { label: '控制台', icon: 'i-lucide-layout-dashboard', to: '/console' },
                 { label: '我的队伍', icon: 'i-lucide-users', to: '/console/team' },
                 { label: '账号安全', icon: 'i-lucide-key-round', to: '/console/account' },
-                ...(['admin', 'super_admin'].includes(authState.user?.role || '')
+                ...(authState.user?.role === 'admin'
                   ? [
                       { label: '用户管理', icon: 'i-lucide-users-round', to: '/console/admin/users' },
                       { label: '审计日志', icon: 'i-lucide-scroll-text', to: '/console/admin/audit' },

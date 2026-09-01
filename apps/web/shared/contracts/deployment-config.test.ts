@@ -54,4 +54,13 @@ describe('production deployment config', () => {
     expect(fields).toHaveProperty('objectStorage.secretAccessKey')
     expect(JSON.stringify(fields)).not.toContain(secret)
   })
+
+  it('requires both Turnstile keys when human verification is enabled', () => {
+    expect(inspectDeploymentConfig({ ...validEnvironment, TURNSTILE_SECRET_KEY: 'secret' }).success).toBe(false)
+    expect(inspectDeploymentConfig({
+      ...validEnvironment,
+      TURNSTILE_SECRET_KEY: 'secret',
+      TURNSTILE_SITE_KEY: 'site',
+    }).success).toBe(true)
+  })
 })

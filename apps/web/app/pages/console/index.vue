@@ -7,7 +7,6 @@ import type { components } from '~/types/api'
 
 const { authState, ensureInitialized } = useAuth()
 const toast = useToast()
-const { data: securityStatus, refresh: refreshSecurityStatus } = await useAPI('auth-security-status', 'get', '/api/auth/security-status')
 const { resolveParticipationMeta } = usePublicGameParticipationState()
 
 interface TeamSummary {
@@ -124,7 +123,7 @@ interface PlayerAnnouncementEntry {
   game: GameSummary
 }
 
-const isAdmin = computed(() => ['admin', 'super_admin'].includes(authState.user?.role || ''))
+const isAdmin = computed(() => authState.user?.role === 'admin')
 const { fetchParticipationMap } = useGameParticipationMap()
 const loading = ref(true)
 const loadingAdminTodo = ref(false)
@@ -180,7 +179,7 @@ const nextGame = computed(() => {
     .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0] || null
 })
 
-const showPasswordSecurityNotice = computed(() => !!securityStatus.value?.password_change_recommended)
+const showPasswordSecurityNotice = computed(() => Boolean(authState.user?.must_change_password))
 
 const stats = computed(() => [
   { label: '我的队伍', value: team.value?.name || '未加入', icon: 'i-lucide-users' },
@@ -213,7 +212,6 @@ async function fetchConsoleData() {
       participationMap.value = await fetchParticipationMap(games.value.map(game => game.id))
       await loadPlayerAnnouncements()
       await loadAdminTodoData()
-      await refreshSecurityStatus()
     }
     else {
       games.value = []

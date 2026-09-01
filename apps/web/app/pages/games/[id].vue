@@ -15,7 +15,7 @@ const route = useRoute()
 const toast = useToast()
 const { authState, ensureInitialized } = useAuth()
 const { resolveParticipationHints, resolveParticipationMeta, resolveParticipationStateKey } = usePublicGameParticipationState()
-const isAdmin = computed(() => ['admin', 'super_admin'].includes(authState.user?.role || ''))
+const isAdmin = computed(() => authState.user?.role === 'admin')
 
 const game = ref<Game | null>(null)
 const challenges = ref<GameChallengeDetail[]>([])

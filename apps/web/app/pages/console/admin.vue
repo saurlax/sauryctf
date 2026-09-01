@@ -11,7 +11,7 @@ const { authState, ensureInitialized } = useAuth()
 const router = useRouter()
 const toast = useToast()
 
-const isAdmin = computed(() => ['admin', 'super_admin'].includes(authState.user?.role || ''))
+const isAdmin = computed(() => authState.user?.role === 'admin')
 
 const gameForm = reactive<z.output<typeof createGameSchema>>({
   name: '',

@@ -41,7 +41,7 @@
 - [x] 4.9 实现 `user`、`organizer`、`admin` 全局能力矩阵，验证 organizer 可管理全部比赛且不存在比赛级 role binding
 - [x] 4.10 实现空库 `admin / sauryctf` 引导，验证只有用户表为空时创建、未改密或未验证邮箱时只能访问账号维护、改密后旧 Cookie 失效
 - [x] 4.11 实现安全站内通知和邮件 Outbox，验证邮件故障不回滚改密/找回事实且恢复后可幂等重试
-- [ ] 4.12 迁移登录、注册、登出、当前用户、账号维护和用户管理页面到新 API，运行 auth redirect、typecheck 和端到端身份测试
+- [x] 4.12 迁移登录、注册、登出、当前用户、账号维护和用户管理页面到新 API，运行 auth redirect、typecheck 和端到端身份测试
 
 ## 5. 实现队伍与 Jeopardy 比赛领域
 

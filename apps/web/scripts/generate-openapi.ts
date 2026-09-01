@@ -9,6 +9,9 @@ import {
   resourceVersionSchema,
 } from '../shared/contracts/http'
 import {
+  adminUserListRequestSchema,
+  adminUserListResponseSchema,
+  changeUserStatusRequestSchema,
   changeGlobalRoleRequestSchema,
   changeEmailRequestSchema,
   changePasswordRequestSchema,
@@ -16,10 +19,15 @@ import {
   emailChangedSchema,
   emailVerifiedSchema,
   globalRoleChangedSchema,
+  identityLogoutResponseSchema,
+  identitySessionResponseSchema,
+  loginIdentityRequestSchema,
   passwordChangedSchema,
   passwordResetAcceptedSchema,
   passwordResetConfirmRequestSchema,
   passwordResetRequestSchema,
+  registerIdentityRequestSchema,
+  userStatusChangedSchema,
 } from '../shared/contracts/identity'
 import { csrfTokenResponseSchema } from '../shared/contracts/request-security'
 
@@ -119,6 +127,59 @@ const document = {
               'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } },
             },
           },
+        },
+      },
+    },
+    '/api/auth/register': {
+      post: {
+        operationId: 'registerIdentity',
+        tags: ['Identity'],
+        parameters: [originParameter],
+        requestBody: jsonRequestBody(registerIdentityRequestSchema),
+        responses: {
+          201: jsonResponse('Identity registered and browser session created', identitySessionResponseSchema),
+          400: errorResponse,
+          403: errorResponse,
+          409: errorResponse,
+          429: errorResponse,
+        },
+      },
+    },
+    '/api/auth/login': {
+      post: {
+        operationId: 'loginIdentity',
+        tags: ['Identity'],
+        parameters: [originParameter],
+        requestBody: jsonRequestBody(loginIdentityRequestSchema),
+        responses: {
+          200: jsonResponse('Credentials accepted and browser session created', identitySessionResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          429: errorResponse,
+        },
+      },
+    },
+    '/api/auth/me': {
+      get: {
+        operationId: 'getCurrentIdentity',
+        tags: ['Identity'],
+        security: [{ cookieSession: [] }],
+        responses: {
+          200: jsonResponse('Current authoritative identity projection', identitySessionResponseSchema),
+          401: errorResponse,
+        },
+      },
+    },
+    '/api/auth/logout': {
+      post: {
+        operationId: 'logoutIdentity',
+        tags: ['Identity'],
+        security: [{ cookieSession: [] }],
+        parameters: [originParameter, csrfParameter],
+        responses: {
+          200: jsonResponse('Browser session cleared', identityLogoutResponseSchema),
+          403: errorResponse,
         },
       },
     },
@@ -237,6 +298,58 @@ const document = {
           401: errorResponse,
           403: errorResponse,
           404: errorResponse,
+        },
+      },
+    },
+    '/api/admin/users': {
+      get: {
+        operationId: 'listManagedIdentities',
+        tags: ['Administration', 'Identity'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          {
+            name: 'cursor',
+            in: 'query',
+            required: false,
+            schema: openApiSchema(adminUserListRequestSchema.shape.cursor),
+          },
+          {
+            name: 'limit',
+            in: 'query',
+            required: false,
+            schema: openApiSchema(adminUserListRequestSchema.shape.limit),
+          },
+        ],
+        responses: {
+          200: jsonResponse('Cursor-paginated user management projection', adminUserListResponseSchema),
+          401: errorResponse,
+          403: errorResponse,
+        },
+      },
+    },
+    '/api/admin/users/{userId}/status': {
+      patch: {
+        operationId: 'changeUserStatus',
+        tags: ['Administration', 'Identity'],
+        security: [{ cookieSession: [] }],
+        parameters: [
+          {
+            name: 'userId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+          originParameter,
+          csrfParameter,
+        ],
+        requestBody: jsonRequestBody(changeUserStatusRequestSchema),
+        responses: {
+          200: jsonResponse('User status changed and target sessions invalidated', userStatusChangedSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
         },
       },
     },

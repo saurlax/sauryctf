@@ -6,6 +6,8 @@ import {
   InvalidEmailTokenError,
   type GlobalRole,
   type GlobalRoleMutationResult,
+  type ManagedIdentityPage,
+  type ManagedUserStatus,
   type DefaultAdministratorBootstrapResult,
   type IdentityRepository,
   type NewEmailToken,
@@ -16,6 +18,7 @@ import {
   type SessionSubject,
   type StoredCredential,
   type StoredIdentity,
+  type UserStatusMutationResult,
 } from '../../domains/identity/repository'
 
 interface PostgresErrorLike {
@@ -150,8 +153,10 @@ export class PostgresIdentityRepository implements IdentityRepository {
       email: string
       password_hash: string
       session_version: string
+      status: 'active' | 'banned' | 'deleted'
     }>(
-      `SELECT u.id, u.username, u.email, c.password_hash, u.session_version::text
+      `SELECT u.id, u.username, u.email, c.password_hash, u.session_version::text,
+              u.status::text
        FROM users u
        JOIN credentials c ON c.user_id = u.id
        WHERE u.username_normalized = $1 OR u.email_normalized = $1
@@ -166,6 +171,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
       email: identity.email,
       passwordHash: identity.password_hash,
       sessionVersion: Number(identity.session_version),
+      status: identity.status,
     }
   }
 
@@ -218,6 +224,48 @@ export class PostgresIdentityRepository implements IdentityRepository {
       role: subject.role,
       sessionVersion: Number(subject.session_version),
       mustChangePassword: subject.must_change_password,
+    }
+  }
+
+  async listManagedIdentities(cursor: string | undefined, limit: number): Promise<ManagedIdentityPage> {
+    const result = await this.pool.query<{
+      id: string
+      username: string
+      email: string
+      email_verified: boolean
+      status: ManagedUserStatus
+      role: GlobalRole
+      session_version: string
+      must_change_password: boolean
+      created_at: Date
+    }>(
+      `SELECT u.id, u.username, u.email, (u.email_verified_at IS NOT NULL) AS email_verified,
+              u.status::text, r.role::text, u.session_version::text,
+              u.must_change_password, u.created_at
+       FROM users u
+       JOIN user_roles r ON r.user_id = u.id
+       WHERE u.status <> 'deleted'
+         AND ($1::uuid IS NULL OR u.id > $1::uuid)
+       ORDER BY u.id ASC
+       LIMIT $2`,
+      [cursor ?? null, limit + 1],
+    )
+    const hasMore = result.rows.length > limit
+    const rows = result.rows.slice(0, limit)
+    return {
+      items: rows.map(row => ({
+        userId: row.id,
+        username: row.username,
+        email: row.email,
+        emailVerified: row.email_verified,
+        status: row.status,
+        role: row.role,
+        sessionVersion: Number(row.session_version),
+        mustChangePassword: row.must_change_password,
+        createdAt: row.created_at,
+      })),
+      nextCursor: hasMore ? rows.at(-1)!.id : null,
+      hasMore,
     }
   }
 
@@ -509,6 +557,74 @@ export class PostgresIdentityRepository implements IdentityRepository {
         userId,
         previousRole: existing.role,
         role,
+        sessionVersion: Number(user.rows[0]!.session_version),
+        changed: true,
+      }
+    }
+    catch (error) {
+      await connection.query('ROLLBACK')
+      throw error
+    }
+    finally {
+      connection.release()
+    }
+  }
+
+  async changeUserStatus(
+    userId: string,
+    status: ManagedUserStatus,
+    changedAt: Date,
+  ): Promise<UserStatusMutationResult> {
+    const connection = await this.pool.connect()
+    try {
+      await connection.query('BEGIN')
+      const current = await connection.query<{
+        status: ManagedUserStatus
+        session_version: string
+        email_normalized: string
+      }>(
+        `SELECT status::text, session_version::text, email_normalized
+         FROM users
+         WHERE id = $1 AND status <> 'deleted'
+         FOR UPDATE`,
+        [userId],
+      )
+      const existing = current.rows[0]
+      if (!existing) throw new IdentityNotFoundError()
+      if (existing.status === status) {
+        await connection.query('COMMIT')
+        return {
+          userId,
+          previousStatus: existing.status,
+          status,
+          sessionVersion: Number(existing.session_version),
+          changed: false,
+        }
+      }
+
+      const user = await connection.query<{ session_version: string }>(
+        `UPDATE users
+         SET status = $2,
+             session_version = session_version + 1,
+             version = version + 1,
+             updated_at = $3
+         WHERE id = $1
+         RETURNING session_version::text`,
+        [userId, status, changedAt],
+      )
+      await this.appendSecurityEvent(connection, {
+        userId,
+        recipientNormalized: existing.email_normalized,
+        templateKey: status === 'banned' ? 'identity.account_banned' : 'identity.account_reactivated',
+        dedupeKey: `identity.account_status_changed:${userId}:${user.rows[0]!.session_version}`,
+        occurredAt: changedAt,
+        eventPayload: { previous_status: existing.status, status },
+      })
+      await connection.query('COMMIT')
+      return {
+        userId,
+        previousStatus: existing.status,
+        status,
         sessionVersion: Number(user.rows[0]!.session_version),
         changed: true,
       }

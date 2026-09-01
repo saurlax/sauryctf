@@ -11,6 +11,18 @@ export interface paths {
   "/api/health/ready": {
     get: operations["getControlPlaneReadiness"];
   };
+  "/api/auth/register": {
+    post: operations["registerIdentity"];
+  };
+  "/api/auth/login": {
+    post: operations["loginIdentity"];
+  };
+  "/api/auth/me": {
+    get: operations["getCurrentIdentity"];
+  };
+  "/api/auth/logout": {
+    post: operations["logoutIdentity"];
+  };
   "/api/auth/password/change": {
     post: operations["changePassword"];
   };
@@ -34,6 +46,12 @@ export interface paths {
   };
   "/api/admin/users/{userId}/role": {
     patch: operations["changeUserGlobalRole"];
+  };
+  "/api/admin/users": {
+    get: operations["listManagedIdentities"];
+  };
+  "/api/admin/users/{userId}/status": {
+    patch: operations["changeUserStatus"];
   };
 }
 
@@ -106,6 +124,191 @@ export interface operations {
       };
       /** @description Control plane is not ready */
       503: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  registerIdentity: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          username: string;
+          /** Format: email */
+          email: string;
+          password: string;
+          turnstile_token?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Identity registered and browser session created */
+      201: {
+        content: {
+          "application/json": {
+            user: {
+              id: string;
+              username: string;
+              /** Format: email */
+              email: string;
+              email_verified: boolean;
+              /** @enum {string} */
+              status: "active" | "banned";
+              /** @enum {string} */
+              role: "user" | "organizer" | "admin";
+              session_version: number;
+              must_change_password: boolean;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      429: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  loginIdentity: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          identifier: string;
+          password: string;
+          turnstile_token?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Credentials accepted and browser session created */
+      200: {
+        content: {
+          "application/json": {
+            user: {
+              id: string;
+              username: string;
+              /** Format: email */
+              email: string;
+              email_verified: boolean;
+              /** @enum {string} */
+              status: "active" | "banned";
+              /** @enum {string} */
+              role: "user" | "organizer" | "admin";
+              session_version: number;
+              must_change_password: boolean;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      429: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  getCurrentIdentity: {
+    responses: {
+      /** @description Current authoritative identity projection */
+      200: {
+        content: {
+          "application/json": {
+            user: {
+              id: string;
+              username: string;
+              /** Format: email */
+              email: string;
+              email_verified: boolean;
+              /** @enum {string} */
+              status: "active" | "banned";
+              /** @enum {string} */
+              role: "user" | "organizer" | "admin";
+              session_version: number;
+              must_change_password: boolean;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  logoutIdentity: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+    };
+    responses: {
+      /** @description Browser session cleared */
+      200: {
+        content: {
+          "application/json": {
+            /** @constant */
+            logged_out: true;
+          };
+        };
+      };
+      /** @description Stable API error */
+      403: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };
@@ -435,6 +638,121 @@ export interface operations {
       };
       /** @description Stable API error */
       404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  listManagedIdentities: {
+    parameters: {
+      query?: {
+        cursor?: string;
+        limit?: number;
+      };
+    };
+    responses: {
+      /** @description Cursor-paginated user management projection */
+      200: {
+        content: {
+          "application/json": {
+            items: ({
+                id: string;
+                username: string;
+                /** Format: email */
+                email: string;
+                email_verified: boolean;
+                /** @enum {string} */
+                status: "active" | "banned";
+                /** @enum {string} */
+                role: "user" | "organizer" | "admin";
+                session_version: number;
+                must_change_password: boolean;
+                /** Format: date-time */
+                created_at: string;
+              })[];
+            page: {
+              next_cursor: string | null;
+              has_more: boolean;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  changeUserStatus: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+      path: {
+        userId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          status: "active" | "banned";
+        };
+      };
+    };
+    responses: {
+      /** @description User status changed and target sessions invalidated */
+      200: {
+        content: {
+          "application/json": {
+            user_id: string;
+            /** @enum {string} */
+            previous_status: "active" | "banned";
+            /** @enum {string} */
+            status: "active" | "banned";
+            session_version: number;
+            changed: boolean;
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };

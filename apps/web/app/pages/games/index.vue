@@ -302,7 +302,7 @@ const statusOptions = [
 ]
 
 const emptyStateMeta = computed(() => {
-  if (authState.user && ['admin', 'super_admin'].includes(authState.user.role || '')) {
+  if (authState.user?.role === 'admin') {
     return {
       title: '暂无公开比赛',
       description: '创建比赛并设为公开后，这里会显示对应内容。',

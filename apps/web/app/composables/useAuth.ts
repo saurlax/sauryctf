@@ -1,9 +1,7 @@
-import type { components } from '~/types/api'
-
-type UserInfo = components['schemas']['UserInfo']
+import type { IdentityUser } from '~~/shared/contracts/identity'
 
 interface AuthState {
-  user: UserInfo | null
+  user: IdentityUser | null
   initialized: boolean
 }
 
@@ -12,7 +10,7 @@ const authState = reactive<AuthState>({
   initialized: false,
 })
 
-let fetchUserPromise: Promise<UserInfo | null> | null = null
+let fetchUserPromise: Promise<IdentityUser | null> | null = null
 
 export function useAuth() {
   const router = useRouter()
@@ -34,7 +32,7 @@ export function useAuth() {
 
     fetchUserPromise = (async () => {
       try {
-        const res = await $api('get', '/api/auth/me')
+        const res = await $controlApi('get', '/api/auth/me')
         authState.user = res.user
         return res.user
       }
@@ -59,17 +57,17 @@ export function useAuth() {
     return fetchUser()
   }
 
-  async function login(username: string, password: string) {
-    const res = await $api('post', '/api/auth/login', {
-      body: { username, password },
+  async function login(identifier: string, password: string, turnstileToken?: string) {
+    const res = await $controlApi('post', '/api/auth/login', {
+      body: { identifier, password, turnstile_token: turnstileToken },
     })
     authState.user = res.user
     authState.initialized = true
   }
 
-  async function register(username: string, email: string, password: string) {
-    const res = await $api('post', '/api/auth/register', {
-      body: { username, email, password },
+  async function register(username: string, email: string, password: string, turnstileToken?: string) {
+    const res = await $controlApi('post', '/api/auth/register', {
+      body: { username, email, password, turnstile_token: turnstileToken },
     })
     authState.user = res.user
     authState.initialized = true
@@ -77,12 +75,28 @@ export function useAuth() {
 
   async function logout() {
     try {
-      await $api('post', '/api/auth/logout')
+      await $controlApi('post', '/api/auth/logout')
     }
     catch {}
     clearAuth()
     authState.initialized = true
     router.push('/login')
+  }
+
+  async function changePassword(currentPassword: string, newPassword: string) {
+    await $controlApi('post', '/api/auth/password/change', {
+      body: { current_password: currentPassword, new_password: newPassword },
+    })
+    return fetchUser({ force: true })
+  }
+
+  async function changeEmail(email: string) {
+    await $controlApi('post', '/api/auth/email/change', { body: { email } })
+    return fetchUser({ force: true })
+  }
+
+  async function requestEmailVerification() {
+    return $controlApi('post', '/api/auth/email/verification/request')
   }
 
   async function redirectToLogin() {
@@ -99,6 +113,9 @@ export function useAuth() {
     ensureInitialized,
     login,
     register,
+    changePassword,
+    changeEmail,
+    requestEmailVerification,
     logout,
     redirectToLogin,
   }

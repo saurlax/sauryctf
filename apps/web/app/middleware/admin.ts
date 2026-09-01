@@ -9,7 +9,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return navigateTo(buildAuthEntryPath('/login', to.fullPath))
   }
 
-  if (!['admin', 'super_admin'].includes(authState.user.role)) {
+  if (authState.user.must_change_password || !authState.user.email_verified) {
+    return navigateTo('/console/account')
+  }
+
+  if (authState.user.role !== 'admin') {
     return navigateTo('/console')
   }
 })

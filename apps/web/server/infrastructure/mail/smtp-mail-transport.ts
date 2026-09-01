@@ -78,6 +78,7 @@ export class SmtpMailTransport implements MailTransport {
       'identity.email_verified': 'SauryCTF 邮箱已验证',
       'identity.role_changed': 'SauryCTF 账号角色已变更',
       'identity.account_banned': 'SauryCTF 账号状态已变更',
+      'identity.account_reactivated': 'SauryCTF 账号状态已恢复',
     }
     const subject = securitySubjects[message.templateKey]
     if (!subject) throw new Error('UnsupportedMailTemplate')

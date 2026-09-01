@@ -22,6 +22,11 @@ const booleanFromEnvironmentSchema = z.preprocess((value) => {
   return value
 }, z.boolean())
 
+const optionalEnvironmentValueSchema = z.preprocess(
+  value => value === '' ? undefined : value,
+  z.string().min(1).max(2048).optional(),
+)
+
 export const deploymentConfigSchema = z.strictObject({
   databaseUrl: postgresUrlSchema,
   redisUrl: redisUrlSchema,
@@ -35,6 +40,17 @@ export const deploymentConfigSchema = z.strictObject({
     secretAccessKey: z.string().min(1).max(1024),
     forcePathStyle: booleanFromEnvironmentSchema,
   }),
+  turnstile: z.strictObject({
+    secretKey: optionalEnvironmentValueSchema,
+    siteKey: optionalEnvironmentValueSchema,
+  }),
+}).superRefine((config, context) => {
+  if (Boolean(config.turnstile.secretKey) === Boolean(config.turnstile.siteKey)) return
+  context.addIssue({
+    code: 'custom',
+    path: ['turnstile'],
+    message: 'Turnstile 站点密钥与服务端密钥必须同时配置',
+  })
 })
 
 export type DeploymentConfig = z.infer<typeof deploymentConfigSchema>
@@ -54,6 +70,10 @@ export function deploymentConfigInput(environment: DeploymentEnvironment) {
       accessKeyId: environment.S3_ACCESS_KEY_ID,
       secretAccessKey: environment.S3_SECRET_ACCESS_KEY,
       forcePathStyle: environment.S3_FORCE_PATH_STYLE,
+    },
+    turnstile: {
+      secretKey: environment.TURNSTILE_SECRET_KEY,
+      siteKey: environment.TURNSTILE_SITE_KEY,
     },
   }
 }

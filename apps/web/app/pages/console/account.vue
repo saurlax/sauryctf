@@ -1,304 +1,173 @@
 <script setup lang="ts">
-import * as z from 'zod'
 import type { FormSubmitEvent } from '@nuxt/ui'
+import * as z from 'zod'
 
-definePageMeta({
-  middleware: 'auth',
-})
+definePageMeta({ middleware: 'auth' })
 
-const { authState, ensureInitialized, redirectToLogin } = useAuth()
+const {
+  authState,
+  changeEmail,
+  changePassword,
+  ensureInitialized,
+  requestEmailVerification,
+} = useAuth()
 const toast = useToast()
 
-const { data: securityStatus, refresh: refreshSecurityStatus } = await useAPI('auth-security-status', 'get', '/api/auth/security-status')
+await ensureInitialized()
 
-const securitySchema = z.object({
-  current_password: z.string().min(6, '当前密码至少 6 个字符'),
-  new_password: z.string().min(6, '新密码至少 6 个字符'),
-  confirm_password: z.string().min(6, '确认密码至少 6 个字符'),
+const passwordModalOpen = ref(false)
+const emailModalOpen = ref(false)
+const submitting = ref(false)
+const resending = ref(false)
+
+const passwordSchema = z.object({
+  current_password: z.string().min(1, '请输入当前密码'),
+  new_password: z.string().min(8, '新密码至少 8 个字符'),
+  confirm_password: z.string().min(8, '请再次输入新密码'),
 }).refine(value => value.new_password === value.confirm_password, {
   message: '两次输入的新密码不一致',
   path: ['confirm_password'],
 })
 
-type SecuritySchema = z.output<typeof securitySchema>
+const emailSchema = z.object({ email: z.string().email('请输入有效邮箱') })
+type PasswordForm = z.output<typeof passwordSchema>
+type EmailForm = z.output<typeof emailSchema>
 
-const state = reactive<Partial<SecuritySchema>>({
+const passwordState = reactive<Partial<PasswordForm>>({
   current_password: '',
   new_password: '',
   confirm_password: '',
 })
+const emailState = reactive<Partial<EmailForm>>({ email: authState.user?.email ?? '' })
 
-const submitting = ref(false)
-const passwordModalOpen = ref(false)
-const passwordSecurityRisk = computed(() => !!securityStatus.value?.password_change_recommended)
-const securityNextStepMeta = computed(() => {
-  if (passwordSecurityRisk.value) {
-    return {
-      title: '当前账号需完成密码更新',
-      description: '当前管理员账号仍在使用默认口令。请先完成改密，再继续处理管理操作。',
-      color: 'warning' as const,
-      icon: 'i-lucide-triangle-alert',
-      actionLabel: '打开管理端',
-      actionTo: '/console/admin',
-      secondaryLabel: '返回控制台',
-      secondaryTo: '/console',
-    }
-  }
-
-  return {
-    title: '账号状态正常',
-    description: '当前账号安全状态正常，可以继续处理比赛、队伍和其他控制台事项。',
-    color: 'success' as const,
-    icon: 'i-lucide-shield-check',
-    actionLabel: '返回控制台',
-    actionTo: '/console',
-    secondaryLabel: '浏览比赛',
-    secondaryTo: '/games',
-  }
-})
-
-const accountFacts = computed(() => [
-  {
-    label: '用户名',
-    value: authState.user?.username || '-',
-    icon: 'i-lucide-user',
-  },
-  {
-    label: '邮箱',
-    value: authState.user?.email || '-',
-    icon: 'i-lucide-mail',
-  },
-  {
-    label: '角色',
-    value: authState.user?.role || '-',
-    icon: 'i-lucide-shield',
-  },
-  {
-    label: '状态',
-    value: authState.user?.status || '-',
-    icon: 'i-lucide-badge-check',
-  },
+const setupPending = computed(() => Boolean(
+  authState.user?.must_change_password || !authState.user?.email_verified,
+))
+const accountRows = computed(() => [
+  { label: '用户名', value: authState.user?.username ?? '-' },
+  { label: '邮箱', value: authState.user?.email ?? '-' },
+  { label: '邮箱状态', value: authState.user?.email_verified ? '已验证' : '待验证' },
+  { label: '全局角色', value: authState.user?.role ?? '-' },
+  { label: '账号状态', value: authState.user?.status === 'active' ? '正常' : '已封禁' },
 ])
 
-const securityFacts = computed(() => [
-  {
-    label: '风险级别',
-    value: passwordSecurityRisk.value ? '需要改密' : '正常',
-    icon: passwordSecurityRisk.value ? 'i-lucide-triangle-alert' : 'i-lucide-shield-check',
-  },
-  {
-    label: '当前会话',
-    value: '改密后需要重新登录',
-    icon: 'i-lucide-key-round',
-  },
-  {
-    label: '推荐操作',
-    value: passwordSecurityRisk.value ? '完成改密后返回管理端' : '返回控制台',
-    icon: 'i-lucide-navigation',
-  },
-])
-
-async function submitPasswordChange(payload: FormSubmitEvent<SecuritySchema>) {
+async function submitPassword(event: FormSubmitEvent<PasswordForm>) {
   submitting.value = true
   try {
-    await $api('post', '/api/auth/change-password', {
-      body: {
-        current_password: payload.data.current_password,
-        new_password: payload.data.new_password,
-      },
-    })
-    state.current_password = ''
-    state.new_password = ''
-    state.confirm_password = ''
+    await changePassword(event.data.current_password, event.data.new_password)
     passwordModalOpen.value = false
-    toast.add({
-      title: '密码已更新',
-      description: '当前账号已退出登录，请使用新密码重新登录。',
-      color: 'success',
-    })
-    await redirectToLogin()
+    Object.assign(passwordState, { current_password: '', new_password: '', confirm_password: '' })
+    toast.add({ title: '密码已更新', description: '其他设备上的旧登录状态已失效。', color: 'success' })
   }
-  catch (e: any) {
-    toast.add({ title: '修改失败', description: e.data?.message || e.message, color: 'error' })
+  catch (error) {
+    toast.add({ title: '密码更新失败', description: controlPlaneErrorMessage(error), color: 'error' })
   }
   finally {
     submitting.value = false
   }
 }
 
-onMounted(async () => {
-  await ensureInitialized()
-  await refreshSecurityStatus()
-})
+async function submitEmail(event: FormSubmitEvent<EmailForm>) {
+  submitting.value = true
+  try {
+    await changeEmail(event.data.email)
+    emailModalOpen.value = false
+    emailState.email = authState.user?.email ?? event.data.email
+    toast.add({ title: '邮箱已更新', description: '请发送并完成新邮箱的验证。', color: 'success' })
+  }
+  catch (error) {
+    toast.add({ title: '邮箱更新失败', description: controlPlaneErrorMessage(error), color: 'error' })
+  }
+  finally {
+    submitting.value = false
+  }
+}
+
+async function resendVerification() {
+  resending.value = true
+  try {
+    await requestEmailVerification()
+    toast.add({ title: '验证邮件已进入发送队列', color: 'success' })
+  }
+  catch (error) {
+    toast.add({ title: '发送失败', description: controlPlaneErrorMessage(error), color: 'error' })
+  }
+  finally {
+    resending.value = false
+  }
+}
 </script>
 
 <template>
   <div class="py-8">
     <div class="mb-8">
-      <h1 class="text-3xl font-bold">
-        账号安全
-      </h1>
-      <p class="mt-1 text-muted">
-        查看当前账号信息，并维护登录密码。
-      </p>
+      <h1 class="text-3xl font-bold">账号与安全</h1>
+      <p class="mt-1 text-muted">维护登录凭证、邮箱和验证状态。</p>
     </div>
 
-    <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
-      <div class="space-y-6">
-        <div class="rounded-lg border border-default bg-elevated/50 px-4 py-3">
-          <div class="flex items-start justify-between gap-4 flex-wrap">
-            <div class="min-w-0">
-              <div class="flex items-center gap-2 font-medium text-highlighted">
-                <UIcon :name="securityNextStepMeta.icon" class="size-4" />
-                <span>{{ securityNextStepMeta.title }}</span>
-              </div>
-              <p class="mt-2 text-sm text-muted leading-6">
-                {{ securityNextStepMeta.description }}
-              </p>
-            </div>
-            <div class="flex flex-wrap gap-2">
-              <UButton
-                size="sm"
-                :to="securityNextStepMeta.actionTo"
-                :label="securityNextStepMeta.actionLabel"
-                variant="outline"
-              />
-              <UButton
-                v-if="securityNextStepMeta.secondaryLabel && securityNextStepMeta.secondaryTo"
-                size="sm"
-                :to="securityNextStepMeta.secondaryTo"
-                :label="securityNextStepMeta.secondaryLabel"
-                variant="ghost"
-              />
-            </div>
+    <div v-if="setupPending" class="mb-6 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div class="font-medium text-highlighted">账号安全设置尚未完成</div>
+          <p class="mt-1 text-sm text-muted">
+            请完成{{ authState.user?.must_change_password ? '密码更新' : '' }}{{ authState.user?.must_change_password && !authState.user?.email_verified ? '和' : '' }}{{ !authState.user?.email_verified ? '邮箱验证' : '' }}后使用比赛及管理能力。
+          </p>
+        </div>
+        <UBadge color="warning" variant="soft">受限</UBadge>
+      </div>
+    </div>
+
+    <UPageGrid :cols="{ default: 1, lg: 2 }">
+      <UPageCard title="账号信息" icon="i-lucide-user-round">
+        <div class="divide-y divide-default">
+          <div v-for="row in accountRows" :key="row.label" class="flex justify-between gap-4 py-3 text-sm">
+            <span class="text-muted">{{ row.label }}</span>
+            <span class="text-right font-medium">{{ row.value }}</span>
           </div>
         </div>
+      </UPageCard>
 
-        <UPageCard title="修改密码" icon="i-lucide-key-round">
-          <div class="space-y-4">
-            <div class="rounded-lg border border-default px-4 py-4">
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div class="space-y-1">
-                  <div class="text-sm font-medium">
-                    登录密码维护
-                  </div>
-                  <p class="text-sm text-muted">
-                    {{ passwordSecurityRisk ? '当前账号仍在使用默认口令，建议优先完成更新。' : '密码修改属于低频敏感操作，提交前请确认当前密码与新密码填写无误。' }}
-                  </p>
-                </div>
-
-                <UButton
-                  label="修改密码"
-                  icon="i-lucide-key-round"
-                  @click="() => { passwordModalOpen = true }"
-                />
-              </div>
-            </div>
-
-            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              <div class="flex items-center justify-between gap-3">
-                <span>当前风险级别</span>
-                <UBadge :color="passwordSecurityRisk ? 'warning' : 'success'" variant="soft">
-                  {{ passwordSecurityRisk ? '待更新密码' : '状态正常' }}
-                </UBadge>
-              </div>
-            </div>
+      <UPageCard title="安全维护" icon="i-lucide-shield-check">
+        <div class="space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-default p-4">
+            <div><div class="font-medium">登录密码</div><p class="mt-1 text-sm text-muted">更新后会撤销其他设备上的旧 Cookie。</p></div>
+            <UButton icon="i-lucide-key-round" @click="() => { passwordModalOpen = true }">修改密码</UButton>
           </div>
-
-          <template #footer>
-            <div class="text-sm text-muted">
-              修改密码后，当前账号会立即退出登录；后续请使用新密码重新登录。
-            </div>
-          </template>
-        </UPageCard>
-      </div>
-
-      <div class="space-y-6">
-        <UPageCard title="当前账号" icon="i-lucide-user-cog">
-          <div class="space-y-3 text-sm">
-            <div
-              v-for="item in accountFacts"
-              :key="item.label"
-              class="flex items-center justify-between gap-3 rounded-lg border border-default px-3 py-3"
-            >
-              <div class="flex items-center gap-2 text-muted">
-                <UIcon :name="item.icon" class="size-4" />
-                <span>{{ item.label }}</span>
-              </div>
-              <span class="text-right">{{ item.value }}</span>
-            </div>
+          <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-default p-4">
+            <div><div class="font-medium">登录邮箱</div><p class="mt-1 text-sm text-muted">变更邮箱后必须重新验证。</p></div>
+            <UButton variant="outline" icon="i-lucide-mail" @click="() => { emailModalOpen = true }">修改邮箱</UButton>
           </div>
-        </UPageCard>
-
-        <UPageCard title="安全状态" icon="i-lucide-shield-check">
-          <div class="space-y-3">
-            <div class="rounded-lg border border-default px-3 py-3 text-sm text-muted">
-              <div
-                v-for="item in securityFacts"
-                :key="item.label"
-                class="flex items-center justify-between gap-3 py-2"
-              >
-                <div class="flex items-center gap-2 text-muted">
-                  <UIcon :name="item.icon" class="size-4" />
-                  <span>{{ item.label }}</span>
-                </div>
-                <span class="text-right">{{ item.value }}</span>
-              </div>
-            </div>
-            <p class="text-sm text-muted leading-6">
-              修改密码后，当前账号的既有会话会立即失效，需使用新密码重新登录。
-            </p>
+          <div v-if="!authState.user?.email_verified" class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-default p-4">
+            <div><div class="font-medium">邮箱验证</div><p class="mt-1 text-sm text-muted">验证链接为一次性凭证，并会按有效期失效。</p></div>
+            <UButton variant="outline" icon="i-lucide-send" :loading="resending" @click="resendVerification">重发验证邮件</UButton>
           </div>
-        </UPageCard>
-      </div>
-    </div>
+        </div>
+      </UPageCard>
+    </UPageGrid>
 
-    <UModal
-      v-model:open="passwordModalOpen"
-      title="修改密码"
-      description="更新当前账号的登录密码。提交前请确认当前密码和新密码输入无误。"
-      :dismissible="!submitting"
-      :ui="{ body: 'space-y-4', footer: 'justify-end' }"
-    >
+    <UModal v-model:open="passwordModalOpen" title="修改密码" :dismissible="!submitting" :ui="{ footer: 'justify-end' }">
       <template #body>
-        <UForm
-          id="account-password-form"
-          :schema="securitySchema"
-          :state="state"
-          class="space-y-4"
-          @submit="submitPasswordChange"
-        >
-          <UFormField name="current_password" label="当前密码" required>
-            <UInput v-model="state.current_password" type="password" class="w-full" placeholder="输入当前密码" />
-          </UFormField>
-
-          <UFormField name="new_password" label="新密码" required>
-            <UInput v-model="state.new_password" type="password" class="w-full" placeholder="至少 6 个字符" />
-          </UFormField>
-
-          <UFormField name="confirm_password" label="确认新密码" required>
-            <UInput v-model="state.confirm_password" type="password" class="w-full" placeholder="再次输入新密码" />
-          </UFormField>
+        <UForm id="account-password-form" :schema="passwordSchema" :state="passwordState" class="space-y-4" @submit="submitPassword">
+          <UFormField name="current_password" label="当前密码" required><UInput v-model="passwordState.current_password" type="password" class="w-full" /></UFormField>
+          <UFormField name="new_password" label="新密码" required><UInput v-model="passwordState.new_password" type="password" class="w-full" /></UFormField>
+          <UFormField name="confirm_password" label="确认新密码" required><UInput v-model="passwordState.confirm_password" type="password" class="w-full" /></UFormField>
         </UForm>
       </template>
-
       <template #footer>
-        <UButton
-          color="neutral"
-          variant="outline"
-          :disabled="submitting"
-          @click="() => { passwordModalOpen = false }"
-        >
-          取消
-        </UButton>
-        <UButton
-          icon="i-lucide-save"
-          type="submit"
-          form="account-password-form"
-          :loading="submitting"
-        >
-          更新密码
-        </UButton>
+        <UButton color="neutral" variant="outline" :disabled="submitting" @click="() => { passwordModalOpen = false }">取消</UButton>
+        <UButton type="submit" form="account-password-form" :loading="submitting">保存</UButton>
+      </template>
+    </UModal>
+
+    <UModal v-model:open="emailModalOpen" title="修改邮箱" :dismissible="!submitting" :ui="{ footer: 'justify-end' }">
+      <template #body>
+        <UForm id="account-email-form" :schema="emailSchema" :state="emailState" @submit="submitEmail">
+          <UFormField name="email" label="新邮箱" required><UInput v-model="emailState.email" type="email" class="w-full" /></UFormField>
+        </UForm>
+      </template>
+      <template #footer>
+        <UButton color="neutral" variant="outline" :disabled="submitting" @click="() => { emailModalOpen = false }">取消</UButton>
+        <UButton type="submit" form="account-email-form" :loading="submitting">保存</UButton>
       </template>
     </UModal>
   </div>

@@ -43,14 +43,19 @@ export async function resolveProtectedIdentitySession(
 
 export async function requireProtectedIdentity(event: H3Event, sessions: IdentitySessionValidator) {
   return resolveProtectedIdentity({
-    read: () => getUserSession(event),
+    read: () => readNuxtSessionPayload(event),
     clear: () => clearUserSession(event),
   }, sessions)
 }
 
 export async function requireProtectedIdentitySession(event: H3Event, sessions: IdentitySessionValidator) {
   return resolveProtectedIdentitySession({
-    read: () => getUserSession(event),
+    read: () => readNuxtSessionPayload(event),
     clear: () => clearUserSession(event),
   }, sessions)
+}
+
+async function readNuxtSessionPayload(event: H3Event): Promise<unknown> {
+  const { id: _sessionId, ...payload } = await getUserSession(event)
+  return payload
 }

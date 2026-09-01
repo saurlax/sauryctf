@@ -56,13 +56,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-  /api/auth/password/change:
+  /api/auth/register:
     post:
-      operationId: changePassword
+      operationId: registerIdentity
       tags:
         - Identity
-      security:
-        - cookieSession: []
       parameters:
         - &a2
           name: Origin
@@ -72,6 +70,272 @@ paths:
             type: string
             format: uri
           description: Must match the configured public control-plane origin.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 64
+                email:
+                  type: string
+                  maxLength: 320
+                  format: email
+                  pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+                password:
+                  type: string
+                  minLength: 1
+                  maxLength: 1024
+                turnstile_token:
+                  type: string
+                  minLength: 1
+                  maxLength: 2048
+              required:
+                - username
+                - email
+                - password
+              additionalProperties: false
+      responses:
+        "201":
+          description: Identity registered and browser session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      username:
+                        type: string
+                        minLength: 1
+                        maxLength: 64
+                      email:
+                        type: string
+                        maxLength: 320
+                        format: email
+                        pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+                      email_verified:
+                        type: boolean
+                      status:
+                        type: string
+                        enum:
+                          - active
+                          - banned
+                      role:
+                        type: string
+                        enum:
+                          - user
+                          - organizer
+                          - admin
+                      session_version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      must_change_password:
+                        type: boolean
+                    required:
+                      - id
+                      - username
+                      - email
+                      - email_verified
+                      - status
+                      - role
+                      - session_version
+                      - must_change_password
+                    additionalProperties: false
+                required:
+                  - user
+                additionalProperties: false
+        "400": &a1
+          description: Stable API error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403": *a1
+        "409": *a1
+        "429": *a1
+  /api/auth/login:
+    post:
+      operationId: loginIdentity
+      tags:
+        - Identity
+      parameters:
+        - *a2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                identifier:
+                  type: string
+                  minLength: 1
+                  maxLength: 320
+                password:
+                  type: string
+                  minLength: 1
+                  maxLength: 1024
+                turnstile_token:
+                  type: string
+                  minLength: 1
+                  maxLength: 2048
+              required:
+                - identifier
+                - password
+              additionalProperties: false
+      responses:
+        "200":
+          description: Credentials accepted and browser session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      username:
+                        type: string
+                        minLength: 1
+                        maxLength: 64
+                      email:
+                        type: string
+                        maxLength: 320
+                        format: email
+                        pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+                      email_verified:
+                        type: boolean
+                      status:
+                        type: string
+                        enum:
+                          - active
+                          - banned
+                      role:
+                        type: string
+                        enum:
+                          - user
+                          - organizer
+                          - admin
+                      session_version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      must_change_password:
+                        type: boolean
+                    required:
+                      - id
+                      - username
+                      - email
+                      - email_verified
+                      - status
+                      - role
+                      - session_version
+                      - must_change_password
+                    additionalProperties: false
+                required:
+                  - user
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "429": *a1
+  /api/auth/me:
+    get:
+      operationId: getCurrentIdentity
+      tags:
+        - Identity
+      security:
+        - cookieSession: []
+      responses:
+        "200":
+          description: Current authoritative identity projection
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      username:
+                        type: string
+                        minLength: 1
+                        maxLength: 64
+                      email:
+                        type: string
+                        maxLength: 320
+                        format: email
+                        pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+                      email_verified:
+                        type: boolean
+                      status:
+                        type: string
+                        enum:
+                          - active
+                          - banned
+                      role:
+                        type: string
+                        enum:
+                          - user
+                          - organizer
+                          - admin
+                      session_version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      must_change_password:
+                        type: boolean
+                    required:
+                      - id
+                      - username
+                      - email
+                      - email_verified
+                      - status
+                      - role
+                      - session_version
+                      - must_change_password
+                    additionalProperties: false
+                required:
+                  - user
+                additionalProperties: false
+        "401": *a1
+  /api/auth/logout:
+    post:
+      operationId: logoutIdentity
+      tags:
+        - Identity
+      security:
+        - cookieSession: []
+      parameters:
+        - *a2
         - &a3
           name: X-CSRF-Token
           in: header
@@ -81,6 +345,31 @@ paths:
             minLength: 43
             maxLength: 43
           description: Double-submit proof matching the sauryctf-csrf cookie.
+      responses:
+        "200":
+          description: Browser session cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logged_out:
+                    type: boolean
+                    const: true
+                required:
+                  - logged_out
+                additionalProperties: false
+        "403": *a1
+  /api/auth/password/change:
+    post:
+      operationId: changePassword
+      tags:
+        - Identity
+      security:
+        - cookieSession: []
+      parameters:
+        - *a2
+        - *a3
       requestBody:
         required: true
         content:
@@ -114,12 +403,7 @@ paths:
                 required:
                   - changed
                 additionalProperties: false
-        "400": &a1
-          description: Stable API error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+        "400": *a1
         "401": *a1
         "409": *a1
   /api/auth/password/reset/request:
@@ -413,6 +697,195 @@ paths:
         "401": *a1
         "403": *a1
         "404": *a1
+  /api/admin/users:
+    get:
+      operationId: listManagedIdentities
+      tags:
+        - Administration
+        - Identity
+      security:
+        - cookieSession: []
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+            allOf:
+              - type: string
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              - type: string
+                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+        - name: limit
+          in: query
+          required: false
+          schema:
+            default: 50
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Cursor-paginated user management projection
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          allOf:
+                            - type: string
+                              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                            - type: string
+                              pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                        username:
+                          type: string
+                          minLength: 1
+                          maxLength: 64
+                        email:
+                          type: string
+                          maxLength: 320
+                          format: email
+                          pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+                        email_verified:
+                          type: boolean
+                        status:
+                          type: string
+                          enum:
+                            - active
+                            - banned
+                        role:
+                          type: string
+                          enum:
+                            - user
+                            - organizer
+                            - admin
+                        session_version:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 9007199254740991
+                        must_change_password:
+                          type: boolean
+                        created_at:
+                          type: string
+                          format: date-time
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      required:
+                        - id
+                        - username
+                        - email
+                        - email_verified
+                        - status
+                        - role
+                        - session_version
+                        - must_change_password
+                        - created_at
+                      additionalProperties: false
+                  page:
+                    type: object
+                    properties:
+                      next_cursor:
+                        anyOf:
+                          - type: string
+                            allOf:
+                              - type: string
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              - type: string
+                                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                          - type: "null"
+                      has_more:
+                        type: boolean
+                    required:
+                      - next_cursor
+                      - has_more
+                    additionalProperties: false
+                required:
+                  - items
+                  - page
+                additionalProperties: false
+        "401": *a1
+        "403": *a1
+  /api/admin/users/{userId}/status:
+    patch:
+      operationId: changeUserStatus
+      tags:
+        - Administration
+        - Identity
+      security:
+        - cookieSession: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - *a2
+        - *a3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum:
+                    - active
+                    - banned
+              required:
+                - status
+              additionalProperties: false
+      responses:
+        "200":
+          description: User status changed and target sessions invalidated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id:
+                    type: string
+                    allOf:
+                      - type: string
+                        pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                      - type: string
+                        pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                  previous_status:
+                    type: string
+                    enum:
+                      - active
+                      - banned
+                  status:
+                    type: string
+                    enum:
+                      - active
+                      - banned
+                  session_version:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  changed:
+                    type: boolean
+                required:
+                  - user_id
+                  - previous_status
+                  - status
+                  - session_version
+                  - changed
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "404": *a1
+        "409": *a1
 components:
   securitySchemes:
     cookieSession:

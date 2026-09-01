@@ -12,6 +12,7 @@ export interface StoredIdentity {
   email: string
   passwordHash: string
   sessionVersion: number
+  status: 'active' | 'banned' | 'deleted'
 }
 
 export interface RegisteredIdentity {
@@ -37,11 +38,38 @@ export interface PasswordMutationResult {
 }
 
 export type GlobalRole = 'user' | 'organizer' | 'admin'
+export type ManagedUserStatus = 'active' | 'banned'
+
+export interface ManagedIdentity {
+  userId: string
+  username: string
+  email: string
+  emailVerified: boolean
+  status: ManagedUserStatus
+  role: GlobalRole
+  sessionVersion: number
+  mustChangePassword: boolean
+  createdAt: Date
+}
+
+export interface ManagedIdentityPage {
+  items: ManagedIdentity[]
+  nextCursor: string | null
+  hasMore: boolean
+}
 
 export interface GlobalRoleMutationResult {
   userId: string
   previousRole: GlobalRole
   role: GlobalRole
+  sessionVersion: number
+  changed: boolean
+}
+
+export interface UserStatusMutationResult {
+  userId: string
+  previousStatus: ManagedUserStatus
+  status: ManagedUserStatus
   sessionVersion: number
   changed: boolean
 }
@@ -79,12 +107,18 @@ export interface IdentityRepository {
   findCredential(userId: string): Promise<StoredCredential | null>
   findPasswordResetRecipient(emailNormalized: string): Promise<PasswordResetRecipient | null>
   findSessionSubject(userId: string): Promise<SessionSubject | null>
+  listManagedIdentities(cursor: string | undefined, limit: number): Promise<ManagedIdentityPage>
   replacePasswordHash(userId: string, previousHash: string, nextHash: string): Promise<boolean>
   changePassword(userId: string, previousHash: string, nextHash: string, changedAt: Date): Promise<PasswordMutationResult>
   resetPassword(tokenDigest: Buffer, nextHash: string, consumedAt: Date): Promise<PasswordMutationResult>
   issueEmailToken(token: NewEmailToken): Promise<void>
   verifyEmail(tokenDigest: Buffer, consumedAt: Date): Promise<PasswordMutationResult>
   changeGlobalRole(userId: string, role: GlobalRole, changedAt: Date): Promise<GlobalRoleMutationResult>
+  changeUserStatus(
+    userId: string,
+    status: ManagedUserStatus,
+    changedAt: Date,
+  ): Promise<UserStatusMutationResult>
   changeEmail(
     userId: string,
     email: string,

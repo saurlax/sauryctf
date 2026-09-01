@@ -69,10 +69,24 @@ function createDependencies(overrides: Partial<IdentityHttpDependencies['identit
         sessionVersion: 2,
         changed: true,
       })),
+      changeUserStatus: vi.fn(async (_actor, targetUserId, status) => ({
+        userId: targetUserId,
+        previousStatus: 'active' as const,
+        status,
+        sessionVersion: 2,
+        changed: true,
+      })),
       changePassword: vi.fn(async () => {
         authoritativeVersion += 1
         return { userId, sessionVersion: authoritativeVersion }
       }),
+      listManagedIdentities: vi.fn(async () => ({ items: [], nextCursor: null, hasMore: false })),
+      login: vi.fn(async () => ({
+        userId,
+        sessionVersion: authoritativeVersion,
+        passwordHashUpgraded: false,
+      })),
+      register: vi.fn(async () => ({ userId, sessionVersion: authoritativeVersion })),
       requestPasswordReset: vi.fn(async () => ({ accepted: true as const, delivery: null })),
       resetPassword: vi.fn(async () => {
         authoritativeVersion += 1

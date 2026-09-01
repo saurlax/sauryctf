@@ -98,7 +98,7 @@ watch(confirmModalOpen, (open) => {
   }
 })
 
-const currentUserId = computed(() => authState.user?.id)
+const currentUserId = computed<string | number | undefined>(() => authState.user?.id)
 const isCaptain = computed(() => team.value?.members?.some(member => member.user_id === currentUserId.value && member.role === 'captain') || false)
 const teamMembers = computed(() => team.value?.members || [])
 const removableMembers = computed(() => teamMembers.value.filter(member => member.user_id !== currentUserId.value))

@@ -10,6 +10,7 @@ const { login } = useAuth()
 const router = useRouter()
 const route = useRoute()
 const toast = useToast()
+const config = useRuntimeConfig()
 const submitting = ref(false)
 
 const redirectTarget = computed(() => {
@@ -19,6 +20,7 @@ const redirectTarget = computed(() => {
 const loginSchema = z.object({
   username: z.string().min(1, '请输入用户名'),
   password: z.string().min(1, '请输入密码'),
+  turnstile_token: z.string().optional(),
 })
 
 type LoginSchema = z.output<typeof loginSchema>
@@ -26,12 +28,12 @@ type LoginSchema = z.output<typeof loginSchema>
 async function onLogin(payload: FormSubmitEvent<LoginSchema>) {
   submitting.value = true
   try {
-    await login(payload.data.username, payload.data.password)
+    await login(payload.data.username, payload.data.password, payload.data.turnstile_token)
     toast.add({ title: '登录成功', color: 'success' })
     await router.push(resolveRedirect())
   }
   catch (e: any) {
-    toast.add({ title: '登录失败', description: e.data?.message || e.message, color: 'error' })
+    toast.add({ title: '登录失败', description: controlPlaneErrorMessage(e), color: 'error' })
   }
   finally {
     submitting.value = false
@@ -49,6 +51,7 @@ const registerTo = computed(() => {
 const state = reactive<Partial<LoginSchema>>({
   username: '',
   password: '',
+  turnstile_token: '',
 })
 </script>
 
@@ -68,6 +71,13 @@ const state = reactive<Partial<LoginSchema>>({
           <UInput v-model="state.password" class="w-full" type="password" placeholder="请输入密码" :disabled="submitting" />
         </UFormField>
 
+        <TurnstileField
+          v-if="config.public.turnstileSiteKey"
+          v-model="state.turnstile_token"
+          :site-key="config.public.turnstileSiteKey"
+          action="login"
+        />
+
         <UButton type="submit" block label="登录" icon="i-lucide-log-in" :loading="submitting" />
       </UForm>
 
@@ -82,6 +92,7 @@ const state = reactive<Partial<LoginSchema>>({
               前往注册
             </ULink>
           </div>
+          <ULink to="/forgot-password" class="text-sm font-medium">忘记密码</ULink>
           <div class="flex flex-wrap gap-2">
             <UButton label="浏览比赛" icon="i-lucide-trophy" to="/games" variant="ghost" />
             <UButton label="注册" icon="i-lucide-user-round-plus" :to="registerTo" variant="outline" :disabled="submitting" />

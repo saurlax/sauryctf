@@ -1,124 +1,56 @@
 <script setup lang="ts">
-definePageMeta({
-  middleware: 'admin',
-})
-
-import type { components } from '~/types/api'
 import type { TableColumn } from '@nuxt/ui'
+import type { GlobalRole, ManagedIdentity, ManagedUserStatus } from '~~/shared/contracts/identity'
 
-type UserInfo = components['schemas']['UserInfo']
-type UserRole = NonNullable<UserInfo['role']>
-type UserStatus = NonNullable<UserInfo['status']>
+definePageMeta({ middleware: 'admin' })
 
 const { authState, ensureInitialized } = useAuth()
-const toast = useToast()
 const route = useRoute()
+const toast = useToast()
+await ensureInitialized()
 
+const users = ref<ManagedIdentity[]>([])
 const loading = ref(true)
-const savingUserId = ref<number | null>(null)
-const users = ref<UserInfo[]>([])
-const saveConfirmModalOpen = ref(false)
-const appliedHighlightUserId = ref<number | null>(null)
-const filters = reactive({
-  keyword: '',
-  role: 'all' as 'all' | UserRole,
-  status: 'all' as 'all' | UserStatus,
-})
-
-const roleDrafts = reactive<Record<number, UserRole>>({})
-const statusDrafts = reactive<Record<number, UserStatus>>({})
-const pendingSaveTarget = ref<{
-  user: UserInfo
-  nextRole: UserRole
-  nextStatus: UserStatus
-} | null>(null)
+const saving = ref(false)
+const confirmOpen = ref(false)
+const pending = ref<ManagedIdentity | null>(null)
+const keyword = ref('')
+const roleDrafts = reactive<Record<string, GlobalRole>>({})
+const statusDrafts = reactive<Record<string, ManagedUserStatus>>({})
 
 const roleOptions = [
   { label: '普通用户', value: 'user' },
-  { label: '队长', value: 'team_captain' },
-  { label: '裁判', value: 'judge' },
+  { label: '主办方', value: 'organizer' },
   { label: '管理员', value: 'admin' },
-  { label: '超级管理员', value: 'super_admin' },
 ]
-
 const statusOptions = [
   { label: '正常', value: 'active' },
   { label: '封禁', value: 'banned' },
 ]
-
-const totalUsers = computed(() => users.value.length)
-const adminUsers = computed(() => users.value.filter(user => ['admin', 'super_admin'].includes(user.role)).length)
-const bannedUsers = computed(() => users.value.filter(user => user.status === 'banned').length)
-const currentUserId = computed(() => authState.user?.id || 0)
-const currentUserRole = computed<UserRole | ''>(() => authState.user?.role || '')
-const highlightedUserId = computed(() => {
-  const raw = route.query.highlight_user_id
-  const value = Number(Array.isArray(raw) ? raw[0] : raw)
-
-  return Number.isFinite(value) && value > 0 ? value : null
-})
-const highlightedUser = computed(() =>
-  highlightedUserId.value === null
-    ? null
-    : users.value.find(user => user.id === highlightedUserId.value) || null,
-)
-const filterRoleOptions = computed(() => [{ label: '全部角色', value: 'all' as const }, ...roleOptions])
-const filterStatusOptions = computed(() => [{ label: '全部状态', value: 'all' as const }, ...statusOptions])
-const filteredUsers = computed(() => {
-  const keyword = filters.keyword.trim().toLowerCase()
-
-  return users.value.filter((user) => {
-    const matchesKeyword = !keyword
-      || user.username.toLowerCase().includes(keyword)
-      || user.email.toLowerCase().includes(keyword)
-      || String(user.id).includes(keyword)
-    const matchesRole = filters.role === 'all' || user.role === filters.role
-    const matchesStatus = filters.status === 'all' || user.status === filters.status
-
-    return matchesKeyword && matchesRole && matchesStatus
-  })
-})
-const activeFilterSummary = computed(() => {
-  const items: string[] = []
-
-  if (filters.keyword.trim()) {
-    items.push(`关键词：${filters.keyword.trim()}`)
-  }
-  if (filters.role !== 'all') {
-    items.push(`角色：${filters.role}`)
-  }
-  if (filters.status !== 'all') {
-    items.push(`状态：${filters.status === 'active' ? '正常' : '封禁'}`)
-  }
-
-  return items.length ? items.join(' / ') : '全部用户'
-})
-const userTableColumns: TableColumn<UserInfo>[] = [
+const columns: TableColumn<ManagedIdentity>[] = [
   { accessorKey: 'username', header: '用户' },
   { accessorKey: 'email', header: '邮箱' },
-  { id: 'account', header: '账号状态' },
-  { accessorKey: 'created_at', header: '创建时间' },
-  { id: 'actions', header: '角色与状态调整' },
+  { id: 'verification', header: '验证' },
+  { id: 'management', header: '角色与状态' },
 ]
 
-function getRoleLabel(role: UserRole) {
-  return roleOptions.find(option => option.value === role)?.label || role
-}
-
-function getStatusLabel(status: UserStatus) {
-  return statusOptions.find(option => option.value === status)?.label || status
-}
-
-function isHighlightedUser(user: UserInfo) {
-  return highlightedUserId.value !== null && user.id === highlightedUserId.value
-}
-
-function applyHighlightFilters(userId: number) {
-  filters.keyword = String(userId)
-  filters.role = 'all'
-  filters.status = 'all'
-  appliedHighlightUserId.value = userId
-}
+const highlightedUserId = computed(() => {
+  const value = Array.isArray(route.query.highlight_user_id)
+    ? route.query.highlight_user_id[0]
+    : route.query.highlight_user_id
+  return typeof value === 'string' && value.length > 0 ? value : null
+})
+const filteredUsers = computed(() => {
+  const search = keyword.value.trim().toLocaleLowerCase()
+  if (!search) return users.value
+  return users.value.filter(user => [user.id, user.username, user.email]
+    .some(value => value.toLocaleLowerCase().includes(search)))
+})
+const summary = computed(() => ({
+  total: users.value.length,
+  privileged: users.value.filter(user => user.role !== 'user').length,
+  banned: users.value.filter(user => user.status === 'banned').length,
+}))
 
 function syncDrafts() {
   for (const user of users.value) {
@@ -127,471 +59,147 @@ function syncDrafts() {
   }
 }
 
-async function syncHighlightContext() {
-  if (highlightedUserId.value === null) {
-    appliedHighlightUserId.value = null
-    return
-  }
-
-  if (appliedHighlightUserId.value !== highlightedUserId.value) {
-    applyHighlightFilters(highlightedUserId.value)
-  }
-
-  await nextTick()
-  document.getElementById(`user-row-${highlightedUserId.value}`)?.scrollIntoView({
-    behavior: 'smooth',
-    block: 'center',
-  })
-}
-
 async function loadUsers() {
   loading.value = true
   try {
-    users.value = await $fetch<UserInfo[]>('/api/admin/users')
+    const items: ManagedIdentity[] = []
+    let cursor: string | undefined
+    do {
+      const response = await $controlApi('get', '/api/admin/users', {
+        query: { cursor, limit: 100 },
+      })
+      items.push(...response.items)
+      cursor = response.page.next_cursor ?? undefined
+    } while (cursor)
+    users.value = items
     syncDrafts()
+    if (highlightedUserId.value) {
+      keyword.value = highlightedUserId.value
+      await nextTick()
+      document.getElementById(`user-row-${highlightedUserId.value}`)?.scrollIntoView({ block: 'center' })
+    }
   }
-  catch (e: any) {
-    toast.add({ title: '用户列表加载失败', description: e.data?.message || e.message, color: 'error' })
+  catch (error) {
+    toast.add({ title: '用户列表加载失败', description: controlPlaneErrorMessage(error), color: 'error' })
   }
   finally {
     loading.value = false
   }
 }
 
-function canEditUser(user: UserInfo) {
-  if (!authState.user) {
-    return false
-  }
-
-  if (authState.user.role !== 'super_admin' && user.role === 'super_admin') {
-    return false
-  }
-
-  return true
-}
-
-function getRoleOptions(user: UserInfo) {
-  if (user.id === currentUserId.value) {
-    return roleOptions.filter(option => option.value === user.role)
-  }
-
-  if (currentUserRole.value === 'super_admin') {
-    return roleOptions
-  }
-
-  return roleOptions.filter(option => option.value !== 'super_admin')
-}
-
-function getStatusOptions(user: UserInfo) {
-  if (user.id === currentUserId.value) {
-    return statusOptions.filter(option => option.value !== 'banned')
-  }
-
-  return statusOptions
-}
-
-function getEditRestrictionReason(user: UserInfo) {
-  if (!authState.user) {
-    return '当前未登录，不能修改该用户。'
-  }
-
-  if (authState.user.role !== 'super_admin' && user.role === 'super_admin') {
-    return '当前账号权限不足，不能修改超级管理员。'
-  }
-
-  if (user.id === currentUserId.value) {
-    return '当前账号不能修改自己的角色，也不能把自己改为封禁。'
-  }
-
-  return ''
-}
-
-function hasPendingChange(user: UserInfo) {
+function hasChange(user: ManagedIdentity) {
   return roleDrafts[user.id] !== user.role || statusDrafts[user.id] !== user.status
 }
 
-function openSaveConfirm(user: UserInfo) {
-  const nextRole: UserRole = roleDrafts[user.id] ?? user.role
-  const nextStatus: UserStatus = statusDrafts[user.id] ?? user.status
-
-  if (user.id === currentUserId.value && nextStatus === 'banned') {
-    statusDrafts[user.id] = user.status
-    toast.add({ title: '无法保存', description: '当前登录账号不能把自己改为封禁。', color: 'warning' })
+function openConfirm(user: ManagedIdentity) {
+  if (user.id === authState.user?.id) {
+    toast.add({ title: '不能修改当前账号', color: 'warning' })
+    syncDrafts()
     return
   }
-
-  if (user.id === currentUserId.value && nextRole !== user.role) {
-    roleDrafts[user.id] = user.role
-    toast.add({ title: '无法保存', description: '当前登录账号不能修改自己的角色。', color: 'warning' })
-    return
-  }
-
-  if (currentUserRole.value !== 'super_admin' && nextRole === 'super_admin') {
-    roleDrafts[user.id] = user.role
-    toast.add({ title: '无法保存', description: '只有超级管理员可以授予超级管理员角色。', color: 'warning' })
-    return
-  }
-
-  pendingSaveTarget.value = {
-    user,
-    nextRole,
-    nextStatus,
-  }
-  saveConfirmModalOpen.value = true
+  pending.value = user
+  confirmOpen.value = true
 }
-
-const saveConfirmRows = computed(() => {
-  const target = pendingSaveTarget.value
-  if (!target) {
-    return []
-  }
-
-  return [
-    {
-      label: '目标用户',
-      value: `${target.user.username} (#${target.user.id})`,
-    },
-    {
-      label: '角色调整',
-      value: `${getRoleLabel(target.user.role)} -> ${getRoleLabel(target.nextRole)}`,
-    },
-    {
-      label: '状态调整',
-      value: `${getStatusLabel(target.user.status)} -> ${getStatusLabel(target.nextStatus)}`,
-    },
-  ]
-})
-
-const saveConfirmDescription = computed(() => {
-  const target = pendingSaveTarget.value
-  if (!target) {
-    return ''
-  }
-
-  if (target.user.role !== target.nextRole && target.nextStatus === 'banned') {
-    return '这次操作会同时调整角色并封禁该账号。请确认该用户不再承担当前比赛或平台管理职责。'
-  }
-
-  if (target.nextStatus === 'banned') {
-    return '封禁后，该账号将不能继续正常登录平台。请确认这是当前需要的处理结果。'
-  }
-
-  if (target.user.role !== target.nextRole) {
-    return '角色权限会立即按新设置生效。请确认当前账号边界与职责范围匹配。'
-  }
-
-  return '本次会更新该用户的账号状态。请在保存前再次确认调整结果。'
-})
 
 async function saveUser() {
-  const target = pendingSaveTarget.value
-  if (!target) {
-    saveConfirmModalOpen.value = false
-    return
-  }
-
-  savingUserId.value = target.user.id
+  const user = pending.value
+  if (!user) return
+  saving.value = true
   try {
-    const updated = await $api('put', '/api/admin/users/{userId}', {
-      params: {
-        userId: target.user.id,
-      },
-      body: {
-        role: target.nextRole,
-        status: target.nextStatus,
-      },
-    })
-    const normalized: UserInfo = {
-      ...target.user,
-      ...updated,
-      role: updated.role || target.nextRole,
-      status: updated.status || target.nextStatus,
+    const nextRole = roleDrafts[user.id] ?? user.role
+    const nextStatus = statusDrafts[user.id] ?? user.status
+    let sessionVersion = user.session_version
+    if (nextRole !== user.role) {
+      const result = await $controlApi('patch', '/api/admin/users/{userId}/role', {
+        params: { userId: user.id },
+        body: { role: nextRole },
+      })
+      sessionVersion = result.session_version
     }
-
-    const index = users.value.findIndex(item => item.id === target.user.id)
-    if (index !== -1) {
-      users.value[index] = normalized
-      roleDrafts[normalized.id] = normalized.role
-      statusDrafts[normalized.id] = normalized.status
+    if (nextStatus !== user.status) {
+      const result = await $controlApi('patch', '/api/admin/users/{userId}/status', {
+        params: { userId: user.id },
+        body: { status: nextStatus },
+      })
+      sessionVersion = result.session_version
     }
-
-    toast.add({
-      title: '用户已更新',
-      description: `${normalized.username} 的账号状态已经保存。`,
-      color: 'success',
-    })
-    saveConfirmModalOpen.value = false
-    pendingSaveTarget.value = null
+    Object.assign(user, { role: nextRole, status: nextStatus, session_version: sessionVersion })
+    confirmOpen.value = false
+    pending.value = null
+    toast.add({ title: '用户权限已更新', description: '目标用户的旧登录状态已失效。', color: 'success' })
   }
-  catch (e: any) {
-    roleDrafts[target.user.id] = target.user.role
-    statusDrafts[target.user.id] = target.user.status
-    toast.add({ title: '保存失败', description: e.data?.message || e.message, color: 'error' })
+  catch (error) {
+    await loadUsers()
+    toast.add({ title: '保存失败', description: controlPlaneErrorMessage(error), color: 'error' })
   }
   finally {
-    savingUserId.value = null
+    saving.value = false
   }
 }
 
-onMounted(async () => {
-  await ensureInitialized()
-  await loadUsers()
-  await syncHighlightContext()
+watch(confirmOpen, (open) => {
+  if (!open && !saving.value) pending.value = null
 })
 
-watch(highlightedUserId, async () => {
-  await syncHighlightContext()
-})
-
-watch(() => route.query, async () => {
-  await syncHighlightContext()
-})
-
-watch(users, async () => {
-  await syncHighlightContext()
-})
+onMounted(loadUsers)
 </script>
 
 <template>
   <div class="py-8">
     <div class="mb-8">
-      <h1 class="text-3xl font-bold">
-        用户管理
-      </h1>
-      <p class="mt-1 text-muted">
-        查看平台用户，并按需调整角色与账号状态。
-      </p>
-    </div>
-
-    <div class="mb-6 rounded-lg border border-default bg-elevated/50 px-4 py-3">
-      <div class="flex items-start justify-between gap-4 flex-wrap">
-        <div class="min-w-0">
-          <div class="flex items-center gap-2 font-medium text-highlighted">
-            <UIcon name="i-lucide-shield-check" class="size-4" />
-            <span>当前页仅处理基础账号权限</span>
-          </div>
-          <p class="mt-2 text-sm text-muted leading-6">
-            建议只在确有需要时调整管理员权限。当前登录账号不能在这里修改自己的角色，也不能把自己改为封禁。
-          </p>
-        </div>
-        <UBadge color="info" variant="soft">
-          账号权限
-        </UBadge>
-      </div>
-    </div>
-
-    <div
-      v-if="highlightedUserId !== null"
-      class="mb-6 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3"
-    >
-      <div class="flex items-start justify-between gap-4 flex-wrap">
-        <div class="min-w-0">
-          <div class="flex items-center gap-2 font-medium text-highlighted">
-            <UIcon name="i-lucide-crosshair" class="size-4" />
-            <span>当前已带入目标用户上下文</span>
-          </div>
-          <p class="mt-2 text-sm text-muted leading-6">
-            <template v-if="highlightedUser">
-              当前聚焦 {{ highlightedUser.username }}（#{{ highlightedUser.id }}），列表已定位到对应记录。
-            </template>
-            <template v-else>
-              当前目标用户为 #{{ highlightedUserId }}，列表会按该编号筛选；如无结果，请先确认该账号仍存在。
-            </template>
-          </p>
-        </div>
-        <UBadge color="primary" variant="soft">
-          审计回查
-        </UBadge>
-      </div>
-      <div class="mt-3 flex justify-end">
-        <UButton
-          size="sm"
-          variant="ghost"
-          icon="i-lucide-list"
-          to="/console/admin/users"
-        >
-          返回完整列表
-        </UButton>
-      </div>
+      <h1 class="text-3xl font-bold">用户管理</h1>
+      <p class="mt-1 text-muted">维护全局角色与账号状态；变更会立即撤销目标用户的旧登录状态。</p>
     </div>
 
     <UPageGrid :cols="{ default: 1, sm: 3 }" class="mb-6">
-      <UPageCard title="总用户数" :description="String(totalUsers)" icon="i-lucide-users" />
-      <UPageCard title="管理账号" :description="String(adminUsers)" icon="i-lucide-shield" />
-      <UPageCard title="已封禁" :description="String(bannedUsers)" icon="i-lucide-user-round-x" />
+      <UPageCard title="用户" :description="String(summary.total)" icon="i-lucide-users" />
+      <UPageCard title="主办与管理账号" :description="String(summary.privileged)" icon="i-lucide-shield" />
+      <UPageCard title="已封禁" :description="String(summary.banned)" icon="i-lucide-user-round-x" />
     </UPageGrid>
 
-    <UPageCard title="筛选" icon="i-lucide-filter" class="mb-6">
-      <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_180px_auto] md:items-end">
-        <UFormField label="关键词" name="user-keyword">
-          <UInput v-model="filters.keyword" class="w-full" placeholder="搜索用户名、邮箱或 ID" />
-        </UFormField>
-        <UFormField label="角色" name="user-role">
-          <USelect v-model="filters.role" :items="filterRoleOptions" class="w-full" />
-        </UFormField>
-        <UFormField label="状态" name="user-status">
-          <USelect v-model="filters.status" :items="filterStatusOptions" class="w-full" />
-        </UFormField>
-        <div class="flex justify-end">
-          <UButton
-            variant="outline"
-            icon="i-lucide-rotate-ccw"
-            @click="filters.keyword = ''; filters.role = 'all'; filters.status = 'all'"
-          >
-            重置
-          </UButton>
-        </div>
-      </div>
-      <template #footer>
-        <div class="text-sm text-muted">
-          当前筛选：{{ activeFilterSummary }} · 命中 {{ filteredUsers.length }} / {{ totalUsers }}
-        </div>
-      </template>
-    </UPageCard>
-
     <UPageCard title="账号列表" icon="i-lucide-list">
-      <div v-if="loading" class="flex justify-center py-10">
-        <UIcon name="i-lucide-loader-2" class="size-6 animate-spin text-muted" />
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <UInput v-model="keyword" icon="i-lucide-search" placeholder="搜索用户名、邮箱或 UUID" class="w-full max-w-md" />
+        <UButton variant="outline" icon="i-lucide-refresh-cw" :loading="loading" @click="loadUsers">刷新</UButton>
       </div>
 
-      <UTable
-        v-else-if="filteredUsers.length"
-        :data="filteredUsers"
-        :columns="userTableColumns"
-        class="overflow-x-auto"
-        :ui="{
-          td: 'align-top',
-        }"
-      >
+      <div v-if="loading" class="flex justify-center py-10"><UIcon name="i-lucide-loader-2" class="size-6 animate-spin text-muted" /></div>
+      <UTable v-else-if="filteredUsers.length" :data="filteredUsers" :columns="columns" class="overflow-x-auto">
         <template #username-cell="{ row }">
-          <div :id="`user-row-${row.original.id}`" class="min-w-52">
-            <div class="flex items-center gap-2 flex-wrap">
+          <div :id="`user-row-${row.original.id}`" class="min-w-56" :class="highlightedUserId === row.original.id ? 'rounded-md bg-primary/5 p-2 ring-1 ring-primary/30' : ''">
+            <div class="flex flex-wrap items-center gap-2">
               <span class="font-medium">{{ row.original.username }}</span>
-              <UBadge v-if="row.original.id === currentUserId" color="primary" variant="subtle">
-                当前账号
-              </UBadge>
-              <UBadge v-if="isHighlightedUser(row.original)" color="primary" variant="soft">
-                当前定位
-              </UBadge>
+              <UBadge v-if="row.original.id === authState.user?.id" color="primary" variant="soft">当前账号</UBadge>
             </div>
-            <div class="mt-1 text-xs text-muted">
-              #{{ row.original.id }}
-            </div>
+            <div class="mt-1 break-all text-xs text-muted">{{ row.original.id }}</div>
           </div>
         </template>
-
-        <template #email-cell="{ row }">
-          <div class="min-w-56 break-all text-sm">
-            {{ row.original.email }}
-          </div>
+        <template #email-cell="{ row }"><div class="min-w-56 break-all">{{ row.original.email }}</div></template>
+        <template #verification-cell="{ row }">
+          <UBadge :color="row.original.email_verified ? 'success' : 'warning'" variant="soft">{{ row.original.email_verified ? '已验证' : '待验证' }}</UBadge>
         </template>
-
-        <template #account-cell="{ row }">
-          <div class="min-w-44 space-y-2">
-            <div class="flex flex-wrap gap-2">
-              <UBadge :color="row.original.status === 'active' ? 'success' : 'error'" variant="soft">
-                {{ getStatusLabel(row.original.status) }}
-              </UBadge>
-              <UBadge :color="row.original.role === 'super_admin' ? 'warning' : row.original.role === 'admin' ? 'info' : 'neutral'" variant="subtle">
-                {{ getRoleLabel(row.original.role) }}
-              </UBadge>
-            </div>
-            <div class="text-xs text-muted">
-              {{ hasPendingChange(row.original) ? '有未保存修改' : '当前状态已保存' }}
-            </div>
-          </div>
-        </template>
-
-        <template #created_at-cell="{ row }">
-          <div class="min-w-40 text-sm text-muted">
-            {{ row.original.created_at ? new Date(row.original.created_at).toLocaleString() : '-' }}
-          </div>
-        </template>
-
-        <template #actions-cell="{ row }">
-          <div
-            class="min-w-[420px] space-y-3 rounded-lg"
-            :class="isHighlightedUser(row.original) ? 'bg-primary/5 p-3 ring-1 ring-primary/40' : ''"
-          >
-            <div class="grid gap-3 md:grid-cols-[160px_160px_auto] md:items-end">
-              <UFormField label="角色" :name="`role-${row.original.id}`">
-                <USelect
-                  v-model="roleDrafts[row.original.id]"
-                  :items="getRoleOptions(row.original)"
-                  class="w-full"
-                  :disabled="!canEditUser(row.original) || savingUserId === row.original.id"
-                />
-              </UFormField>
-
-              <UFormField label="状态" :name="`status-${row.original.id}`">
-                <USelect
-                  v-model="statusDrafts[row.original.id]"
-                  :items="getStatusOptions(row.original)"
-                  class="w-full"
-                  :disabled="!canEditUser(row.original) || savingUserId === row.original.id"
-                />
-              </UFormField>
-
-              <UButton
-                icon="i-lucide-save"
-                :loading="savingUserId === row.original.id"
-                :disabled="!canEditUser(row.original) || !hasPendingChange(row.original)"
-                @click="openSaveConfirm(row.original)"
-              >
-                保存
-              </UButton>
-            </div>
-
-            <div v-if="!canEditUser(row.original) || getEditRestrictionReason(row.original)" class="text-xs text-muted">
-              {{ getEditRestrictionReason(row.original) || '当前账号权限不足，不能修改该用户。' }}
-            </div>
+        <template #management-cell="{ row }">
+          <div class="grid min-w-[430px] gap-3 md:grid-cols-[150px_150px_auto] md:items-end">
+            <UFormField label="全局角色"><USelect v-model="roleDrafts[row.original.id]" :items="roleOptions" :disabled="row.original.id === authState.user?.id || saving" /></UFormField>
+            <UFormField label="账号状态"><USelect v-model="statusDrafts[row.original.id]" :items="statusOptions" :disabled="row.original.id === authState.user?.id || saving" /></UFormField>
+            <UButton icon="i-lucide-save" :disabled="row.original.id === authState.user?.id || !hasChange(row.original) || saving" @click="openConfirm(row.original)">保存</UButton>
           </div>
         </template>
       </UTable>
-
-      <div v-else class="text-sm text-muted">
-        当前筛选下没有匹配的用户记录。
-      </div>
+      <div v-else class="py-8 text-center text-sm text-muted">没有匹配的用户。</div>
     </UPageCard>
 
-    <UModal
-      v-model:open="saveConfirmModalOpen"
-      title="确认保存账号调整"
-      :description="saveConfirmDescription"
-      :dismissible="savingUserId === null"
-      :ui="{ footer: 'justify-end' }"
-    >
+    <UModal v-model:open="confirmOpen" title="确认账号调整" description="角色或状态变化会递增 Session 版本，使目标账号的全部旧 Cookie 失效。" :dismissible="!saving" :ui="{ footer: 'justify-end' }">
       <template #body>
-        <div class="space-y-4">
-          <div class="rounded-lg border border-default px-3 py-3 text-sm">
-            <div
-              v-for="row in saveConfirmRows"
-              :key="row.label"
-              class="flex items-center justify-between gap-3 py-2"
-            >
-              <span class="text-muted">{{ row.label }}</span>
-              <span class="text-right">{{ row.value }}</span>
-            </div>
-          </div>
+        <div v-if="pending" class="space-y-2 rounded-lg border border-default p-4 text-sm">
+          <div class="flex justify-between gap-4"><span class="text-muted">用户</span><span>{{ pending.username }}</span></div>
+          <div class="flex justify-between gap-4"><span class="text-muted">角色</span><span>{{ pending.role }} → {{ roleDrafts[pending.id] }}</span></div>
+          <div class="flex justify-between gap-4"><span class="text-muted">状态</span><span>{{ pending.status }} → {{ statusDrafts[pending.id] }}</span></div>
         </div>
       </template>
-
       <template #footer>
-        <UButton
-          color="neutral"
-          variant="outline"
-          :disabled="savingUserId !== null"
-          @click="saveConfirmModalOpen = false; pendingSaveTarget = null"
-        >
-          取消
-        </UButton>
-        <UButton
-          icon="i-lucide-save"
-          :loading="savingUserId !== null"
-          @click="saveUser()"
-        >
-          确认保存
-        </UButton>
+        <UButton color="neutral" variant="outline" :disabled="saving" @click="() => { confirmOpen = false }">取消</UButton>
+        <UButton :loading="saving" @click="saveUser">确认保存</UButton>
       </template>
     </UModal>
   </div>

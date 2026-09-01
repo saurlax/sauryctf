@@ -8,11 +8,14 @@ import {
   InvalidEmailTokenError,
   type GlobalRole,
   type GlobalRoleMutationResult,
+  type ManagedIdentityPage,
+  type ManagedUserStatus,
   type DefaultAdministratorBootstrapResult,
   type IdentityRepository,
   type PasswordMutationResult,
   type RegisteredIdentity,
   type SessionSubject,
+  type UserStatusMutationResult,
 } from './repository'
 import type { IdentityTokenCodec, IssuedIdentityToken, PasswordResetRequestResult } from './token'
 
@@ -44,6 +47,7 @@ export type IdentityServiceErrorCode =
   | 'identity.invalid_credentials'
   | 'identity.not_found'
   | 'identity.password_unchanged'
+  | 'identity.self_management_forbidden'
   | 'identity.token_invalid'
 
 export class IdentityServiceError extends Error {
@@ -53,6 +57,7 @@ export class IdentityServiceError extends Error {
       'identity.invalid_credentials': '账号或密码错误',
       'identity.not_found': '账号不存在',
       'identity.password_unchanged': '密码已被其他请求修改，请重新登录',
+      'identity.self_management_forbidden': '不能在用户管理中修改当前账号',
       'identity.token_invalid': '凭证无效或已过期',
     }
     super(messages[code])
@@ -120,7 +125,7 @@ export class IdentityService {
   async login(input: LoginIdentityInput): Promise<LoginIdentityResult> {
     assertPasswordInput(input.password)
     const identity = await this.repository.findByLoginIdentifier(normalizeEmail(input.identifier))
-    if (!identity || !await this.passwords.verify(identity.passwordHash, input.password)) {
+    if (!identity || identity.status !== 'active' || !await this.passwords.verify(identity.passwordHash, input.password)) {
       throw new IdentityServiceError('identity.invalid_credentials')
     }
 
@@ -250,8 +255,38 @@ export class IdentityService {
     role: GlobalRole,
   ): Promise<GlobalRoleMutationResult> {
     requireIdentityCapability(actor, identityCapability.roleManage)
+    if (actor.userId === targetUserId) {
+      throw new IdentityServiceError('identity.self_management_forbidden')
+    }
     try {
       return await this.repository.changeGlobalRole(targetUserId, role, this.now())
+    }
+    catch (error) {
+      if (error instanceof IdentityNotFoundError) throw new IdentityServiceError('identity.not_found')
+      throw error
+    }
+  }
+
+  async listManagedIdentities(
+    actor: SessionSubject,
+    cursor: string | undefined,
+    limit: number,
+  ): Promise<ManagedIdentityPage> {
+    requireIdentityCapability(actor, identityCapability.userManage)
+    return this.repository.listManagedIdentities(cursor, limit)
+  }
+
+  async changeUserStatus(
+    actor: SessionSubject,
+    targetUserId: string,
+    status: ManagedUserStatus,
+  ): Promise<UserStatusMutationResult> {
+    requireIdentityCapability(actor, identityCapability.userManage)
+    if (actor.userId === targetUserId) {
+      throw new IdentityServiceError('identity.self_management_forbidden')
+    }
+    try {
+      return await this.repository.changeUserStatus(targetUserId, status, this.now())
     }
     catch (error) {
       if (error instanceof IdentityNotFoundError) throw new IdentityServiceError('identity.not_found')
