@@ -1691,6 +1691,569 @@ paths:
         "403": *a1
         "404": *a1
         "409": *a1
+  /api/admin/contests:
+    post:
+      operationId: createContestDraft
+      tags:
+        - Administration
+        - Contests
+      security:
+        - cookieSession: []
+      parameters:
+        - *a2
+        - *a3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 160
+                slug:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+                description:
+                  default: ""
+                  type: string
+                  maxLength: 100000
+                start_at:
+                  type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                end_at:
+                  type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+              required:
+                - title
+                - slug
+                - description
+                - start_at
+                - end_at
+              additionalProperties: false
+      responses:
+        "201":
+          description: Contest draft created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contest:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      title:
+                        type: string
+                        minLength: 1
+                        maxLength: 160
+                      slug:
+                        type: string
+                        minLength: 1
+                        maxLength: 100
+                      description:
+                        type: string
+                      publication_status:
+                        type: string
+                        enum:
+                          - draft
+                          - published
+                          - archived
+                      phase:
+                        anyOf:
+                          - type: string
+                            enum:
+                              - upcoming
+                              - running
+                              - ended
+                          - type: "null"
+                      start_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      end_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      published_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      archived_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                    required:
+                      - id
+                      - title
+                      - slug
+                      - description
+                      - publication_status
+                      - phase
+                      - start_at
+                      - end_at
+                      - published_at
+                      - archived_at
+                      - version
+                    additionalProperties: false
+                required:
+                  - contest
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "409": *a1
+  /api/admin/contests/{contestId}:
+    get:
+      operationId: getManagedContest
+      tags:
+        - Administration
+        - Contests
+      security:
+        - cookieSession: []
+      parameters:
+        - name: contestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Managed contest projection
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contest:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      title:
+                        type: string
+                        minLength: 1
+                        maxLength: 160
+                      slug:
+                        type: string
+                        minLength: 1
+                        maxLength: 100
+                      description:
+                        type: string
+                      publication_status:
+                        type: string
+                        enum:
+                          - draft
+                          - published
+                          - archived
+                      phase:
+                        anyOf:
+                          - type: string
+                            enum:
+                              - upcoming
+                              - running
+                              - ended
+                          - type: "null"
+                      start_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      end_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      published_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      archived_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                    required:
+                      - id
+                      - title
+                      - slug
+                      - description
+                      - publication_status
+                      - phase
+                      - start_at
+                      - end_at
+                      - published_at
+                      - archived_at
+                      - version
+                    additionalProperties: false
+                required:
+                  - contest
+                additionalProperties: false
+        "401": *a1
+        "403": *a1
+        "404": *a1
+  /api/admin/contests/{contestId}/publish:
+    post:
+      operationId: publishContest
+      tags:
+        - Administration
+        - Contests
+      security:
+        - cookieSession: []
+      parameters:
+        - name: contestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - *a2
+        - *a3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  minLength: 3
+                  maxLength: 1000
+              required:
+                - reason
+              additionalProperties: false
+      responses:
+        "200":
+          description: Contest published
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contest:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      title:
+                        type: string
+                        minLength: 1
+                        maxLength: 160
+                      slug:
+                        type: string
+                        minLength: 1
+                        maxLength: 100
+                      description:
+                        type: string
+                      publication_status:
+                        type: string
+                        enum:
+                          - draft
+                          - published
+                          - archived
+                      phase:
+                        anyOf:
+                          - type: string
+                            enum:
+                              - upcoming
+                              - running
+                              - ended
+                          - type: "null"
+                      start_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      end_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      published_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      archived_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                    required:
+                      - id
+                      - title
+                      - slug
+                      - description
+                      - publication_status
+                      - phase
+                      - start_at
+                      - end_at
+                      - published_at
+                      - archived_at
+                      - version
+                    additionalProperties: false
+                required:
+                  - contest
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "404": *a1
+        "409": *a1
+  /api/admin/contests/{contestId}/archive:
+    post:
+      operationId: archiveContest
+      tags:
+        - Administration
+        - Contests
+      security:
+        - cookieSession: []
+      parameters:
+        - name: contestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - *a2
+        - *a3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  minLength: 3
+                  maxLength: 1000
+              required:
+                - reason
+              additionalProperties: false
+      responses:
+        "200":
+          description: Ended contest archived
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contest:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      title:
+                        type: string
+                        minLength: 1
+                        maxLength: 160
+                      slug:
+                        type: string
+                        minLength: 1
+                        maxLength: 100
+                      description:
+                        type: string
+                      publication_status:
+                        type: string
+                        enum:
+                          - draft
+                          - published
+                          - archived
+                      phase:
+                        anyOf:
+                          - type: string
+                            enum:
+                              - upcoming
+                              - running
+                              - ended
+                          - type: "null"
+                      start_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      end_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      published_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      archived_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                    required:
+                      - id
+                      - title
+                      - slug
+                      - description
+                      - publication_status
+                      - phase
+                      - start_at
+                      - end_at
+                      - published_at
+                      - archived_at
+                      - version
+                    additionalProperties: false
+                required:
+                  - contest
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "404": *a1
+        "409": *a1
+  /api/contests/{contestId}:
+    get:
+      operationId: getPublicContest
+      tags:
+        - Contests
+      parameters:
+        - name: contestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Public published or archived contest projection
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contest:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        allOf:
+                          - type: string
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          - type: string
+                            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      title:
+                        type: string
+                        minLength: 1
+                        maxLength: 160
+                      slug:
+                        type: string
+                        minLength: 1
+                        maxLength: 100
+                      description:
+                        type: string
+                      publication_status:
+                        type: string
+                        enum:
+                          - draft
+                          - published
+                          - archived
+                      phase:
+                        anyOf:
+                          - type: string
+                            enum:
+                              - upcoming
+                              - running
+                              - ended
+                          - type: "null"
+                      start_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      end_at:
+                        type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      published_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      archived_at:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                          - type: "null"
+                      version:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                    required:
+                      - id
+                      - title
+                      - slug
+                      - description
+                      - publication_status
+                      - phase
+                      - start_at
+                      - end_at
+                      - published_at
+                      - archived_at
+                      - version
+                    additionalProperties: false
+                required:
+                  - contest
+                additionalProperties: false
+        "404": *a1
   /api/contests/{contestId}/participation:
     get:
       operationId: getCurrentParticipation

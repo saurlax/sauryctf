@@ -4,6 +4,7 @@ import type { HumanVerificationProvider } from './domains/identity/human-verific
 import type { RateLimitStore } from './infrastructure/security/rate-limit'
 import type { TeamService } from './domains/teams/service'
 import type { ParticipationService } from './domains/participations/service'
+import type { ContestService } from './domains/contests/service'
 
 export interface ControlPlaneServices {
   identity: IdentityService
@@ -12,4 +13,5 @@ export interface ControlPlaneServices {
   rateLimits: RateLimitStore
   teams: TeamService
   participations: ParticipationService
+  contests: ContestService
 }

@@ -363,7 +363,7 @@ export class PostgresTeamRepository implements TeamRepository {
        JOIN contests c ON c.id = p.contest_id
        WHERE p.team_id = $1
          AND p.status = 'accepted'
-         AND c.end_at > now()
+         AND derive_contest_time_phase(c.start_at, c.end_at, CURRENT_TIMESTAMP) <> 'ended'
        ORDER BY c.end_at, c.id`,
       [teamId],
     )

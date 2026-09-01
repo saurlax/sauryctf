@@ -28,7 +28,7 @@ interface LockedContest {
   registrationStrategy: 'review' | 'auto_accept'
   visibility: 'public' | 'private'
   inviteDigest: Buffer | null
-  registrationOpen: boolean
+  phase: 'upcoming' | 'running' | 'ended'
   minTeamSize: number
   maxTeamSize: number
   registrationConstraints: unknown
@@ -375,13 +375,14 @@ export class PostgresParticipationRepository implements ParticipationRepository 
       registration_strategy: LockedContest['registrationStrategy']
       visibility: LockedContest['visibility']
       invite_digest: Buffer | null
-      registration_open: boolean
+      phase: LockedContest['phase']
       min_team_size: number
       max_team_size: number
       registration_constraints: unknown
     }>(
       `SELECT id, publication_status::text, registration_strategy::text, visibility::text,
-              invite_digest, end_at > now() AS registration_open,
+              invite_digest,
+              derive_contest_time_phase(start_at, end_at, CURRENT_TIMESTAMP)::text AS phase,
               min_team_size, max_team_size, registration_constraints
        FROM contests
        WHERE id = $1
@@ -396,7 +397,7 @@ export class PostgresParticipationRepository implements ParticipationRepository 
       registrationStrategy: row.registration_strategy,
       visibility: row.visibility,
       inviteDigest: row.invite_digest,
-      registrationOpen: row.registration_open,
+      phase: row.phase,
       minTeamSize: row.min_team_size,
       maxTeamSize: row.max_team_size,
       registrationConstraints: row.registration_constraints,
@@ -404,7 +405,7 @@ export class PostgresParticipationRepository implements ParticipationRepository 
   }
 
   private requireRegistrationOpen(contest: LockedContest) {
-    if (contest.publicationStatus !== 'published' || !contest.registrationOpen) {
+    if (contest.publicationStatus !== 'published' || contest.phase === 'ended') {
       throw new ParticipationRegistrationClosedError()
     }
     if (contest.visibility === 'private' && !contest.inviteDigest) {

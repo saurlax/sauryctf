@@ -75,6 +75,21 @@ export interface paths {
   "/api/admin/teams/{teamId}/corrections": {
     post: operations["correctTeamMembership"];
   };
+  "/api/admin/contests": {
+    post: operations["createContestDraft"];
+  };
+  "/api/admin/contests/{contestId}": {
+    get: operations["getManagedContest"];
+  };
+  "/api/admin/contests/{contestId}/publish": {
+    post: operations["publishContest"];
+  };
+  "/api/admin/contests/{contestId}/archive": {
+    post: operations["archiveContest"];
+  };
+  "/api/contests/{contestId}": {
+    get: operations["getPublicContest"];
+  };
   "/api/contests/{contestId}/participation": {
     get: operations["getCurrentParticipation"];
     post: operations["registerParticipation"];
@@ -1272,6 +1287,317 @@ export interface operations {
       };
       /** @description Stable API error */
       409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  createContestDraft: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          title: string;
+          slug: string;
+          /** @default */
+          description: string;
+          /** Format: date-time */
+          start_at: string;
+          /** Format: date-time */
+          end_at: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Contest draft created */
+      201: {
+        content: {
+          "application/json": {
+            contest: {
+              id: string;
+              title: string;
+              slug: string;
+              description: string;
+              /** @enum {string} */
+              publication_status: "draft" | "published" | "archived";
+              phase: ("upcoming" | "running" | "ended") | null;
+              /** Format: date-time */
+              start_at: string;
+              /** Format: date-time */
+              end_at: string;
+              published_at: string | null;
+              archived_at: string | null;
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  getManagedContest: {
+    parameters: {
+      path: {
+        contestId: string;
+      };
+    };
+    responses: {
+      /** @description Managed contest projection */
+      200: {
+        content: {
+          "application/json": {
+            contest: {
+              id: string;
+              title: string;
+              slug: string;
+              description: string;
+              /** @enum {string} */
+              publication_status: "draft" | "published" | "archived";
+              phase: ("upcoming" | "running" | "ended") | null;
+              /** Format: date-time */
+              start_at: string;
+              /** Format: date-time */
+              end_at: string;
+              published_at: string | null;
+              archived_at: string | null;
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  publishContest: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Contest published */
+      200: {
+        content: {
+          "application/json": {
+            contest: {
+              id: string;
+              title: string;
+              slug: string;
+              description: string;
+              /** @enum {string} */
+              publication_status: "draft" | "published" | "archived";
+              phase: ("upcoming" | "running" | "ended") | null;
+              /** Format: date-time */
+              start_at: string;
+              /** Format: date-time */
+              end_at: string;
+              published_at: string | null;
+              archived_at: string | null;
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  archiveContest: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+      };
+      path: {
+        contestId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Ended contest archived */
+      200: {
+        content: {
+          "application/json": {
+            contest: {
+              id: string;
+              title: string;
+              slug: string;
+              description: string;
+              /** @enum {string} */
+              publication_status: "draft" | "published" | "archived";
+              phase: ("upcoming" | "running" | "ended") | null;
+              /** Format: date-time */
+              start_at: string;
+              /** Format: date-time */
+              end_at: string;
+              published_at: string | null;
+              archived_at: string | null;
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  getPublicContest: {
+    parameters: {
+      path: {
+        contestId: string;
+      };
+    };
+    responses: {
+      /** @description Public published or archived contest projection */
+      200: {
+        content: {
+          "application/json": {
+            contest: {
+              id: string;
+              title: string;
+              slug: string;
+              description: string;
+              /** @enum {string} */
+              publication_status: "draft" | "published" | "archived";
+              phase: ("upcoming" | "running" | "ended") | null;
+              /** Format: date-time */
+              start_at: string;
+              /** Format: date-time */
+              end_at: string;
+              published_at: string | null;
+              archived_at: string | null;
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      404: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };

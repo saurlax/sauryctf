@@ -1,0 +1,195 @@
+import type { Pool, PoolClient } from 'pg'
+import {
+  ContestNotEndedError,
+  ContestNotFoundError,
+  ContestSlugConflictError,
+  ContestTransitionInvalidError,
+  type ContestLifecycleCommand,
+  type ContestRecord,
+  type ContestRepository,
+  type CreateContestDraftCommand,
+  type ContestPublicationStatus,
+  type ContestTimePhase,
+} from '../../domains/contests/repository'
+
+interface ContestRow {
+  id: string
+  title: string
+  slug: string
+  description: string
+  publication_status: ContestPublicationStatus
+  phase: ContestTimePhase | null
+  start_at: Date
+  end_at: Date
+  published_at: Date | null
+  archived_at: Date | null
+  version: string
+}
+
+function isUniqueViolation(error: unknown) {
+  return typeof error === 'object' && error !== null && (error as { code?: string }).code === '23505'
+}
+
+export class PostgresContestRepository implements ContestRepository {
+  constructor(private pool: Pool) {}
+
+  async createDraft(command: CreateContestDraftCommand): Promise<ContestRecord> {
+    const connection = await this.pool.connect()
+    try {
+      await connection.query('BEGIN')
+      const inserted = await connection.query<{ id: string }>(
+        `INSERT INTO contests (title, slug, description, start_at, end_at, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id`,
+        [command.title, command.slug, command.description, command.startAt, command.endAt, command.actorId],
+      )
+      const contestId = inserted.rows[0]!.id
+      await this.writeAudit(connection, command.actorId, command.requestId, contestId,
+        'contest.created', '创建比赛草稿', { publication_status: 'draft' })
+      const result = await this.read(connection, contestId)
+      await connection.query('COMMIT')
+      return result
+    }
+    catch (error) {
+      await connection.query('ROLLBACK')
+      if (isUniqueViolation(error)) throw new ContestSlugConflictError()
+      throw error
+    }
+    finally {
+      connection.release()
+    }
+  }
+
+  async readManaged(contestId: string): Promise<ContestRecord> {
+    return this.read(this.pool, contestId)
+  }
+
+  async readPublic(contestId: string): Promise<ContestRecord> {
+    const result = await this.pool.query<ContestRow>(
+      `${this.select()} WHERE c.id = $1 AND c.visibility = 'public' AND c.publication_status IN ('published', 'archived')`,
+      [contestId],
+    )
+    if (!result.rows[0]) throw new ContestNotFoundError()
+    return this.record(result.rows[0])
+  }
+
+  async publish(command: ContestLifecycleCommand): Promise<ContestRecord> {
+    return this.transition(command, 'published')
+  }
+
+  async archive(command: ContestLifecycleCommand): Promise<ContestRecord> {
+    return this.transition(command, 'archived')
+  }
+
+  private async transition(
+    command: ContestLifecycleCommand,
+    target: 'published' | 'archived',
+  ): Promise<ContestRecord> {
+    const connection = await this.pool.connect()
+    try {
+      await connection.query('BEGIN')
+      const locked = await connection.query<{
+        publication_status: ContestPublicationStatus
+        phase: ContestTimePhase
+      }>(
+        `SELECT publication_status::text,
+                derive_contest_time_phase(start_at, end_at, CURRENT_TIMESTAMP)::text AS phase
+         FROM contests WHERE id = $1 FOR UPDATE`,
+        [command.contestId],
+      )
+      const current = locked.rows[0]
+      if (!current) throw new ContestNotFoundError()
+      const expected = target === 'published' ? 'draft' : 'published'
+      if (current.publication_status !== expected) throw new ContestTransitionInvalidError()
+      if (target === 'archived' && current.phase !== 'ended') throw new ContestNotEndedError()
+
+      if (target === 'published') {
+        await connection.query(
+          `UPDATE contests
+           SET publication_status = 'published', published_at = CURRENT_TIMESTAMP,
+               version = version + 1, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          [command.contestId],
+        )
+      }
+      else {
+        await connection.query(
+          `UPDATE contests
+           SET publication_status = 'archived', archived_at = CURRENT_TIMESTAMP,
+               version = version + 1, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          [command.contestId],
+        )
+      }
+      await this.writeAudit(
+        connection,
+        command.actorId,
+        command.requestId,
+        command.contestId,
+        target === 'published' ? 'contest.published' : 'contest.archived',
+        command.reason,
+        { publication_status: target },
+      )
+      const result = await this.read(connection, command.contestId)
+      await connection.query('COMMIT')
+      return result
+    }
+    catch (error) {
+      await connection.query('ROLLBACK')
+      throw error
+    }
+    finally {
+      connection.release()
+    }
+  }
+
+  private select() {
+    return `SELECT c.id, c.title, c.slug, c.description, c.publication_status::text,
+                   CASE
+                     WHEN c.publication_status = 'draft' THEN NULL
+                     WHEN c.publication_status = 'archived' THEN 'ended'::contest_time_phase
+                     ELSE derive_contest_time_phase(c.start_at, c.end_at, CURRENT_TIMESTAMP)
+                   END::text AS phase,
+                   c.start_at, c.end_at, c.published_at, c.archived_at, c.version::text
+            FROM contests c`
+  }
+
+  private async read(connection: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>, contestId: string) {
+    const result = await connection.query<ContestRow>(`${this.select()} WHERE c.id = $1`, [contestId])
+    if (!result.rows[0]) throw new ContestNotFoundError()
+    return this.record(result.rows[0])
+  }
+
+  private record(row: ContestRow): ContestRecord {
+    return {
+      id: row.id,
+      title: row.title,
+      slug: row.slug,
+      description: row.description,
+      publicationStatus: row.publication_status,
+      phase: row.phase,
+      startAt: row.start_at,
+      endAt: row.end_at,
+      publishedAt: row.published_at,
+      archivedAt: row.archived_at,
+      version: Number(row.version),
+    }
+  }
+
+  private async writeAudit(
+    connection: PoolClient,
+    actorId: string,
+    requestId: string,
+    contestId: string,
+    action: string,
+    reason: string,
+    changes: Record<string, unknown>,
+  ) {
+    await connection.query(
+      `INSERT INTO audit_events
+         (actor_user_id, action, target_type, target_id, reason, outcome, request_id, changes, metadata)
+       VALUES ($1, $2, 'contest', $3, $4, 'succeeded', $5, $6, '{}')`,
+      [actorId, action, contestId, reason, requestId, changes],
+    )
+  }
+}

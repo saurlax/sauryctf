@@ -18,6 +18,8 @@ import { TeamService } from '../domains/teams/service'
 import { PostgresTeamRepository } from '../infrastructure/db/team-repository'
 import { ParticipationService } from '../domains/participations/service'
 import { PostgresParticipationRepository } from '../infrastructure/db/participation-repository'
+import { ContestService } from '../domains/contests/service'
+import { PostgresContestRepository } from '../infrastructure/db/contest-repository'
 
 export default defineNitroPlugin(async (nitroApp) => {
   const databaseUrl = process.env.DATABASE_URL
@@ -49,6 +51,7 @@ export default defineNitroPlugin(async (nitroApp) => {
     rateLimits,
     teams: new TeamService(new PostgresTeamRepository(database.pool)),
     participations: new ParticipationService(new PostgresParticipationRepository(database.pool)),
+    contests: new ContestService(new PostgresContestRepository(database.pool)),
   }
 
   const smtpHost = process.env.MAIL_SMTP_HOST
