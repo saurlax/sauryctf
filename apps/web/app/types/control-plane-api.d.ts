@@ -130,6 +130,12 @@ export interface paths {
   "/api/contests/{contestId}": {
     get: operations["getPublicContest"];
   };
+  "/api/contests/{contestId}/challenges": {
+    get: operations["listPlayerContestChallenges"];
+  };
+  "/api/contests/{contestId}/challenges/{challengeId}": {
+    get: operations["getPlayerContestChallenge"];
+  };
   "/api/contests/{contestId}/announcements": {
     get: operations["listPublicAnnouncements"];
   };
@@ -3343,6 +3349,233 @@ export interface operations {
               version: number;
             };
           };
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  listPlayerContestChallenges: {
+    parameters: {
+      path: {
+        contestId: string;
+      };
+    };
+    responses: {
+      /** @description Player-safe contest challenge projections filtered by participation and release state */
+      200: {
+        content: {
+          "application/json": {
+            items: (OneOf<[{
+                id: string;
+                contest_id: string;
+                title: string;
+                /** @enum {string} */
+                category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
+                publish_at: string | null;
+                close_at: string | null;
+                sort_order: number;
+                snapshot_revision: number;
+                version: number;
+                /** @constant */
+                state: "locked";
+                content: null;
+              }, {
+                id: string;
+                contest_id: string;
+                title: string;
+                /** @enum {string} */
+                category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
+                publish_at: string | null;
+                close_at: string | null;
+                sort_order: number;
+                snapshot_revision: number;
+                version: number;
+                /** @constant */
+                state: "open";
+                content: {
+                  description: string;
+                  flag_format: string | null;
+                  /** @enum {string} */
+                  instance_type: "none" | "dynamic";
+                  submission_limit: number | null;
+                  assets: {
+                      id: string;
+                      display_name: string;
+                      sort_order: number;
+                    }[];
+                  hints: ({
+                      id: string;
+                      title: string;
+                      content: string;
+                      released_at: string | null;
+                      sort_order: number;
+                    })[];
+                };
+              }, {
+                id: string;
+                contest_id: string;
+                title: string;
+                /** @enum {string} */
+                category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
+                publish_at: string | null;
+                close_at: string | null;
+                sort_order: number;
+                snapshot_revision: number;
+                version: number;
+                /** @constant */
+                state: "closed";
+                content: {
+                  description: string;
+                  flag_format: string | null;
+                  /** @enum {string} */
+                  instance_type: "none" | "dynamic";
+                  submission_limit: number | null;
+                  assets: {
+                      id: string;
+                      display_name: string;
+                      sort_order: number;
+                    }[];
+                  hints: ({
+                      id: string;
+                      title: string;
+                      content: string;
+                      released_at: string | null;
+                      sort_order: number;
+                    })[];
+                };
+              }]>)[];
+          };
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  getPlayerContestChallenge: {
+    parameters: {
+      path: {
+        contestId: string;
+        challengeId: string;
+      };
+    };
+    responses: {
+      /** @description Player-safe contest challenge projection without Flag verification material */
+      200: {
+        content: {
+          "application/json": {
+            challenge: OneOf<[{
+              id: string;
+              contest_id: string;
+              title: string;
+              /** @enum {string} */
+              category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
+              publish_at: string | null;
+              close_at: string | null;
+              sort_order: number;
+              snapshot_revision: number;
+              version: number;
+              /** @constant */
+              state: "locked";
+              content: null;
+            }, {
+              id: string;
+              contest_id: string;
+              title: string;
+              /** @enum {string} */
+              category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
+              publish_at: string | null;
+              close_at: string | null;
+              sort_order: number;
+              snapshot_revision: number;
+              version: number;
+              /** @constant */
+              state: "open";
+              content: {
+                description: string;
+                flag_format: string | null;
+                /** @enum {string} */
+                instance_type: "none" | "dynamic";
+                submission_limit: number | null;
+                assets: {
+                    id: string;
+                    display_name: string;
+                    sort_order: number;
+                  }[];
+                hints: ({
+                    id: string;
+                    title: string;
+                    content: string;
+                    released_at: string | null;
+                    sort_order: number;
+                  })[];
+              };
+            }, {
+              id: string;
+              contest_id: string;
+              title: string;
+              /** @enum {string} */
+              category: "web" | "pwn" | "crypto" | "reverse" | "misc" | "forensics";
+              publish_at: string | null;
+              close_at: string | null;
+              sort_order: number;
+              snapshot_revision: number;
+              version: number;
+              /** @constant */
+              state: "closed";
+              content: {
+                description: string;
+                flag_format: string | null;
+                /** @enum {string} */
+                instance_type: "none" | "dynamic";
+                submission_limit: number | null;
+                assets: {
+                    id: string;
+                    display_name: string;
+                    sort_order: number;
+                  }[];
+                hints: ({
+                    id: string;
+                    title: string;
+                    content: string;
+                    released_at: string | null;
+                    sort_order: number;
+                  })[];
+              };
+            }]>;
+          };
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description Stable API error */

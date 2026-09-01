@@ -22,6 +22,8 @@ import {
   type ContestChallengeHintCommand,
   type ContestChallengeRecord,
   type ContestChallengeRepository,
+  type PlayerContestChallengeContext,
+  type PlayerContestChallengeRecord,
 } from './contest-challenge-repository'
 
 export type ContestChallengeServiceErrorCode =
@@ -59,8 +61,38 @@ export class ContestChallengeServiceError extends Error {
   }
 }
 
+export interface PlayerContestChallengeProjection {
+  id: string
+  contestId: string
+  snapshotRevision: number
+  title: string
+  category: ChallengeCategory
+  publishAt: Date | null
+  closeAt: Date | null
+  sortOrder: number
+  version: number
+  state: 'locked' | 'open' | 'closed'
+  content: {
+    description: string
+    flagFormat: string | null
+    instanceType: 'none' | 'dynamic'
+    submissionLimit: number | null
+    assets: Array<{ id: string, displayName: string, sortOrder: number }>
+    hints: Array<{
+      id: string
+      title: string
+      content: string
+      releasedAt: Date | null
+      sortOrder: number
+    }>
+  } | null
+}
+
 export class ContestChallengeService {
-  constructor(private repository: ContestChallengeRepository) {}
+  constructor(
+    private repository: ContestChallengeRepository,
+    private now: () => Date = () => new Date(),
+  ) {}
 
   async mount(actor: SessionSubject, input: {
     requestId: string
@@ -90,6 +122,29 @@ export class ContestChallengeService {
   async read(actor: SessionSubject, contestId: string, challengeId: string) {
     requireIdentityCapability(actor, identityCapability.contestManage)
     return this.map(() => this.repository.read(contestId, challengeId))
+  }
+
+  async listForPlayer(actor: SessionSubject, contestId: string): Promise<PlayerContestChallengeProjection[]> {
+    requireIdentityCapability(actor, identityCapability.publicBrowse)
+    const at = this.now()
+    const result = await this.map(() => this.repository.listForPlayer(actor.userId, contestId, at))
+    return result.challenges.map(challenge => this.playerProjection(result.context, challenge, at))
+  }
+
+  async readForPlayer(
+    actor: SessionSubject,
+    contestId: string,
+    challengeId: string,
+  ): Promise<PlayerContestChallengeProjection> {
+    requireIdentityCapability(actor, identityCapability.publicBrowse)
+    const at = this.now()
+    const result = await this.map(() => this.repository.readForPlayer(
+      actor.userId,
+      contestId,
+      challengeId,
+      at,
+    ))
+    return this.playerProjection(result.context, result.challenge, at)
   }
 
   async revise(actor: SessionSubject, input: {
@@ -192,6 +247,58 @@ export class ContestChallengeService {
         throw new ContestChallengeServiceError('challenge.policy_invalid', error.fields)
       }
       throw error
+    }
+  }
+
+  private playerProjection(
+    context: PlayerContestChallengeContext,
+    challenge: PlayerContestChallengeRecord,
+    at: Date,
+  ): PlayerContestChallengeProjection {
+    const released = challenge.publishAt === null || challenge.publishAt.getTime() <= at.getTime()
+    const contentVisible = context.participationStatus === 'accepted'
+      && context.contestPhase !== 'upcoming'
+      && released
+    const base = {
+      id: challenge.id,
+      contestId: challenge.contestId,
+      snapshotRevision: challenge.snapshotRevision,
+      title: challenge.title,
+      category: challenge.category,
+      publishAt: challenge.publishAt,
+      closeAt: challenge.closeAt,
+      sortOrder: challenge.sortOrder,
+      version: challenge.version,
+    }
+    if (!contentVisible) {
+      return { ...base, state: 'locked', content: null }
+    }
+
+    const closed = context.contestPhase === 'ended'
+      || (challenge.closeAt !== null && challenge.closeAt.getTime() <= at.getTime())
+    return {
+      ...base,
+      state: closed ? 'closed' : 'open',
+      content: {
+        description: challenge.description,
+        flagFormat: challenge.flagFormat,
+        instanceType: challenge.instanceType,
+        submissionLimit: challenge.submissionLimit,
+        assets: challenge.assets.map(asset => ({
+          id: asset.id,
+          displayName: asset.displayName,
+          sortOrder: asset.sortOrder,
+        })),
+        hints: challenge.hints
+          .filter(hint => hint.releaseAt === null || hint.releaseAt.getTime() <= at.getTime())
+          .map(hint => ({
+            id: hint.id,
+            title: hint.title,
+            content: hint.content,
+            releasedAt: hint.releaseAt,
+            sortOrder: hint.sortOrder,
+          })),
+      },
     }
   }
 }

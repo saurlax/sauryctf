@@ -22,6 +22,10 @@ import {
   type ContestChallengeRecord,
   type ContestChallengeRepository,
   type MountContestChallengeCommand,
+  type PlayerContestChallengeContext,
+  type PlayerContestChallengeDetail,
+  type PlayerContestChallengeList,
+  type PlayerContestChallengeRecord,
   type ReviseContestChallengeCommand,
 } from '../../domains/challenges/contest-challenge-repository'
 import { ChallengeContentObjectUnavailableError } from '../../domains/challenges/repository'
@@ -63,6 +67,22 @@ interface TemplateVersionRow {
   flag_policy: ChallengeFlagPolicy
   scoring_policy: ChallengeScoringPolicy
   instance_policy: ChallengeInstancePolicy
+}
+
+interface PlayerChallengeRow {
+  id: string
+  contest_id: string
+  snapshot_revision: number
+  title: string
+  category: ChallengeCategory
+  description: string
+  flag_format: string | null
+  instance_type: 'none' | 'dynamic'
+  publish_at: Date | null
+  close_at: Date | null
+  submission_limit: number | null
+  sort_order: number
+  version: string
 }
 
 function isTitleConflict(error: unknown) {
@@ -174,6 +194,38 @@ export class PostgresContestChallengeRepository implements ContestChallengeRepos
 
   async read(contestId: string, challengeId: string): Promise<ContestChallengeRecord> {
     return this.readWith(this.pool, contestId, challengeId)
+  }
+
+  async listForPlayer(userId: string, contestId: string, at: Date): Promise<PlayerContestChallengeList> {
+    const context = await this.readPlayerContext(userId, contestId, at)
+    const result = await this.pool.query<PlayerChallengeRow>(
+      `${this.playerChallengeSelect()}
+       WHERE challenge.contest_id = $1 AND challenge.enabled = true
+       ORDER BY challenge.sort_order, challenge.id`,
+      [contestId],
+    )
+    return {
+      context,
+      challenges: await Promise.all(result.rows.map(row => this.playerRecord(row))),
+    }
+  }
+
+  async readForPlayer(
+    userId: string,
+    contestId: string,
+    challengeId: string,
+    at: Date,
+  ): Promise<PlayerContestChallengeDetail> {
+    const context = await this.readPlayerContext(userId, contestId, at)
+    const result = await this.pool.query<PlayerChallengeRow>(
+      `${this.playerChallengeSelect()}
+       WHERE challenge.contest_id = $1
+         AND challenge.id = $2
+         AND challenge.enabled = true`,
+      [contestId, challengeId],
+    )
+    if (!result.rows[0]) throw new ContestChallengeNotFoundError()
+    return { context, challenge: await this.playerRecord(result.rows[0]) }
   }
 
   async revise(command: ReviseContestChallengeCommand): Promise<ContestChallengeRecord> {
@@ -365,6 +417,78 @@ export class PostgresContestChallengeRepository implements ContestChallengeRepos
       version: Number(row.version),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+    }
+  }
+
+  private async readPlayerContext(
+    userId: string,
+    contestId: string,
+    at: Date,
+  ): Promise<PlayerContestChallengeContext> {
+    const result = await this.pool.query<{
+      contest_phase: PlayerContestChallengeContext['contestPhase']
+      participation_status: PlayerContestChallengeContext['participationStatus']
+    }>(
+      `WITH actor_team AS (
+         SELECT team_id FROM team_members WHERE user_id = $1
+       )
+       SELECT CASE
+                WHEN contest.publication_status = 'archived' THEN 'ended'::contest_time_phase
+                ELSE derive_contest_time_phase(contest.start_at, contest.end_at, $3)
+              END::text AS contest_phase,
+              participation.status::text AS participation_status
+       FROM contests contest
+       LEFT JOIN actor_team ON true
+       LEFT JOIN participations participation
+         ON participation.contest_id = contest.id
+        AND participation.team_id = actor_team.team_id
+       WHERE contest.id = $2
+         AND contest.publication_status IN ('published', 'archived')
+         AND (contest.visibility = 'public' OR participation.status = 'accepted')`,
+      [userId, contestId, at],
+    )
+    if (!result.rows[0]) throw new ContestChallengeNotFoundError()
+    return {
+      contestPhase: result.rows[0].contest_phase,
+      participationStatus: result.rows[0].participation_status,
+    }
+  }
+
+  private playerChallengeSelect() {
+    return `SELECT challenge.id, challenge.contest_id, challenge.snapshot_revision,
+                   challenge.title, challenge.category::text, challenge.description,
+                   challenge.flag_format,
+                   CASE challenge.instance_policy->>'type'
+                     WHEN 'dynamic' THEN 'dynamic'
+                     ELSE 'none'
+                   END AS instance_type,
+                   challenge.publish_at, challenge.close_at,
+                   challenge.submission_limit, challenge.sort_order,
+                   challenge.version::text
+            FROM contest_challenges challenge`
+  }
+
+  private async playerRecord(row: PlayerChallengeRow): Promise<PlayerContestChallengeRecord> {
+    const [assets, hints] = await Promise.all([
+      this.readAssets(this.pool, row.id),
+      this.readHints(this.pool, row.id),
+    ])
+    return {
+      id: row.id,
+      contestId: row.contest_id,
+      snapshotRevision: row.snapshot_revision,
+      title: row.title,
+      category: row.category,
+      description: row.description,
+      flagFormat: row.flag_format,
+      instanceType: row.instance_type,
+      assets,
+      hints,
+      publishAt: row.publish_at,
+      closeAt: row.close_at,
+      submissionLimit: row.submission_limit,
+      sortOrder: row.sort_order,
+      version: Number(row.version),
     }
   }
 

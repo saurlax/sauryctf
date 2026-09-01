@@ -2,14 +2,19 @@ import { createApp, eventHandler, setResponseStatus, toWebHandler, type H3Event 
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthSessionData } from '../../../shared/contracts/auth-session'
 import type { ContestChallengeRecord } from '../../domains/challenges/contest-challenge-repository'
-import { ContestChallengeServiceError } from '../../domains/challenges/contest-challenge-service'
+import {
+  ContestChallengeServiceError,
+  type PlayerContestChallengeProjection,
+} from '../../domains/challenges/contest-challenge-service'
 import { DisabledHumanVerificationProvider } from '../../domains/identity/human-verification'
 import type { SessionSubject } from '../../domains/identity/repository'
 import { normalizeApiError } from '../http/errors'
 import { MemoryRateLimitStore } from '../security/rate-limit'
 import {
   handleMountContestChallenge,
+  handleListPlayerContestChallenges,
   handleReadContestChallenge,
+  handleReadPlayerContestChallenge,
   handleReviseContestChallenge,
   type ContestChallengeHttpDependencies,
 } from './contest-challenge-http'
@@ -69,6 +74,32 @@ const record: ContestChallengeRecord = {
   createdAt: new Date('2026-09-01T00:00:00.000Z'),
   updatedAt: new Date('2026-09-01T00:00:00.000Z'),
 }
+const playerRecord: PlayerContestChallengeProjection = {
+  id: challengeId,
+  contestId,
+  snapshotRevision: 1,
+  title: 'Web Challenge',
+  category: 'web',
+  publishAt: new Date('2026-09-02T00:00:00.000Z'),
+  closeAt: null,
+  sortOrder: 0,
+  version: 1,
+  state: 'open',
+  content: {
+    description: 'Contest statement snapshot',
+    flagFormat: 'flag{...}',
+    instanceType: 'none',
+    submissionLimit: 100,
+    assets: [{ id: assetId, displayName: 'starter.zip', sortOrder: 0 }],
+    hints: [{
+      id: hintId,
+      title: 'Hint',
+      content: 'Inspect headers',
+      releasedAt: new Date('2026-09-02T00:15:00.000Z'),
+      sortOrder: 0,
+    }],
+  },
+}
 
 function dependencies(
   subject: SessionSubject = organizer,
@@ -83,8 +114,10 @@ function dependencies(
       browserSession: { read: vi.fn(async () => session), replace: vi.fn(), clear: vi.fn() },
     },
     contestChallenges: {
+      listForPlayer: vi.fn(async () => [playerRecord]),
       mount: vi.fn(async () => record),
       read: vi.fn(async () => record),
+      readForPlayer: vi.fn(async () => playerRecord),
       revise: vi.fn(async () => ({
         ...record,
         description: 'Corrected statement',
@@ -156,6 +189,59 @@ describe('contest challenge snapshot HTTP adapters', () => {
         assets: [{ content_object_id: objectId }],
         hints: [{ title: 'Hint', release_at: '2026-09-02T00:15:00.000Z' }],
       },
+    })
+  })
+
+  it('returns a strict player projection without Flag or runtime configuration material', async () => {
+    const deps = dependencies({ ...organizer, role: 'user' })
+    const list = await invoke(event => handleListPlayerContestChallenges(event, contestId, deps))
+    expect(list.status).toBe(200)
+    const listBody = await list.json()
+    expect(listBody).toMatchObject({
+      items: [{
+        state: 'open',
+        content: {
+          description: 'Contest statement snapshot',
+          instance_type: 'none',
+          hints: [{ title: 'Hint' }],
+        },
+      }],
+    })
+    expect(JSON.stringify(listBody)).not.toMatch(/flag_policy|digest|validator|key_version|instance_policy|content_object_id/u)
+
+    const detail = await invoke(event => handleReadPlayerContestChallenge(
+      event,
+      contestId,
+      challengeId,
+      deps,
+    ))
+    expect(detail.status).toBe(200)
+    expect(detail.headers.get('etag')).toBe('"1"')
+    expect(deps.contestChallenges.readForPlayer).toHaveBeenCalledWith(
+      expect.objectContaining({ userId, role: 'user' }),
+      contestId,
+      challengeId,
+    )
+  })
+
+  it('preserves an explicit locked player projection without protected content', async () => {
+    const lockedProjection: PlayerContestChallengeProjection = {
+      ...playerRecord,
+      state: 'locked',
+      content: null,
+    }
+    const locked = dependencies({ ...organizer, role: 'user' }, {
+      readForPlayer: vi.fn(async () => lockedProjection),
+    })
+    const response = await invoke(event => handleReadPlayerContestChallenge(
+      event,
+      contestId,
+      challengeId,
+      locked,
+    ))
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      challenge: { state: 'locked', content: null },
     })
   })
 

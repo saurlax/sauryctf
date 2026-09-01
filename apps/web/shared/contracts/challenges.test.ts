@@ -5,6 +5,7 @@ import {
   challengeInstancePolicySchema,
   challengeScoringPolicySchema,
   createChallengeTemplateRequestSchema,
+  playerContestChallengeSchema,
 } from './challenges'
 
 describe('orthogonal challenge policy contracts', () => {
@@ -81,5 +82,65 @@ describe('orthogonal challenge policy contracts', () => {
       type: 'dynamic', provider: 'shell', image: 'x', entry_port: 80,
     }).success).toBe(false)
     expect(challengeInstancePolicySchema.safeParse({ type: 'none', image: 'must-not-be-present' }).success).toBe(false)
+  })
+})
+
+describe('player contest challenge projection contracts', () => {
+  const base = {
+    id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f70',
+    contest_id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f71',
+    title: 'Player-safe challenge',
+    category: 'web' as const,
+    publish_at: '2026-09-02T00:00:00.000Z',
+    close_at: null,
+    sort_order: 0,
+    snapshot_revision: 1,
+    version: 1,
+  }
+
+  it('represents inaccessible protected content as an explicit locked projection', () => {
+    expect(playerContestChallengeSchema.parse({
+      ...base,
+      state: 'locked',
+      content: null,
+    })).toMatchObject({ state: 'locked', content: null })
+  })
+
+  it('accepts released player content without infrastructure or Flag verification material', () => {
+    expect(playerContestChallengeSchema.parse({
+      ...base,
+      state: 'open',
+      content: {
+        description: 'Inspect the response headers.',
+        flag_format: 'flag{...}',
+        instance_type: 'dynamic',
+        submission_limit: 100,
+        assets: [{
+          id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f72',
+          display_name: 'starter.zip',
+          sort_order: 0,
+        }],
+        hints: [{
+          id: '018f47a2-4ef8-7e2c-9c24-6d68b7451f73',
+          title: 'Headers',
+          content: 'Compare cache headers.',
+          released_at: null,
+          sort_order: 0,
+        }],
+      },
+    })).toMatchObject({ state: 'open', content: { instance_type: 'dynamic' } })
+  })
+
+  it.each([
+    ['flag_policy', { type: 'static', digest: 'secret-digest' }],
+    ['scoring_policy', { type: 'fixed-v1', points: 500 }],
+    ['instance_policy', { type: 'dynamic', image: 'private/image', provider: 'kubernetes' }],
+  ])('rejects leaked %s material from the player response', (field, value) => {
+    expect(playerContestChallengeSchema.safeParse({
+      ...base,
+      state: 'locked',
+      content: null,
+      [field]: value,
+    }).success).toBe(false)
   })
 })

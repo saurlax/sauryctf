@@ -46,6 +46,39 @@ export interface ContestChallengeRecord {
   updatedAt: Date
 }
 
+export interface PlayerContestChallengeRecord {
+  id: string
+  contestId: string
+  snapshotRevision: number
+  title: string
+  category: ChallengeCategory
+  description: string
+  flagFormat: string | null
+  instanceType: 'none' | 'dynamic'
+  assets: ContestChallengeAssetRecord[]
+  hints: ContestChallengeHintRecord[]
+  publishAt: Date | null
+  closeAt: Date | null
+  submissionLimit: number | null
+  sortOrder: number
+  version: number
+}
+
+export interface PlayerContestChallengeContext {
+  contestPhase: 'upcoming' | 'running' | 'ended'
+  participationStatus: 'pending' | 'accepted' | 'rejected' | 'withdrawn' | null
+}
+
+export interface PlayerContestChallengeList {
+  context: PlayerContestChallengeContext
+  challenges: PlayerContestChallengeRecord[]
+}
+
+export interface PlayerContestChallengeDetail {
+  context: PlayerContestChallengeContext
+  challenge: PlayerContestChallengeRecord
+}
+
 export interface ContestChallengeAssetCommand {
   contentObjectId: string
   displayName: string
@@ -98,6 +131,13 @@ export interface ReviseContestChallengeCommand {
 export interface ContestChallengeRepository {
   mount(command: MountContestChallengeCommand): Promise<ContestChallengeRecord>
   read(contestId: string, challengeId: string): Promise<ContestChallengeRecord>
+  listForPlayer(userId: string, contestId: string, at: Date): Promise<PlayerContestChallengeList>
+  readForPlayer(
+    userId: string,
+    contestId: string,
+    challengeId: string,
+    at: Date,
+  ): Promise<PlayerContestChallengeDetail>
   revise(command: ReviseContestChallengeCommand): Promise<ContestChallengeRecord>
 }
 

@@ -307,3 +307,63 @@ export const contestChallengeResponseSchema = z.strictObject({
 })
 
 export type ContestChallenge = z.infer<typeof contestChallengeSchema>
+
+export const playerContestChallengeAssetSchema = z.strictObject({
+  id: uuidSchema,
+  display_name: z.string().min(1).max(255),
+  sort_order: z.number().int().min(0).max(10_000),
+})
+
+export const playerContestChallengeHintSchema = z.strictObject({
+  id: uuidSchema,
+  title: z.string().min(1).max(160),
+  content: z.string().min(1).max(100_000),
+  released_at: utcTimestampSchema.nullable(),
+  sort_order: z.number().int().min(0).max(10_000),
+})
+
+export const playerContestChallengeContentSchema = z.strictObject({
+  description: z.string().min(1).max(100_000),
+  flag_format: z.string().min(1).max(160).nullable(),
+  instance_type: z.enum(['none', 'dynamic']),
+  submission_limit: z.number().int().positive().max(1_000_000).nullable(),
+  assets: z.array(playerContestChallengeAssetSchema).max(100),
+  hints: z.array(playerContestChallengeHintSchema).max(100),
+})
+
+const playerContestChallengeBaseSchema = z.strictObject({
+  id: uuidSchema,
+  contest_id: uuidSchema,
+  title: z.string().min(1).max(160),
+  category: challengeCategorySchema,
+  publish_at: utcTimestampSchema.nullable(),
+  close_at: utcTimestampSchema.nullable(),
+  sort_order: z.number().int().min(0).max(10_000),
+  snapshot_revision: z.number().int().positive(),
+  version: resourceVersionSchema,
+})
+
+export const playerContestChallengeSchema = z.discriminatedUnion('state', [
+  playerContestChallengeBaseSchema.extend({
+    state: z.literal('locked'),
+    content: z.null(),
+  }),
+  playerContestChallengeBaseSchema.extend({
+    state: z.literal('open'),
+    content: playerContestChallengeContentSchema,
+  }),
+  playerContestChallengeBaseSchema.extend({
+    state: z.literal('closed'),
+    content: playerContestChallengeContentSchema,
+  }),
+])
+
+export const playerContestChallengeListResponseSchema = z.strictObject({
+  items: z.array(playerContestChallengeSchema),
+})
+
+export const playerContestChallengeResponseSchema = z.strictObject({
+  challenge: playerContestChallengeSchema,
+})
+
+export type PlayerContestChallenge = z.infer<typeof playerContestChallengeSchema>

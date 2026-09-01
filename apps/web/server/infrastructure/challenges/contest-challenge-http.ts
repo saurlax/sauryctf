@@ -3,14 +3,18 @@ import { getHeader, setResponseHeader, setResponseStatus } from 'h3'
 import {
   contestChallengeResponseSchema,
   mountContestChallengeRequestSchema,
+  playerContestChallengeListResponseSchema,
+  playerContestChallengeResponseSchema,
   reviseContestChallengeRequestSchema,
   type ContestChallenge,
+  type PlayerContestChallenge,
 } from '../../../shared/contracts/challenges'
 import { entityTagForVersion, requestIdSchema, versionFromIfMatch } from '../../../shared/contracts/http'
 import type { ContestChallengeRecord } from '../../domains/challenges/contest-challenge-repository'
 import {
   ContestChallengeServiceError,
   type ContestChallengeService,
+  type PlayerContestChallengeProjection,
 } from '../../domains/challenges/contest-challenge-service'
 import { identityCapability } from '../../domains/identity/capabilities'
 import {
@@ -21,7 +25,8 @@ import {
 import { readValidatedJsonBody } from '../http/body'
 import { createApiError } from '../http/errors'
 
-type ContestChallengeCommands = Pick<ContestChallengeService, 'mount' | 'read' | 'revise'>
+type ContestChallengeCommands = Pick<ContestChallengeService,
+  'listForPlayer' | 'mount' | 'read' | 'readForPlayer' | 'revise'>
 
 export interface ContestChallengeHttpDependencies {
   identity: IdentityHttpDependencies
@@ -42,6 +47,15 @@ async function manager(event: H3Event, dependencies: ContestChallengeHttpDepende
   const context = await requireProtectedCapability(
     event,
     identityCapability.contestManage,
+    dependencies.identity,
+  )
+  return context.subject
+}
+
+async function player(event: H3Event, dependencies: ContestChallengeHttpDependencies) {
+  const context = await requireProtectedCapability(
+    event,
+    identityCapability.publicBrowse,
     dependencies.identity,
   )
   return context.subject
@@ -125,6 +139,42 @@ function respond(event: H3Event, record: ContestChallengeRecord) {
   return contestChallengeResponseSchema.parse({ challenge: projection(record) })
 }
 
+function playerProjection(record: PlayerContestChallengeProjection): PlayerContestChallenge {
+  const base = {
+    id: record.id,
+    contest_id: record.contestId,
+    title: record.title,
+    category: record.category,
+    publish_at: record.publishAt?.toISOString() ?? null,
+    close_at: record.closeAt?.toISOString() ?? null,
+    sort_order: record.sortOrder,
+    snapshot_revision: record.snapshotRevision,
+    version: record.version,
+  }
+  if (!record.content) return { ...base, state: 'locked', content: null }
+  const content = {
+    description: record.content.description,
+    flag_format: record.content.flagFormat,
+    instance_type: record.content.instanceType,
+    submission_limit: record.content.submissionLimit,
+    assets: record.content.assets.map(asset => ({
+      id: asset.id,
+      display_name: asset.displayName,
+      sort_order: asset.sortOrder,
+    })),
+    hints: record.content.hints.map(hint => ({
+      id: hint.id,
+      title: hint.title,
+      content: hint.content,
+      released_at: hint.releasedAt?.toISOString() ?? null,
+      sort_order: hint.sortOrder,
+    })),
+  }
+  return record.state === 'closed'
+    ? { ...base, state: 'closed', content }
+    : { ...base, state: 'open', content }
+}
+
 export async function handleMountContestChallenge(
   event: H3Event,
   contestId: string,
@@ -158,6 +208,32 @@ export async function handleReadContestChallenge(
     contestId,
     challengeId,
   )))
+}
+
+export async function handleListPlayerContestChallenges(
+  event: H3Event,
+  contestId: string,
+  dependencies = contestChallengeHttpDependencies(event),
+) {
+  const subject = await player(event, dependencies)
+  const result = await runOperation(() => dependencies.contestChallenges.listForPlayer(subject, contestId))
+  return playerContestChallengeListResponseSchema.parse({ items: result.map(playerProjection) })
+}
+
+export async function handleReadPlayerContestChallenge(
+  event: H3Event,
+  contestId: string,
+  challengeId: string,
+  dependencies = contestChallengeHttpDependencies(event),
+) {
+  const subject = await player(event, dependencies)
+  const result = await runOperation(() => dependencies.contestChallenges.readForPlayer(
+    subject,
+    contestId,
+    challengeId,
+  ))
+  setResponseHeader(event, 'etag', entityTagForVersion(result.version))
+  return playerContestChallengeResponseSchema.parse({ challenge: playerProjection(result) })
 }
 
 export async function handleReviseContestChallenge(

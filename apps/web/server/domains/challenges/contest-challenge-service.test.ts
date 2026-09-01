@@ -141,6 +141,49 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
     return { organizer, objectId, draft, source, mounted }
   }
 
+  async function participate(
+    player: SessionSubject,
+    contestId: string,
+    status: 'pending' | 'accepted',
+  ) {
+    const connection = await database.pool.connect()
+    try {
+      await connection.query('BEGIN')
+      sequence++
+      const team = await connection.query<{ id: string }>(
+        `INSERT INTO teams (name, name_normalized, created_by)
+         VALUES ($1::varchar(80), lower($1::text)::varchar(80), $2) RETURNING id`,
+        [`Projection Team ${sequence}`, player.userId],
+      )
+      await connection.query(
+        `INSERT INTO team_members (team_id, user_id, role)
+         VALUES ($1, $2, 'captain')`,
+        [team.rows[0]!.id, player.userId],
+      )
+      await connection.query(
+        `INSERT INTO participations
+           (contest_id, team_id, status, registered_by, reviewed_by, reviewed_at)
+         VALUES ($1, $2, $3::participation_status, $4, $5, $6)`,
+        [
+          contestId,
+          team.rows[0]!.id,
+          status,
+          player.userId,
+          status === 'accepted' ? player.userId : null,
+          status === 'accepted' ? new Date() : null,
+        ],
+      )
+      await connection.query('COMMIT')
+    }
+    catch (error) {
+      await connection.query('ROLLBACK')
+      throw error
+    }
+    finally {
+      connection.release()
+    }
+  }
+
   it('mounts the selected immutable version and copies attachment and hint snapshots', async () => {
     const fixture = await mountedFixture()
     expect(fixture.mounted).toMatchObject({
@@ -373,5 +416,65 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
       requestId: randomUUID(), contestId: fixture.draft.id, challengeId: fixture.mounted.id,
       expectedVersion: 1, reason: 'Archived correction attempt', description: 'Archived revision',
     })).rejects.toMatchObject({ code: 'challenge.contest_archived' })
+  })
+
+  it('uses authoritative participation and contest visibility facts for player projections', async () => {
+    const fixture = await mountedFixture()
+    const player = await user('user')
+    const projectionTime = new Date('2030-05-01T06:00:00.000Z')
+    await participate(player, fixture.draft.id, 'accepted')
+    await database.pool.query(
+      `UPDATE contest_challenges SET publish_at = $2 WHERE id = $1`,
+      [fixture.mounted.id, new Date('2030-05-01T05:00:00.000Z')],
+    )
+    await database.pool.query(
+      `UPDATE contests
+       SET publication_status = 'published', published_at = CURRENT_TIMESTAMP,
+           start_at = $2, end_at = $3
+       WHERE id = $1`,
+      [
+        fixture.draft.id,
+        new Date('2030-05-01T05:30:00.000Z'),
+        new Date('2030-05-01T07:00:00.000Z'),
+      ],
+    )
+    const playerChallenges = new ContestChallengeService(
+      new PostgresContestChallengeRepository(database.pool),
+      () => projectionTime,
+    )
+
+    await expect(playerChallenges.readForPlayer(
+      player,
+      fixture.draft.id,
+      fixture.mounted.id,
+    )).resolves.toMatchObject({
+      state: 'open',
+      content: {
+        description: 'Original statement copied into the contest',
+        assets: [{ displayName: 'starter.zip' }],
+        hints: [{ title: 'Delayed hint' }],
+      },
+    })
+
+    await database.pool.query(
+      `UPDATE participations SET status = 'pending', reviewed_by = NULL, reviewed_at = NULL
+       WHERE contest_id = $1`,
+      [fixture.draft.id],
+    )
+    await expect(playerChallenges.readForPlayer(
+      player,
+      fixture.draft.id,
+      fixture.mounted.id,
+    )).resolves.toMatchObject({ state: 'locked', content: null })
+
+    await database.pool.query(
+      `UPDATE contests SET visibility = 'private' WHERE id = $1`,
+      [fixture.draft.id],
+    )
+    await expect(playerChallenges.readForPlayer(
+      player,
+      fixture.draft.id,
+      fixture.mounted.id,
+    )).rejects.toMatchObject({ code: 'challenge.not_found' })
   })
 })

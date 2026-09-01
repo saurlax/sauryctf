@@ -75,6 +75,8 @@ import {
   createChallengeTemplateRequestSchema,
   createChallengeTemplateVersionRequestSchema,
   mountContestChallengeRequestSchema,
+  playerContestChallengeListResponseSchema,
+  playerContestChallengeResponseSchema,
   reviseContestChallengeRequestSchema,
 } from '../shared/contracts/challenges'
 
@@ -520,6 +522,8 @@ const document = {
       },
     },
     '/api/contests/{contestId}': { get: { operationId: 'getPublicContest', tags: ['Contests'], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }], responses: { 200: jsonResponse('Public published or archived contest projection', contestResponseSchema), 404: errorResponse } } },
+    '/api/contests/{contestId}/challenges': { get: { operationId: 'listPlayerContestChallenges', tags: ['Contests', 'Challenges'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }], responses: { 200: jsonResponse('Player-safe contest challenge projections filtered by participation and release state', playerContestChallengeListResponseSchema), 401: errorResponse, 403: errorResponse, 404: errorResponse } } },
+    '/api/contests/{contestId}/challenges/{challengeId}': { get: { operationId: 'getPlayerContestChallenge', tags: ['Contests', 'Challenges'], security: [{ cookieSession: [] }], parameters: [{ name: 'contestId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, { name: 'challengeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }], responses: { 200: jsonResponse('Player-safe contest challenge projection without Flag verification material', playerContestChallengeResponseSchema), 401: errorResponse, 403: errorResponse, 404: errorResponse } } },
     '/api/contests/{contestId}/announcements': {
       get: {
         operationId: 'listPublicAnnouncements',
