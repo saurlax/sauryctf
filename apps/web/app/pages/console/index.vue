@@ -804,6 +804,7 @@ onBeforeUnmount(() => {
               <div class="flex flex-wrap gap-2">
                 <UButton label="进入管理端" icon="i-lucide-settings-2" to="/console/admin" variant="outline" />
                 <UButton label="用户管理" icon="i-lucide-users-round" to="/console/admin/users" variant="outline" />
+                <UButton label="平台监控" icon="i-lucide-activity" to="/console/admin/monitoring" variant="outline" />
                 <UButton label="审计日志" icon="i-lucide-scroll-text" to="/console/admin/audit" variant="outline" />
                 <UButton label="浏览公开页" icon="i-lucide-arrow-up-right" to="/games" variant="outline" />
               </div>

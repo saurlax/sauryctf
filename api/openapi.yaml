@@ -14860,6 +14860,201 @@ paths:
         "404": *a1
         "409": *a1
         "428": *a1
+  /api/admin/monitoring:
+    get:
+      operationId: listAdministrationMonitoring
+      tags:
+        - Administration
+        - Observability
+      security:
+        - cookieSession: []
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          schema:
+            default: instances
+            type: string
+            enum:
+              - submissions
+              - cheat_clues
+              - instances
+              - instance_jobs
+              - announcements
+              - notifications
+              - mail_deliveries
+              - writeups
+              - audit_events
+        - name: contest_id
+          in: query
+          required: false
+          schema:
+            type: string
+            allOf:
+              - type: string
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              - type: string
+                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+        - name: challenge_id
+          in: query
+          required: false
+          schema:
+            type: string
+            allOf:
+              - type: string
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              - type: string
+                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+        - name: team_id
+          in: query
+          required: false
+          schema:
+            type: string
+            allOf:
+              - type: string
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              - type: string
+                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+            pattern: ^[a-z][a-z0-9_]*$
+        - name: limit
+          in: query
+          required: false
+          schema:
+            default: 50
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Authoritative monitoring facts with distinct cache and Worker observation timestamps
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  generated_at:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                  source:
+                    type: string
+                    const: postgresql
+                  cache_observed_at:
+                    anyOf:
+                      - type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                      - type: "null"
+                  worker_stale_after_seconds:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        kind:
+                          type: string
+                          enum:
+                            - submissions
+                            - cheat_clues
+                            - instances
+                            - instance_jobs
+                            - announcements
+                            - notifications
+                            - mail_deliveries
+                            - writeups
+                            - audit_events
+                        id:
+                          type: string
+                          allOf:
+                            - type: string
+                              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                            - type: string
+                              pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                        contest_id:
+                          anyOf:
+                            - type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                            - type: "null"
+                        challenge_id:
+                          anyOf:
+                            - type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                            - type: "null"
+                        team_id:
+                          anyOf:
+                            - type: string
+                              allOf:
+                                - type: string
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                - type: string
+                                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                            - type: "null"
+                        status:
+                          type: string
+                          minLength: 1
+                          maxLength: 128
+                        fact_at:
+                          type: string
+                          format: date-time
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                        worker_observed_at:
+                          anyOf:
+                            - type: string
+                              format: date-time
+                              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}(?:Z))$
+                            - type: "null"
+                        worker_observation_stale:
+                          type: boolean
+                        details:
+                          type: object
+                          propertyNames:
+                            type: string
+                          additionalProperties:
+                            anyOf:
+                              - type: string
+                              - type: number
+                              - type: boolean
+                              - type: "null"
+                      required:
+                        - kind
+                        - id
+                        - contest_id
+                        - challenge_id
+                        - team_id
+                        - status
+                        - fact_at
+                        - worker_observed_at
+                        - worker_observation_stale
+                        - details
+                      additionalProperties: false
+                required:
+                  - generated_at
+                  - source
+                  - cache_observed_at
+                  - worker_stale_after_seconds
+                  - items
+                additionalProperties: false
+        "400": *a1
+        "401": *a1
+        "403": *a1
+        "503": *a1
 components:
   securitySchemes:
     cookieSession:

@@ -15,6 +15,8 @@ import { SmtpMailTransport } from '../infrastructure/mail/smtp-mail-transport'
 import { ResilientRedisRateLimitStore } from '../infrastructure/security/rate-limit'
 import { structuredLog } from '../infrastructure/telemetry/logging'
 import { activeControlPlaneTelemetry } from '../infrastructure/telemetry/telemetry'
+import { AdministrationMonitoringService } from '../domains/administration/monitoring'
+import { PostgresMonitoringRepository } from '../infrastructure/db/monitoring-repository'
 import type { ControlPlaneServices } from '../services'
 import { TeamService } from '../domains/teams/service'
 import { PostgresTeamRepository } from '../infrastructure/db/team-repository'
@@ -159,6 +161,10 @@ export default defineNitroPlugin(async (nitroApp) => {
     instances: new InstanceService(
       new PostgresInstanceRepository(database.pool, activeControlPlaneTelemetry()),
       instanceLeasePolicy(process.env),
+    ),
+    monitoring: new AdministrationMonitoringService(
+      new PostgresMonitoringRepository(database.pool),
+      positiveSeconds(process.env.WORKER_OBSERVATION_STALE_SECONDS, 90) * 1000,
     ),
   }
 
@@ -316,6 +322,11 @@ function instanceLeasePolicy(environment: NodeJS.ProcessEnv) {
     renewalWindowMs: positiveMinutes(environment.INSTANCE_RENEWAL_WINDOW_MINUTES, 10) * 60_000,
     teamActiveLimit: positiveInteger(environment.INSTANCE_TEAM_ACTIVE_LIMIT, 1),
   }
+}
+
+function positiveSeconds(value: string | undefined, fallback: number) {
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback
 }
 
 function positiveMinutes(value: string | undefined, fallback: number) {

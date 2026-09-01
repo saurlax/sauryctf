@@ -125,6 +125,10 @@ import {
   updatePlatformSettingsRequestSchema,
 } from '../shared/contracts/platform-settings'
 import { playerInstanceResponseSchema } from '../shared/contracts/instances'
+import {
+  monitoringListRequestSchema,
+  monitoringListResponseSchema,
+} from '../shared/contracts/monitoring'
 
 function openApiSchema(schema: z.ZodType): Record<string, unknown> {
   const jsonSchema = z.toJSONSchema(schema, { target: 'draft-7' }) as Record<string, unknown>
@@ -1099,6 +1103,26 @@ const document = {
           404: errorResponse,
           409: errorResponse,
           428: errorResponse,
+        },
+      },
+    },
+    '/api/admin/monitoring': {
+      get: {
+        operationId: 'listAdministrationMonitoring',
+        tags: ['Administration', 'Observability'],
+        security: [{ cookieSession: [] }],
+        parameters: Object.entries(monitoringListRequestSchema.shape).map(([name, schema]) => ({
+          name,
+          in: 'query',
+          required: false,
+          schema: openApiSchema(schema),
+        })),
+        responses: {
+          200: jsonResponse('Authoritative monitoring facts with distinct cache and Worker observation timestamps', monitoringListResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          503: errorResponse,
         },
       },
     },

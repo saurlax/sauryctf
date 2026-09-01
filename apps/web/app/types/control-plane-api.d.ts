@@ -240,6 +240,9 @@ export interface paths {
     get: operations["getManagedPlatformSettings"];
     patch: operations["updatePlatformSettings"];
   };
+  "/api/admin/monitoring": {
+    get: operations["listAdministrationMonitoring"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -6730,6 +6733,73 @@ export interface operations {
       };
       /** @description Stable API error */
       428: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  listAdministrationMonitoring: {
+    parameters: {
+      query?: {
+        kind?: "submissions" | "cheat_clues" | "instances" | "instance_jobs" | "announcements" | "notifications" | "mail_deliveries" | "writeups" | "audit_events";
+        contest_id?: string;
+        challenge_id?: string;
+        team_id?: string;
+        status?: string;
+        limit?: number;
+      };
+    };
+    responses: {
+      /** @description Authoritative monitoring facts with distinct cache and Worker observation timestamps */
+      200: {
+        content: {
+          "application/json": {
+            /** Format: date-time */
+            generated_at: string;
+            /** @constant */
+            source: "postgresql";
+            cache_observed_at: string | null;
+            worker_stale_after_seconds: number;
+            items: ({
+                /** @enum {string} */
+                kind: "submissions" | "cheat_clues" | "instances" | "instance_jobs" | "announcements" | "notifications" | "mail_deliveries" | "writeups" | "audit_events";
+                id: string;
+                contest_id: string | null;
+                challenge_id: string | null;
+                team_id: string | null;
+                status: string;
+                /** Format: date-time */
+                fact_at: string;
+                worker_observed_at: string | null;
+                worker_observation_stale: boolean;
+                details: {
+                  [key: string]: string | number | boolean | null;
+                };
+              })[];
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      503: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };
