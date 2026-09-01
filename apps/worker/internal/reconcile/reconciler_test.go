@@ -2,6 +2,7 @@ package reconcile
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"sync"
@@ -53,6 +54,128 @@ type fakeBackend struct {
 	ensured   []contracts.UUID
 	inspected []string
 	destroyed []string
+}
+
+type recoveryStore struct {
+	mu                   sync.Mutex
+	desired              []DesiredInstance
+	recordFailuresLeft   int
+	recordedObservations []recordedObservation
+}
+
+func (store *recoveryStore) ListDesiredInstances(context.Context) ([]DesiredInstance, error) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	return append([]DesiredInstance(nil), store.desired...), nil
+}
+
+func (store *recoveryStore) RecordObservation(_ context.Context, instance DesiredInstance, expectedResourceID string, observation jobs.Observation) error {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if store.recordFailuresLeft > 0 {
+		store.recordFailuresLeft--
+		return errors.New("injected crash before observation writeback")
+	}
+	for index := range store.desired {
+		current := &store.desired[index]
+		if current.ID != instance.ID || current.DesiredGeneration != instance.DesiredGeneration {
+			continue
+		}
+		if current.ProviderResourceID != "" && current.ProviderResourceID != expectedResourceID {
+			return ErrObservationConflict
+		}
+		current.ObservedState = observation.State
+		current.ObservedGeneration = uint64(instance.DesiredGeneration)
+		current.ProviderResourceID = observation.ProviderResourceID
+		store.recordedObservations = append(store.recordedObservations, recordedObservation{
+			instance: instance, expectedResourceID: expectedResourceID, observation: observation,
+		})
+		return nil
+	}
+	return ErrObservationConflict
+}
+
+func (*recoveryStore) ReportOrphan(context.Context, OrphanReport) error { return nil }
+
+func (store *recoveryStore) providerResourceID() string {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if len(store.desired) == 0 {
+		return ""
+	}
+	return store.desired[0].ProviderResourceID
+}
+
+type recoveryBackend struct {
+	mu           sync.Mutex
+	resources    map[string]Resource
+	ensureCalls  int
+	inspectCalls int
+	listBarrier  *sync.WaitGroup
+}
+
+func newRecoveryBackend() *recoveryBackend {
+	return &recoveryBackend{resources: make(map[string]Resource)}
+}
+
+func (backend *recoveryBackend) ListResources(context.Context) ([]Resource, error) {
+	backend.mu.Lock()
+	resources := make([]Resource, 0, len(backend.resources))
+	for _, resource := range backend.resources {
+		resources = append(resources, resource)
+	}
+	barrier := backend.listBarrier
+	backend.mu.Unlock()
+	if barrier != nil {
+		barrier.Done()
+		barrier.Wait()
+	}
+	return resources, nil
+}
+
+func (backend *recoveryBackend) Ensure(_ context.Context, spec providers.InstanceSpec) (jobs.Observation, error) {
+	resourceID, err := spec.Key.ResourceName()
+	if err != nil {
+		return jobs.Observation{}, err
+	}
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
+	backend.ensureCalls++
+	backend.resources[spec.Key.IdentityKey()] = testResource(resourceID, Ownership(spec.Key))
+	return jobs.Observation{State: jobs.ObservedStarting, ProviderResourceID: resourceID}, nil
+}
+
+func (backend *recoveryBackend) Inspect(_ context.Context, key providers.InstanceKey) (jobs.Observation, error) {
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
+	backend.inspectCalls++
+	resource, exists := backend.resources[key.IdentityKey()]
+	if !exists {
+		return jobs.Observation{State: jobs.ObservedStopped}, nil
+	}
+	return jobs.Observation{
+		State: jobs.ObservedRunning, ProviderResourceID: resource.ResourceID,
+		Entrypoints: []jobs.Entrypoint{{Name: "web", Protocol: "http", Host: "challenge.internal", Port: 8080, URL: "https://challenge.example.test"}},
+	}, nil
+}
+
+func (backend *recoveryBackend) Destroy(_ context.Context, key providers.InstanceKey) (jobs.Observation, error) {
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
+	delete(backend.resources, key.IdentityKey())
+	return jobs.Observation{State: jobs.ObservedStopped}, nil
+}
+
+func (backend *recoveryBackend) resourceCount() int {
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
+	return len(backend.resources)
+}
+
+func (backend *recoveryBackend) deleteExternally(key providers.InstanceKey) {
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
+	delete(backend.resources, key.IdentityKey())
 }
 
 func (backend *fakeBackend) ListResources(context.Context) ([]Resource, error) {
@@ -155,6 +278,107 @@ func TestCycleReportsDuplicateCompleteIdentityWithoutManagingIt(t *testing.T) {
 	}
 	if result.Orphans != 2 || len(backend.ensured)+len(backend.inspected)+len(backend.destroyed) != 0 {
 		t.Fatalf("duplicate reconciliation result = %+v, backend = %+v", result, backend)
+	}
+}
+
+func TestCycleRecoversAfterResourceCreationBeforeObservationWriteback(t *testing.T) {
+	instance := testDesired(1, contracts.DesiredStateRunning, 1, nil)
+	store := &recoveryStore{desired: []DesiredInstance{instance}, recordFailuresLeft: 1}
+	backend := newRecoveryBackend()
+	reconciler, err := New("sauryctf", time.Minute, store, backend, discardLogger())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := reconciler.Cycle(context.Background())
+	if err == nil || first.Failures != 1 {
+		t.Fatalf("first Cycle() = %+v/%v, want injected writeback failure", first, err)
+	}
+	if backend.resourceCount() != 1 || backend.ensureCalls != 1 || store.providerResourceID() != "" {
+		t.Fatalf("state after writeback failure = resources:%d ensure:%d recorded:%q", backend.resourceCount(), backend.ensureCalls, store.providerResourceID())
+	}
+
+	second, err := reconciler.Cycle(context.Background())
+	if err != nil {
+		t.Fatalf("second Cycle() error = %v", err)
+	}
+	if second.Inspected != 1 || second.Ensured != 0 || backend.resourceCount() != 1 || backend.ensureCalls != 1 || backend.inspectCalls != 1 {
+		t.Fatalf("second Cycle() = %+v, resources/ensure/inspect = %d/%d/%d", second, backend.resourceCount(), backend.ensureCalls, backend.inspectCalls)
+	}
+	if store.providerResourceID() == "" {
+		t.Fatal("reconciler did not recover the resource observation")
+	}
+}
+
+func TestConcurrentRepeatedStartConvergesWithoutDuplicateResources(t *testing.T) {
+	instance := testDesired(1, contracts.DesiredStateRunning, 1, nil)
+	store := &recoveryStore{desired: []DesiredInstance{instance}}
+	backend := newRecoveryBackend()
+	barrier := &sync.WaitGroup{}
+	barrier.Add(2)
+	backend.listBarrier = barrier
+	reconciler, err := New("sauryctf", time.Minute, store, backend, discardLogger())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	type cycleResult struct {
+		result Result
+		err    error
+	}
+	results := make(chan cycleResult, 2)
+	for range 2 {
+		go func() {
+			result, cycleErr := reconciler.Cycle(context.Background())
+			results <- cycleResult{result: result, err: cycleErr}
+		}()
+	}
+	var failures int
+	for range 2 {
+		outcome := <-results
+		if outcome.err != nil {
+			failures += outcome.result.Failures
+		}
+	}
+	backend.mu.Lock()
+	backend.listBarrier = nil
+	ensureCalls := backend.ensureCalls
+	backend.mu.Unlock()
+	if failures != 1 || ensureCalls != 2 || backend.resourceCount() != 1 {
+		t.Fatalf("concurrent starts = failures:%d ensure:%d resources:%d, want 1/2/1", failures, ensureCalls, backend.resourceCount())
+	}
+
+	converged, err := reconciler.Cycle(context.Background())
+	if err != nil || converged.Inspected != 1 || backend.resourceCount() != 1 {
+		t.Fatalf("converging Cycle() = %+v/%v, resources:%d", converged, err, backend.resourceCount())
+	}
+}
+
+func TestCycleRecreatesExternallyDeletedResourceWithSameIdentity(t *testing.T) {
+	instance := testDesired(1, contracts.DesiredStateRunning, 1, nil)
+	store := &recoveryStore{desired: []DesiredInstance{instance}}
+	backend := newRecoveryBackend()
+	reconciler, err := New("sauryctf", time.Minute, store, backend, discardLogger())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := reconciler.Cycle(context.Background())
+	if err != nil || first.Ensured != 1 || backend.resourceCount() != 1 {
+		t.Fatalf("first Cycle() = %+v/%v, resources:%d", first, err, backend.resourceCount())
+	}
+	resourceID := store.providerResourceID()
+	backend.deleteExternally(providers.InstanceKey(instance.ownership("sauryctf")))
+	if backend.resourceCount() != 0 {
+		t.Fatal("external deletion did not remove the runtime resource")
+	}
+
+	second, err := reconciler.Cycle(context.Background())
+	if err != nil || second.Ensured != 1 || backend.resourceCount() != 1 {
+		t.Fatalf("second Cycle() = %+v/%v, resources:%d", second, err, backend.resourceCount())
+	}
+	if store.providerResourceID() != resourceID || backend.ensureCalls != 2 {
+		t.Fatalf("recreated identity = %q/%q, ensure calls = %d", store.providerResourceID(), resourceID, backend.ensureCalls)
 	}
 }
 

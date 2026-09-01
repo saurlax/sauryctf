@@ -83,7 +83,7 @@ func (runner *Runner) Run(ctx context.Context) error {
 }
 
 func (runner *Runner) process(parent context.Context, lease Lease) {
-	jobContext, cancelJob := context.WithCancel(parent)
+	jobContext, cancelJob := context.WithTimeout(parent, runner.config.OperationTimeout)
 	renewContext, cancelRenew := context.WithCancel(jobContext)
 	renewed := make(chan error, 1)
 	go func() {

@@ -98,7 +98,7 @@
 - [x] 9.4 实现 Gateway API/Ingress HTTP 入口和受控 TCP 入口适配，验证仅在 workload 与路由 Ready 后回写入口
 - [x] 9.5 实现非 root、安全上下文、禁用 ServiceAccount token、资源配额和 NetworkPolicy 默认值，使用资源快照验证危险配置被拒绝
 - [x] 9.6 实现动态 Flag 敏感载荷信封加密、注入和完成后清除，验证日志、普通任务查询和资源标签不包含 Flag
-- [ ] 9.7 注入创建后回写前崩溃、重复启动、Provider 超时和资源被外部删除，验证 Reconcile 收敛且不产生重复资源
+- [x] 9.7 注入创建后回写前崩溃、重复启动、Provider 超时和资源被外部删除，验证 Reconcile 收敛且不产生重复资源
 
 ## 10. 实现内容、设置、后台与可观测性
 

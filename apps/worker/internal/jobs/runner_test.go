@@ -118,6 +118,39 @@ func TestRunnerClassifiesAndRetriesUnknownFailure(t *testing.T) {
 	}
 }
 
+func TestRunnerBoundsProviderOperationAndRetriesTimeout(t *testing.T) {
+	repository := newFakeRepository(t)
+	processorStopped := make(chan error, 1)
+	runner := newTestRunner(repository, processorFunc(func(ctx context.Context, _ contracts.InstanceJob) error {
+		<-ctx.Done()
+		processorStopped <- ctx.Err()
+		return ctx.Err()
+	}))
+	runner.config.OperationTimeout = 25 * time.Millisecond
+
+	cancel, stopped := runRunner(t, runner)
+	waitClosed(t, repository.failed, "timed out job failure")
+	cancel()
+	waitRunner(t, stopped)
+
+	select {
+	case err := <-processorStopped:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("processor context error = %v, want context deadline exceeded", err)
+		}
+	default:
+		t.Fatal("processor did not observe its operation deadline")
+	}
+	repository.mu.Lock()
+	defer repository.mu.Unlock()
+	if repository.completeCalls != 0 || repository.failCalls != 1 || repository.interruptCalls != 0 {
+		t.Fatalf("complete/fail/interrupt calls = %d/%d/%d, want 0/1/0", repository.completeCalls, repository.failCalls, repository.interruptCalls)
+	}
+	if repository.failure != (Failure{Kind: FailureRetryable, Code: defaultTimeoutCode, Summary: defaultTimeoutSummary}) {
+		t.Fatalf("failure = %+v, want safe retryable provider timeout", repository.failure)
+	}
+}
+
 func TestRunnerPropagatesTypedFailureClassification(t *testing.T) {
 	tests := []struct {
 		name string
