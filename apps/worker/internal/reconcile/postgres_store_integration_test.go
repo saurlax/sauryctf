@@ -28,7 +28,7 @@ func TestPostgresStoreLoadsIntentAndConditionallyRecordsObservations(t *testing.
 		t.Fatalf("ListDesiredInstances() count = %d, want 1", len(instances))
 	}
 	instance := instances[0]
-	if instance.ID != uuid(1) || instance.TeamID != uuid(102) || instance.DesiredGeneration != 7 || instance.ObservedGeneration != 0 {
+	if instance.ID != uuid(1) || instance.TeamID != uuid(102) || instance.ParticipationID != uuid(103) || instance.DesiredGeneration != 7 || instance.ObservedGeneration != 0 || instance.RuntimeSpec == nil {
 		t.Fatalf("desired instance = %+v", instance)
 	}
 
@@ -91,11 +91,14 @@ func TestPostgresStoreDeduplicatesSafeOrphanReports(t *testing.T) {
 
 func insertDesiredInstance(t *testing.T, pool *pgxpool.Pool, index int) {
 	t.Helper()
-	payload := map[string]any{
-		"target": map[string]string{
-			"contest_id": string(uuid(100)), "contest_challenge_id": string(uuid(101)),
-			"participation_id": string(uuid(103)), "team_id": string(uuid(102)),
+	payload := contracts.EnsureInstanceJobPayload{
+		InstanceJobPayloadBase: contracts.InstanceJobPayloadBase{
+			Schema: "instance-job.v1", Provider: contracts.ProviderDocker,
+			Target: contracts.InstanceJobTarget{
+				ContestID: uuid(100), ContestChallengeID: uuid(101), ParticipationID: uuid(103), TeamID: uuid(102),
+			},
 		},
+		Spec: validRuntimeSpec(),
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
@@ -103,10 +106,10 @@ func insertDesiredInstance(t *testing.T, pool *pgxpool.Pool, index int) {
 	}
 	if _, err := pool.Exec(context.Background(), `
 		INSERT INTO instances (
-		  id, contest_id, contest_challenge_id, provider, desired_state,
+		  id, contest_id, contest_challenge_id, participation_id, provider, desired_state,
 		  desired_generation, observed_state, observed_generation
-		) VALUES ($1, $2, $3, 'docker', 'running', 7, 'pending', 0)`,
-		string(uuid(index)), string(uuid(100)), string(uuid(101)),
+		) VALUES ($1, $2, $3, $4, 'docker', 'running', 7, 'pending', 0)`,
+		string(uuid(index)), string(uuid(100)), string(uuid(101)), string(uuid(103)),
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -175,6 +178,7 @@ CREATE TABLE instances (
   id uuid PRIMARY KEY,
   contest_id uuid NOT NULL,
   contest_challenge_id uuid NOT NULL,
+  participation_id uuid NOT NULL,
   provider instance_provider NOT NULL,
   desired_state instance_desired_state NOT NULL,
   desired_generation bigint NOT NULL,

@@ -3,11 +3,13 @@ package reconcile
 import (
 	"errors"
 	"testing"
+
+	"github.com/saurlax/sauryctf/apps/worker/internal/contracts"
 )
 
 func TestParseOwnershipRequiresEveryPlatformIdentityLabel(t *testing.T) {
 	labels := testOwnership("sauryctf", uuid(1), 7).Labels()
-	parsed, err := ParseOwnership(labels, "sauryctf")
+	parsed, err := ParseOwnership(labels, "sauryctf", contracts.ProviderDocker)
 	if err != nil {
 		t.Fatalf("ParseOwnership() error = %v", err)
 	}
@@ -16,14 +18,14 @@ func TestParseOwnershipRequiresEveryPlatformIdentityLabel(t *testing.T) {
 	}
 
 	delete(labels, LabelTeam)
-	if _, err := ParseOwnership(labels, "sauryctf"); !errors.Is(err, ErrIncompleteLabels) {
+	if _, err := ParseOwnership(labels, "sauryctf", contracts.ProviderDocker); !errors.Is(err, ErrIncompleteLabels) {
 		t.Fatalf("incomplete ParseOwnership() error = %v, want ErrIncompleteLabels", err)
 	}
 }
 
 func TestParseOwnershipRejectsForeignPlatformBeforeConsideringOtherLabels(t *testing.T) {
 	labels := map[string]string{LabelPlatform: "another-platform"}
-	if _, err := ParseOwnership(labels, "sauryctf"); !errors.Is(err, ErrUnmanagedResource) {
+	if _, err := ParseOwnership(labels, "sauryctf", contracts.ProviderDocker); !errors.Is(err, ErrUnmanagedResource) {
 		t.Fatalf("ParseOwnership() error = %v, want ErrUnmanagedResource", err)
 	}
 }

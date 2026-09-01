@@ -10,6 +10,7 @@ import (
 
 	"github.com/saurlax/sauryctf/apps/worker/internal/contracts"
 	"github.com/saurlax/sauryctf/apps/worker/internal/jobs"
+	"github.com/saurlax/sauryctf/apps/worker/internal/providers"
 )
 
 type recordedObservation struct {
@@ -58,21 +59,22 @@ func (backend *fakeBackend) ListResources(context.Context) ([]Resource, error) {
 	return append([]Resource(nil), backend.resources...), nil
 }
 
-func (backend *fakeBackend) Ensure(_ context.Context, instance DesiredInstance) (jobs.Observation, error) {
-	backend.ensured = append(backend.ensured, instance.ID)
-	return jobs.Observation{State: jobs.ObservedStarting, ProviderResourceID: "resource/" + string(instance.ID)}, nil
+func (backend *fakeBackend) Ensure(_ context.Context, spec providers.InstanceSpec) (jobs.Observation, error) {
+	backend.ensured = append(backend.ensured, spec.Key.Instance)
+	return jobs.Observation{State: jobs.ObservedStarting, ProviderResourceID: "resource/" + string(spec.Key.Instance)}, nil
 }
 
-func (backend *fakeBackend) Inspect(_ context.Context, instance DesiredInstance, resource Resource) (jobs.Observation, error) {
-	backend.inspected = append(backend.inspected, resource.ResourceID)
+func (backend *fakeBackend) Inspect(_ context.Context, key providers.InstanceKey) (jobs.Observation, error) {
+	resourceID := fakeResourceID(key)
+	backend.inspected = append(backend.inspected, resourceID)
 	return jobs.Observation{
-		State: jobs.ObservedRunning, ProviderResourceID: resource.ResourceID,
+		State: jobs.ObservedRunning, ProviderResourceID: resourceID,
 		Entrypoints: []jobs.Entrypoint{{Name: "web", Protocol: "http", Host: "challenge.internal", Port: 8080, URL: "https://challenge.example.test"}},
 	}, nil
 }
 
-func (backend *fakeBackend) Destroy(_ context.Context, _ DesiredInstance, resource Resource) (jobs.Observation, error) {
-	backend.destroyed = append(backend.destroyed, resource.ResourceID)
+func (backend *fakeBackend) Destroy(_ context.Context, key providers.InstanceKey) (jobs.Observation, error) {
+	backend.destroyed = append(backend.destroyed, fakeResourceID(key))
 	return jobs.Observation{State: jobs.ObservedStopped}, nil
 }
 
@@ -187,15 +189,16 @@ func TestRunPerformsImmediateAndPeriodicCyclesUntilCancelled(t *testing.T) {
 }
 
 func testDesired(index int, state contracts.InstanceDesiredState, generation contracts.ResourceVersion, expiresAt *time.Time) DesiredInstance {
+	runtimeSpec := validRuntimeSpec()
 	return DesiredInstance{
 		ID: uuid(index), Provider: contracts.ProviderDocker, DesiredState: state,
 		DesiredGeneration: generation, ObservedState: jobs.ObservedPending,
-		ExpiresAt: expiresAt, ContestID: uuid(100), ChallengeID: uuid(101), TeamID: uuid(102),
+		ExpiresAt: expiresAt, ContestID: uuid(100), ChallengeID: uuid(101), ParticipationID: uuid(103), TeamID: uuid(102), RuntimeSpec: &runtimeSpec,
 	}
 }
 
 func testOwnership(platform string, instance contracts.UUID, generation contracts.ResourceVersion) Ownership {
-	return Ownership{Platform: platform, Contest: uuid(100), Challenge: uuid(101), Team: uuid(102), Instance: instance, Generation: generation}
+	return Ownership{Platform: platform, Provider: contracts.ProviderDocker, Contest: uuid(100), Challenge: uuid(101), Team: uuid(102), Instance: instance, Generation: generation}
 }
 
 func ownershipForGeneration(instance DesiredInstance, platform string, generation contracts.ResourceVersion) Ownership {
@@ -205,7 +208,33 @@ func ownershipForGeneration(instance DesiredInstance, platform string, generatio
 }
 
 func testResource(resourceID string, ownership Ownership) Resource {
-	return Resource{Provider: contracts.ProviderDocker, ResourceID: resourceID, Labels: ownership.Labels()}
+	return Resource{Provider: ownership.Provider, ResourceID: resourceID, Labels: ownership.Labels()}
+}
+
+func validRuntimeSpec() contracts.InstanceRuntimeSpec {
+	return contracts.InstanceRuntimeSpec{
+		Image:       "registry.example.test/challenge@sha256:0123456789abcdef",
+		Entrypoints: []contracts.InstanceEntrypointSpec{{Name: "web", Protocol: "http", ContainerPort: 8080}},
+		Resources: contracts.InstanceResourceLimits{
+			CPUMillicores: 500, MemoryBytes: 256 * 1024 * 1024, EphemeralStorageBytes: 512 * 1024 * 1024,
+		},
+		Network: contracts.InstanceNetworkPolicy{Egress: "deny"},
+	}
+}
+
+func fakeResourceID(key providers.InstanceKey) string {
+	switch {
+	case key.Instance == uuid(1):
+		return "resource/current"
+	case key.Instance == uuid(2):
+		return "resource/stopped"
+	case key.Instance == uuid(3) && key.Generation == 1:
+		return "resource/stale"
+	case key.Instance == uuid(6):
+		return "resource/expired"
+	default:
+		return "resource/" + string(key.Instance)
+	}
 }
 
 func uuid(index int) contracts.UUID {

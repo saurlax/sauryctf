@@ -10,6 +10,7 @@ import (
 
 	"github.com/saurlax/sauryctf/apps/worker/internal/contracts"
 	"github.com/saurlax/sauryctf/apps/worker/internal/jobs"
+	"github.com/saurlax/sauryctf/apps/worker/internal/providers"
 )
 
 type DesiredInstance struct {
@@ -23,12 +24,14 @@ type DesiredInstance struct {
 	ProviderResourceID string
 	ContestID          contracts.UUID
 	ChallengeID        contracts.UUID
+	ParticipationID    contracts.UUID
 	TeamID             contracts.UUID
+	RuntimeSpec        *contracts.InstanceRuntimeSpec
 }
 
 func (instance DesiredInstance) ownership(platformID string) Ownership {
 	return Ownership{
-		Platform: platformID, Contest: instance.ContestID, Challenge: instance.ChallengeID,
+		Platform: platformID, Provider: instance.Provider, Contest: instance.ContestID, Challenge: instance.ChallengeID,
 		Team: instance.TeamID, Instance: instance.ID, Generation: instance.DesiredGeneration,
 	}
 }
@@ -40,7 +43,8 @@ func (instance DesiredInstance) shouldStop(now time.Time) bool {
 func (instance DesiredInstance) validate() error {
 	for name, value := range map[string]contracts.UUID{
 		"id": instance.ID, "contest_id": instance.ContestID,
-		"challenge_id": instance.ChallengeID, "team_id": instance.TeamID,
+		"challenge_id": instance.ChallengeID, "participation_id": instance.ParticipationID,
+		"team_id": instance.TeamID,
 	} {
 		if err := value.Validate(); err != nil {
 			return fmt.Errorf("%s: %w", name, err)
@@ -58,27 +62,21 @@ func (instance DesiredInstance) validate() error {
 	if instance.ObservedGeneration > uint64(instance.DesiredGeneration) {
 		return errors.New("observed generation is ahead of desired generation")
 	}
+	if instance.DesiredState == contracts.DesiredStateRunning {
+		if instance.RuntimeSpec == nil {
+			return errors.New("running desired instance requires a runtime spec")
+		}
+		if err := instance.RuntimeSpec.Validate(); err != nil {
+			return fmt.Errorf("runtime spec: %w", err)
+		}
+	}
 	if len(instance.ProviderResourceID) > 255 || strings.TrimSpace(instance.ProviderResourceID) != instance.ProviderResourceID {
 		return errors.New("provider resource id must contain at most 255 trimmed characters")
 	}
 	return nil
 }
 
-type Resource struct {
-	Provider   contracts.InstanceProvider
-	ResourceID string
-	Labels     map[string]string
-}
-
-func (resource Resource) validate() error {
-	if err := resource.Provider.Validate(); err != nil {
-		return err
-	}
-	if resource.ResourceID == "" || len(resource.ResourceID) > 255 || strings.TrimSpace(resource.ResourceID) != resource.ResourceID {
-		return errors.New("resource id must contain 1-255 trimmed characters")
-	}
-	return nil
-}
+type Resource = providers.Resource
 
 type OrphanReason string
 
@@ -102,15 +100,6 @@ type Store interface {
 	ReportOrphan(context.Context, OrphanReport) error
 }
 
-// Backend is the reconciliation-facing resource surface. Concrete provider
-// contracts and adapters are introduced by the next OpenSpec tasks.
-type Backend interface {
-	ListResources(context.Context) ([]Resource, error)
-	Ensure(context.Context, DesiredInstance) (jobs.Observation, error)
-	Inspect(context.Context, DesiredInstance, Resource) (jobs.Observation, error)
-	Destroy(context.Context, DesiredInstance, Resource) (jobs.Observation, error)
-}
-
 type Result struct {
 	Desired   int
 	Resources int
@@ -126,12 +115,12 @@ type Reconciler struct {
 	platformID string
 	interval   time.Duration
 	store      Store
-	backend    Backend
+	backend    providers.Backend
 	logger     *slog.Logger
 	now        func() time.Time
 }
 
-func New(platformID string, interval time.Duration, store Store, backend Backend, logger *slog.Logger) (*Reconciler, error) {
+func New(platformID string, interval time.Duration, store Store, backend providers.Backend, logger *slog.Logger) (*Reconciler, error) {
 	if platformID == "" || interval <= 0 || store == nil || backend == nil || logger == nil {
 		return nil, errors.New("reconciler requires platform id, positive interval, store, backend, and logger")
 	}
@@ -194,19 +183,19 @@ func (reconciler *Reconciler) Cycle(ctx context.Context) (Result, error) {
 	managed := make([]managedResource, 0, len(resources))
 	identityCounts := make(map[string]int)
 	for _, resource := range resources {
-		if err := resource.validate(); err != nil {
+		if err := resource.Validate(); err != nil {
 			result.Unmanaged++
 			reconciler.warnUnmanaged(resource, err)
 			continue
 		}
-		ownership, err := ParseOwnership(resource.Labels, reconciler.platformID)
+		ownership, err := ParseOwnership(resource.Labels, reconciler.platformID, resource.Provider)
 		if err != nil {
 			result.Unmanaged++
 			reconciler.warnUnmanaged(resource, err)
 			continue
 		}
 		managed = append(managed, managedResource{resource: resource, ownership: ownership})
-		identityCounts[ownership.identityKey(resource.Provider)]++
+		identityCounts[ownership.identityKey()]++
 	}
 
 	handled := make(map[contracts.UUID]bool, len(desired))
@@ -218,7 +207,7 @@ func (reconciler *Reconciler) Cycle(ctx context.Context) (Result, error) {
 			failures = reconciler.report(ctx, &result, failures, candidate, OrphanUnknownInstance)
 			continue
 		}
-		if identityCounts[candidate.ownership.identityKey(candidate.resource.Provider)] > 1 {
+		if identityCounts[candidate.ownership.identityKey()] > 1 {
 			blocked[instance.ID] = true
 			failures = reconciler.report(ctx, &result, failures, candidate, OrphanDuplicateIdentity)
 			continue
@@ -240,7 +229,7 @@ func (reconciler *Reconciler) Cycle(ctx context.Context) (Result, error) {
 			continue
 		}
 		if candidate.ownership.Generation < instance.DesiredGeneration {
-			observation, destroyErr := reconciler.backend.Destroy(ctx, instance, candidate.resource)
+			observation, destroyErr := reconciler.backend.Destroy(ctx, providers.InstanceKey(candidate.ownership))
 			if destroyErr != nil {
 				failures = append(failures, fmt.Errorf("destroy stale resource %s: %w", candidate.resource.ResourceID, destroyErr))
 				result.Failures++
@@ -255,7 +244,7 @@ func (reconciler *Reconciler) Cycle(ctx context.Context) (Result, error) {
 
 		handled[instance.ID] = true
 		if instance.shouldStop(cycleTime) {
-			observation, destroyErr := reconciler.backend.Destroy(ctx, instance, candidate.resource)
+			observation, destroyErr := reconciler.backend.Destroy(ctx, providers.InstanceKey(candidate.ownership))
 			if destroyErr != nil {
 				failures = append(failures, fmt.Errorf("destroy resource %s: %w", candidate.resource.ResourceID, destroyErr))
 				result.Failures++
@@ -274,7 +263,7 @@ func (reconciler *Reconciler) Cycle(ctx context.Context) (Result, error) {
 			result.Destroyed++
 			continue
 		}
-		observation, inspectErr := reconciler.backend.Inspect(ctx, instance, candidate.resource)
+		observation, inspectErr := reconciler.backend.Inspect(ctx, providers.InstanceKey(candidate.ownership))
 		if inspectErr != nil {
 			failures = append(failures, fmt.Errorf("inspect resource %s: %w", candidate.resource.ResourceID, inspectErr))
 			result.Failures++
@@ -302,7 +291,11 @@ func (reconciler *Reconciler) Cycle(ctx context.Context) (Result, error) {
 			}
 			continue
 		}
-		observation, ensureErr := reconciler.backend.Ensure(ctx, instance)
+		observation, ensureErr := reconciler.backend.Ensure(ctx, providers.InstanceSpec{
+			Key:       providers.InstanceKey(instance.ownership(reconciler.platformID)),
+			Runtime:   *instance.RuntimeSpec,
+			ExpiresAt: instance.ExpiresAt,
+		})
 		if ensureErr != nil {
 			failures = append(failures, fmt.Errorf("ensure instance %s: %w", instance.ID, ensureErr))
 			result.Failures++

@@ -75,4 +75,12 @@ or unknown identities are upserted into `instance_orphan_reports` for manual
 disposition. Concrete Docker and Kubernetes adapters are wired into this loop
 by the provider implementation tasks.
 
+All runtime adapters implement the same `Ensure(InstanceSpec)`,
+`Inspect(InstanceKey)`, `Destroy(InstanceKey)`, and platform-scoped inventory
+contract. Keys generate one DNS-safe deterministic name from a deployment hash,
+the complete instance UUID, and desired generation, so retries converge without
+truncated-ID collisions. The shared provider contract suite requires repeated
+destroy calls for an absent resource to return the same valid `stopped`
+observation.
+
 Run locally with `pnpm dev:worker` after configuring the Worker variables.

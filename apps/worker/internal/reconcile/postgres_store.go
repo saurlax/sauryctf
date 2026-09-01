@@ -28,10 +28,11 @@ SELECT instance.id::text, instance.provider::text, instance.desired_state::text,
        instance.desired_generation, instance.observed_state::text,
        instance.observed_generation, instance.expires_at,
        COALESCE(instance.provider_resource_id, ''), instance.contest_id::text,
-       instance.contest_challenge_id::text, COALESCE(target.team_id, '')
+       instance.contest_challenge_id::text, instance.participation_id::text,
+       COALESCE(target.operation, ''), COALESCE(target.payload, '{}'::jsonb)
 FROM instances AS instance
 LEFT JOIN LATERAL (
-  SELECT job.payload #>> '{target,team_id}' AS team_id
+  SELECT job.operation::text AS operation, job.payload
   FROM instance_jobs AS job
   WHERE job.instance_id = instance.id
     AND job.desired_generation = instance.desired_generation
@@ -48,18 +49,28 @@ ORDER BY instance.id`)
 	instances := make([]DesiredInstance, 0)
 	for rows.Next() {
 		var instance DesiredInstance
-		var provider, desiredState, observedState string
+		var provider, desiredState, observedState, operation string
+		var payload json.RawMessage
 		if err := rows.Scan(
 			&instance.ID, &provider, &desiredState, &instance.DesiredGeneration,
 			&observedState, &instance.ObservedGeneration, &instance.ExpiresAt,
 			&instance.ProviderResourceID, &instance.ContestID, &instance.ChallengeID,
-			&instance.TeamID,
+			&instance.ParticipationID, &operation, &payload,
 		); err != nil {
 			return nil, fmt.Errorf("scan desired instance: %w", err)
 		}
 		instance.Provider = contracts.InstanceProvider(provider)
 		instance.DesiredState = contracts.InstanceDesiredState(desiredState)
 		instance.ObservedState = jobs.ObservedState(observedState)
+		base, runtimeSpec, err := decodeDesiredPayload(contracts.InstanceJobOperation(operation), payload)
+		if err != nil {
+			return nil, fmt.Errorf("decode desired instance %s job payload: %w", instance.ID, err)
+		}
+		if base.Provider != instance.Provider || base.Target.ContestID != instance.ContestID || base.Target.ContestChallengeID != instance.ChallengeID || base.Target.ParticipationID != instance.ParticipationID {
+			return nil, fmt.Errorf("desired instance %s job target does not match authoritative row", instance.ID)
+		}
+		instance.TeamID = base.Target.TeamID
+		instance.RuntimeSpec = runtimeSpec
 		if err := instance.validate(); err != nil {
 			return nil, fmt.Errorf("validate desired instance %s: %w", instance.ID, err)
 		}
@@ -69,6 +80,49 @@ ORDER BY instance.id`)
 		return nil, fmt.Errorf("read desired instances: %w", err)
 	}
 	return instances, nil
+}
+
+func decodeDesiredPayload(operation contracts.InstanceJobOperation, raw json.RawMessage) (contracts.InstanceJobPayloadBase, *contracts.InstanceRuntimeSpec, error) {
+	switch operation {
+	case contracts.OperationEnsure:
+		var payload contracts.EnsureInstanceJobPayload
+		if err := json.Unmarshal(raw, &payload); err != nil {
+			return contracts.InstanceJobPayloadBase{}, nil, err
+		}
+		if err := payload.Validate(); err != nil {
+			return contracts.InstanceJobPayloadBase{}, nil, err
+		}
+		return payload.InstanceJobPayloadBase, &payload.Spec, nil
+	case contracts.OperationInspect:
+		var payload contracts.InspectInstanceJobPayload
+		if err := json.Unmarshal(raw, &payload); err != nil {
+			return contracts.InstanceJobPayloadBase{}, nil, err
+		}
+		if err := payload.Validate(); err != nil {
+			return contracts.InstanceJobPayloadBase{}, nil, err
+		}
+		return payload.InstanceJobPayloadBase, nil, nil
+	case contracts.OperationDestroy:
+		var payload contracts.DestroyInstanceJobPayload
+		if err := json.Unmarshal(raw, &payload); err != nil {
+			return contracts.InstanceJobPayloadBase{}, nil, err
+		}
+		if err := payload.Validate(); err != nil {
+			return contracts.InstanceJobPayloadBase{}, nil, err
+		}
+		return payload.InstanceJobPayloadBase, nil, nil
+	case contracts.OperationReconcile:
+		var payload contracts.ReconcileInstanceJobPayload
+		if err := json.Unmarshal(raw, &payload); err != nil {
+			return contracts.InstanceJobPayloadBase{}, nil, err
+		}
+		if err := payload.Validate(); err != nil {
+			return contracts.InstanceJobPayloadBase{}, nil, err
+		}
+		return payload.InstanceJobPayloadBase, payload.Spec, nil
+	default:
+		return contracts.InstanceJobPayloadBase{}, nil, fmt.Errorf("unknown operation %q", operation)
+	}
 }
 
 func (store *PostgresStore) RecordObservation(ctx context.Context, instance DesiredInstance, expectedResourceID string, observation jobs.Observation) error {
@@ -114,10 +168,13 @@ WHERE id = $1 AND desired_generation = $2
 }
 
 func (store *PostgresStore) ReportOrphan(ctx context.Context, report OrphanReport) error {
-	if err := report.Resource.validate(); err != nil {
+	if err := report.Resource.Validate(); err != nil {
 		return fmt.Errorf("validate orphan resource: %w", err)
 	}
-	if _, err := ParseOwnership(report.Ownership.Labels(), report.Ownership.Platform); err != nil {
+	if report.Ownership.Provider != report.Resource.Provider {
+		return errors.New("orphan ownership provider does not match resource provider")
+	}
+	if _, err := ParseOwnership(report.Ownership.Labels(), report.Ownership.Platform, report.Resource.Provider); err != nil {
 		return fmt.Errorf("validate orphan ownership: %w", err)
 	}
 	switch report.Reason {
