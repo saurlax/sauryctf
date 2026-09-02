@@ -53,6 +53,7 @@ Do not add application business source under root `cmd/`, `internal/`,
 | Check pinned toolchain | `pnpm check:toolchain` |
 | Test shared contracts | `pnpm test:contracts` |
 | Test database migrations | `pnpm test:db` |
+| Run full release acceptance | `pnpm test:release` |
 | Type-check Nuxt | `pnpm typecheck` |
 | Build Nuxt/Nitro | `pnpm build` |
 | Test active Go worker | `pnpm test:worker` |

@@ -42,6 +42,7 @@ pnpm test:security
 pnpm test:instances:lifecycle
 pnpm test:onboarding
 pnpm test:smoke
+pnpm test:release
 pnpm typecheck
 pnpm build
 pnpm test:worker

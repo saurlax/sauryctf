@@ -1,0 +1,30 @@
+name: Release acceptance
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  jeopardy-first-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.20.0
+          cache: pnpm
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.3
+          cache-dependency-path: apps/worker/go.sum
+      - name: Install OpenSpec
+        run: npm install --global @fission-ai/openspec@1.11.0
+      - name: Verify release candidate
+        run: pnpm test:release

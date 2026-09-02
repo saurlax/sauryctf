@@ -56,6 +56,8 @@ Worker 至少需要 `WORKER_ID`、`WORKER_DATABASE_URL`、`WORKER_ENABLED_PROVID
 7. 检查管理监控、邮件投递、实例队列、排行榜版本和 OTEL 信号，执行发布 smoke。
 8. 旧控制面副本完成连接排空后下线；Worker 滚动退出时必须停止领取并安全释放租约。
 
+发布候选必须先执行 `pnpm test:release`。该命令为 fail-fast 总门禁；任一冻结安装、OpenAPI 一致性、身份安全、容量指标、故障恢复、备份恢复、真实实例生命周期、类型检查或构建失败都会返回非零并阻止发布。Pull Request 工作流执行同一命令。
+
 控制面和 Worker 都可横向扩容。控制面连接池总预算按“每副本连接上限 × 副本数”计算并低于 PostgreSQL 可用连接数；Worker 同时考虑 `WORKER_DATABASE_MAX_CONNECTIONS`、领取批量和任务并发，避免抢占控制面连接预算。
 
 ## Probes

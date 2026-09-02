@@ -48,6 +48,7 @@
 - [运维 Runbook](./operations/runbook.md)
 - [应急响应](./operations/incident-response.md)
 - [备份与恢复](./operations/backup-restore.md)
+- [首期发布验收报告](./releases/2026-09-02-jeopardy-first-release-acceptance.md)
 
 ## Guide
 
