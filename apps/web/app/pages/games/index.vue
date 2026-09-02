@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { components } from '~/types/api'
+import { buildAuthEntryPath } from '~/utils/auth-redirect'
 
 type Game = components['schemas']['Game']
 type GameParticipation = components['schemas']['GameParticipation']

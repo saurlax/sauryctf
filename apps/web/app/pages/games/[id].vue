@@ -2,6 +2,13 @@
 import * as z from 'zod'
 import type { FormSubmitEvent } from '@nuxt/ui'
 import type { components } from '~/types/api'
+import { buildAuthEntryPath } from '~/utils/auth-redirect'
+import {
+  getChallengeAttachmentDisplayName,
+  getChallengeAttachmentMeta,
+  getChallengeAttachments,
+  getChallengeHints,
+} from '~/utils/challenge-content'
 
 type Game = components['schemas']['Game']
 type GameChallengeDetail = components['schemas']['GameChallengeDetail']

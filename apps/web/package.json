@@ -19,9 +19,9 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "3.888.0",
-    "@aws-sdk/s3-request-presigner": "3.888.0",
-    "@nuxt/ui": "^4.8.0",
+    "@aws-sdk/client-s3": "3.1124.0",
+    "@aws-sdk/s3-request-presigner": "3.1124.0",
+    "@nuxt/ui": "4.11.0",
     "@opentelemetry/api": "1.9.1",
     "@opentelemetry/exporter-metrics-otlp-http": "0.222.0",
     "@opentelemetry/exporter-trace-otlp-http": "0.222.0",
@@ -32,8 +32,8 @@
     "drizzle-orm": "0.45.2",
     "fflate": "0.8.2",
     "h3": "1.15.11",
-    "nodemailer": "^7.0.13",
-    "nuxt": "^4.4.2",
+    "nodemailer": "9.1.1",
+    "nuxt": "4.5.2",
     "nuxt-auth-utils": "^0.5.30",
     "pg": "8.23.0",
     "redis": "5.8.2",
@@ -44,7 +44,7 @@
   },
   "devDependencies": {
     "@types/archiver": "7.0.0",
-    "@types/nodemailer": "^7.0.12",
+    "@types/nodemailer": "8.0.1",
     "@types/pg": "8.23.1",
     "drizzle-kit": "0.31.10",
     "tsx": "4.23.13",
