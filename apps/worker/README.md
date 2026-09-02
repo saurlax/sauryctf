@@ -1,25 +1,28 @@
 # SauryCTF instance worker
 
 This directory is the independent Go module for the private dynamic-instance
-worker. It will consume versioned `instance_jobs`, operate approved Docker or
-Kubernetes providers, reconcile managed resources, and write observations back
+worker. It consumes versioned `instance_jobs`, operates approved Docker or
+Kubernetes providers, reconciles managed resources, and writes observations back
 to PostgreSQL.
 
 The worker must not expose public user, authentication, contest, submission, or
 administration APIs. It must not import code from `legacy/go-monolith`.
 
-The executable entry point is `cmd/worker`. At this stage it exposes only the
-private `/health/live` and `/health/ready` probes; all other paths return 404.
-It does not register authentication, user, team, contest, submission,
-scoreboard, or administration routes.
+The executable entry point is `cmd/worker`. It starts the leased job runner,
+periodic reconciler, and private `/health/live` and `/health/ready` probes; all
+other HTTP paths return 404. It does not register authentication, user, team,
+contest, submission, scoreboard, or administration routes.
 
 Required configuration:
 
 - `WORKER_ID`: stable identifier for lease ownership.
 - `WORKER_DATABASE_URL`: PostgreSQL URL for a dedicated credentialed login.
+- `WORKER_ENABLED_PROVIDERS`: comma-separated `docker`, `kubernetes`, or both.
 - `INSTANCE_SECRET_KEYS`: deployment Secret containing a JSON keyring of
   unpadded base64url-encoded 32-byte envelope keys. Retain old keys while any
   live instance generation still references them.
+- `WORKER_DOCKER_PUBLIC_HOST`: plain hostname or IP returned in Docker
+  entrypoints; required when `docker` is enabled.
 
 Optional configuration:
 
@@ -36,22 +39,32 @@ Optional configuration:
 - `WORKER_LEASE_RENEW_INTERVAL` (default `10s`, must be shorter than the lease)
 - `WORKER_POLL_INTERVAL` (default `1s`)
 - `WORKER_RECONCILE_INTERVAL` (default `30s`)
+- `WORKER_OPERATION_TIMEOUT` (default `5m`)
 - `WORKER_RETRY_INITIAL_DELAY` (default `1s`)
 - `WORKER_RETRY_MAX_DELAY` (default `1m`)
+- `WORKER_DOCKER_ENDPOINT` (default `unix:///var/run/docker.sock`)
+- `WORKER_DOCKER_API_VERSION` (default `v1.47`)
+- `WORKER_KUBERNETES_NAMESPACE` (default `sauryctf-instances`)
+- `WORKER_KUBERNETES_HTTP_DOMAIN` (enables HTTP Ingress routes)
+- `WORKER_KUBERNETES_INGRESS_CLASS`
+- `WORKER_KUBERNETES_TLS_SECRET`
+- `WORKER_KUBERNETES_TCP_PORT_START` (enables the controlled TCP port range)
+- `WORKER_KUBERNETES_LOAD_BALANCER_CLASS`
 
-The process starts even while PostgreSQL is temporarily unavailable: liveness
-continues to succeed and readiness fails until the restricted role and instance
-job schema are available. Apply `deploy/postgres/worker-role.sql` after the Web
-migrations, then grant that group role to the deployment-specific login role.
-Passwords stay in deployment Secrets and are never stored in this repository.
+The process starts even while PostgreSQL or an enabled Provider is temporarily
+unavailable: liveness continues to succeed and readiness fails until the
+restricted role, instance job schema, and every enabled Provider can be
+queried. Apply `deploy/postgres/worker-role.sql` after the Web migrations, then
+grant that group role to the deployment-specific login role. Passwords stay in
+deployment Secrets and are never stored in this repository.
 
 The job runner claims bounded batches with PostgreSQL `FOR UPDATE SKIP LOCKED`.
 Every claim increments a fencing token; renewal and completion require the
 current Worker identity and token. On shutdown the runner stops claiming,
 cancels active provider operations, returns their current leases to the queue,
-and waits for those operations to finish. Provider implementations are wired
-into the process by later OpenSpec tasks, so the current executable does not
-consume jobs with a placeholder processor.
+and waits for those operations to finish. The production processor maps only
+`ensure`, `inspect`, `destroy`, and `reconcile` jobs to the selected Provider,
+then records observations with the active lease owner and fencing token.
 
 Every claim also opens an immutable numbered attempt. Provider failures use
 safe typed classifications: retryable failures enter capped exponential
@@ -75,8 +88,7 @@ missing, or malformed ownership labels produce structured warnings and are
 never adopted or deleted. Clearly stale generations and current resources that
 are stopped or expired are converged idempotently; ambiguous, future, duplicate,
 or unknown identities are upserted into `instance_orphan_reports` for manual
-disposition. Concrete Docker and Kubernetes adapters are wired into this loop
-by the provider implementation tasks.
+disposition. The configured Docker and Kubernetes adapters share this loop.
 
 All runtime adapters implement the same `Ensure(InstanceSpec)`,
 `Inspect(InstanceKey)`, `Destroy(InstanceKey)`, and platform-scoped inventory

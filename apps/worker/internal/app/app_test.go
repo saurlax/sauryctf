@@ -15,6 +15,16 @@ type databaseStub struct {
 	closed chan struct{}
 }
 
+type componentStub struct {
+	started chan struct{}
+}
+
+func (component *componentStub) Run(ctx context.Context) error {
+	close(component.started)
+	<-ctx.Done()
+	return nil
+}
+
 func (database *databaseStub) Ready(context.Context) error {
 	return nil
 }
@@ -25,11 +35,22 @@ func (database *databaseStub) Close() {
 
 func TestRunStopsGracefullyAndClosesDatabase(t *testing.T) {
 	database := &databaseStub{closed: make(chan struct{})}
-	worker := New(testConfig("127.0.0.1:0"), database, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	component := &componentStub{started: make(chan struct{})}
+	worker, err := New(testConfig("127.0.0.1:0"), database, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, component)
+	if err != nil {
+		t.Fatal(err)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
+	stopped := make(chan error, 1)
+	go func() { stopped <- worker.Run(ctx) }()
+	select {
+	case <-component.started:
+	case <-time.After(time.Second):
+		t.Fatal("background component did not start")
+	}
 	cancel()
 
-	if err := worker.Run(ctx); err != nil {
+	if err := <-stopped; err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 	select {
@@ -47,7 +68,10 @@ func TestRunClosesDatabaseWhenHealthAddressCannotBind(t *testing.T) {
 	defer listener.Close()
 
 	database := &databaseStub{closed: make(chan struct{})}
-	worker := New(testConfig(listener.Addr().String()), database, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	worker, err := New(testConfig(listener.Addr().String()), database, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, &componentStub{started: make(chan struct{})})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := worker.Run(context.Background()); err == nil {
 		t.Fatal("Run() succeeded on an occupied address")
 	}
@@ -55,6 +79,13 @@ func TestRunClosesDatabaseWhenHealthAddressCannotBind(t *testing.T) {
 	case <-database.closed:
 	case <-time.After(time.Second):
 		t.Fatal("database was not closed after bind failure")
+	}
+}
+
+func TestNewRejectsHealthOnlyWorker(t *testing.T) {
+	database := &databaseStub{closed: make(chan struct{})}
+	if _, err := New(testConfig("127.0.0.1:0"), database, slog.New(slog.NewTextHandler(io.Discard, nil)), nil); err == nil {
+		t.Fatal("New() accepted a worker without job or reconciliation components")
 	}
 }
 

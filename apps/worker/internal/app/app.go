@@ -19,23 +19,35 @@ type Database interface {
 	Close()
 }
 
+type Component interface {
+	Run(context.Context) error
+}
+
 type App struct {
-	config    config.Config
-	database  Database
-	logger    *slog.Logger
-	telemetry *telemetry.Worker
+	config     config.Config
+	database   Database
+	logger     *slog.Logger
+	telemetry  *telemetry.Worker
+	components []Component
 }
 
-func New(workerConfig config.Config, database Database, logger *slog.Logger, instruments ...*telemetry.Worker) *App {
-	var workerTelemetry *telemetry.Worker
-	if len(instruments) > 0 {
-		workerTelemetry = instruments[0]
+func New(workerConfig config.Config, database Database, logger *slog.Logger, workerTelemetry *telemetry.Worker, components ...Component) (*App, error) {
+	if database == nil || logger == nil || len(components) == 0 {
+		return nil, errors.New("instance worker requires database, logger, and background components")
 	}
-	return &App{config: workerConfig, database: database, logger: logger, telemetry: workerTelemetry}
+	for _, component := range components {
+		if component == nil {
+			return nil, errors.New("instance worker background component must not be nil")
+		}
+	}
+	return &App{
+		config: workerConfig, database: database, logger: logger, telemetry: workerTelemetry,
+		components: append([]Component(nil), components...),
+	}, nil
 }
 
-// Run serves only private health probes and closes all process resources during
-// graceful shutdown. Job consumers are added by later OpenSpec tasks.
+// Run serves only private probes while the job runner and reconciler operate in
+// the background. Any unexpected component exit stops the whole process.
 func (app *App) Run(ctx context.Context) error {
 	defer app.database.Close()
 
@@ -52,34 +64,59 @@ func (app *App) Run(ctx context.Context) error {
 		Handler:           health.NewHandler(app.database, app.config.ReadinessTimeout, metricsHandler),
 		ReadHeaderTimeout: app.config.ReadinessTimeout,
 	}
-	serverErrors := make(chan error, 1)
+	runContext, cancelRun := context.WithCancel(ctx)
+	defer cancelRun()
+	type result struct {
+		component string
+		err       error
+	}
+	results := make(chan result, len(app.components)+1)
 	go func() {
-		serverErrors <- server.Serve(listener)
+		results <- result{component: "health server", err: server.Serve(listener)}
 	}()
+	for _, component := range app.components {
+		component := component
+		go func() {
+			results <- result{component: fmt.Sprintf("%T", component), err: component.Run(runContext)}
+		}()
+	}
 
 	app.logger.InfoContext(ctx, "instance worker health server started",
 		"worker_id", app.config.WorkerID,
 		"address", listener.Addr().String(),
 	)
 
+	consumed := 0
+	var runError error
 	select {
-	case serveError := <-serverErrors:
-		if serveError == nil || errors.Is(serveError, http.ErrServerClosed) {
-			return nil
-		}
-		return fmt.Errorf("serve worker health endpoint: %w", serveError)
 	case <-ctx.Done():
-		shutdownContext, cancel := context.WithTimeout(context.Background(), app.config.ShutdownTimeout)
-		defer cancel()
-		if err := server.Shutdown(shutdownContext); err != nil {
-			_ = server.Close()
-			return fmt.Errorf("shut down worker health endpoint: %w", err)
+	case stopped := <-results:
+		consumed++
+		if ctx.Err() != nil {
+			break
 		}
-		serveError := <-serverErrors
-		if serveError != nil && !errors.Is(serveError, http.ErrServerClosed) {
-			return fmt.Errorf("serve worker health endpoint during shutdown: %w", serveError)
+		if stopped.err == nil || errors.Is(stopped.err, http.ErrServerClosed) {
+			runError = fmt.Errorf("instance worker component %s stopped unexpectedly", stopped.component)
+		} else {
+			runError = fmt.Errorf("instance worker component %s failed: %w", stopped.component, stopped.err)
 		}
-		app.logger.Info("instance worker stopped", "worker_id", app.config.WorkerID)
-		return nil
 	}
+	cancelRun()
+	shutdownContext, cancelShutdown := context.WithTimeout(context.Background(), app.config.ShutdownTimeout)
+	defer cancelShutdown()
+	if err := server.Shutdown(shutdownContext); err != nil {
+		_ = server.Close()
+		if runError == nil {
+			runError = fmt.Errorf("shut down worker health endpoint: %w", err)
+		}
+	}
+	for consumed < len(app.components)+1 {
+		stopped := <-results
+		consumed++
+		if stopped.err != nil && !errors.Is(stopped.err, http.ErrServerClosed) && !errors.Is(stopped.err, context.Canceled) && runError == nil {
+			runError = fmt.Errorf("instance worker component %s failed during shutdown: %w", stopped.component, stopped.err)
+		}
+	}
+	app.logger.Info("instance worker stopped", "worker_id", app.config.WorkerID)
+	return runError
 }

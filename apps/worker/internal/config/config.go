@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/saurlax/sauryctf/apps/worker/internal/contracts"
 	"github.com/saurlax/sauryctf/apps/worker/internal/secrets"
 )
 
@@ -26,8 +27,12 @@ const (
 	defaultLeaseRenewInterval   = 10 * time.Second
 	defaultPollInterval         = time.Second
 	defaultReconcileInterval    = 30 * time.Second
+	defaultOperationTimeout     = 5 * time.Minute
 	defaultRetryInitialDelay    = time.Second
 	defaultRetryMaxDelay        = time.Minute
+	defaultDockerEndpoint       = "unix:///var/run/docker.sock"
+	defaultDockerAPIVersion     = "v1.47"
+	defaultKubernetesNamespace  = "sauryctf-instances"
 )
 
 var (
@@ -54,9 +59,20 @@ type Config struct {
 	LeaseRenewInterval     time.Duration
 	PollInterval           time.Duration
 	ReconcileInterval      time.Duration
+	OperationTimeout       time.Duration
 	RetryInitialDelay      time.Duration
 	RetryMaxDelay          time.Duration
 	InstanceSecretKeyring  *secrets.Keyring
+	EnabledProviders       []contracts.InstanceProvider
+	DockerEndpoint         string
+	DockerAPIVersion       string
+	DockerPublicHost       string
+	KubernetesNamespace    string
+	KubernetesHTTPDomain   string
+	KubernetesIngressClass string
+	KubernetesTLSSecret    string
+	KubernetesTCPPortStart int32
+	KubernetesLBClass      string
 }
 
 // Load reads and validates Worker configuration without opening external connections.
@@ -124,6 +140,10 @@ func Load(getenv func(string) string) (Config, error) {
 	if err != nil {
 		problems = append(problems, fmt.Errorf("WORKER_RECONCILE_INTERVAL: %w", err))
 	}
+	operationTimeout, err := boundedDuration(getenv("WORKER_OPERATION_TIMEOUT"), defaultOperationTimeout, time.Second, 30*time.Minute)
+	if err != nil {
+		problems = append(problems, fmt.Errorf("WORKER_OPERATION_TIMEOUT: %w", err))
+	}
 	retryInitialDelay, err := boundedDuration(getenv("WORKER_RETRY_INITIAL_DELAY"), defaultRetryInitialDelay, 100*time.Millisecond, 5*time.Minute)
 	if err != nil {
 		problems = append(problems, fmt.Errorf("WORKER_RETRY_INITIAL_DELAY: %w", err))
@@ -141,6 +161,18 @@ func Load(getenv func(string) string) (Config, error) {
 	instanceSecretKeyring, err := secrets.ParseKeyringJSON(strings.TrimSpace(getenv("INSTANCE_SECRET_KEYS")))
 	if err != nil {
 		problems = append(problems, fmt.Errorf("INSTANCE_SECRET_KEYS: %w", err))
+	}
+	enabledProviders, err := parseEnabledProviders(getenv("WORKER_ENABLED_PROVIDERS"))
+	if err != nil {
+		problems = append(problems, fmt.Errorf("WORKER_ENABLED_PROVIDERS: %w", err))
+	}
+	dockerPublicHost := strings.TrimSpace(getenv("WORKER_DOCKER_PUBLIC_HOST"))
+	if providerEnabled(enabledProviders, contracts.ProviderDocker) && dockerPublicHost == "" {
+		problems = append(problems, errors.New("WORKER_DOCKER_PUBLIC_HOST is required when Docker is enabled"))
+	}
+	kubernetesTCPPortStart, err := boundedInt32(getenv("WORKER_KUBERNETES_TCP_PORT_START"), 0, 1024, 65520)
+	if err != nil {
+		problems = append(problems, fmt.Errorf("WORKER_KUBERNETES_TCP_PORT_START: %w", err))
 	}
 	if err := errors.Join(problems...); err != nil {
 		return Config{}, err
@@ -162,10 +194,50 @@ func Load(getenv func(string) string) (Config, error) {
 		LeaseRenewInterval:     leaseRenewInterval,
 		PollInterval:           pollInterval,
 		ReconcileInterval:      reconcileInterval,
+		OperationTimeout:       operationTimeout,
 		RetryInitialDelay:      retryInitialDelay,
 		RetryMaxDelay:          retryMaxDelay,
 		InstanceSecretKeyring:  instanceSecretKeyring,
+		EnabledProviders:       enabledProviders,
+		DockerEndpoint:         valueOrDefault(getenv("WORKER_DOCKER_ENDPOINT"), defaultDockerEndpoint),
+		DockerAPIVersion:       valueOrDefault(getenv("WORKER_DOCKER_API_VERSION"), defaultDockerAPIVersion),
+		DockerPublicHost:       dockerPublicHost,
+		KubernetesNamespace:    valueOrDefault(getenv("WORKER_KUBERNETES_NAMESPACE"), defaultKubernetesNamespace),
+		KubernetesHTTPDomain:   strings.TrimSpace(getenv("WORKER_KUBERNETES_HTTP_DOMAIN")),
+		KubernetesIngressClass: strings.TrimSpace(getenv("WORKER_KUBERNETES_INGRESS_CLASS")),
+		KubernetesTLSSecret:    strings.TrimSpace(getenv("WORKER_KUBERNETES_TLS_SECRET")),
+		KubernetesTCPPortStart: kubernetesTCPPortStart,
+		KubernetesLBClass:      strings.TrimSpace(getenv("WORKER_KUBERNETES_LOAD_BALANCER_CLASS")),
 	}, nil
+}
+
+func parseEnabledProviders(raw string) ([]contracts.InstanceProvider, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, errors.New("must list at least one of docker or kubernetes")
+	}
+	seen := make(map[contracts.InstanceProvider]struct{})
+	providers := make([]contracts.InstanceProvider, 0, 2)
+	for _, item := range strings.Split(raw, ",") {
+		provider := contracts.InstanceProvider(strings.TrimSpace(item))
+		if err := provider.Validate(); err != nil {
+			return nil, err
+		}
+		if _, duplicate := seen[provider]; duplicate {
+			return nil, fmt.Errorf("provider %q is listed more than once", provider)
+		}
+		seen[provider] = struct{}{}
+		providers = append(providers, provider)
+	}
+	return providers, nil
+}
+
+func providerEnabled(providers []contracts.InstanceProvider, target contracts.InstanceProvider) bool {
+	for _, provider := range providers {
+		if provider == target {
+			return true
+		}
+	}
+	return false
 }
 
 func validateDatabaseURL(value string) error {

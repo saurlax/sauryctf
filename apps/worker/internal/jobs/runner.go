@@ -17,6 +17,22 @@ type Processor interface {
 	Process(context.Context, contracts.InstanceJob) error
 }
 
+// LeaseProcessor receives the active fenced lease so production processors can
+// persist observations without dropping the ownership token. NewRunner keeps
+// the job-only adapter for focused runner tests; production wiring must use
+// NewLeaseRunner.
+type LeaseProcessor interface {
+	ProcessLease(context.Context, Lease) error
+}
+
+type jobProcessorAdapter struct {
+	next Processor
+}
+
+func (adapter jobProcessorAdapter) ProcessLease(ctx context.Context, lease Lease) error {
+	return adapter.next.Process(ctx, lease.Job)
+}
+
 type RunnerConfig struct {
 	WorkerID         string
 	BatchSize        int
@@ -30,13 +46,17 @@ type RunnerConfig struct {
 
 type Runner struct {
 	repository Repository
-	processor  Processor
+	processor  LeaseProcessor
 	config     RunnerConfig
 	logger     *slog.Logger
 	telemetry  *telemetry.Worker
 }
 
 func NewRunner(repository Repository, processor Processor, config RunnerConfig, logger *slog.Logger, instruments ...*telemetry.Worker) *Runner {
+	return NewLeaseRunner(repository, jobProcessorAdapter{next: processor}, config, logger, instruments...)
+}
+
+func NewLeaseRunner(repository Repository, processor LeaseProcessor, config RunnerConfig, logger *slog.Logger, instruments ...*telemetry.Worker) *Runner {
 	var workerTelemetry *telemetry.Worker
 	if len(instruments) > 0 {
 		workerTelemetry = instruments[0]
@@ -106,7 +126,7 @@ func (runner *Runner) process(parent context.Context, lease Lease) {
 		renewed <- err
 	}()
 
-	processError := runner.processor.Process(jobContext, lease.Job)
+	processError := runner.processor.ProcessLease(jobContext, lease)
 	cancelRenew()
 	renewError := <-renewed
 	cancelJob()
