@@ -1,5 +1,9 @@
 import { sessionCookieOptions } from './shared/contracts/auth-session'
 
+const developmentDatabaseUrl = process.env.NODE_ENV === 'development'
+  ? process.env.DATABASE_URL || ''
+  : ''
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
@@ -12,7 +16,8 @@ export default defineNuxtConfig({
       driver: 'postgres-js',
       // Keep the connection runtime-only. NuxtHub otherwise resolves DATABASE_URL
       // while building and serializes it into the Nitro runtime configuration.
-      connection: { url: '' },
+      // NuxtHub 0.10.8 needs the URL at config time in development mode.
+      connection: { url: developmentDatabaseUrl },
       applyMigrationsDuringBuild: false,
       applyMigrationsDuringDev: false,
     },
