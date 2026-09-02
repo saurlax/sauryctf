@@ -3,6 +3,7 @@ import { Client } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createDatabaseClient, type DatabaseClient } from './client'
 import { runMigrations } from './migrate'
+import { PostgresControlPlaneReadiness } from './readiness'
 
 const adminConnectionString = process.env.TEST_DATABASE_ADMIN_URL
 const describeWithPostgres = adminConnectionString ? describe : describe.skip
@@ -49,6 +50,9 @@ describeWithPostgres('PostgreSQL migration lifecycle', () => {
   })
 
   it('upgrades an empty database', async () => {
+    await expect(new PostgresControlPlaneReadiness(database.pool).ready())
+      .rejects.toThrow('migration journal is unavailable')
+
     await runMigrations(database)
 
     const metadata = await database.pool.query<{ key: string }>(
@@ -61,6 +65,7 @@ describeWithPostgres('PostgreSQL migration lifecycle', () => {
 
     expect(metadata.rows).toEqual([{ key: 'schema' }])
     expect(Number(migrations.rows[0]?.count)).toBeGreaterThan(0)
+    await expect(new PostgresControlPlaneReadiness(database.pool).ready()).resolves.toBeUndefined()
   })
 
   it('is idempotent when migrations run again', async () => {
@@ -74,5 +79,21 @@ describeWithPostgres('PostgreSQL migration lifecycle', () => {
       'SELECT count(*)::text AS count FROM control_plane.__drizzle_migrations',
     )
     expect(after.rows[0]?.count).toBe(before.rows[0]?.count)
+  })
+
+  it('fails closed when the database is not at the bundled migration version', async () => {
+    const client = await database.pool.connect()
+    await client.query('BEGIN')
+    try {
+      await client.query(`DELETE FROM control_plane.__drizzle_migrations
+                          WHERE created_at = (SELECT max(created_at)
+                                              FROM control_plane.__drizzle_migrations)`)
+      await expect(new PostgresControlPlaneReadiness(client).ready())
+        .rejects.toThrow('migration version does not match')
+    }
+    finally {
+      await client.query('ROLLBACK')
+      client.release()
+    }
   })
 })

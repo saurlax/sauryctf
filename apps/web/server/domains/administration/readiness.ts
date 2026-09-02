@@ -19,10 +19,15 @@ export interface ReadinessResult {
   }
 }
 
-export function evaluateControlPlaneReadiness(
+export interface ControlPlaneDependencyReadiness {
+  ready(): Promise<void>
+}
+
+export async function evaluateControlPlaneReadiness(
   environment: DeploymentEnvironment,
-  requestId = randomUUID(),
-): ReadinessResult {
+  dependencies: ControlPlaneDependencyReadiness | undefined,
+  requestId: string = randomUUID(),
+): Promise<ReadinessResult> {
   const result = inspectDeploymentConfig(environment)
   if (!result.success) {
     return {
@@ -38,11 +43,37 @@ export function evaluateControlPlaneReadiness(
     }
   }
 
+  if (!dependencies) {
+    return dependencyFailure(requestId)
+  }
+  try {
+    await dependencies.ready()
+  }
+  catch {
+    return dependencyFailure(requestId)
+  }
+
   return {
     statusCode: 200,
     body: {
       status: 'ready',
       component: 'control-plane',
+    },
+  }
+}
+
+function dependencyFailure(requestId: string): ReadinessResult {
+  return {
+    statusCode: 503,
+    body: {
+      error: {
+        code: 'platform.not_ready',
+        message: '控制面权威数据库或迁移版本尚未就绪',
+        request_id: requestId,
+        fields: {
+          dependencies: ['PostgreSQL 不可用或数据库迁移版本与当前发布不一致'],
+        },
+      },
     },
   }
 }

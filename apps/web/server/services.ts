@@ -21,8 +21,10 @@ import type { InstanceService } from './domains/instances/service'
 import type { AdministrationMonitoringService } from './domains/administration/monitoring'
 import type { AdministrationOperationsService } from './domains/administration/operations'
 import type { SecurityLogWriter } from './domains/administration/security-logs'
+import type { ControlPlaneDependencyReadiness } from './domains/administration/readiness'
 
 export interface ControlPlaneServices {
+  readiness: ControlPlaneDependencyReadiness
   identity: IdentityService
   identitySessions: IdentitySessionService
   humanVerification: HumanVerificationProvider

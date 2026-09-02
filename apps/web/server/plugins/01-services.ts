@@ -69,6 +69,7 @@ import { PlatformSettingsService } from '../domains/platform-settings/service'
 import { PostgresPlatformSettingsRepository } from '../infrastructure/db/platform-settings-repository'
 import { InstanceService } from '../domains/instances/service'
 import { PostgresInstanceRepository } from '../infrastructure/db/instance-repository'
+import { PostgresControlPlaneReadiness } from '../infrastructure/db/readiness'
 
 export default defineNitroPlugin(async (nitroApp) => {
   const databaseUrl = process.env.DATABASE_URL
@@ -134,6 +135,7 @@ export default defineNitroPlugin(async (nitroApp) => {
   const operationalCommands = new PostgresOperationalCommandRepository(database.pool)
   const dataRetention = new DataRetentionService(new PostgresDataRetentionRepository(database.pool))
   const services: ControlPlaneServices = {
+    readiness: new PostgresControlPlaneReadiness(database.pool),
     identity,
     identitySessions: new IdentitySessionService(identityRepository),
     humanVerification,
