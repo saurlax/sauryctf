@@ -31,6 +31,7 @@
     "test:db": "pnpm --filter sauryctf-web exec vitest run server/infrastructure/db",
     "test:instances:lifecycle": "bash ./scripts/test-instance-lifecycle.sh",
     "test:capacity": "bash ./scripts/test-capacity-acceptance.sh",
+    "test:backup-recovery": "bash ./scripts/test-backup-recovery.sh",
     "test:faults": "bash ./scripts/test-fault-recovery.sh",
     "test:security": "bash ./scripts/test-security-acceptance.sh",
     "test:web": "pnpm --filter sauryctf-web typecheck",
