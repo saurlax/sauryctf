@@ -2,8 +2,9 @@ import { fileURLToPath } from 'node:url'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import type { DatabaseClient } from './client'
 
+// Transitional test helper. Production migration entrypoints use server/db/migrate.ts.
 export const defaultMigrationsFolder = fileURLToPath(
-  new URL('../../../db/migrations', import.meta.url),
+  new URL('../../db/migrations/postgresql', import.meta.url),
 )
 
 export async function runMigrations(

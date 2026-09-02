@@ -7,20 +7,18 @@
     "pnpm": "10.34.5"
   },
   "scripts": {
+    "dev": "nuxt dev --host 127.0.0.1 --port 3000",
+    "start": "node .output/server/index.mjs",
     "build": "nuxt build",
-    "db:generate": "drizzle-kit generate --config drizzle.config.ts",
-    "db:migrate": "tsx server/infrastructure/db/migrate-cli.ts",
-    "dev": "nuxt dev",
-    "dev:local": "nuxt dev --host 127.0.0.1 --port 3000",
-    "generate": "nuxt build",
-    "generate:openapi": "tsx scripts/generate-openapi.ts",
-    "test:contracts": "vitest run shared/contracts server/domains/administration/readiness.test.ts server/infrastructure/http server/infrastructure/security server/infrastructure/telemetry",
-    "typecheck": "nuxt typecheck",
+    "test": "vitest run",
+    "check": "nuxt typecheck",
+    "db:migrate": "tsx server/db/migrate-cli.ts",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1124.0",
     "@aws-sdk/s3-request-presigner": "3.1124.0",
+    "@nuxthub/core": "0.10.8",
     "@nuxt/ui": "4.11.0",
     "@opentelemetry/api": "1.9.1",
     "@opentelemetry/exporter-metrics-otlp-http": "0.222.0",
@@ -29,6 +27,7 @@
     "@opentelemetry/sdk-node": "0.222.0",
     "@opentelemetry/sdk-trace-base": "2.11.0",
     "archiver": "7.0.1",
+    "aws4fetch": "1.0.20",
     "drizzle-orm": "0.45.2",
     "fflate": "0.8.2",
     "h3": "1.15.11",
@@ -36,6 +35,7 @@
     "nuxt": "4.5.2",
     "nuxt-auth-utils": "^0.5.30",
     "pg": "8.23.0",
+    "postgres": "3.4.9",
     "redis": "5.8.2",
     "tailwindcss": "^4.3.0",
     "vue": "^3.5.30",
@@ -50,7 +50,6 @@
     "tsx": "4.23.13",
     "typescript": "5.9.3",
     "vitest": "^3.2.4",
-    "vue-tsc": "3.3.11",
-    "yaml": "2.9.0"
+    "vue-tsc": "3.3.11"
   }
 }

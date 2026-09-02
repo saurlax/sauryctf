@@ -53,10 +53,9 @@ const excludeNonProduction = path => /(?:^|\/)(?:[^/]+\.(?:test|spec)\.[^/]+|[^/
   || path.includes('/test-support/')
 const intentionalRejectionSource = path => path === 'apps/web/server/domains/contests/admission.ts'
 
-inspectContent('OpenAPI', ['api/openapi.yaml'], forbiddenDomain)
 inspectContent('database schema', [
-  'apps/web/db/migrations',
-  'apps/web/server/infrastructure/db/schema.ts',
+  'apps/web/server/db/migrations/postgresql',
+  'apps/web/server/db/schema.ts',
 ], forbiddenDomain)
 inspectContent('control-plane production surface', [
   'apps/web/server',

@@ -1,62 +1,87 @@
 import type { QueryResult, QueryResultRow } from 'pg'
-import migrationJournal from '../../../db/migrations/meta/_journal.json'
+import { currentMigrationNames, expectedMigrationBaseline } from '../../db/migration-baseline'
+import { assertLegacyJournal, type LegacyMigrationRow } from '../../db/takeover'
 
-interface MigrationStateRow {
-  migration_count: string
-  latest_migration_at: string | null
+interface MigrationTablesRow extends QueryResultRow {
+  hub_journal: string | null
+  legacy_journal: string | null
 }
 
-interface MigrationTableRow {
-  migration_table: string | null
+interface HubMigrationRow extends QueryResultRow {
+  name: string
+}
+
+interface LegacyMigrationStateRow extends QueryResultRow {
+  hash: string
+  created_at: string
 }
 
 interface ReadinessDatabase {
   query<Row extends QueryResultRow>(text: string): Promise<QueryResult<Row>>
 }
 
-const expectedMigrationCount = migrationJournal.entries.length
-const expectedLatestMigrationAt = String(
-  migrationJournal.entries.at(-1)?.when ?? 0,
-)
-
 export class PostgresControlPlaneReadiness {
   constructor(private readonly pool: ReadinessDatabase) {
-    if (expectedMigrationCount < 1 || expectedLatestMigrationAt === '0') {
-      throw new Error('Control-plane migration journal is empty')
-    }
+    if (currentMigrationNames.length < 1) throw new Error('Control-plane migration manifest is empty')
   }
 
   async ready(): Promise<void> {
-    let migrationTable: { rows: MigrationTableRow[] }
+    let tables: QueryResult<MigrationTablesRow>
     try {
-      migrationTable = await this.pool.query<MigrationTableRow>(
-        `SELECT to_regclass('control_plane.__drizzle_migrations')::text AS migration_table`,
-      )
+      tables = await this.pool.query<MigrationTablesRow>(`
+        SELECT
+          to_regclass('public._hub_migrations')::text AS hub_journal,
+          to_regclass('control_plane.__drizzle_migrations')::text AS legacy_journal
+      `)
     }
     catch (error) {
       throw new Error('Authoritative PostgreSQL database is unavailable', { cause: error })
     }
 
-    if (migrationTable.rows[0]?.migration_table !== 'control_plane.__drizzle_migrations') {
-      throw new Error('Control-plane migration journal is unavailable')
+    const state = tables.rows[0]
+    if (state?.hub_journal !== '_hub_migrations') {
+      throw new Error('Control-plane NuxtHub migration journal is unavailable')
     }
 
-    let migrationState: { rows: MigrationStateRow[] }
+    let hubMigrations: QueryResult<HubMigrationRow>
     try {
-      migrationState = await this.pool.query<MigrationStateRow>(
-        `SELECT count(*)::text AS migration_count,
-                max(created_at)::text AS latest_migration_at
-         FROM control_plane.__drizzle_migrations`,
+      hubMigrations = await this.pool.query<HubMigrationRow>(
+        'SELECT name FROM public._hub_migrations ORDER BY id',
       )
     }
     catch (error) {
       throw new Error('Control-plane migration state cannot be read', { cause: error })
     }
-
-    const state = migrationState.rows[0]
-    if (state?.migration_count !== String(expectedMigrationCount)
-      || state.latest_migration_at !== expectedLatestMigrationAt) {
+    const actualNames = hubMigrations.rows.map(row => row.name)
+    if (actualNames.length !== currentMigrationNames.length
+      || actualNames.some((name, index) => name !== currentMigrationNames[index])) {
       throw new Error('Control-plane database migration version does not match this release')
+    }
+
+    if (state.legacy_journal) await this.assertLegacyJournalClaimed()
+  }
+
+  private async assertLegacyJournalClaimed(): Promise<void> {
+    let legacyRows: QueryResult<LegacyMigrationStateRow>
+    try {
+      legacyRows = await this.pool.query<LegacyMigrationStateRow>(`
+        SELECT hash, created_at::text AS created_at
+        FROM control_plane.__drizzle_migrations
+        ORDER BY created_at, id
+      `)
+    }
+    catch (error) {
+      throw new Error('Legacy migration takeover state cannot be read', { cause: error })
+    }
+    const legacy: LegacyMigrationRow[] = legacyRows.rows.map(row => ({
+      hash: row.hash,
+      createdAt: Number(row.created_at),
+    }))
+    try {
+      assertLegacyJournal(legacy, expectedMigrationBaseline())
+    }
+    catch (error) {
+      throw new Error('Legacy migration journal has not been safely claimed', { cause: error })
     }
   }
 }

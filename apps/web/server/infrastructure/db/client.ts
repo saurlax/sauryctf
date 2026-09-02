@@ -1,6 +1,6 @@
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres'
 import { Pool, type PoolConfig } from 'pg'
-import * as schema from './schema'
+import * as schema from '../../db/schema'
 
 export interface DatabaseClient {
   db: NodePgDatabase<typeof schema>

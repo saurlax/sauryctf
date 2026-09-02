@@ -4,6 +4,7 @@ import {
   inspectDeploymentConfig,
   type DeploymentEnvironment,
 } from '../../../shared/contracts/deployment-config'
+import { inspectDataServicesConfig } from '../../infrastructure/config/data-services'
 
 export interface ReadinessResult {
   statusCode: 200 | 503
@@ -29,7 +30,12 @@ export async function evaluateControlPlaneReadiness(
   requestId: string = randomUUID(),
 ): Promise<ReadinessResult> {
   const result = inspectDeploymentConfig(environment)
-  if (!result.success) {
+  const dataServices = inspectDataServicesConfig(environment)
+  if (!result.success || !dataServices.success) {
+    const fields = {
+      ...(!result.success ? deploymentConfigFieldErrors(result.error) : {}),
+      ...(!dataServices.success ? dataServices.error.fields : {}),
+    }
     return {
       statusCode: 503,
       body: {
@@ -37,7 +43,7 @@ export async function evaluateControlPlaneReadiness(
           code: 'platform.not_ready',
           message: '控制面缺少必需的部署配置',
           request_id: requestId,
-          fields: deploymentConfigFieldErrors(result.error),
+          fields,
         },
       },
     }
