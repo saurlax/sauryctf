@@ -138,4 +138,11 @@ directory. The integration test creates its own ephemeral API server and etcd,
 so it does not use the developer's current kubeconfig or mutate a shared
 cluster.
 
+The release lifecycle suite uses a real Docker Engine, an isolated PostgreSQL
+container, and a disposable single-node k3s cluster. Run it with
+`pnpm test:instances:lifecycle`. It verifies control-plane renewal and quota
+transactions, Worker lease fencing, expiry reconciliation, Docker and k3s
+creation/readiness/destruction, and recovery from the create-before-writeback
+crash window. The suite deletes its named containers and k3s namespace on exit.
+
 Run locally with `pnpm dev:worker` after configuring the Worker variables.

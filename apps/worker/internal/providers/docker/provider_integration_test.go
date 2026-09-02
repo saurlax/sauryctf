@@ -62,6 +62,16 @@ func TestProviderAgainstDockerEngine(t *testing.T) {
 	if observation.State != jobs.ObservedRunning || len(observation.Entrypoints) != 1 || observation.Entrypoints[0].Port == 0 {
 		t.Fatalf("Ensure() observation = %+v", observation)
 	}
+	// A replacement Worker may retry Ensure after the Engine created the
+	// container but before the first Worker persisted its observation. The
+	// deterministic identity must converge on the same single resource.
+	recovered, err := provider.Ensure(ctx, spec)
+	if err != nil {
+		t.Fatalf("Ensure() after simulated writeback crash error = %v", err)
+	}
+	if recovered.State != jobs.ObservedRunning || recovered.ProviderResourceID != observation.ProviderResourceID {
+		t.Fatalf("Ensure() after simulated writeback crash = %+v, want resource %s", recovered, observation.ProviderResourceID)
+	}
 	inspected, err := provider.Inspect(ctx, spec.Key)
 	if err != nil || inspected.State != jobs.ObservedRunning || inspected.ProviderResourceID != observation.ProviderResourceID {
 		t.Fatalf("Inspect() = %+v/%v", inspected, err)
@@ -76,8 +86,8 @@ func TestProviderAgainstDockerEngine(t *testing.T) {
 			found = true
 		}
 	}
-	if !found {
-		t.Fatalf("List() did not include %s", observation.ProviderResourceID)
+	if !found || len(resources) != 1 {
+		t.Fatalf("List() after crash recovery = %+v, want only %s", resources, observation.ProviderResourceID)
 	}
 	if stopped, err := provider.Destroy(ctx, spec.Key); err != nil || stopped.State != jobs.ObservedStopped {
 		t.Fatalf("Destroy() = %+v/%v", stopped, err)

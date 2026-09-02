@@ -29,6 +29,7 @@
     "test:legacy": "cd legacy/go-monolith && GOWORK=off go test ./...",
     "test:contracts": "pnpm --filter sauryctf-web test:contracts",
     "test:db": "pnpm --filter sauryctf-web exec vitest run server/infrastructure/db",
+    "test:instances:lifecycle": "bash ./scripts/test-instance-lifecycle.sh",
     "test:web": "pnpm --filter sauryctf-web typecheck",
     "test:frontend": "pnpm test:web",
     "generate:openapi": "pnpm --filter sauryctf-web generate:openapi",

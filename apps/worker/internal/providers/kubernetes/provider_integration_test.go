@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/saurlax/sauryctf/apps/worker/internal/contracts"
@@ -131,6 +133,126 @@ func TestProviderAgainstEnvtest(t *testing.T) {
 		return apierrors.IsNotFound(deploymentErr) && apierrors.IsNotFound(serviceErr) && apierrors.IsNotFound(secretErr) && apierrors.IsNotFound(ingressErr) && apierrors.IsNotFound(tcpServiceErr) && apierrors.IsNotFound(networkPolicyErr), nil
 	}); err != nil {
 		t.Fatalf("wait for resource deletion: %v", err)
+	}
+	if stopped, err := provider.Destroy(ctx, spec.Key); err != nil || stopped.State != jobs.ObservedStopped {
+		t.Fatalf("second Destroy() = %+v/%v", stopped, err)
+	}
+}
+
+func TestProviderAgainstK3s(t *testing.T) {
+	kubeconfig := os.Getenv("TEST_K3S_KUBECONFIG")
+	if kubeconfig == "" {
+		t.Skip("TEST_K3S_KUBECONFIG is required for the real k3s lifecycle test")
+	}
+	restConfig, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	if err != nil {
+		t.Fatalf("load k3s kubeconfig: %v", err)
+	}
+	restConfig.Timeout = 15 * time.Second
+	client, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testID := strings.ReplaceAll(string(randomEnvtestUUID(t)), "-", "")[:12]
+	namespace := "sauryctf-k3s-" + testID
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	defer cancel()
+	if _, err := client.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("create k3s test namespace: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupContext, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cleanupCancel()
+		if err := client.CoreV1().Namespaces().Delete(cleanupContext, namespace, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			t.Errorf("delete k3s test namespace: %v", err)
+		}
+	})
+
+	routes := RouteConfig{
+		HTTPDomain:       "challenges.k3s.test",
+		IngressClassName: "sauryctf-lifecycle",
+	}
+	provider, err := New(client, namespace, routes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := kubernetesTestSpec()
+	spec.Key.Platform = "sauryctf-k3s-test"
+	spec.Key.Contest = randomEnvtestUUID(t)
+	spec.Key.Challenge = randomEnvtestUUID(t)
+	spec.Key.Team = randomEnvtestUUID(t)
+	spec.Key.Instance = randomEnvtestUUID(t)
+	spec.Key.Generation = 1
+	spec.Runtime.Image = os.Getenv("TEST_K3S_IMAGE")
+	if spec.Runtime.Image == "" {
+		spec.Runtime.Image = "nginxinc/nginx-unprivileged:alpine"
+	}
+	spec.Runtime.Entrypoints = []contracts.InstanceEntrypointSpec{{Name: "web", Protocol: "http", ContainerPort: 8080}}
+	spec.Runtime.Environment = []contracts.InstanceEnvironmentVariable{{Name: "INTEGRATION_TEST", Value: "true"}}
+	spec.Runtime.Resources = contracts.InstanceResourceLimits{
+		CPUMillicores: 100, MemoryBytes: 64 * 1024 * 1024, EphemeralStorageBytes: 64 * 1024 * 1024,
+	}
+	spec.SensitiveEnvironment = nil
+	name, _ := spec.Key.ResourceName()
+
+	created, err := provider.Ensure(ctx, spec)
+	if err != nil || created.State != jobs.ObservedStarting || created.ProviderResourceID != resourceID(namespace, name) {
+		t.Fatalf("Ensure() = %+v/%v", created, err)
+	}
+	// This is the crash window between runtime creation and observation
+	// writeback. A second Worker must adopt the same deterministic resources.
+	recovered, err := provider.Ensure(ctx, spec)
+	if err != nil || recovered.ProviderResourceID != created.ProviderResourceID {
+		t.Fatalf("Ensure() after simulated writeback crash = %+v/%v", recovered, err)
+	}
+	deployments, err := client.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil || len(deployments.Items) != 1 {
+		t.Fatalf("Deployments after crash recovery = %d/%v, want 1", len(deployments.Items), err)
+	}
+
+	if err := wait.PollUntilContextTimeout(ctx, 500*time.Millisecond, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
+		workload, getErr := client.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+		if getErr != nil {
+			return false, getErr
+		}
+		return deploymentReady(workload), nil
+	}); err != nil {
+		pods, _ := client.CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{})
+		t.Fatalf("wait for real k3s workload readiness: %v; pods=%+v", err, pods.Items)
+	}
+	beforeRoute, err := provider.Inspect(ctx, spec.Key)
+	if err != nil || beforeRoute.State != jobs.ObservedStarting || len(beforeRoute.Entrypoints) != 0 {
+		t.Fatalf("Inspect() before route readiness = %+v/%v", beforeRoute, err)
+	}
+	ingress, err := client.NetworkingV1().Ingresses(namespace).Get(ctx, httpRouteName(name), metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get k3s Ingress: %v", err)
+	}
+	ingress.Status.LoadBalancer.Ingress = []networkingv1.IngressLoadBalancerIngress{{Hostname: "ingress.k3s.test"}}
+	if _, err := client.NetworkingV1().Ingresses(namespace).UpdateStatus(ctx, ingress, metav1.UpdateOptions{}); err != nil {
+		t.Fatalf("mark k3s test Ingress ready: %v", err)
+	}
+
+	ready, err := provider.Inspect(ctx, spec.Key)
+	if err != nil || ready.State != jobs.ObservedRunning || len(ready.Entrypoints) != 1 {
+		t.Fatalf("Inspect() ready k3s workload and route = %+v/%v", ready, err)
+	}
+	resources, err := provider.List(ctx, spec.Key.Platform)
+	if err != nil || len(resources) != 1 || resources[0].ResourceID != created.ProviderResourceID {
+		t.Fatalf("List() = %+v/%v", resources, err)
+	}
+	if stopped, err := provider.Destroy(ctx, spec.Key); err != nil || stopped.State != jobs.ObservedStopped {
+		t.Fatalf("Destroy() = %+v/%v", stopped, err)
+	}
+	if err := wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 30*time.Second, true, func(ctx context.Context) (bool, error) {
+		_, deploymentErr := client.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+		_, serviceErr := client.CoreV1().Services(namespace).Get(ctx, name, metav1.GetOptions{})
+		_, ingressErr := client.NetworkingV1().Ingresses(namespace).Get(ctx, httpRouteName(name), metav1.GetOptions{})
+		_, networkPolicyErr := client.NetworkingV1().NetworkPolicies(namespace).Get(ctx, networkPolicyName(name), metav1.GetOptions{})
+		return apierrors.IsNotFound(deploymentErr) && apierrors.IsNotFound(serviceErr) && apierrors.IsNotFound(ingressErr) && apierrors.IsNotFound(networkPolicyErr), nil
+	}); err != nil {
+		t.Fatalf("wait for k3s resource deletion: %v", err)
 	}
 	if stopped, err := provider.Destroy(ctx, spec.Key); err != nil || stopped.State != jobs.ObservedStopped {
 		t.Fatalf("second Destroy() = %+v/%v", stopped, err)
