@@ -1,6 +1,7 @@
 import type { NitroErrorHandler } from 'nitropack'
 import { randomUUID } from 'node:crypto'
-import { setResponseHeader, setResponseStatus } from 'h3'
+import { getRequestURL, setResponseHeader, setResponseStatus } from 'h3'
+import { isSecurityLogErrorCode } from './domains/administration/security-logs'
 import { normalizeApiError } from './infrastructure/http/errors'
 import { structuredLog } from './infrastructure/telemetry/logging'
 
@@ -17,6 +18,27 @@ const handler: NitroErrorHandler = async (error, event) => {
     event.context.telemetry?.recordLoginFailure(response.body.error.code)
   }
   const spanContext = event.context.requestTelemetry?.span.spanContext()
+
+  if (isSecurityLogErrorCode(response.body.error.code)) {
+    try {
+      await event.context.services?.securityLogs.record({
+        eventType: 'request.rejected',
+        severity: response.statusCode >= 500 ? 'error' : 'warn',
+        requestId,
+        errorCode: response.body.error.code,
+        method: event.method,
+        route: getRequestURL(event).pathname,
+        statusCode: response.statusCode,
+        occurredAt: new Date(),
+      })
+    }
+    catch (securityLogError) {
+      console.error(structuredLog('error', 'security_log.persist_failed', {
+        request_id: requestId,
+        error_type: securityLogError instanceof Error ? securityLogError.name : 'UnknownError',
+      }))
+    }
+  }
 
   console.error(structuredLog('error', 'request.failed', {
     request_id: requestId,

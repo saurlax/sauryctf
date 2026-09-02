@@ -19,6 +19,11 @@ import { AdministrationMonitoringService } from '../domains/administration/monit
 import { AdministrationOperationsService } from '../domains/administration/operations'
 import { PostgresMonitoringRepository } from '../infrastructure/db/monitoring-repository'
 import { PostgresOperationalCommandRepository } from '../infrastructure/db/operations-repository'
+import { DataRetentionService } from '../jobs/data-retention'
+import {
+  PostgresDataRetentionRepository,
+  PostgresSecurityLogWriter,
+} from '../infrastructure/db/data-retention-repository'
 import type { ControlPlaneServices } from '../services'
 import { TeamService } from '../domains/teams/service'
 import { PostgresTeamRepository } from '../infrastructure/db/team-repository'
@@ -127,6 +132,7 @@ export default defineNitroPlugin(async (nitroApp) => {
     new ScoreboardBuildCoordinator(scoreboardBuildLock),
   )
   const operationalCommands = new PostgresOperationalCommandRepository(database.pool)
+  const dataRetention = new DataRetentionService(new PostgresDataRetentionRepository(database.pool))
   const services: ControlPlaneServices = {
     identity,
     identitySessions: new IdentitySessionService(identityRepository),
@@ -175,6 +181,7 @@ export default defineNitroPlugin(async (nitroApp) => {
       scoreboards,
       scoreboardCache,
     ),
+    securityLogs: new PostgresSecurityLogWriter(database.pool),
   }
 
   const smtpHost = process.env.MAIL_SMTP_HOST
@@ -183,6 +190,7 @@ export default defineNitroPlugin(async (nitroApp) => {
   let dispatchTimer: ReturnType<typeof setInterval> | undefined
   let domainEventTimer: ReturnType<typeof setInterval> | undefined
   let contentCleanupTimer: ReturnType<typeof setInterval> | undefined
+  let retentionTimer: ReturnType<typeof setInterval> | undefined
   let telemetryTimer: ReturnType<typeof setInterval> | undefined
   if (smtpHost && mailFrom && publicOrigin) {
     const smtpPort = Number.parseInt(process.env.MAIL_SMTP_PORT ?? '25', 10)
@@ -265,6 +273,31 @@ export default defineNitroPlugin(async (nitroApp) => {
   contentCleanupTimer = setInterval(() => void collectContent(), 15 * 60_000)
   contentCleanupTimer.unref()
 
+  let retentionRun: Promise<void> | undefined
+  const applyRetention = () => {
+    if (retentionRun) return retentionRun
+    retentionRun = dataRetention.run()
+      .then(result => {
+        if (result.auditDeleted > 0 || result.securityLogsDeleted > 0) {
+          console.info(structuredLog('info', 'retention.completed', {
+            audit_deleted: result.auditDeleted,
+            security_logs_deleted: result.securityLogsDeleted,
+            batches: result.batches,
+          }))
+        }
+      })
+      .catch((error) => {
+        console.error(structuredLog('error', 'retention.failed', { error }))
+      })
+      .finally(() => {
+        retentionRun = undefined
+      })
+    return retentionRun
+  }
+  void applyRetention()
+  retentionTimer = setInterval(() => void applyRetention(), 6 * 60 * 60_000)
+  retentionTimer.unref()
+
   let telemetryRefresh: Promise<void> | undefined
   const refreshOperationalMetrics = () => {
     const telemetry = activeControlPlaneTelemetry()
@@ -296,8 +329,10 @@ export default defineNitroPlugin(async (nitroApp) => {
     if (dispatchTimer) clearInterval(dispatchTimer)
     if (domainEventTimer) clearInterval(domainEventTimer)
     if (contentCleanupTimer) clearInterval(contentCleanupTimer)
+    if (retentionTimer) clearInterval(retentionTimer)
     if (telemetryTimer) clearInterval(telemetryTimer)
     await contentCleanupRun
+    await retentionRun
     await telemetryRefresh
     await rateLimits.close()
     await scoreboardCache.close()

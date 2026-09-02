@@ -152,6 +152,7 @@ describeWithPostgres('restricted instance Worker database role', () => {
     ['solves', 'SELECT * FROM solves LIMIT 1'],
     ['score adjustments', 'SELECT * FROM score_adjustments LIMIT 1'],
     ['scoreboard snapshots', 'SELECT * FROM scoreboard_snapshots LIMIT 1'],
+    ['retention cleanup', "SELECT * FROM apply_data_retention(clock_timestamp() - interval '366 days', clock_timestamp() - interval '91 days', 1)"],
     ['desired instance state', "UPDATE instances SET desired_state = 'stopped' WHERE false"],
     ['job payload', "UPDATE instance_jobs SET payload = '{}'::jsonb WHERE false"],
     ['instance deletion', 'DELETE FROM instances WHERE false'],

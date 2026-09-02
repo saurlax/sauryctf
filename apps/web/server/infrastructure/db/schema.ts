@@ -128,6 +128,7 @@ export const operationalCommandStatus = pgEnum('operational_command_status', [
   'succeeded',
   'failed',
 ])
+export const securityLogSeverity = pgEnum('security_log_severity', ['info', 'warn', 'error'])
 
 export const users = pgTable('users', {
   id: uuid().primaryKey().defaultRandom(),
@@ -951,4 +952,25 @@ export const operationalCommands = pgTable('operational_commands', {
   check('operational_commands_reason_length', sql`length(btrim(${table.reason})) BETWEEN 10 AND 1000`),
   check('operational_commands_result_object', sql`${table.result} IS NULL OR jsonb_typeof(${table.result}) = 'object'`),
   check('operational_commands_result_state', sql`(${table.status} = 'pending' AND ${table.result} IS NULL AND ${table.errorCode} IS NULL AND ${table.completedAt} IS NULL) OR (${table.status} = 'succeeded' AND ${table.result} IS NOT NULL AND ${table.errorCode} IS NULL AND ${table.completedAt} IS NOT NULL) OR (${table.status} = 'failed' AND ${table.result} IS NULL AND ${table.errorCode} IS NOT NULL AND ${table.completedAt} IS NOT NULL)`),
+])
+
+export const securityLogEvents = pgTable('security_log_events', {
+  id: uuid().primaryKey().defaultRandom(),
+  eventType: varchar('event_type', { length: 128 }).notNull(),
+  severity: securityLogSeverity().notNull(),
+  requestId: varchar('request_id', { length: 128 }).notNull(),
+  errorCode: varchar('error_code', { length: 128 }).notNull(),
+  method: varchar({ length: 16 }).notNull(),
+  route: text().notNull(),
+  statusCode: integer('status_code').notNull(),
+  occurredAt: timestamp('occurred_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+}, (table) => [
+  index('security_log_events_expiry').on(table.occurredAt, table.id),
+  index('security_log_events_request').on(table.requestId, table.occurredAt),
+  check('security_log_events_event_type_not_empty', sql`length(btrim(${table.eventType})) > 0`),
+  check('security_log_events_request_id_not_empty', sql`length(btrim(${table.requestId})) > 0`),
+  check('security_log_events_error_code_not_empty', sql`length(btrim(${table.errorCode})) > 0`),
+  check('security_log_events_method_not_empty', sql`length(btrim(${table.method})) > 0`),
+  check('security_log_events_route_absolute', sql`left(${table.route}, 1) = '/'`),
+  check('security_log_events_status_code', sql`${table.statusCode} BETWEEN 400 AND 599`),
 ])

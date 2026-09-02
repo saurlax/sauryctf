@@ -20,6 +20,7 @@ import type { PlatformSettingsService } from './domains/platform-settings/servic
 import type { InstanceService } from './domains/instances/service'
 import type { AdministrationMonitoringService } from './domains/administration/monitoring'
 import type { AdministrationOperationsService } from './domains/administration/operations'
+import type { SecurityLogWriter } from './domains/administration/security-logs'
 
 export interface ControlPlaneServices {
   identity: IdentityService
@@ -44,4 +45,5 @@ export interface ControlPlaneServices {
   instances: InstanceService
   monitoring: AdministrationMonitoringService
   operations: AdministrationOperationsService
+  securityLogs: SecurityLogWriter
 }
