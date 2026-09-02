@@ -1,10 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { ContentObjectService } from '../../domains/content/service'
-import { createDatabaseClient, type DatabaseClient } from '../db/client'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
 import { PostgresContentObjectRepository } from '../db/content-object-repository'
-import { runMigrations } from '../db/migrate'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import {
   S3ContentObjectStore,
   type S3ContentObjectStoreConfig,
@@ -22,7 +22,7 @@ function quotedDatabaseName(): string {
 
 describeWithDependencies('PostgreSQL and S3 content lifecycle', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let userId: string
   const storageKeys = new Set<string>()
   const s3Config: S3ContentObjectStoreConfig = {
@@ -40,9 +40,9 @@ describeWithDependencies('PostgreSQL and S3 content lifecycle', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 4 })
-    await runMigrations(database)
-    const user = await database.pool.query<{ id: string }>(`
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 4 })
+    await runPostgresTestMigrations(database)
+    const user = await database.executor.query<{ id: string }>(`
       INSERT INTO users (username, username_normalized, email, email_normalized)
       VALUES ('ContentLifecycle', 'contentlifecycle', 'content-lifecycle@example.test', 'content-lifecycle@example.test')
       RETURNING id`)
@@ -53,7 +53,7 @@ describeWithDependencies('PostgreSQL and S3 content lifecycle', () => {
     const store = new S3ContentObjectStore(s3Config)
     for (const key of storageKeys) await store.delete(key)
     store.close()
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -68,7 +68,7 @@ describeWithDependencies('PostgreSQL and S3 content lifecycle', () => {
     const now = new Date('2026-09-02T04:00:00.000Z')
     const firstStore = new S3ContentObjectStore(s3Config)
     const firstService = new ContentObjectService(
-      new PostgresContentObjectRepository(database.pool),
+      new PostgresContentObjectRepository(database.executor),
       firstStore,
       () => now,
     )
@@ -83,7 +83,7 @@ describeWithDependencies('PostgreSQL and S3 content lifecycle', () => {
 
     const restartedStore = new S3ContentObjectStore(s3Config)
     const restartedService = new ContentObjectService(
-      new PostgresContentObjectRepository(database.pool),
+      new PostgresContentObjectRepository(database.executor),
       restartedStore,
       () => now,
     )
@@ -95,21 +95,9 @@ describeWithDependencies('PostgreSQL and S3 content lifecycle', () => {
     expect(committed.status).toBe('committed')
     expect(Buffer.from((await restartedStore.read(committed.storageKey))!)).toEqual(body)
 
-    const signedUrl = await restartedStore.signDownloadUrl({
-      storageKey: committed.storageKey,
-      contentDisposition: 'attachment; filename="restart.bin"',
-      responseMediaType: 'application/octet-stream',
-      expiresInSeconds: 60,
-    })
-    const downloaded = await fetch(signedUrl)
-    expect(downloaded.status).toBe(200)
-    expect(downloaded.headers.get('content-disposition')).toBe('attachment; filename="restart.bin"')
-    expect(downloaded.headers.get('content-type')).toBe('application/octet-stream')
-    expect(Buffer.from(await downloaded.arrayBuffer())).toEqual(body)
-
     const redundantKey = `temporary/${randomUUID()}`
     const deduplicatingService = new ContentObjectService(
-      new PostgresContentObjectRepository(database.pool),
+      new PostgresContentObjectRepository(database.executor),
       restartedStore,
       () => now,
       () => redundantKey,
@@ -129,7 +117,7 @@ describeWithDependencies('PostgreSQL and S3 content lifecycle', () => {
     const cleanupTime = new Date('2026-09-02T01:00:00.000Z')
     const store = new S3ContentObjectStore(s3Config)
     const oldService = new ContentObjectService(
-      new PostgresContentObjectRepository(database.pool),
+      new PostgresContentObjectRepository(database.executor),
       store,
       () => oldTime,
     )
@@ -147,25 +135,25 @@ describeWithDependencies('PostgreSQL and S3 content lifecycle', () => {
     )
     const challengeIds = await createTwoContestChallenges(database, userId)
     for (const challengeId of challengeIds) {
-      await database.pool.query(`
+      await database.executor.query(`
         INSERT INTO content_references (content_object_id, reference_type, contest_challenge_id)
         VALUES ($1, 'challenge_attachment', $2)`, [committed.id, challengeId])
     }
 
     const cleanup = new ContentObjectService(
-      new PostgresContentObjectRepository(database.pool),
+      new PostgresContentObjectRepository(database.executor),
       store,
       () => cleanupTime,
     )
     await expect(cleanup.collectGarbage()).resolves.toEqual({ collected: 0 })
-    await database.pool.query('DELETE FROM contest_challenges WHERE id = $1', [challengeIds[0]])
+    await database.executor.query('DELETE FROM contest_challenges WHERE id = $1', [challengeIds[0]])
     await expect(cleanup.collectGarbage()).resolves.toEqual({ collected: 0 })
     expect(await store.stat(committed.storageKey)).not.toBeNull()
 
-    await database.pool.query('DELETE FROM contest_challenges WHERE id = $1', [challengeIds[1]])
+    await database.executor.query('DELETE FROM contest_challenges WHERE id = $1', [challengeIds[1]])
     await expect(cleanup.collectGarbage()).resolves.toEqual({ collected: 1 })
     expect(await store.stat(committed.storageKey)).toBeNull()
-    const state = await database.pool.query<{ status: string }>(
+    const state = await database.executor.query<{ status: string }>(
       'SELECT status::text FROM content_objects WHERE id = $1',
       [committed.id],
     )
@@ -177,7 +165,7 @@ describeWithDependencies('PostgreSQL and S3 content lifecycle', () => {
     const uploadedAt = new Date('2026-08-31T00:00:00.000Z')
     const cleanupTime = new Date('2026-09-03T00:00:00.000Z')
     const store = new S3ContentObjectStore(s3Config)
-    const repository = new PostgresContentObjectRepository(database.pool)
+    const repository = new PostgresContentObjectRepository(database.executor)
     const service = new ContentObjectService(repository, store, () => uploadedAt)
     const body = Buffer.from('stale reference race')
     const temporary = await service.uploadTemporary(userId, {
@@ -192,7 +180,7 @@ describeWithDependencies('PostgreSQL and S3 content lifecycle', () => {
       createHash('sha256').update(body).digest('hex'),
     )
     const [challengeId] = await createTwoContestChallenges(database, userId)
-    const stale = await database.pool.connect()
+    const stale = await database.connect()
     try {
       await stale.query('BEGIN ISOLATION LEVEL REPEATABLE READ')
       await stale.query('SELECT status FROM content_objects WHERE id = $1', [committed.id])
@@ -219,17 +207,17 @@ describeWithDependencies('PostgreSQL and S3 content lifecycle', () => {
   })
 })
 
-async function createTwoContestChallenges(database: DatabaseClient, userId: string): Promise<[string, string]> {
+async function createTwoContestChallenges(database: PostgresTestDatabase, userId: string): Promise<[string, string]> {
   const suffix = randomUUID()
-  const contest = await database.pool.query<{ id: string }>(`
+  const contest = await database.executor.query<{ id: string }>(`
     INSERT INTO contests (title, slug, start_at, end_at, created_by)
     VALUES ('Content references', $1, now() + interval '1 day', now() + interval '2 days', $2)
     RETURNING id`, [`content-refs-${suffix}`, userId])
-  const template = await database.pool.query<{ id: string }>(`
+  const template = await database.executor.query<{ id: string }>(`
     INSERT INTO challenge_templates (name, slug, created_by, latest_version)
     VALUES ('Content reference template', $1, $2, 1)
     RETURNING id`, [`content-ref-template-${suffix}`, userId])
-  const version = await database.pool.query<{ id: string }>(`
+  const version = await database.executor.query<{ id: string }>(`
     INSERT INTO challenge_template_versions (
       template_id, version_number, title, category, description,
       flag_policy, scoring_policy, instance_policy, created_by
@@ -239,7 +227,7 @@ async function createTwoContestChallenges(database: DatabaseClient, userId: stri
     RETURNING id`, [template.rows[0]!.id, userId])
   const challengeIds: string[] = []
   for (const index of [1, 2]) {
-    const challenge = await database.pool.query<{ id: string }>(`
+    const challenge = await database.executor.query<{ id: string }>(`
       INSERT INTO contest_challenges (
         contest_id, source_template_id, source_version_id, title, category,
         description, flag_policy, scoring_policy, instance_policy

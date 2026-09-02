@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import { Client, Pool } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createDatabaseClient, type DatabaseClient } from './client'
-import { runMigrations } from './migrate'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 
 const adminConnectionString = process.env.TEST_DATABASE_ADMIN_URL
 const describeWithPostgres = adminConnectionString ? describe : describe.skip
@@ -38,25 +38,25 @@ function workerUrl(source: string): string {
 
 describeWithPostgres('restricted instance Worker database role', () => {
   let admin: Client
-  let database: DatabaseClient
-  let worker: Pool
+  let database: PostgresTestDatabase
+  let worker: Client
   let loginRoleCreated = false
 
   beforeAll(async () => {
     admin = new Client({ connectionString: adminConnectionString })
     await admin.connect()
     await admin.query(`CREATE DATABASE ${quoteDatabase(databaseName)}`)
-    database = createDatabaseClient({
+    database = createPostgresTestDatabase({
       connectionString: databaseUrl(adminConnectionString!, databaseName),
       applicationName: 'sauryctf-worker-role-test-owner',
       maxConnections: 2,
     })
-    await runMigrations(database)
+    await runPostgresTestMigrations(database)
     const roleScript = await readFile(
       fileURLToPath(new URL('../../../../../deploy/postgres/worker-role.sql', import.meta.url)),
       'utf8',
     )
-    await database.pool.query(roleScript)
+    await database.executor.query(roleScript)
     const createRole = await admin.query<{ statement: string }>(
       `SELECT format(
          'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS',
@@ -67,7 +67,7 @@ describeWithPostgres('restricted instance Worker database role', () => {
     await admin.query(createRole.rows[0]!.statement)
     loginRoleCreated = true
     await admin.query(`GRANT sauryctf_worker TO ${quoteLoginRole(loginRole)}`)
-    worker = new Pool({
+    worker = new Client({
       connectionString: workerUrl(adminConnectionString!),
       application_name: 'sauryctf-worker-role-test-runtime',
       max: 1,
@@ -76,7 +76,7 @@ describeWithPostgres('restricted instance Worker database role', () => {
 
   afterAll(async () => {
     if (worker) await worker.end()
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',

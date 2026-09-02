@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { SessionSubject } from '../identity/repository'
 import { ContestService } from '../contests/service'
-import { createDatabaseClient, type DatabaseClient } from '../../infrastructure/db/client'
-import { runMigrations } from '../../infrastructure/db/migrate'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { PostgresAnnouncementRepository } from '../../infrastructure/db/announcement-repository'
 import { PostgresContestRepository } from '../../infrastructure/db/contest-repository'
 import { createPublishableChallenge } from '../../test-support/publishable-challenge'
@@ -21,7 +21,7 @@ function quotedDatabaseName() {
 
 describeWithPostgres('announcement publication lifecycle', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let announcements: AnnouncementService
   let announcementRepository: PostgresAnnouncementRepository
   let contests: ContestService
@@ -33,15 +33,15 @@ describeWithPostgres('announcement publication lifecycle', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 12 })
-    await runMigrations(database)
-    announcementRepository = new PostgresAnnouncementRepository(database.pool)
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 12 })
+    await runPostgresTestMigrations(database)
+    announcementRepository = new PostgresAnnouncementRepository(database.executor)
     announcements = new AnnouncementService(announcementRepository)
-    contests = new ContestService(new PostgresContestRepository(database.pool))
+    contests = new ContestService(new PostgresContestRepository(database.executor))
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -56,7 +56,7 @@ describeWithPostgres('announcement publication lifecycle', () => {
     sequence++
     const username = `AnnouncementUser${sequence}`
     const email = `announcement-${sequence}@example.test`
-    const inserted = await database.pool.query<{ id: string }>(
+    const inserted = await database.executor.query<{ id: string }>(
       `INSERT INTO users
          (username, username_normalized, email, email_normalized, email_verified_at)
        VALUES ($1::varchar(64), lower($1::text)::varchar(64),
@@ -92,7 +92,7 @@ describeWithPostgres('announcement publication lifecycle', () => {
       startAt: new Date(ended ? now - 7_200_000 : now + 3_600_000),
       endAt: new Date(ended ? now - 3_600_000 : now + 7_200_000),
     })
-    await createPublishableChallenge(database.pool, created.id, organizer.userId)
+    await createPublishableChallenge(database.executor, created.id, organizer.userId)
     if (options.publish === false) return created
     return contests.publish(organizer, {
       requestId: randomUUID(),
@@ -101,7 +101,7 @@ describeWithPostgres('announcement publication lifecycle', () => {
     })
   }
 
-  it('creates an immediately visible announcement with transactional audit and a deduplicated event', async () => {
+  it('creates an immediately visible announcement with transactional audit and no broadcast event', async () => {
     const organizer = await user('organizer')
     const target = await contest(organizer)
     const requestId = randomUUID()
@@ -117,27 +117,20 @@ describeWithPostgres('announcement publication lifecycle', () => {
     await expect(announcements.listPublic(target.id, undefined, 50)).resolves.toMatchObject({
       items: [expect.objectContaining({ id: created.id, title: 'Service notice' })],
     })
-    const facts = await database.pool.query<{
-      action: string
-      request_id: string
-      dedupe_key: string
-      event_type: string
-      event_version: number
-    }>(
-      `SELECT audit.action, audit.request_id, outbox.dedupe_key,
-              outbox.event_type, outbox.event_version
-       FROM audit_events audit
-       JOIN domain_outbox outbox ON outbox.aggregate_id = audit.target_id
-       WHERE audit.target_id = $1`,
+    const facts = await database.executor.query<{ action: string, request_id: string }>(
+      `SELECT action, request_id FROM audit_events
+       WHERE target_id = $1`,
       [created.id],
     )
     expect(facts.rows).toEqual([{
       action: 'contest.announcement.created',
       request_id: requestId,
-      dedupe_key: `announcement:${created.id}:publication`,
-      event_type: 'contest.announcement.published',
-      event_version: 1,
     }])
+    const broadcasts = await database.executor.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM domain_outbox WHERE aggregate_id = $1',
+      [created.id],
+    )
+    expect(broadcasts.rows[0]!.count).toBe('0')
   })
 
   it('keeps scheduled content private until the PostgreSQL UTC publication boundary is reached', async () => {
@@ -167,7 +160,7 @@ describeWithPostgres('announcement publication lifecycle', () => {
     })
   })
 
-  it('reschedules an unpublished announcement without leaving a duplicate or stale publication event', async () => {
+  it('reschedules an unpublished announcement without creating broadcast work', async () => {
     const organizer = await user('organizer')
     const target = await contest(organizer)
     const created = await announcements.create(organizer, {
@@ -192,23 +185,11 @@ describeWithPostgres('announcement publication lifecycle', () => {
     expect(updated).toMatchObject({
       title: 'Confirmed schedule', body: 'Updated body', status: 'scheduled', version: 2,
     })
-    const events = await database.pool.query<{
-      dedupe_key: string
-      event_version: number
-      available_at: Date
-      payload: { announcement_version: number }
-    }>(
-      `SELECT dedupe_key, event_version, available_at, payload
-       FROM domain_outbox WHERE aggregate_id = $1`,
+    const events = await database.executor.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM domain_outbox WHERE aggregate_id = $1',
       [created.id],
     )
-    expect(events.rows).toHaveLength(1)
-    expect(events.rows[0]).toMatchObject({
-      dedupe_key: `announcement:${created.id}:publication`,
-      event_version: 2,
-      payload: { announcement_version: 2 },
-    })
-    expect(events.rows[0]!.available_at.toISOString()).toBe(nextPublishAt.toISOString())
+    expect(events.rows[0]!.count).toBe('0')
   })
 
   it('uses optimistic concurrency for announcement updates', async () => {
@@ -232,38 +213,23 @@ describeWithPostgres('announcement publication lifecycle', () => {
     })
   })
 
-  it('emits versioned update events only after the publication event has been delivered', async () => {
+  it('updates a visible announcement without creating broadcast work', async () => {
     const organizer = await user('organizer')
     const target = await contest(organizer)
     const created = await announcements.create(organizer, {
       requestId: randomUUID(), contestId: target.id,
       title: 'Published notice', body: 'Original body', publishAt: new Date(Date.now() - 60_000),
     })
-    await database.pool.query(
-      `UPDATE domain_outbox SET published_at = CURRENT_TIMESTAMP
-       WHERE aggregate_id = $1 AND event_type = 'contest.announcement.published'`,
-      [created.id],
-    )
     const updated = await announcements.update(organizer, {
       requestId: randomUUID(), contestId: target.id, announcementId: created.id,
       expectedVersion: 1, reason: 'Correct a visible announcement', body: 'Corrected body',
     })
     expect(updated.version).toBe(2)
-    const events = await database.pool.query<{ event_type: string, dedupe_key: string }>(
-      `SELECT event_type, dedupe_key FROM domain_outbox
-       WHERE aggregate_id = $1 ORDER BY event_version, event_type`,
+    const events = await database.executor.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM domain_outbox WHERE aggregate_id = $1',
       [created.id],
     )
-    expect(events.rows).toEqual([
-      {
-        event_type: 'contest.announcement.published',
-        dedupe_key: `announcement:${created.id}:publication`,
-      },
-      {
-        event_type: 'contest.announcement.updated',
-        dedupe_key: `announcement:${created.id}:updated:v2`,
-      },
-    ])
+    expect(events.rows[0]!.count).toBe('0')
   })
 
   it('withdraws a scheduled announcement without ever emitting a public publication event', async () => {
@@ -280,14 +246,14 @@ describeWithPostgres('announcement publication lifecycle', () => {
 
     expect(withdrawn).toMatchObject({ status: 'withdrawn', version: 2 })
     await expect(announcements.listPublic(target.id, undefined, 50)).resolves.toMatchObject({ items: [] })
-    const events = await database.pool.query<{ count: string }>(
+    const events = await database.executor.query<{ count: string }>(
       'SELECT count(*)::text AS count FROM domain_outbox WHERE aggregate_id = $1',
       [created.id],
     )
     expect(events.rows[0]!.count).toBe('0')
   })
 
-  it('hides a visible withdrawal immediately, emits one event, and rejects repeated withdrawal', async () => {
+  it('hides a visible withdrawal immediately without broadcast work and rejects repeats', async () => {
     const organizer = await user('organizer')
     const target = await contest(organizer)
     const created = await announcements.create(organizer, {
@@ -300,14 +266,11 @@ describeWithPostgres('announcement publication lifecycle', () => {
     })
 
     await expect(announcements.listPublic(target.id, undefined, 50)).resolves.toMatchObject({ items: [] })
-    const events = await database.pool.query<{ event_type: string, dedupe_key: string }>(
-      'SELECT event_type, dedupe_key FROM domain_outbox WHERE aggregate_id = $1',
+    const events = await database.executor.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM domain_outbox WHERE aggregate_id = $1',
       [created.id],
     )
-    expect(events.rows).toEqual([{
-      event_type: 'contest.announcement.withdrawn',
-      dedupe_key: `announcement:${created.id}:withdrawn:v2`,
-    }])
+    expect(events.rows[0]!.count).toBe('0')
     await expect(announcements.withdraw(organizer, {
       requestId: randomUUID(), contestId: target.id, announcementId: created.id,
       expectedVersion: withdrawn.version, reason: 'Attempt duplicate withdrawal',
@@ -370,7 +333,7 @@ describeWithPostgres('announcement publication lifecycle', () => {
     const target = await contest(organizer)
     const announcementId = randomUUID()
     const requestId = randomUUID()
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO audit_events
          (actor_user_id, action, target_type, target_id, reason,
           outcome, request_id, changes, metadata)
@@ -388,7 +351,7 @@ describeWithPostgres('announcement publication lifecycle', () => {
       body: 'Must roll back with audit failure.',
       publishAt: new Date(Date.now() - 60_000),
     })).rejects.toMatchObject({ code: '23505' })
-    const counts = await database.pool.query<{ announcements: string, outbox: string }>(
+    const counts = await database.executor.query<{ announcements: string, outbox: string }>(
       `SELECT
          (SELECT count(*)::text FROM announcements WHERE id = $1) AS announcements,
          (SELECT count(*)::text FROM domain_outbox WHERE aggregate_id = $1) AS outbox`,
@@ -397,7 +360,7 @@ describeWithPostgres('announcement publication lifecycle', () => {
     expect(counts.rows[0]).toEqual({ announcements: '0', outbox: '0' })
   })
 
-  it('rolls back update facts and event replacement when immutable audit insertion fails', async () => {
+  it('rolls back update facts when immutable audit insertion fails', async () => {
     const organizer = await user('organizer')
     const target = await contest(organizer)
     const created = await announcements.create(organizer, {
@@ -405,7 +368,7 @@ describeWithPostgres('announcement publication lifecycle', () => {
       title: 'Atomic update', body: 'Original body', publishAt: new Date(Date.now() + 3_600_000),
     })
     const requestId = randomUUID()
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO audit_events
          (actor_user_id, action, target_type, target_id, reason,
           outcome, request_id, changes, metadata)
@@ -422,7 +385,7 @@ describeWithPostgres('announcement publication lifecycle', () => {
     await expect(announcementRepository.readManaged(target.id, created.id)).resolves.toMatchObject({
       title: 'Atomic update', version: 1,
     })
-    const events = await database.pool.query<{
+    const events = await database.executor.query<{
       count: string
       event_version: number
     }>(
@@ -430,7 +393,7 @@ describeWithPostgres('announcement publication lifecycle', () => {
        FROM domain_outbox WHERE aggregate_id = $1`,
       [created.id],
     )
-    expect(events.rows[0]).toEqual({ count: '1', event_version: 1 })
+    expect(events.rows[0]).toEqual({ count: '0', event_version: null })
   })
 
   it('paginates managed and public lists with stable announcement cursors', async () => {

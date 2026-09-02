@@ -27,4 +27,4 @@ jobs:
       - name: Install OpenSpec
         run: npm install --global @fission-ai/openspec@1.11.0
       - name: Verify release candidate
-        run: pnpm test:release
+        run: bash ./scripts/test-release-acceptance.sh

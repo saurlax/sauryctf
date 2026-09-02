@@ -2,21 +2,17 @@
 set -euo pipefail
 
 postgres_image="${TEST_POSTGRES_IMAGE:-postgres:17.6-alpine}"
-redis_image="${TEST_REDIS_IMAGE:-redis:7.4.5-alpine}"
-minio_image="${TEST_MINIO_IMAGE:-minio/minio:RELEASE.2025-07-23T15-54-02Z}"
 mailpit_image="${TEST_MAILPIT_IMAGE:-axllent/mailpit:v1.27.8}"
 run_id="$(date +%s)-$$"
 postgres_container="sauryctf-onboarding-postgres-${run_id}"
-redis_container="sauryctf-onboarding-redis-${run_id}"
-minio_container="sauryctf-onboarding-minio-${run_id}"
 mailpit_container="sauryctf-onboarding-mailpit-${run_id}"
-control_plane_log="$(mktemp "${TMPDIR:-/tmp}/sauryctf-onboarding-control.XXXXXX")"
-worker_log="$(mktemp "${TMPDIR:-/tmp}/sauryctf-onboarding-worker.XXXXXX")"
+scratch_dir="$(mktemp -d "${TMPDIR:-/tmp}/sauryctf-onboarding.XXXXXX")"
+control_plane_log="${scratch_dir}/control-plane.log"
+worker_log="${scratch_dir}/worker.log"
+blob_dir="${scratch_dir}/blob"
 control_plane_pid=""
 worker_pid=""
 postgres_password='sauryctf-onboarding-postgres'
-object_access_key='sauryctf'
-object_secret_key='sauryctf-onboarding-object-secret'
 worker_password='sauryctf-onboarding-worker'
 
 cleanup() {
@@ -28,14 +24,9 @@ cleanup() {
     kill -TERM "${worker_pid}" >/dev/null 2>&1 || true
     wait "${worker_pid}" >/dev/null 2>&1 || true
   fi
-  docker container stop \
-    "${postgres_container}" "${redis_container}" "${minio_container}" "${mailpit_container}" \
-    >/dev/null 2>&1 || true
-  docker container rm \
-    "${postgres_container}" "${redis_container}" "${minio_container}" "${mailpit_container}" \
-    >/dev/null 2>&1 || true
-  unlink "${control_plane_log}" >/dev/null 2>&1 || true
-  unlink "${worker_log}" >/dev/null 2>&1 || true
+  docker container stop "${postgres_container}" "${mailpit_container}" >/dev/null 2>&1 || true
+  docker container rm "${postgres_container}" "${mailpit_container}" >/dev/null 2>&1 || true
+  rm -rf "${scratch_dir}"
 }
 trap cleanup EXIT INT TERM
 
@@ -96,29 +87,6 @@ postgres_port="$(published_port "${postgres_container}" 5432)"
 database_url="postgresql://postgres:${postgres_password}@127.0.0.1:${postgres_port}/sauryctf"
 database_admin_url="postgresql://postgres:${postgres_password}@127.0.0.1:${postgres_port}/postgres"
 
-docker run --detach --name "${redis_container}" \
-  --publish 127.0.0.1::6379 \
-  --health-cmd='redis-cli ping' \
-  --health-interval=1s --health-timeout=3s --health-retries=90 \
-  "${redis_image}" redis-server --save '' --appendonly no >/dev/null
-wait_healthy "${redis_container}"
-redis_port="$(published_port "${redis_container}" 6379)"
-redis_url="redis://127.0.0.1:${redis_port}/0"
-
-docker run --detach --name "${minio_container}" \
-  --publish 127.0.0.1::9000 \
-  --health-cmd='mc ready local' \
-  --health-interval=1s --health-timeout=3s --health-retries=90 \
-  --env MINIO_ROOT_USER="${object_access_key}" \
-  --env MINIO_ROOT_PASSWORD="${object_secret_key}" \
-  "${minio_image}" server /data >/dev/null
-wait_healthy "${minio_container}"
-minio_port="$(published_port "${minio_container}" 9000)"
-s3_endpoint="http://127.0.0.1:${minio_port}"
-docker exec "${minio_container}" mc alias set onboarding http://127.0.0.1:9000 \
-  "${object_access_key}" "${object_secret_key}" >/dev/null
-docker exec "${minio_container}" mc mb --ignore-existing onboarding/sauryctf >/dev/null
-
 docker run --detach --name "${mailpit_container}" \
   --publish 127.0.0.1::1025 \
   --publish 127.0.0.1::8025 \
@@ -135,22 +103,17 @@ docker exec "${postgres_container}" psql -U postgres -d sauryctf -v ON_ERROR_STO
   -c "CREATE ROLE sauryctf_worker_runtime LOGIN PASSWORD '${worker_password}' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS; GRANT sauryctf_worker TO sauryctf_worker_runtime;" \
   >/dev/null
 
-pnpm build
+pnpm --filter sauryctf-web build
 
 control_plane_port="$(free_port)"
 DATABASE_URL="${database_url}" \
-REDIS_URL="${redis_url}" \
 PUBLIC_ORIGIN="http://127.0.0.1:${control_plane_port}" \
 NUXT_SESSION_PASSWORD='onboarding-session-secret-at-least-32-characters' \
 SUBMISSION_ANSWER_KEY='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' \
 INSTANCE_SECRET_ACTIVE_KEY_ID='onboarding-worker-key-v1' \
 INSTANCE_SECRET_KEYS='{"onboarding-worker-key-v1":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY"}' \
-S3_ENDPOINT="${s3_endpoint}" \
-S3_REGION='us-east-1' \
-S3_BUCKET='sauryctf' \
-S3_ACCESS_KEY_ID="${object_access_key}" \
-S3_SECRET_ACCESS_KEY="${object_secret_key}" \
-S3_FORCE_PATH_STYLE='true' \
+NUXTHUB_BLOB_DIR="${blob_dir}" \
+CONTROL_PLANE_REPLICA_COUNT='1' \
 MAIL_SMTP_HOST='127.0.0.1' \
 MAIL_SMTP_PORT="${smtp_port}" \
 MAIL_FROM='SauryCTF <noreply@example.test>' \
@@ -187,7 +150,7 @@ if [[ "${worker_business_status}" != '404' ]]; then
   exit 1
 fi
 
-TEST_DATABASE_ADMIN_URL="${database_admin_url}" pnpm test:smoke
+TEST_DATABASE_ADMIN_URL="${database_admin_url}" bash ./scripts/test-jeopardy-smoke.sh
 
 admin_count="$(docker exec "${postgres_container}" psql -U postgres -d sauryctf \
   -tAc "SELECT count(*) FROM users WHERE username_normalized = 'admin'")"
@@ -196,4 +159,4 @@ if [[ "${admin_count}" != '1' ]]; then
   exit 1
 fi
 
-echo 'DOCS_ONBOARDING {"status":"passed","dependencies":"fresh","control_plane":"ready","worker":"ready-private","jeopardy_smoke":"passed"}'
+echo 'DOCS_ONBOARDING {"status":"passed","dependencies":"fresh-postgresql-mailpit-local-blob","control_plane":"ready","worker":"ready-private","jeopardy_smoke":"passed"}'

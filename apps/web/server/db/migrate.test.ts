@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PostgresControlPlaneReadiness } from '../infrastructure/db/readiness'
-import { expectedMigrationBaseline } from './migration-baseline'
+import { currentMigrationNames, expectedMigrationBaseline } from './migration-baseline'
 import {
   loadMigrationFiles,
   runNuxtHubMigrations,
@@ -54,9 +54,9 @@ describeWithPostgres('NuxtHub-compatible PostgreSQL migration lifecycle', () => 
       const [functionBody] = await sql<{ name: string | null }[]>`
         SELECT to_regprocedure('public.apply_data_retention(timestamp with time zone,timestamp with time zone,integer)')::text AS name
       `
-      expect(first.applied).toHaveLength(expectedMigrationBaseline().length)
+      expect(first.applied).toHaveLength(currentMigrationNames.length)
       expect(second.applied).toEqual([])
-      expect(journal?.count).toBe(expectedMigrationBaseline().length)
+      expect(journal?.count).toBe(currentMigrationNames.length)
       expect(functionBody?.name).toContain('apply_data_retention')
       await expect(new PostgresControlPlaneReadiness(readinessAdapter(sql)).ready())
         .resolves.toBeUndefined()
@@ -79,8 +79,8 @@ describeWithPostgres('NuxtHub-compatible PostgreSQL migration lifecycle', () => 
       const [legacy] = await sql<{ count: number }[]>`
         SELECT count(*)::integer AS count FROM control_plane.__drizzle_migrations
       `
-      expect(result.applied).toEqual([])
-      expect(hub?.count).toBe(expectedMigrationBaseline().length)
+      expect(result.applied).toEqual(['0022_rate_limit_windows'])
+      expect(hub?.count).toBe(currentMigrationNames.length)
       expect(legacy?.count).toBe(expectedMigrationBaseline().length)
       await expect(new PostgresControlPlaneReadiness(readinessAdapter(sql)).ready())
         .resolves.toBeUndefined()
@@ -153,7 +153,7 @@ async function seedLegacyDatabase(databaseUrl: string): Promise<void> {
         created_at bigint
       )
     `
-    for (let index = 0; index < migrations.length; index += 1) {
+    for (let index = 0; index < baseline.length; index += 1) {
       const migration = migrations[index]!
       const entry = baseline[index]!
       await sql.begin(async (transaction) => {

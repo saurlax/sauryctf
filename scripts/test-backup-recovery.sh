@@ -3,6 +3,11 @@ set -euo pipefail
 
 postgres_image="${TEST_POSTGRES_IMAGE:-postgres:17.6-alpine}"
 minio_image="${TEST_MINIO_IMAGE:-minio/minio:RELEASE.2025-07-23T15-54-02Z}"
+blob_driver="${BACKUP_BLOB_DRIVER:-s3}"
+if [[ "${blob_driver}" != "s3" && "${blob_driver}" != "fs" ]]; then
+  echo "BACKUP_BLOB_DRIVER must be s3 or fs" >&2
+  exit 1
+fi
 run_id="$(date +%s)-$$"
 network="sauryctf-backup-recovery-${run_id}"
 source_postgres="sauryctf-backup-source-postgres-${run_id}"
@@ -13,6 +18,10 @@ restore_minio="sauryctf-backup-restore-minio-${run_id}"
 backup_bucket="sauryctf-${run_id}"
 scratch_dir="$(mktemp -d "${TMPDIR:-/tmp}/sauryctf-backup-recovery.XXXXXX")"
 database_dump="${scratch_dir}/postgres.dump"
+source_blob_dir="${scratch_dir}/source-blob"
+backup_blob_dir="${scratch_dir}/backup-blob"
+restore_blob_dir="${scratch_dir}/restore-blob"
+blob_manifest="${scratch_dir}/blob-sha256.txt"
 source_password='sauryctf-backup-source'
 restore_password='sauryctf-backup-restore'
 object_access_key='sauryctf'
@@ -99,29 +108,38 @@ start_postgres "${source_postgres}" "${source_password}"
 source_postgres_port="$(published_port "${source_postgres}" 5432)"
 source_database_url="postgresql://postgres:${source_password}@127.0.0.1:${source_postgres_port}/postgres"
 
-start_minio "${source_minio}" "${object_access_key}" "${object_secret_key}" true
-source_minio_port="$(published_port "${source_minio}" 9000)"
-source_s3_endpoint="http://127.0.0.1:${source_minio_port}"
-docker exec "${source_minio}" mc alias set source http://127.0.0.1:9000 \
-  "${object_access_key}" "${object_secret_key}" >/dev/null
-docker exec "${source_minio}" mc mb --ignore-existing source/sauryctf >/dev/null
+blob_test_environment=()
+if [[ "${blob_driver}" == "s3" ]]; then
+  start_minio "${source_minio}" "${object_access_key}" "${object_secret_key}" true
+  source_minio_port="$(published_port "${source_minio}" 9000)"
+  source_s3_endpoint="http://127.0.0.1:${source_minio_port}"
+  docker exec "${source_minio}" mc alias set source http://127.0.0.1:9000 \
+    "${object_access_key}" "${object_secret_key}" >/dev/null
+  docker exec "${source_minio}" mc mb --ignore-existing source/sauryctf >/dev/null
 
-start_minio "${backup_minio}" "${backup_access_key}" "${backup_secret_key}" false
-docker exec "${backup_minio}" mc alias set backup http://127.0.0.1:9000 \
-  "${backup_access_key}" "${backup_secret_key}" >/dev/null
-docker exec "${backup_minio}" mc alias set source "http://${source_minio}:9000" \
-  "${object_access_key}" "${object_secret_key}" >/dev/null
-docker exec "${backup_minio}" mc mb --ignore-existing "backup/${backup_bucket}" >/dev/null
-docker exec "${backup_minio}" mc version enable "backup/${backup_bucket}" >/dev/null
+  start_minio "${backup_minio}" "${backup_access_key}" "${backup_secret_key}" false
+  docker exec "${backup_minio}" mc alias set backup http://127.0.0.1:9000 \
+    "${backup_access_key}" "${backup_secret_key}" >/dev/null
+  docker exec "${backup_minio}" mc alias set source "http://${source_minio}:9000" \
+    "${object_access_key}" "${object_secret_key}" >/dev/null
+  docker exec "${backup_minio}" mc mb --ignore-existing "backup/${backup_bucket}" >/dev/null
+  docker exec "${backup_minio}" mc version enable "backup/${backup_bucket}" >/dev/null
+  blob_test_environment=(
+    TEST_S3_ENDPOINT="${source_s3_endpoint}"
+    TEST_S3_REGION=us-east-1
+    TEST_S3_BUCKET=sauryctf
+    TEST_S3_ACCESS_KEY_ID="${object_access_key}"
+    TEST_S3_SECRET_ACCESS_KEY="${object_secret_key}"
+  )
+else
+  mkdir -p "${source_blob_dir}" "${backup_blob_dir}" "${restore_blob_dir}"
+  blob_test_environment=(TEST_BLOB_DIR="${source_blob_dir}")
+fi
 
 DATABASE_URL="${source_database_url}" pnpm db:migrate
-BACKUP_RECOVERY_PHASE=seed \
-TEST_DATABASE_URL="${source_database_url}" \
-TEST_S3_ENDPOINT="${source_s3_endpoint}" \
-TEST_S3_REGION='us-east-1' \
-TEST_S3_BUCKET='sauryctf' \
-TEST_S3_ACCESS_KEY_ID="${object_access_key}" \
-TEST_S3_SECRET_ACCESS_KEY="${object_secret_key}" \
+env BACKUP_RECOVERY_PHASE=seed \
+  TEST_DATABASE_URL="${source_database_url}" \
+  "${blob_test_environment[@]}" \
   pnpm --filter sauryctf-web exec vitest run \
     server/infrastructure/recovery/backup-restore.test.ts \
     --reporter=verbose
@@ -136,49 +154,67 @@ fi
 backup_started_epoch="$(date +%s)"
 docker exec "${source_postgres}" pg_dump -U postgres -d postgres \
   --format=custom --no-owner --no-privileges --file=/backup/postgres.dump
-docker exec "${backup_minio}" mc mirror --overwrite --preserve \
-  source/sauryctf "backup/${backup_bucket}"
+if [[ "${blob_driver}" == "s3" ]]; then
+  docker exec "${backup_minio}" mc mirror --overwrite --preserve \
+    source/sauryctf "backup/${backup_bucket}"
+else
+  cp -R "${source_blob_dir}/." "${backup_blob_dir}/"
+  (cd "${backup_blob_dir}" && find . -type f ! -name '*.$meta.json' -print0 | sort -z | xargs -0 shasum -a 256) > "${blob_manifest}"
+fi
 backup_completed_epoch="$(date +%s)"
 
 if [[ ! -s "${database_dump}" ]]; then
   echo "PostgreSQL backup artifact is empty" >&2
   exit 1
 fi
-backup_object_count="$(docker exec "${backup_minio}" mc ls --recursive --json \
-  "backup/${backup_bucket}" | wc -l | tr -d ' ')"
+if [[ "${blob_driver}" == "s3" ]]; then
+  backup_object_count="$(docker exec "${backup_minio}" mc ls --recursive --json \
+    "backup/${backup_bucket}" | wc -l | tr -d ' ')"
+else
+  backup_object_count="$(find "${backup_blob_dir}" -type f ! -name '*.$meta.json' | wc -l | tr -d ' ')"
+fi
 if [[ ! "${backup_object_count}" =~ ^[1-9][0-9]*$ ]]; then
   echo "Object-storage backup contains no objects" >&2
   exit 1
 fi
 
-docker container stop "${source_postgres}" "${source_minio}" >/dev/null
+docker container stop "${source_postgres}" >/dev/null
+if [[ "${blob_driver}" == "s3" ]]; then docker container stop "${source_minio}" >/dev/null; fi
 outage_epoch="$(date +%s)"
 
 start_postgres "${restore_postgres}" "${restore_password}"
 restore_postgres_port="$(published_port "${restore_postgres}" 5432)"
 restore_database_url="postgresql://postgres:${restore_password}@127.0.0.1:${restore_postgres_port}/postgres"
 
-start_minio "${restore_minio}" "${object_access_key}" "${object_secret_key}" true
-restore_minio_port="$(published_port "${restore_minio}" 9000)"
-restore_s3_endpoint="http://127.0.0.1:${restore_minio_port}"
-docker exec "${restore_minio}" mc alias set restore http://127.0.0.1:9000 \
-  "${object_access_key}" "${object_secret_key}" >/dev/null
-docker exec "${restore_minio}" mc mb --ignore-existing restore/sauryctf >/dev/null
-
 docker exec "${restore_postgres}" pg_restore -U postgres -d postgres \
   --no-owner --no-privileges --exit-on-error /backup/postgres.dump
-docker exec "${backup_minio}" mc alias set restore "http://${restore_minio}:9000" \
-  "${object_access_key}" "${object_secret_key}" >/dev/null
-docker exec "${backup_minio}" mc mirror --overwrite --preserve \
-  "backup/${backup_bucket}" restore/sauryctf
+if [[ "${blob_driver}" == "s3" ]]; then
+  start_minio "${restore_minio}" "${object_access_key}" "${object_secret_key}" true
+  restore_minio_port="$(published_port "${restore_minio}" 9000)"
+  restore_s3_endpoint="http://127.0.0.1:${restore_minio_port}"
+  docker exec "${restore_minio}" mc alias set restore http://127.0.0.1:9000 \
+    "${object_access_key}" "${object_secret_key}" >/dev/null
+  docker exec "${restore_minio}" mc mb --ignore-existing restore/sauryctf >/dev/null
+  docker exec "${backup_minio}" mc alias set restore "http://${restore_minio}:9000" \
+    "${object_access_key}" "${object_secret_key}" >/dev/null
+  docker exec "${backup_minio}" mc mirror --overwrite --preserve \
+    "backup/${backup_bucket}" restore/sauryctf
+  blob_test_environment=(
+    TEST_S3_ENDPOINT="${restore_s3_endpoint}"
+    TEST_S3_REGION=us-east-1
+    TEST_S3_BUCKET=sauryctf
+    TEST_S3_ACCESS_KEY_ID="${object_access_key}"
+    TEST_S3_SECRET_ACCESS_KEY="${object_secret_key}"
+  )
+else
+  cp -R "${backup_blob_dir}/." "${restore_blob_dir}/"
+  (cd "${restore_blob_dir}" && shasum -a 256 --check "${blob_manifest}")
+  blob_test_environment=(TEST_BLOB_DIR="${restore_blob_dir}")
+fi
 
-BACKUP_RECOVERY_PHASE=restore \
-TEST_DATABASE_URL="${restore_database_url}" \
-TEST_S3_ENDPOINT="${restore_s3_endpoint}" \
-TEST_S3_REGION='us-east-1' \
-TEST_S3_BUCKET='sauryctf' \
-TEST_S3_ACCESS_KEY_ID="${object_access_key}" \
-TEST_S3_SECRET_ACCESS_KEY="${object_secret_key}" \
+env BACKUP_RECOVERY_PHASE=restore \
+  TEST_DATABASE_URL="${restore_database_url}" \
+  "${blob_test_environment[@]}" \
   pnpm --filter sauryctf-web exec vitest run \
     server/infrastructure/recovery/backup-restore.test.ts \
     --reporter=verbose
@@ -197,5 +233,5 @@ if (( rto_seconds > 1800 )); then
 fi
 
 dump_sha256="$(shasum -a 256 "${database_dump}" | awk '{print $1}')"
-printf 'BACKUP_RECOVERY {"status":"passed","rpo_seconds":%s,"rto_seconds":%s,"backup_seconds":%s,"database_dump_sha256":"%s","object_count":%s,"scoreboard_rebuilt":true}\n' \
-  "${rpo_seconds}" "${rto_seconds}" "${backup_seconds}" "${dump_sha256}" "${backup_object_count}"
+printf 'BACKUP_RECOVERY {"status":"passed","blob_driver":"%s","rpo_seconds":%s,"rto_seconds":%s,"backup_seconds":%s,"database_dump_sha256":"%s","object_count":%s,"scoreboard_rebuilt":true}\n' \
+  "${blob_driver}" "${rpo_seconds}" "${rto_seconds}" "${backup_seconds}" "${dump_sha256}" "${backup_object_count}"

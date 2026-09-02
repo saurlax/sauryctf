@@ -2,7 +2,6 @@ import { z } from 'zod'
 import { utcTimestampSchema, uuidSchema } from './common-types'
 
 export const operationalCommandKindSchema = z.enum([
-  'cache_rebuild',
   'dead_letter_replay',
   'instance_reconcile',
   'session_invalidate',

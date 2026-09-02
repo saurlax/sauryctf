@@ -1,10 +1,10 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { ScoreboardViewService } from '../../domains/scoreboards/view-service'
 import { ContestScoringReplayService } from '../../domains/submissions/scoring-replay'
-import { createDatabaseClient, type DatabaseClient } from './client'
-import { runMigrations } from './migrate'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { PostgresScoreboardViewRepository } from './scoreboard-view-repository'
 import { PostgresScoringReplayRepository } from './scoring-replay-repository'
 
@@ -19,7 +19,7 @@ function quotedDatabaseName() {
 
 describeWithPostgres('PostgreSQL role-aware scoreboard snapshots', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let contestId: string
   let currentTime = new Date('2026-09-01T08:05:00.000Z')
   const freezeAt = new Date('2026-09-01T08:00:00.000Z')
@@ -31,10 +31,10 @@ describeWithPostgres('PostgreSQL role-aware scoreboard snapshots', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 8 })
-    await runMigrations(database)
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 8 })
+    await runPostgresTestMigrations(database)
 
-    const user = await database.pool.query<{ id: string }>(
+    const user = await database.executor.query<{ id: string }>(
       `INSERT INTO users
          (username, username_normalized, email, email_normalized, email_verified_at)
        VALUES ('ScoreboardUser', 'scoreboarduser',
@@ -43,7 +43,7 @@ describeWithPostgres('PostgreSQL role-aware scoreboard snapshots', () => {
       [new Date('2026-09-01T07:00:00.000Z')],
     )
     const userId = user.rows[0]!.id
-    const contest = await database.pool.query<{ id: string }>(
+    const contest = await database.executor.query<{ id: string }>(
       `INSERT INTO contests
          (title, slug, publication_status, visibility, start_at, end_at,
           scoreboard_freeze_at, created_by)
@@ -59,12 +59,12 @@ describeWithPostgres('PostgreSQL role-aware scoreboard snapshots', () => {
     )
     contestId = contest.rows[0]!.id
 
-    const template = await database.pool.query<{ id: string }>(
+    const template = await database.executor.query<{ id: string }>(
       `INSERT INTO challenge_templates (name, slug, created_by)
        VALUES ('Scoreboard Template', $1, $2) RETURNING id`,
       [`scoreboard-template-${randomUUID()}`, userId],
     )
-    const version = await database.pool.query<{ id: string }>(
+    const version = await database.executor.query<{ id: string }>(
       `INSERT INTO challenge_template_versions
          (template_id, version_number, title, category, description,
           flag_policy, scoring_policy, created_by)
@@ -74,7 +74,7 @@ describeWithPostgres('PostgreSQL role-aware scoreboard snapshots', () => {
        RETURNING id`,
       [template.rows[0]!.id, userId],
     )
-    const challenge = await database.pool.query<{ id: string }>(
+    const challenge = await database.executor.query<{ id: string }>(
       `INSERT INTO contest_challenges
          (contest_id, source_template_id, source_version_id, title, category,
           description, flag_policy, scoring_policy)
@@ -85,7 +85,7 @@ describeWithPostgres('PostgreSQL role-aware scoreboard snapshots', () => {
       [contestId, template.rows[0]!.id, version.rows[0]!.id],
     )
     const challengeId = challenge.rows[0]!.id
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contests
        SET publication_status = 'published', published_at = $2, updated_at = $2
        WHERE id = $1`,
@@ -96,7 +96,7 @@ describeWithPostgres('PostgreSQL role-aware scoreboard snapshots', () => {
       new Date('2026-09-01T07:55:00.000Z'),
       freezeAt,
     ].entries()) {
-      const player = await database.pool.query<{ id: string }>(
+      const player = await database.executor.query<{ id: string }>(
         `INSERT INTO users
            (username, username_normalized, email, email_normalized, email_verified_at)
          VALUES ($1, $2, $3, $3, $4) RETURNING id`,
@@ -108,7 +108,7 @@ describeWithPostgres('PostgreSQL role-aware scoreboard snapshots', () => {
         ],
       )
       const playerId = player.rows[0]!.id
-      const connection = await database.pool.connect()
+      const connection = await database.connect()
       let teamId: string
       try {
         await connection.query('BEGIN')
@@ -132,13 +132,13 @@ describeWithPostgres('PostgreSQL role-aware scoreboard snapshots', () => {
       finally {
         connection.release()
       }
-      const participation = await database.pool.query<{ id: string }>(
+      const participation = await database.executor.query<{ id: string }>(
         `INSERT INTO participations
            (contest_id, team_id, status, registered_by, reviewed_by, reviewed_at)
          VALUES ($1, $2, 'accepted', $3, $3, $4) RETURNING id`,
         [contestId, teamId, playerId, new Date('2026-09-01T07:30:00.000Z')],
       )
-      const submission = await database.pool.query<{ id: string }>(
+      const submission = await database.executor.query<{ id: string }>(
         `INSERT INTO submissions
            (contest_id, contest_challenge_id, participation_id, user_id, mode,
             result, answer_digest, answer_ciphertext, request_id, submitted_at)
@@ -155,7 +155,7 @@ describeWithPostgres('PostgreSQL role-aware scoreboard snapshots', () => {
           solvedAt,
         ],
       )
-      await database.pool.query(
+      await database.executor.query(
         `INSERT INTO solves
            (submission_id, contest_id, contest_challenge_id, participation_id,
             mode, awarded_score, solve_order, solved_at)
@@ -170,7 +170,7 @@ describeWithPostgres('PostgreSQL role-aware scoreboard snapshots', () => {
         ],
       )
     }
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO scoreboard_versions (contest_id, version, updated_at)
        VALUES ($1, 2, $2)`,
       [contestId, freezeAt],
@@ -178,7 +178,7 @@ describeWithPostgres('PostgreSQL role-aware scoreboard snapshots', () => {
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -190,9 +190,9 @@ describeWithPostgres('PostgreSQL role-aware scoreboard snapshots', () => {
   })
 
   it('persists the strict freeze boundary while privileged views remain current', async () => {
-    const repository = new PostgresScoreboardViewRepository(database.pool)
+    const repository = new PostgresScoreboardViewRepository(database.executor)
     const replays = new ContestScoringReplayService(
-      new PostgresScoringReplayRepository(database.pool),
+      new PostgresScoringReplayRepository(database.executor),
     )
     const service = new ScoreboardViewService(repository, replays, undefined, () => currentTime)
 
@@ -236,7 +236,7 @@ describeWithPostgres('PostgreSQL role-aware scoreboard snapshots', () => {
     expect(settled).toMatchObject({ view: 'public', state: 'settled', version: 2 })
     expect(settled.board.rows.map(row => row.totalPoints)).toEqual([500, 500])
 
-    const snapshots = await database.pool.query<{
+    const snapshots = await database.executor.query<{
       view: string
       version: string
     }>(
@@ -260,10 +260,6 @@ describeWithPostgres('PostgreSQL role-aware scoreboard snapshots', () => {
       { replay: replayAfterRestart },
       undefined,
       () => currentTime,
-      {
-        get: async () => null,
-        set: async () => { throw new Error('redis unavailable') },
-      },
     )
     await expect(restarted.read({
       contestId,
@@ -272,5 +268,52 @@ describeWithPostgres('PostgreSQL role-aware scoreboard snapshots', () => {
       scope: { type: 'overall' },
     })).resolves.toEqual(settled)
     expect(replayAfterRestart).not.toHaveBeenCalled()
+  })
+
+  it('converges concurrent builds from independent control-plane replicas on one snapshot', async () => {
+    currentTime = new Date('2026-09-01T08:11:00.000Z')
+    await database.executor.query(`
+      DELETE FROM scoreboard_snapshots
+      WHERE contest_id = $1 AND view = 'public' AND scope_key = 'overall' AND version = 2
+    `, [contestId])
+    const replica = createPostgresTestDatabase({
+      connectionString: database.connectionString,
+      maxConnections: 4,
+      applicationName: 'sauryctf-scoreboard-second-replica',
+    })
+    try {
+      const first = new ScoreboardViewService(
+        new PostgresScoreboardViewRepository(database.executor),
+        new ContestScoringReplayService(new PostgresScoringReplayRepository(database.executor)),
+        undefined,
+        () => currentTime,
+      )
+      const second = new ScoreboardViewService(
+        new PostgresScoreboardViewRepository(replica.executor),
+        new ContestScoringReplayService(new PostgresScoringReplayRepository(replica.executor)),
+        undefined,
+        () => currentTime,
+      )
+      const input = {
+        contestId,
+        view: 'public' as const,
+        viewerRole: 'user' as const,
+        scope: { type: 'overall' as const },
+      }
+      const [firstResult, secondResult] = await Promise.all([
+        first.read(input),
+        second.read(input),
+      ])
+      expect(secondResult).toEqual(firstResult)
+      const snapshots = await database.executor.query<{ count: number }>(`
+        SELECT count(*)::integer AS count
+        FROM scoreboard_snapshots
+        WHERE contest_id = $1 AND view = 'public' AND scope_key = 'overall' AND version = 2
+      `, [contestId])
+      expect(snapshots.rows[0]?.count).toBe(1)
+    }
+    finally {
+      await replica.close()
+    }
   })
 })

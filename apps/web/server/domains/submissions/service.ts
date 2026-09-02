@@ -40,6 +40,7 @@ export interface SubmissionRateLimiter {
     limit: number
     windowMs: number
   }): Promise<SubmissionRateLimitDecision>
+  consumeMany?(inputs: Array<Parameters<SubmissionRateLimiter['consume']>[0]>): Promise<SubmissionRateLimitDecision[]>
 }
 
 export type SubmissionServiceErrorCode =
@@ -297,11 +298,15 @@ export class SubmissionService {
   }
 
   private async enforceLimits(inputs: Array<Parameters<SubmissionRateLimiter['consume']>[0]>) {
-    for (const input of inputs) {
-      const decision = await this.rateLimiter.consume(input)
-      if (!decision.allowed) {
-        throw new SubmissionServiceError('security.rate_limited', decision.retryAfterMs)
-      }
+    const decisions = this.rateLimiter.consumeMany
+      ? await this.rateLimiter.consumeMany(inputs)
+      : await Promise.all(inputs.map(input => this.rateLimiter.consume(input)))
+    const retryAfterMs = decisions.reduce(
+      (maximum, decision) => decision.allowed ? maximum : Math.max(maximum, decision.retryAfterMs),
+      0,
+    )
+    if (retryAfterMs > 0) {
+      throw new SubmissionServiceError('security.rate_limited', retryAfterMs)
     }
   }
 

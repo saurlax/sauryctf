@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { DomainOutboxDispatcher } from '../domains/events/domain-outbox'
+import { db } from 'hub:db'
 import { IdentityService } from '../domains/identity/service'
 import { IdentitySessionService } from '../domains/identity/session'
 import { MailOutboxDispatcher } from '../domains/notifications/mail-outbox'
@@ -8,11 +8,11 @@ import { identityTokenCodec } from '../infrastructure/auth/identity-token-codec'
 import { AesGcmIdentityMailTokenProtector } from '../infrastructure/auth/identity-mail-token-protector'
 import { nuxtPasswordHasher } from '../infrastructure/auth/nuxt-password-hasher'
 import { TurnstileHumanVerificationProvider } from '../infrastructure/auth/turnstile'
-import { createDatabaseClient } from '../infrastructure/db/client'
+import { createDatabaseExecutor } from '../infrastructure/db/executor'
 import { PostgresIdentityRepository } from '../infrastructure/db/identity-repository'
 import { PostgresMailOutboxRepository } from '../infrastructure/mail/postgres-mail-outbox'
 import { SmtpMailTransport } from '../infrastructure/mail/smtp-mail-transport'
-import { ResilientRedisRateLimitStore } from '../infrastructure/security/rate-limit'
+import { PostgresRateLimitStore } from '../infrastructure/security/postgres-rate-limit-store'
 import { structuredLog } from '../infrastructure/telemetry/logging'
 import { activeControlPlaneTelemetry } from '../infrastructure/telemetry/telemetry'
 import { AdministrationMonitoringService } from '../domains/administration/monitoring'
@@ -47,18 +47,16 @@ import { AesGcmSubmissionAnswerProtector } from '../infrastructure/security/subm
 import { ContestScoringReplayService } from '../domains/submissions/scoring-replay'
 import { ScoreboardBuildCoordinator } from '../domains/scoreboards/build-coordinator'
 import { ScoreboardViewService } from '../domains/scoreboards/view-service'
-import { ResilientRedisScoreboardBuildLock } from '../infrastructure/cache/redis-scoreboard-build-lock'
-import { ResilientRedisScoreboardCache } from '../infrastructure/cache/redis-scoreboard-cache'
 import { PostgresScoringReplayRepository } from '../infrastructure/db/scoring-replay-repository'
 import { PostgresScoreboardViewRepository } from '../infrastructure/db/scoreboard-view-repository'
-import { PostgresDomainOutboxRepository } from '../infrastructure/db/domain-outbox-repository'
-import { RedisDomainEventPublisher } from '../infrastructure/events/redis-domain-event-publisher'
-import { RedisPublicRealtimeLog } from '../infrastructure/events/redis-public-realtime-log'
 import { ContentObjectService } from '../domains/content/service'
 import { ContentDownloadService } from '../domains/content/download-service'
 import { PostgresContentObjectRepository } from '../infrastructure/db/content-object-repository'
 import { PostgresContentDownloadRepository } from '../infrastructure/db/content-download-repository'
-import { S3ContentObjectStore } from '../infrastructure/storage/s3-content-object-store'
+import { parseDataServicesConfig } from '../infrastructure/config/data-services'
+import { getControlPlaneBlobStorage } from '../infrastructure/storage/blob-storage'
+import { NuxtHubContentObjectStore } from '../infrastructure/storage/nuxthub-content-object-store'
+import { ControlPlaneDataServicesReadiness, NuxtHubBlobReadiness } from '../infrastructure/storage/readiness'
 import { WriteupService } from '../domains/writeups/service'
 import { PostgresWriteupRepository } from '../infrastructure/db/writeup-repository'
 import { ZipWriteupArchiveBuilder } from '../infrastructure/content/writeup-zip'
@@ -75,34 +73,17 @@ export default defineNitroPlugin(async (nitroApp) => {
   const databaseUrl = process.env.DATABASE_URL
   const sessionPassword = process.env.NUXT_SESSION_PASSWORD
   const submissionAnswerKey = process.env.SUBMISSION_ANSWER_KEY
-  const s3Endpoint = process.env.S3_ENDPOINT
-  const s3Region = process.env.S3_REGION
-  const s3Bucket = process.env.S3_BUCKET
-  const s3AccessKeyId = process.env.S3_ACCESS_KEY_ID
-  const s3SecretAccessKey = process.env.S3_SECRET_ACCESS_KEY
-  if (!databaseUrl || !sessionPassword || !submissionAnswerKey
-    || !s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey) return
+  if (!databaseUrl || !sessionPassword || !submissionAnswerKey) return
 
-  const database = createDatabaseClient({
-    connectionString: databaseUrl,
-    applicationName: 'sauryctf-control-plane',
-  })
-  const identityRepository = new PostgresIdentityRepository(database.pool)
-  const rateLimits = new ResilientRedisRateLimitStore(process.env.REDIS_URL)
-  const scoreboardCache = new ResilientRedisScoreboardCache(process.env.REDIS_URL)
-  const scoreboardBuildLock = new ResilientRedisScoreboardBuildLock(process.env.REDIS_URL)
-  const domainEventPublisher = new RedisDomainEventPublisher(process.env.REDIS_URL)
-  const publicRealtime = new RedisPublicRealtimeLog(process.env.REDIS_URL)
-  const contentStore = new S3ContentObjectStore({
-    endpoint: s3Endpoint,
-    region: s3Region,
-    bucket: s3Bucket,
-    accessKeyId: s3AccessKeyId,
-    secretAccessKey: s3SecretAccessKey,
-    forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
-  })
+  const dataServices = parseDataServicesConfig(process.env)
+  const database = createDatabaseExecutor(db)
+  const identityRepository = new PostgresIdentityRepository(database)
+  const rateLimits = new PostgresRateLimitStore(database)
+  const contentStore = new NuxtHubContentObjectStore(
+    await getControlPlaneBlobStorage(dataServices.blob),
+  )
   const content = new ContentObjectService(
-    new PostgresContentObjectRepository(database.pool),
+    new PostgresContentObjectRepository(database),
     contentStore,
   )
   const humanVerification = process.env.TURNSTILE_SECRET_KEY
@@ -118,79 +99,82 @@ export default defineNitroPlugin(async (nitroApp) => {
   )
   await identity.bootstrapDefaultAdministrator()
   const scoringReplays = new ContestScoringReplayService(
-    new PostgresScoringReplayRepository(database.pool),
+    new PostgresScoringReplayRepository(database),
   )
   const platformSettings = new PlatformSettingsService(
-    new PostgresPlatformSettingsRepository(database.pool),
+    new PostgresPlatformSettingsRepository(database),
     content,
   )
   const scoreboards = new ScoreboardViewService(
-    new PostgresScoreboardViewRepository(database.pool),
+    new PostgresScoreboardViewRepository(database),
     scoringReplays,
     undefined,
     undefined,
-    scoreboardCache,
-    new ScoreboardBuildCoordinator(scoreboardBuildLock),
+    new ScoreboardBuildCoordinator(),
   )
-  const operationalCommands = new PostgresOperationalCommandRepository(database.pool)
-  const dataRetention = new DataRetentionService(new PostgresDataRetentionRepository(database.pool))
+  const operationalCommands = new PostgresOperationalCommandRepository(database)
+  const dataRetention = new DataRetentionService(new PostgresDataRetentionRepository(database))
+  const dataServicesReadiness = new ControlPlaneDataServicesReadiness(
+    new PostgresControlPlaneReadiness(database),
+    new NuxtHubBlobReadiness(dataServices.blob, contentStore),
+    dataServices.blob.driver,
+  )
   const services: ControlPlaneServices = {
-    readiness: new PostgresControlPlaneReadiness(database.pool),
+    readiness: dataServicesReadiness,
     identity,
     identitySessions: new IdentitySessionService(identityRepository),
     humanVerification,
     rateLimits,
-    teams: new TeamService(new PostgresTeamRepository(database.pool)),
-    participations: new ParticipationService(new PostgresParticipationRepository(database.pool)),
-    contests: new ContestService(new PostgresContestRepository(database.pool)),
-    announcements: new AnnouncementService(new PostgresAnnouncementRepository(database.pool)),
-    timeline: new PublicTimelineService(new PostgresPublicTimelineRepository(database.pool)),
-    challengeTemplates: new ChallengeTemplateService(new PostgresChallengeTemplateRepository(database.pool)),
-    contestChallenges: new ContestChallengeService(new PostgresContestChallengeRepository(database.pool)),
+    teams: new TeamService(new PostgresTeamRepository(database)),
+    participations: new ParticipationService(new PostgresParticipationRepository(database)),
+    contests: new ContestService(new PostgresContestRepository(database)),
+    announcements: new AnnouncementService(new PostgresAnnouncementRepository(database)),
+    timeline: new PublicTimelineService(new PostgresPublicTimelineRepository(database)),
+    challengeTemplates: new ChallengeTemplateService(new PostgresChallengeTemplateRepository(database)),
+    contestChallenges: new ContestChallengeService(new PostgresContestChallengeRepository(database)),
     submissions: new SubmissionService(
-      new PostgresSubmissionRepository(database.pool),
+      new PostgresSubmissionRepository(database),
       new FlagVerifier(new VersionedFlagKeyring({})),
       new RateLimitStoreSubmissionLimiter(rateLimits),
       new AesGcmSubmissionAnswerProtector(Buffer.from(submissionAnswerKey, 'base64url')),
     ),
     scoreboards,
-    publicRealtime,
     content,
     contentDownloads: new ContentDownloadService(
-      new PostgresContentDownloadRepository(database.pool),
+      new PostgresContentDownloadRepository(database),
       contentStore,
     ),
     writeups: new WriteupService(
-      new PostgresWriteupRepository(database.pool),
+      new PostgresWriteupRepository(database),
       new ZipWriteupArchiveBuilder(contentStore),
     ),
     contestPackages: new ContestPackageService(
-      new PostgresContestPackageRepository(database.pool),
+      new PostgresContestPackageRepository(database),
       content,
       new ContestPackageArchiveCodec(contentStore),
     ),
     platformSettings,
     instances: new InstanceService(
-      new PostgresInstanceRepository(database.pool, activeControlPlaneTelemetry()),
+      new PostgresInstanceRepository(database, activeControlPlaneTelemetry()),
       instanceLeasePolicy(process.env),
     ),
     monitoring: new AdministrationMonitoringService(
-      new PostgresMonitoringRepository(database.pool),
+      new PostgresMonitoringRepository(database),
       positiveSeconds(process.env.WORKER_OBSERVATION_STALE_SECONDS, 90) * 1000,
+      undefined,
+      dataServicesReadiness,
     ),
     operations: new AdministrationOperationsService(
       operationalCommands,
       scoreboards,
-      scoreboardCache,
     ),
-    securityLogs: new PostgresSecurityLogWriter(database.pool),
+    securityLogs: new PostgresSecurityLogWriter(database),
   }
 
   const smtpHost = process.env.MAIL_SMTP_HOST
   const mailFrom = process.env.MAIL_FROM
   const publicOrigin = process.env.PUBLIC_ORIGIN
   let dispatchTimer: ReturnType<typeof setInterval> | undefined
-  let domainEventTimer: ReturnType<typeof setInterval> | undefined
   let contentCleanupTimer: ReturnType<typeof setInterval> | undefined
   let retentionTimer: ReturnType<typeof setInterval> | undefined
   let telemetryTimer: ReturnType<typeof setInterval> | undefined
@@ -198,7 +182,7 @@ export default defineNitroPlugin(async (nitroApp) => {
     const smtpPort = Number.parseInt(process.env.MAIL_SMTP_PORT ?? '25', 10)
     const dispatcher = new MailOutboxDispatcher(
       `control-plane-${randomUUID()}`,
-      new PostgresMailOutboxRepository(database.pool),
+      new PostgresMailOutboxRepository(database),
       new SmtpMailTransport({
         host: smtpHost,
         port: Number.isSafeInteger(smtpPort) && smtpPort > 0 ? smtpPort : 25,
@@ -234,30 +218,6 @@ export default defineNitroPlugin(async (nitroApp) => {
     dispatchTimer.unref()
   }
 
-  if (process.env.REDIS_URL) {
-    const dispatcher = new DomainOutboxDispatcher(
-      new PostgresDomainOutboxRepository(database.pool),
-      domainEventPublisher,
-    )
-    let dispatching = false
-    const dispatch = async () => {
-      if (dispatching) return
-      dispatching = true
-      try {
-        await dispatcher.runOnce()
-      }
-      catch (error) {
-        console.error(structuredLog('error', 'domain_events.dispatch_failed', { error }))
-      }
-      finally {
-        dispatching = false
-      }
-    }
-    void dispatch()
-    domainEventTimer = setInterval(() => void dispatch(), 2_000)
-    domainEventTimer.unref()
-  }
-
   let contentCleanupRun: Promise<void> | undefined
   const collectContent = () => {
     if (contentCleanupRun) return contentCleanupRun
@@ -280,10 +240,13 @@ export default defineNitroPlugin(async (nitroApp) => {
     if (retentionRun) return retentionRun
     retentionRun = dataRetention.run()
       .then(result => {
-        if (result.auditDeleted > 0 || result.securityLogsDeleted > 0) {
+        if (result.auditDeleted > 0
+          || result.securityLogsDeleted > 0
+          || result.rateLimitWindowsDeleted > 0) {
           console.info(structuredLog('info', 'retention.completed', {
             audit_deleted: result.auditDeleted,
             security_logs_deleted: result.securityLogsDeleted,
+            rate_limit_windows_deleted: result.rateLimitWindowsDeleted,
             batches: result.batches,
           }))
         }
@@ -305,9 +268,9 @@ export default defineNitroPlugin(async (nitroApp) => {
     const telemetry = activeControlPlaneTelemetry()
     if (!telemetry || telemetryRefresh) return telemetryRefresh
     telemetryRefresh = Promise.all([
-      groupedCounts(database.pool, 'mail_deliveries', 'status'),
-      groupedCounts(database.pool, 'instance_jobs', 'status'),
-      groupedCounts(database.pool, 'instances', 'observed_state'),
+      groupedCounts(database, 'mail_deliveries', 'status'),
+      groupedCounts(database, 'instance_jobs', 'status'),
+      groupedCounts(database, 'instances', 'observed_state'),
     ])
       .then(([mailDeliveries, instanceJobs, instances]) => {
         telemetry.updateOperationalSnapshot({ mailDeliveries, instanceJobs, instances })
@@ -329,29 +292,23 @@ export default defineNitroPlugin(async (nitroApp) => {
   })
   nitroApp.hooks.hook('close', async () => {
     if (dispatchTimer) clearInterval(dispatchTimer)
-    if (domainEventTimer) clearInterval(domainEventTimer)
     if (contentCleanupTimer) clearInterval(contentCleanupTimer)
     if (retentionTimer) clearInterval(retentionTimer)
     if (telemetryTimer) clearInterval(telemetryTimer)
     await contentCleanupRun
     await retentionRun
     await telemetryRefresh
-    await rateLimits.close()
-    await scoreboardCache.close()
-    await scoreboardBuildLock.close()
-    await domainEventPublisher.close()
-    await publicRealtime.close()
     contentStore.close()
-    await database.pool.end()
+    await db.$client.end()
   })
 })
 
 async function groupedCounts(
-  pool: ReturnType<typeof createDatabaseClient>['pool'],
+  database: Pick<ReturnType<typeof createDatabaseExecutor>, 'query'>,
   table: 'mail_deliveries' | 'instance_jobs' | 'instances',
   column: 'status' | 'observed_state',
 ) {
-  const result = await pool.query<{ label: string, count: string }>(
+  const result = await database.query<{ label: string, count: string }>(
     `SELECT ${column}::text AS label, count(*)::text AS count FROM ${table} GROUP BY ${column}`,
   )
   return Object.fromEntries(result.rows.map(row => [row.label, Number(row.count)]))

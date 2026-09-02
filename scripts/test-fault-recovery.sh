@@ -2,12 +2,10 @@
 set -euo pipefail
 
 postgres_image="${TEST_POSTGRES_IMAGE:-postgres:17.6-alpine}"
-redis_image="${TEST_REDIS_IMAGE:-redis:7.4.5-alpine}"
 minio_image="${TEST_MINIO_IMAGE:-minio/minio:RELEASE.2025-07-23T15-54-02Z}"
 mailpit_image="${TEST_MAILPIT_IMAGE:-axllent/mailpit:v1.27.8}"
 run_id="$(date +%s)-$$"
 postgres_container="sauryctf-fault-postgres-${run_id}"
-redis_container="sauryctf-fault-redis-${run_id}"
 minio_container="sauryctf-fault-minio-${run_id}"
 mailpit_container="sauryctf-fault-mailpit-${run_id}"
 scratch_dir="$(mktemp -d "${TMPDIR:-/tmp}/sauryctf-fault-recovery.XXXXXX")"
@@ -21,10 +19,10 @@ cleanup() {
     wait "${control_plane_pid}" >/dev/null 2>&1 || true
   fi
   docker container stop \
-    "${postgres_container}" "${redis_container}" "${minio_container}" "${mailpit_container}" \
+    "${postgres_container}" "${minio_container}" "${mailpit_container}" \
     >/dev/null 2>&1 || true
   docker container rm \
-    "${postgres_container}" "${redis_container}" "${minio_container}" "${mailpit_container}" \
+    "${postgres_container}" "${minio_container}" "${mailpit_container}" \
     >/dev/null 2>&1 || true
   rm -rf "${scratch_dir}"
 }
@@ -69,7 +67,6 @@ wait_control_plane() {
 
 start_control_plane() {
   DATABASE_URL="${control_database_url}" \
-  REDIS_URL="${redis_url}" \
   NUXT_SESSION_PASSWORD='fault-recovery-session-secret-at-least-32-characters' \
   SUBMISSION_ANSWER_KEY='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' \
   INSTANCE_SECRET_ACTIVE_KEY_ID='fault-worker-key-v1' \
@@ -109,15 +106,6 @@ wait_healthy "${postgres_container}"
 postgres_port="$(published_port "${postgres_container}" 5432)"
 database_url="postgresql://postgres:sauryctf-fault@127.0.0.1:${postgres_port}/postgres"
 
-docker run --detach --name "${redis_container}" \
-  --publish 127.0.0.1::6379 \
-  --health-cmd='redis-cli ping' \
-  --health-interval=1s --health-timeout=3s --health-retries=90 \
-  "${redis_image}" redis-server --save '' --appendonly no >/dev/null
-wait_healthy "${redis_container}"
-redis_port="$(published_port "${redis_container}" 6379)"
-redis_url="redis://127.0.0.1:${redis_port}"
-
 docker run --detach --name "${minio_container}" \
   --publish 127.0.0.1::9000 \
   --health-cmd='mc ready local' \
@@ -144,7 +132,6 @@ mailpit_port="$(published_port "${mailpit_container}" 8025)"
 mailpit_api_url="http://127.0.0.1:${mailpit_port}"
 
 TEST_DATABASE_ADMIN_URL="${database_url}" \
-TEST_REDIS_URL="${redis_url}" \
 TEST_S3_ENDPOINT="${s3_endpoint}" \
 TEST_S3_REGION='us-east-1' \
 TEST_S3_BUCKET='sauryctf' \
@@ -154,8 +141,9 @@ TEST_SMTP_HOST='127.0.0.1' \
 TEST_SMTP_PORT="${smtp_port}" \
 TEST_MAILPIT_API_URL="${mailpit_api_url}" \
   pnpm --filter sauryctf-web exec vitest run \
-    server/infrastructure/recovery/redis-authority-recovery.test.ts \
     server/infrastructure/recovery/dependency-faults.test.ts \
+    server/infrastructure/db/readiness.test.ts \
+    server/infrastructure/storage/readiness.test.ts \
     --reporter=verbose
 
 TEST_DATABASE_ADMIN_URL="${database_url}" \
@@ -183,4 +171,4 @@ if [[ "${admin_count}" != "1" ]]; then
 fi
 stop_control_plane
 
-echo 'FAULT_RECOVERY {"redis":"passed","worker":"passed","kubernetes_api":"passed","object_storage":"passed","mail":"passed","control_plane_replica":"passed"}'
+echo 'FAULT_RECOVERY {"postgresql":"passed","blob_s3":"passed","blob_fs_permissions":"passed","smtp":"passed","worker":"passed","provider":"passed","control_plane_replica":"passed"}'

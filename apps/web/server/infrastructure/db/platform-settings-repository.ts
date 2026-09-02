@@ -1,4 +1,3 @@
-import type { Pool, PoolClient } from 'pg'
 import {
   PlatformLogoUnavailableError,
   PlatformSettingsNotFoundError,
@@ -8,6 +7,7 @@ import {
   type PlatformSettingsRepository,
   type UpdatePlatformSettingsCommand,
 } from '../../domains/platform-settings/repository'
+import type { DatabaseExecutor } from './executor'
 
 interface SettingsRow {
   brand_name: string
@@ -27,19 +27,17 @@ const projection = `
   version::text, updated_by::text, updated_at`
 
 export class PostgresPlatformSettingsRepository implements PlatformSettingsRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly database: DatabaseExecutor) {}
 
   async read(): Promise<PlatformSettingsRecord> {
-    const result = await this.pool.query<SettingsRow>(`
+    const result = await this.database.query<SettingsRow>(`
       SELECT ${projection} FROM platform_settings WHERE singleton = true`)
     if (!result.rows[0]) throw new PlatformSettingsNotFoundError()
     return record(result.rows[0])
   }
 
   async update(command: UpdatePlatformSettingsCommand): Promise<PlatformSettingsRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       const locked = await connection.query<SettingsRow>(`
         SELECT ${projection} FROM platform_settings
         WHERE singleton = true FOR UPDATE`)
@@ -106,20 +104,12 @@ export class PostgresPlatformSettingsRepository implements PlatformSettingsRepos
           changed_fields: changedFields(current, next),
         },
       ])
-      await connection.query('COMMIT')
       return record(updated.rows[0])
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 }
 
-async function assertLogoAvailable(connection: PoolClient, objectId: string) {
+async function assertLogoAvailable(connection: DatabaseExecutor, objectId: string) {
   const result = await connection.query<{ media_type: string, size_bytes: string }>(`
     SELECT media_type, size_bytes::text FROM content_objects
     WHERE id = $1 AND status = 'committed' AND committed_at IS NOT NULL

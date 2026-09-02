@@ -1,4 +1,3 @@
-import type { Pool, PoolClient } from 'pg'
 import {
   ChallengeContentObjectUnavailableError,
   ChallengeTemplateNotFoundError,
@@ -17,6 +16,7 @@ import type {
   ChallengeInstancePolicy,
   ChallengeScoringPolicy,
 } from '../../../shared/contracts/challenges'
+import type { DatabaseExecutor } from './executor'
 
 interface DetailRow {
   template_id: string
@@ -49,45 +49,37 @@ function isSlugConflict(error: unknown) {
 }
 
 export class PostgresChallengeTemplateRepository implements ChallengeTemplateRepository {
-  constructor(private pool: Pool) {}
+  constructor(private database: DatabaseExecutor) {}
 
   async create(command: CreateChallengeTemplateCommand): Promise<ChallengeTemplateDetail> {
-    const connection = await this.pool.connect()
     try {
-      await connection.query('BEGIN')
-      await this.assertAssetsAvailable(connection, command.assets)
-      await connection.query(
-        `INSERT INTO challenge_templates
-           (id, name, slug, created_by, latest_version)
-         VALUES ($1, $2, $3, $4, 1)`,
-        [command.templateId, command.name, command.slug, command.actorId],
-      )
-      await this.insertVersion(connection, command.versionId, command.templateId, 1, command.actorId, command)
-      await this.insertAssets(connection, command.versionId, command.assets)
-      await this.insertHints(connection, command.versionId, command.hints)
-      await this.writeAudit(connection, command.actorId, command.requestId, 'challenge.template.created',
-        'challenge_template', command.templateId, null, {
-          slug: command.slug,
-          initial_version_id: command.versionId,
-        })
-      const result = await this.readWith(connection, command.templateId, 1)
-      await connection.query('COMMIT')
-      return result
+      return await this.database.transaction(async (connection) => {
+        await this.assertAssetsAvailable(connection, command.assets)
+        await connection.query(
+          `INSERT INTO challenge_templates
+             (id, name, slug, created_by, latest_version)
+           VALUES ($1, $2, $3, $4, 1)`,
+          [command.templateId, command.name, command.slug, command.actorId],
+        )
+        await this.insertVersion(connection, command.versionId, command.templateId, 1, command.actorId, command)
+        await this.insertAssets(connection, command.versionId, command.assets)
+        await this.insertHints(connection, command.versionId, command.hints)
+        await this.writeAudit(connection, command.actorId, command.requestId, 'challenge.template.created',
+          'challenge_template', command.templateId, null, {
+            slug: command.slug,
+            initial_version_id: command.versionId,
+          })
+        return this.readWith(connection, command.templateId, 1)
+      })
     }
     catch (error) {
-      await connection.query('ROLLBACK')
       if (isSlugConflict(error)) throw new ChallengeTemplateSlugConflictError()
       throw error
-    }
-    finally {
-      connection.release()
     }
   }
 
   async createVersion(command: CreateChallengeTemplateVersionCommand): Promise<ChallengeTemplateDetail> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       const current = await connection.query<{ latest_version: number, version: string }>(
         `SELECT latest_version, version::text
          FROM challenge_templates WHERE id = $1 FOR UPDATE`,
@@ -124,24 +116,16 @@ export class PostgresChallengeTemplateRepository implements ChallengeTemplateRep
           previous_version_number: current.rows[0].latest_version,
         })
       const result = await this.readWith(connection, command.templateId, versionNumber)
-      await connection.query('COMMIT')
       return result
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async read(templateId: string, versionNumber?: number): Promise<ChallengeTemplateDetail> {
-    return this.readWith(this.pool, templateId, versionNumber)
+    return this.readWith(this.database, templateId, versionNumber)
   }
 
   private async readWith(
-    connection: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>,
+    connection: DatabaseExecutor,
     templateId: string,
     versionNumber?: number,
   ): Promise<ChallengeTemplateDetail> {
@@ -231,7 +215,7 @@ export class PostgresChallengeTemplateRepository implements ChallengeTemplateRep
     }
   }
 
-  private async assertAssetsAvailable(connection: PoolClient, assets: ChallengeTemplateAssetCommand[]) {
+  private async assertAssetsAvailable(connection: DatabaseExecutor, assets: ChallengeTemplateAssetCommand[]) {
     if (assets.length === 0) return
     const ids = assets.map(asset => asset.contentObjectId)
     const available = await connection.query<{ id: string }>(
@@ -246,7 +230,7 @@ export class PostgresChallengeTemplateRepository implements ChallengeTemplateRep
   }
 
   private async insertVersion(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     versionId: string,
     templateId: string,
     versionNumber: number,
@@ -275,7 +259,7 @@ export class PostgresChallengeTemplateRepository implements ChallengeTemplateRep
   }
 
   private async insertAssets(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     versionId: string,
     assets: ChallengeTemplateAssetCommand[],
   ) {
@@ -290,7 +274,7 @@ export class PostgresChallengeTemplateRepository implements ChallengeTemplateRep
   }
 
   private async insertHints(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     versionId: string,
     hints: CreateChallengeTemplateCommand['hints'],
   ) {
@@ -305,7 +289,7 @@ export class PostgresChallengeTemplateRepository implements ChallengeTemplateRep
   }
 
   private async writeAudit(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     actorId: string,
     requestId: string,
     action: string,

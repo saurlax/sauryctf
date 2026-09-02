@@ -1,5 +1,4 @@
 import { timingSafeEqual } from 'node:crypto'
-import type { Pool, PoolClient } from 'pg'
 import {
   challengeFlagPolicySchema,
   challengeScoringPolicySchema,
@@ -40,6 +39,7 @@ import {
   type SubmissionResult,
 } from '../../domains/submissions/repository'
 import { calculateChallengeScore } from '../../domains/submissions/scoring'
+import type { DatabaseExecutor } from './executor'
 
 interface ContestRow {
   publication_status: 'draft' | 'published' | 'archived'
@@ -129,47 +129,35 @@ interface CheatClueReviewAuditRow {
 }
 
 export class PostgresSubmissionRepository implements SubmissionRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly database: DatabaseExecutor) {}
 
   async admit(command: SubmissionAdmissionCommand): Promise<SubmissionAdmission> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       const result = await this.admitWith(connection, command, 'admit')
-      await connection.query('COMMIT')
       return result
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async append(command: AppendSubmissionCommand): Promise<StoredSubmission> {
-    const connection = await this.pool.connect()
     try {
-      await connection.query('BEGIN')
-      const existing = await this.readByRequestId(connection, command.requestId)
-      if (existing) {
-        if (!sameRequest(existing, command)) throw new SubmissionRequestConflictError()
-        await connection.query('COMMIT')
-        return submissionRecord(existing)
-      }
+      return await this.database.transaction(async (connection) => {
+        const existing = await this.readByRequestId(connection, command.requestId)
+        if (existing) {
+          if (!sameRequest(existing, command)) throw new SubmissionRequestConflictError()
+          return submissionRecord(existing)
+        }
 
-      const admission = await this.admitWith(connection, command, 'append')
-      const alreadySolved = command.result === 'correct'
-        ? await this.hasSolve(
+        const admission = await this.admitWith(connection, command, 'append')
+        const alreadySolved = command.result === 'correct'
+          ? await this.hasSolve(
             connection,
             admission.participationId,
             admission.challengeId,
             admission.mode,
           )
-        : false
-      const result = alreadySolved ? 'already_solved' : command.result
-      const inserted = await connection.query<SubmissionRow>(
+          : false
+        const result = alreadySolved ? 'already_solved' : command.result
+        const inserted = await connection.query<SubmissionRow>(
         `INSERT INTO submissions
            (contest_id, contest_challenge_id, participation_id, user_id,
             mode, result, answer_digest, answer_ciphertext, request_id,
@@ -190,8 +178,8 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
           command.at,
         ],
       )
-      if (result === 'correct') {
-        await this.createSolve(
+        if (result === 'correct') {
+          await this.createSolve(
           connection,
           inserted.rows[0]!,
           admission.teamId,
@@ -199,29 +187,25 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
           admission.scoringPolicy,
           admission.mode,
         )
-      }
-      if (admission.mode === 'official') {
-        await this.detectCheatClues(
+        }
+        if (admission.mode === 'official') {
+          await this.detectCheatClues(
           connection,
           inserted.rows[0]!,
           command.answerDigest,
           admission.flagPolicy.type === 'team-derived',
         )
-      }
-      await connection.query('COMMIT')
-      return submissionRecord(inserted.rows[0]!)
+        }
+        return submissionRecord(inserted.rows[0]!)
+      })
     }
     catch (error) {
-      await connection.query('ROLLBACK')
       if (isRequestIdConflict(error)) {
-        const existing = await this.readByRequestId(this.pool, command.requestId)
+        const existing = await this.readByRequestId(this.database, command.requestId)
         if (existing && sameRequest(existing, command)) return submissionRecord(existing)
         throw new SubmissionRequestConflictError()
       }
       throw error
-    }
-    finally {
-      connection.release()
     }
   }
 
@@ -230,12 +214,12 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
     cursor: string | undefined,
     limit: number,
   ): Promise<ManagedSubmissionPage> {
-    const contest = await this.pool.query('SELECT 1 FROM contests WHERE id = $1', [contestId])
+    const contest = await this.database.query('SELECT 1 FROM contests WHERE id = $1', [contestId])
     if (!contest.rows[0]) throw new SubmissionContestNotFoundError()
 
     let anchor: { id: string, submitted_at: Date } | null = null
     if (cursor) {
-      const result = await this.pool.query<{ id: string, submitted_at: Date }>(
+      const result = await this.database.query<{ id: string, submitted_at: Date }>(
         `SELECT id, submitted_at
          FROM submissions
          WHERE contest_id = $1 AND id::text = $2`,
@@ -245,7 +229,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
       if (!anchor) throw new SubmissionCursorInvalidError()
     }
 
-    const result = await this.pool.query<SubmissionRow>(
+    const result = await this.database.query<SubmissionRow>(
       `SELECT id, contest_id, contest_challenge_id, participation_id,
               user_id, mode::text, result::text, submitted_at
        FROM submissions
@@ -268,15 +252,13 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
   async recordScoreAdjustment(
     command: RecordScoreAdjustmentCommand,
   ): Promise<ScoreAdjustmentRecord> {
-    const connection = await this.pool.connect()
     try {
-      await connection.query('BEGIN')
-      const existing = await this.readScoreAdjustmentByRequestId(connection, command.requestId)
-      if (existing) {
-        if (!sameScoreAdjustment(existing, command)) throw new ScoreAdjustmentRequestConflictError()
-        await connection.query('COMMIT')
-        return scoreAdjustmentRecord(existing)
-      }
+      return await this.database.transaction(async (connection) => {
+        const existing = await this.readScoreAdjustmentByRequestId(connection, command.requestId)
+        if (existing) {
+          if (!sameScoreAdjustment(existing, command)) throw new ScoreAdjustmentRequestConflictError()
+          return scoreAdjustmentRecord(existing)
+        }
 
       const contest = await connection.query<{ publication_status: string }>(
         `SELECT publication_status::text
@@ -323,25 +305,6 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
         command.at,
       )
       await connection.query(
-        `INSERT INTO domain_outbox
-           (aggregate_type, aggregate_id, event_type, dedupe_key, payload,
-            occurred_at, available_at)
-         VALUES ('contest', $1, 'scoreboard.version_changed', $2, $3, $4, $4)`,
-        [
-          command.contestId,
-          `scoreboard:${command.contestId}:adjustment:${adjustment.id}`,
-          {
-            contest_id: command.contestId,
-            version: scoreboardVersion,
-            reason: 'score_adjustment',
-            adjustment_id: adjustment.id,
-            participation_id: command.participationId,
-            points_delta: command.pointsDelta,
-          },
-          command.at,
-        ],
-      )
-      await connection.query(
         `INSERT INTO audit_events
            (actor_user_id, action, target_type, target_id, reason, outcome,
             request_id, changes, metadata, occurred_at)
@@ -361,22 +324,18 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
           command.at,
         ],
       )
-      await connection.query('COMMIT')
-      return scoreAdjustmentRecord(adjustment)
+        return scoreAdjustmentRecord(adjustment)
+      })
     }
     catch (error) {
-      await connection.query('ROLLBACK')
       if (isScoreAdjustmentRequestIdConflict(error)) {
-        const existing = await this.readScoreAdjustmentByRequestId(this.pool, command.requestId)
+        const existing = await this.readScoreAdjustmentByRequestId(this.database, command.requestId)
         if (existing && sameScoreAdjustment(existing, command)) {
           return scoreAdjustmentRecord(existing)
         }
         throw new ScoreAdjustmentRequestConflictError()
       }
       throw error
-    }
-    finally {
-      connection.release()
     }
   }
 
@@ -386,12 +345,12 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
     cursor: string | undefined,
     limit: number,
   ): Promise<CheatCluePage> {
-    const contest = await this.pool.query('SELECT 1 FROM contests WHERE id = $1', [contestId])
+    const contest = await this.database.query('SELECT 1 FROM contests WHERE id = $1', [contestId])
     if (!contest.rows[0]) throw new SubmissionContestNotFoundError()
 
     let anchor: { id: string, created_at: Date } | null = null
     if (cursor) {
-      const result = await this.pool.query<{ id: string, created_at: Date }>(
+      const result = await this.database.query<{ id: string, created_at: Date }>(
         `SELECT id, created_at
          FROM cheat_clues
          WHERE contest_id = $1
@@ -403,7 +362,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
       if (!anchor) throw new CheatClueCursorInvalidError()
     }
 
-    const result = await this.pool.query<CheatClueRow>(
+    const result = await this.database.query<CheatClueRow>(
       `SELECT id, contest_id, contest_challenge_id, participation_id,
               clue_type, evidence, status::text, reviewed_by, review_note,
               reviewed_at, created_at, updated_at
@@ -426,9 +385,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
   }
 
   async reviewCheatClue(command: ReviewCheatClueCommand): Promise<CheatClueRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       await connection.query(
         'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
         [`cheat-clue-review:${command.requestId}`],
@@ -448,7 +405,6 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
           false,
         )
         if (!clue) throw new CheatClueNotFoundError()
-        await connection.query('COMMIT')
         return reviewedCheatClueRecord(clue, existingAudit, command)
       }
 
@@ -505,20 +461,12 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
           command.at,
         ],
       )
-      await connection.query('COMMIT')
       return cheatClueRecord(updated.rows[0]!)
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   private async admitWith(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     command: SubmissionAdmissionCommand,
     operation: 'admit' | 'append',
   ): Promise<SubmissionAdmission> {
@@ -615,7 +563,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
   }
 
   private async hasSolve(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     participationId: string,
     challengeId: string,
     mode: SubmissionMode,
@@ -632,7 +580,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
   }
 
   private async createSolve(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     submission: SubmissionRow,
     teamId: string,
     teamName: string,
@@ -667,30 +615,10 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
       ],
     )
     if (mode === 'practice') return
-    const scoreboardVersion = await this.advanceScoreboardVersion(
+    await this.advanceScoreboardVersion(
       connection,
       submission.contest_id,
       submission.submitted_at,
-    )
-    await connection.query(
-      `INSERT INTO domain_outbox
-         (aggregate_type, aggregate_id, event_type, dedupe_key, payload,
-          occurred_at, available_at)
-       VALUES ('contest', $1, 'scoreboard.version_changed', $2, $3, $4, $4)`,
-      [
-        submission.contest_id,
-        `scoreboard:${submission.contest_id}:solve:${submission.id}`,
-        {
-          contest_id: submission.contest_id,
-          version: scoreboardVersion,
-          reason: 'official_solve',
-          challenge_id: submission.contest_challenge_id,
-          participation_id: submission.participation_id,
-          solve_order: solveOrder,
-          current_points: awardedScore,
-        },
-        submission.submitted_at,
-      ],
     )
     if (solve.rows[0]!.solve_order !== 1) return
 
@@ -712,7 +640,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
   }
 
   private async detectCheatClues(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     submission: SubmissionRow,
     answerDigest: Buffer,
     teamDerivedFlag: boolean,
@@ -729,7 +657,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
   }
 
   private async detectRepeatedIncorrectAnswer(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     submission: SubmissionRow,
     answerDigest: Buffer,
     fingerprint: string,
@@ -773,7 +701,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
   }
 
   private async detectSharedIncorrectAnswer(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     submission: SubmissionRow,
     answerDigest: Buffer,
     fingerprint: string,
@@ -819,7 +747,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
   }
 
   private async detectAbnormalFrequency(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     submission: SubmissionRow,
   ) {
     const result = await connection.query<{
@@ -861,7 +789,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
   }
 
   private async detectForeignTeamFlag(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     submission: SubmissionRow,
     answerDigest: Buffer,
     fingerprint: string,
@@ -912,7 +840,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
   }
 
   private async insertForeignTeamFlagClue(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     offender: MatchingSubmissionRow | SubmissionRow,
     owner: MatchingSubmissionRow,
     fingerprint: string,
@@ -944,7 +872,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
   }
 
   private async insertCheatClue(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     input: {
       key: string
       submission: SubmissionRow
@@ -971,7 +899,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
   }
 
   private async advanceScoreboardVersion(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     contestId: string,
     at: Date,
   ): Promise<number> {
@@ -992,7 +920,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
   }
 
   private async readByRequestId(
-    queryable: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>,
+    queryable: DatabaseExecutor,
     requestId: string,
   ) {
     const result = await queryable.query<ExistingSubmissionRow>(
@@ -1006,7 +934,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
   }
 
   private async readScoreAdjustmentByRequestId(
-    queryable: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>,
+    queryable: DatabaseExecutor,
     requestId: string,
   ) {
     const result = await queryable.query<ScoreAdjustmentRow>(
@@ -1020,7 +948,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
   }
 
   private async readCheatClue(
-    queryable: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>,
+    queryable: DatabaseExecutor,
     contestId: string,
     clueId: string,
     forUpdate: boolean,
@@ -1038,7 +966,7 @@ export class PostgresSubmissionRepository implements SubmissionRepository {
   }
 
   private async readCheatClueReviewByRequestId(
-    queryable: Pick<PoolClient, 'query'>,
+    queryable: DatabaseExecutor,
     requestId: string,
   ) {
     const result = await queryable.query<CheatClueReviewAuditRow>(

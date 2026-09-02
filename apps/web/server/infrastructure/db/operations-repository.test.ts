@@ -1,11 +1,11 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { reconcileInstanceJobPayloadSchema } from '../../../shared/contracts/instance-jobs'
 import type { OperationalCommandRecordInput } from '../../domains/administration/operations'
 import { createPublishableChallenge } from '../../test-support/publishable-challenge'
-import { createDatabaseClient, type DatabaseClient } from './client'
-import { runMigrations } from './migrate'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { PostgresOperationalCommandRepository } from './operations-repository'
 
 const adminConnectionString = process.env.TEST_DATABASE_ADMIN_URL
@@ -20,7 +20,7 @@ function quotedDatabaseName(): string {
 
 describeWithPostgres('PostgreSQL operational command repository', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let repository: PostgresOperationalCommandRepository
   let actorId: string
   let targetUserId: string
@@ -37,12 +37,12 @@ describeWithPostgres('PostgreSQL operational command repository', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 4 })
-    await runMigrations(database)
-    repository = new PostgresOperationalCommandRepository(database.pool)
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 4 })
+    await runPostgresTestMigrations(database)
+    repository = new PostgresOperationalCommandRepository(database.executor)
 
     const suffix = randomUUID()
-    const actors = await database.pool.query<{ id: string }>(`
+    const actors = await database.executor.query<{ id: string }>(`
       INSERT INTO users
         (username, username_normalized, email, email_normalized, email_verified_at)
       VALUES
@@ -55,7 +55,7 @@ describeWithPostgres('PostgreSQL operational command repository', () => {
     actorId = actors.rows[0]!.id
     targetUserId = actors.rows[1]!.id
 
-    const connection = await database.pool.connect()
+    const connection = await database.connect()
     try {
       await connection.query('BEGIN')
       const team = await connection.query<{ id: string }>(`
@@ -76,7 +76,7 @@ describeWithPostgres('PostgreSQL operational command repository', () => {
       connection.release()
     }
 
-    const contest = await database.pool.query<{ id: string }>(`
+    const contest = await database.executor.query<{ id: string }>(`
       INSERT INTO contests
         (title, slug, visibility, start_at, end_at, created_by)
       VALUES ($1, $2, 'public', $3, $4, $5)
@@ -88,13 +88,13 @@ describeWithPostgres('PostgreSQL operational command repository', () => {
       actorId,
     ])
     contestId = contest.rows[0]!.id
-    const participation = await database.pool.query<{ id: string }>(`
+    const participation = await database.executor.query<{ id: string }>(`
       INSERT INTO participations
         (contest_id, team_id, status, registered_by, reviewed_by, reviewed_at)
       VALUES ($1, $2, 'accepted', $3, $3, $4)
       RETURNING id`, [contestId, teamId, actorId, now])
     participationId = participation.rows[0]!.id
-    challengeId = (await createPublishableChallenge(database.pool, contestId, actorId, {
+    challengeId = (await createPublishableChallenge(database.executor, contestId, actorId, {
       instancePolicy: {
         type: 'dynamic',
         provider: 'docker',
@@ -104,7 +104,7 @@ describeWithPostgres('PostgreSQL operational command repository', () => {
       },
     })).challengeId
 
-    const instance = await database.pool.query<{ id: string }>(`
+    const instance = await database.executor.query<{ id: string }>(`
       INSERT INTO instances
         (contest_id, contest_challenge_id, participation_id, provider,
          desired_state, desired_generation, observed_state, expires_at, updated_at)
@@ -123,7 +123,7 @@ describeWithPostgres('PostgreSQL operational command repository', () => {
       network: { egress: 'deny' },
       secret_envelope: null,
     }
-    const deadJob = await database.pool.query<{ id: string }>(`
+    const deadJob = await database.executor.query<{ id: string }>(`
       INSERT INTO instance_jobs
         (instance_id, operation, payload_version, payload, desired_generation,
          idempotency_key, status, attempt_count, max_attempts,
@@ -148,14 +148,14 @@ describeWithPostgres('PostgreSQL operational command repository', () => {
       now,
     ])
     deadJobId = deadJob.rows[0]!.id
-    await database.pool.query(`
+    await database.executor.query(`
       INSERT INTO instance_job_attempts
         (job_id, attempt_number, worker_id, fencing_token, outcome,
          error_code, error_summary, started_at, finished_at)
       VALUES ($1, 1, 'worker-1', 1, 'permanent_error',
               'provider.image_missing', 'image unavailable', $2, $2)`, [deadJobId, now])
 
-    const submission = await database.pool.query<{ id: string }>(`
+    const submission = await database.executor.query<{ id: string }>(`
       INSERT INTO submissions
         (contest_id, contest_challenge_id, participation_id, user_id, mode,
          result, answer_digest, answer_ciphertext, request_id, submitted_at)
@@ -164,23 +164,23 @@ describeWithPostgres('PostgreSQL operational command repository', () => {
       contestId, challengeId, participationId, actorId,
       randomBytes(32), randomBytes(33), `operations-submission-${suffix}`, now,
     ])
-    await database.pool.query(`
+    await database.executor.query(`
       INSERT INTO solves
         (submission_id, contest_id, contest_challenge_id, participation_id,
          mode, awarded_score, solve_order, solved_at)
       VALUES ($1, $2, $3, $4, 'official', 500, 1, $5)`, [
       submission.rows[0]!.id, contestId, challengeId, participationId, now,
     ])
-    await database.pool.query(`
+    await database.executor.query(`
       INSERT INTO score_adjustments
         (contest_id, participation_id, points_delta, reason, created_by, request_id, created_at)
       VALUES ($1, $2, 25, 'Manual ruling', $3, $4, $5)`, [
       contestId, participationId, actorId, `operations-adjustment-${suffix}`, now,
     ])
-    await database.pool.query(`
+    await database.executor.query(`
       INSERT INTO scoreboard_versions (contest_id, version, updated_at)
       VALUES ($1, 2, $2)`, [contestId, now])
-    await database.pool.query(`
+    await database.executor.query(`
       INSERT INTO scoreboard_snapshots (contest_id, view, scope_key, version, payload, built_at)
       VALUES ($1, 'public', 'overall', 2, $2, $3)`, [
       contestId,
@@ -190,7 +190,7 @@ describeWithPostgres('PostgreSQL operational command repository', () => {
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -218,7 +218,7 @@ describeWithPostgres('PostgreSQL operational command repository', () => {
   }
 
   async function expectSingleAudit(action: string) {
-    const audits = await database.pool.query<{ count: string }>(`
+    const audits = await database.executor.query<{ count: string }>(`
       SELECT count(*)::text FROM audit_events WHERE action = $1`, [action])
     expect(audits.rows[0]!.count).toBe('1')
   }
@@ -227,7 +227,7 @@ describeWithPostgres('PostgreSQL operational command repository', () => {
     const input = command('session_invalidate', targetUserId, 'session-0001')
     const first = await repository.executeDatabase(input)
     const replayed = await repository.executeDatabase(input)
-    const user = await database.pool.query<{ session_version: string }>(`
+    const user = await database.executor.query<{ session_version: string }>(`
       SELECT session_version::text FROM users WHERE id = $1`, [targetUserId])
 
     expect(first).toMatchObject({ kind: 'session_invalidate', replayed: false })
@@ -244,7 +244,7 @@ describeWithPostgres('PostgreSQL operational command repository', () => {
 
   it('replays only the current-generation dead task while preserving attempt evidence', async () => {
     const result = await repository.executeDatabase(command('dead_letter_replay', deadJobId, 'dead-0001'))
-    const job = await database.pool.query<{
+    const job = await database.executor.query<{
       status: string
       attempt_count: number
       max_attempts: number
@@ -252,7 +252,7 @@ describeWithPostgres('PostgreSQL operational command repository', () => {
     }>(`
       SELECT status::text, attempt_count, max_attempts, error_code
       FROM instance_jobs WHERE id = $1`, [deadJobId])
-    const attempts = await database.pool.query<{ count: string }>(`
+    const attempts = await database.executor.query<{ count: string }>(`
       SELECT count(*)::text FROM instance_job_attempts WHERE job_id = $1`, [deadJobId])
 
     expect(result.result).toMatchObject({ job_id: deadJobId, next_attempt: 2, max_attempts: 2 })
@@ -260,7 +260,7 @@ describeWithPostgres('PostgreSQL operational command repository', () => {
     expect(attempts.rows[0]!.count).toBe('1')
     await expectSingleAudit('operations.dead_letter_replay')
 
-    const noncurrent = await database.pool.query<{ id: string }>(`
+    const noncurrent = await database.executor.query<{ id: string }>(`
       INSERT INTO instance_jobs
         (instance_id, operation, payload_version, payload, desired_generation,
          idempotency_key, status, attempt_count, max_attempts, error_code, finished_at)
@@ -292,7 +292,7 @@ describeWithPostgres('PostgreSQL operational command repository', () => {
     const input = command('instance_reconcile', instanceId, 'reconcile-0001')
     const first = await repository.executeDatabase(input)
     const replayed = await repository.executeDatabase(input)
-    const jobs = await database.pool.query<{ payload: unknown, desired_generation: string }>(`
+    const jobs = await database.executor.query<{ payload: unknown, desired_generation: string }>(`
       SELECT payload, desired_generation::text
       FROM instance_jobs
       WHERE instance_id = $1 AND operation = 'reconcile'`, [instanceId])
@@ -308,24 +308,8 @@ describeWithPostgres('PostgreSQL operational command repository', () => {
     await expectSingleAudit('operations.instance_reconcile')
   })
 
-  it('persists idempotent cache-rebuild completion and immutable audit evidence', async () => {
-    const input = command('cache_rebuild', contestId, 'cache-0001')
-    const reservation = await repository.reserveExternal(input)
-    const completed = await repository.completeExternal(reservation.commandId, {
-      contest_id: contestId,
-      cache_keys_deleted: 4,
-      snapshots_cleared: 0,
-      projections_rebuilt: 2,
-    }, now)
-    const replayed = await repository.reserveExternal(input)
-
-    expect(completed).toMatchObject({ kind: 'cache_rebuild', replayed: false })
-    expect(replayed.replayed).toMatchObject({ id: completed.id, replayed: true })
-    await expectSingleAudit('operations.cache_rebuild')
-  })
-
   it('removes only derived snapshots during result recalculation and retains official facts', async () => {
-    const before = await database.pool.query<{ submissions: string, solves: string, adjustments: string }>(`
+    const before = await database.executor.query<{ submissions: string, solves: string, adjustments: string }>(`
       SELECT
         (SELECT count(*)::text FROM submissions WHERE contest_id = $1) AS submissions,
         (SELECT count(*)::text FROM solves WHERE contest_id = $1) AS solves,
@@ -335,11 +319,10 @@ describeWithPostgres('PostgreSQL operational command repository', () => {
     const removed = await repository.clearScoreboardSnapshots(contestId)
     await repository.completeExternal(reservation.commandId, {
       contest_id: contestId,
-      cache_keys_deleted: 0,
       snapshots_cleared: removed,
       projections_rebuilt: 2,
     }, now)
-    const after = await database.pool.query<{ submissions: string, solves: string, adjustments: string, snapshots: string }>(`
+    const after = await database.executor.query<{ submissions: string, solves: string, adjustments: string, snapshots: string }>(`
       SELECT
         (SELECT count(*)::text FROM submissions WHERE contest_id = $1) AS submissions,
         (SELECT count(*)::text FROM solves WHERE contest_id = $1) AS solves,

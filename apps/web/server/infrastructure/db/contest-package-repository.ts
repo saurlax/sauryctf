@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import type { Pool, PoolClient } from 'pg'
 import type {
   ChallengeCategory,
   ChallengeFlagPolicy,
@@ -17,6 +16,7 @@ import {
   type ContestPackageRepository,
   type ContestPackageSnapshot,
 } from '../../domains/contest-packages/repository'
+import type { DatabaseExecutor } from './executor'
 
 interface ContestRow {
   id: string
@@ -72,10 +72,10 @@ interface ImportRow {
 }
 
 export class PostgresContestPackageRepository implements ContestPackageRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly database: DatabaseExecutor) {}
 
   async readSnapshot(contestId: string): Promise<ContestPackageSnapshot> {
-    const contestResult = await this.pool.query<ContestRow>(`
+    const contestResult = await this.database.query<ContestRow>(`
       SELECT id::text, title, slug, description, visibility::text,
              registration_strategy::text, invite_required, start_at, end_at,
              scoreboard_freeze_at, practice_enabled, writeup_required,
@@ -85,10 +85,10 @@ export class PostgresContestPackageRepository implements ContestPackageRepositor
     const contest = contestResult.rows[0]
     if (!contest) throw new ContestPackageContestNotFoundError()
     const [divisionResult, challengeResult] = await Promise.all([
-      this.pool.query<{ name: string, sort_order: number }>(`
+      this.database.query<{ name: string, sort_order: number }>(`
         SELECT name, sort_order FROM divisions
         WHERE contest_id = $1 ORDER BY sort_order, id`, [contestId]),
-      this.pool.query<ChallengeRow>(`
+      this.database.query<ChallengeRow>(`
         SELECT id::text, title, category::text, description, flag_format,
                flag_policy, scoring_policy, instance_policy, enabled,
                publish_at, close_at, submission_limit, sort_order
@@ -99,7 +99,7 @@ export class PostgresContestPackageRepository implements ContestPackageRepositor
     const [assetResult, hintResult] = challengeIds.length === 0
       ? [{ rows: [] }, { rows: [] }]
       : await Promise.all([
-          this.pool.query<{
+          this.database.query<{
             contest_challenge_id: string
             content_object_id: string
             storage_key: string
@@ -119,7 +119,7 @@ export class PostgresContestPackageRepository implements ContestPackageRepositor
             WHERE asset.contest_challenge_id = ANY($1::uuid[])
               AND object.status = 'committed'
             ORDER BY asset.sort_order, asset.id`, [challengeIds]),
-          this.pool.query<{
+          this.database.query<{
             contest_challenge_id: string
             title: string
             content: string
@@ -195,9 +195,7 @@ export class PostgresContestPackageRepository implements ContestPackageRepositor
     contestId: string
     packageObjectId: string
   }): Promise<ContestPackageExportRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       const contest = await connection.query('SELECT id FROM contests WHERE id = $1 FOR KEY SHARE', [input.contestId])
       if (!contest.rows[0]) throw new ContestPackageContestNotFoundError()
       const inserted = await connection.query<ExportRow>(`
@@ -242,20 +240,12 @@ export class PostgresContestPackageRepository implements ContestPackageRepositor
           changes: { export_id: row.id, package_version: contestPackageFormat },
         })
       }
-      await connection.query('COMMIT')
       return exportRecord(row)
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async readExport(exportId: string): Promise<ContestPackageExportRecord> {
-    const result = await this.pool.query<ExportRow>(`
+    const result = await this.database.query<ExportRow>(`
       SELECT id::text, contest_id::text, package_object_id::text,
              package_version, requested_by::text, created_at
       FROM exports WHERE id = $1 AND status = 'succeeded'`, [exportId])
@@ -264,23 +254,21 @@ export class PostgresContestPackageRepository implements ContestPackageRepositor
   }
 
   async importDraft(input: Parameters<ContestPackageRepository['importDraft']>[0]): Promise<ContestPackageImportRecord> {
-    const connection = await this.pool.connect()
     try {
-      await connection.query('BEGIN')
-      const existing = await connection.query<ImportRow>(`
-        SELECT id::text, package_object_id::text, package_version,
-               requested_by::text, result_contest_id::text, created_at
-        FROM imports WHERE idempotency_key = $1 FOR UPDATE`, [input.idempotencyKey])
-      if (existing.rows[0]) {
-        const row = existing.rows[0]
-        if (row.package_object_id !== input.packageObjectId
-          || row.requested_by !== input.actorId
-          || !row.result_contest_id) {
-          throw new ContestPackageIdempotencyConflictError()
+      return await this.database.transaction(async (connection) => {
+        const existing = await connection.query<ImportRow>(`
+          SELECT id::text, package_object_id::text, package_version,
+                 requested_by::text, result_contest_id::text, created_at
+          FROM imports WHERE idempotency_key = $1 FOR UPDATE`, [input.idempotencyKey])
+        if (existing.rows[0]) {
+          const row = existing.rows[0]
+          if (row.package_object_id !== input.packageObjectId
+            || row.requested_by !== input.actorId
+            || !row.result_contest_id) {
+            throw new ContestPackageIdempotencyConflictError()
+          }
+          return importRecord(row)
         }
-        await connection.query('COMMIT')
-        return importRecord(row)
-      }
       const fileObjects = new Map(input.files.map(file => [file.path, file.contentObjectId]))
       if (fileObjects.size !== input.manifest.files.length) {
         throw new Error('Validated package files are incomplete')
@@ -367,22 +355,18 @@ export class PostgresContestPackageRepository implements ContestPackageRepositor
           invite_required: input.manifest.contest.invite_required,
         },
       })
-      await connection.query('COMMIT')
-      return importRecord(completed.rows[0]!)
+        return importRecord(completed.rows[0]!)
+      })
     }
     catch (error) {
-      await connection.query('ROLLBACK')
       if (isUniqueConflict(error)) throw new ContestPackageIdempotencyConflictError()
       throw error
-    }
-    finally {
-      connection.release()
     }
   }
 }
 
 async function insertChallenge(
-  connection: PoolClient,
+  connection: DatabaseExecutor,
   input: {
     actorId: string
     contestId: string
@@ -486,7 +470,7 @@ async function insertChallenge(
   }
 }
 
-async function writeAudit(connection: PoolClient, input: {
+async function writeAudit(connection: DatabaseExecutor, input: {
   actorId: string
   requestId: string
   action: string

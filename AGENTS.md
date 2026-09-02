@@ -7,20 +7,20 @@ control plane and a private Go instance worker.
 
 - `apps/web/` is the Nuxt 4/Nitro application and the only public business
   entry point. It owns UI, API, authentication, authorization, transactions,
-  cache coordination, SSE, outbox processing, and scheduled control-plane jobs.
+  PostgreSQL coordination, Blob access, mail processing, and scheduled control-plane jobs.
 - `apps/worker/` is an independent Go module. It may only consume
   `instance_jobs`, operate approved Docker/Kubernetes providers, reconcile
   managed resources, and write instance observations.
-- PostgreSQL is authoritative. Redis contains rebuildable cache, rate-limit,
-  short-lock, and realtime state only. S3-compatible storage is authoritative
-  for content objects.
+- PostgreSQL is authoritative and is the only shared coordination backend.
+  NuxtHub manages Web database access and authoritative S3-compatible or local
+  Blob storage. The platform has no shared cache or message-broker dependency.
 - Challenge traffic goes directly through Gateway/Ingress/Service. It does not
   pass through Nuxt or the worker.
 - The first release implements Jeopardy only. Do not add AWD, VPN, terminal
   gateway, Checker, mixed-mode, or generic code-execution production surfaces.
 
 The active OpenSpec change is
-`openspec/changes/rebuild-platform-with-nuxt-control-plane/`. The independent
+`openspec/changes/adopt-nuxthub-data-management/`. The independent
 `add-awd-competition` change is design-only and must not be implemented unless
 the user explicitly requests it later.
 
@@ -30,7 +30,6 @@ the user explicitly requests it later.
 apps/
   web/                    # public Nuxt/Nitro control plane
   worker/                 # private Go instance worker
-api/                      # generated public OpenAPI artifact
 docs/                     # architecture and operations documentation
 openspec/                 # specifications and implementation tasks
 scripts/                  # repository checks and release acceptance helpers
@@ -43,31 +42,25 @@ Do not add application business source under root `cmd/`, `internal/`,
 
 | Action | Command |
 | --- | --- |
-| Start Nuxt control plane | `pnpm dev` or `pnpm dev:web` |
-| Start development dependencies | `pnpm dev:dependencies` |
-| Stop development dependencies | `pnpm dev:dependencies:down` |
+| Start Nuxt control plane | `pnpm dev` |
+| Start built Nuxt control plane | `pnpm start` |
+| Start instance Worker | `pnpm worker` |
 | Run PostgreSQL migrations | `pnpm db:migrate` |
-| Generate OpenAPI and TS types | `pnpm generate:api` |
-| Check architecture boundaries | `pnpm check:boundaries` |
-| Check Jeopardy-only scope | `pnpm check:jeopardy-scope` |
-| Check pinned toolchain | `pnpm check:toolchain` |
-| Test shared contracts | `pnpm test:contracts` |
-| Test database migrations | `pnpm test:db` |
-| Run full release acceptance | `pnpm test:release` |
-| Type-check Nuxt | `pnpm typecheck` |
-| Build Nuxt/Nitro | `pnpm build` |
-| Test active Go worker | `pnpm test:worker` |
+| Run repository checks | `pnpm check` |
+| Run Web and Worker tests | `pnpm test` |
+| Build Web and Worker | `pnpm build` |
+| Run full release acceptance | `bash ./scripts/test-release-acceptance.sh` |
 
 ## Nuxt control plane conventions
 
 - Public API handlers live in `apps/web/server/api` and remain thin protocol
   adapters. They must not access Drizzle tables directly.
 - Authorization and transaction rules live in `apps/web/server/domains`.
-- Database, cache, events, mail, storage, and telemetry adapters live in
+- Database, mail, storage, and telemetry adapters live in
   `apps/web/server/infrastructure` and must not depend on pages or API handlers.
-- Runtime Zod contracts live in `apps/web/shared/contracts`; generated public
-  types live in `apps/web/app/types/control-plane-api.d.ts`.
-- Database migrations live in `apps/web/db/migrations` and PostgreSQL semantics
+- Runtime Zod contracts and their inferred application types live in
+  `apps/web/shared/contracts`; do not add a separate OpenAPI generation path.
+- Database migrations live in `apps/web/server/db/migrations/postgresql` and PostgreSQL semantics
   are authoritative.
 - Use `nuxt-auth-utils` sealed cookies for browser auth. Do not add a sessions
   table or browser JWT role snapshot.
@@ -75,9 +68,9 @@ Do not add application business source under root `cmd/`, `internal/`,
   destructive actions should use `UModal` and clear modal drafts on all close
   paths.
 - API errors use `e.data?.message || e.message` in toasts.
-- After every Web code change run `cd apps/web && pnpm nuxt typecheck`.
-- When runtime contracts change, run the root `pnpm generate:api`; never update
-  only the OpenAPI file or only the generated TypeScript type.
+- After every Web code change run `pnpm --filter sauryctf-web check`.
+- When runtime contracts change, update the shared schema and its contract tests
+  together, then run `pnpm check` and `pnpm test`.
 
 ## Go worker conventions
 
@@ -97,6 +90,4 @@ Do not add application business source under root `cmd/`, `internal/`,
 - Preserve unrelated dirty-worktree changes.
 - A task checkbox may be completed only after its stated tests pass.
 - Before marking monorepo or boundary work complete, run at least:
-  `pnpm check:toolchain`, `pnpm check:boundaries`,
-  `pnpm check:jeopardy-scope`, `pnpm generate:api`, `pnpm typecheck`,
-  `pnpm test:contracts`, `pnpm build`, and `pnpm test:worker`.
+  `pnpm check`, `pnpm test`, and `pnpm build`.

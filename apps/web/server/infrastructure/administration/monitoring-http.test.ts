@@ -27,7 +27,11 @@ function dependencies(role: SessionSubject['role'] = 'admin'): MonitoringHttpDep
     monitoring: {
       list: vi.fn(async () => ({
         generated_at: '2026-09-02T00:00:00.000Z', source: 'postgresql' as const,
-        cache_observed_at: null, worker_stale_after_seconds: 90, items: [],
+        data_services: {
+          postgresql: { status: 'ready' as const, migrations: 'current' as const },
+          blob: { driver: 'fs' as const, status: 'ready' as const },
+        },
+        worker_stale_after_seconds: 90, items: [],
       })),
     },
   }
@@ -55,7 +59,13 @@ describe('administration monitoring HTTP adapter', () => {
     expect(injected.monitoring.list).toHaveBeenCalledWith(expect.objectContaining({ role: 'admin' }), {
       kind: 'instance_jobs', contest_id: contestId, status: 'dead', limit: 25,
     })
-    await expect(response.json()).resolves.toMatchObject({ source: 'postgresql', cache_observed_at: null })
+    await expect(response.json()).resolves.toMatchObject({
+      source: 'postgresql',
+      data_services: {
+        postgresql: { status: 'ready', migrations: 'current' },
+        blob: { driver: 'fs', status: 'ready' },
+      },
+    })
   })
 
   it('rejects organizer access to global operational facts', async () => {

@@ -1,11 +1,11 @@
 import { randomUUID, scryptSync, timingSafeEqual } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { identityTokenCodec } from '../../infrastructure/auth/identity-token-codec'
 import { AesGcmIdentityMailTokenProtector } from '../../infrastructure/auth/identity-mail-token-protector'
-import { createDatabaseClient, type DatabaseClient } from '../../infrastructure/db/client'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
 import { PostgresIdentityRepository } from '../../infrastructure/db/identity-repository'
-import { runMigrations } from '../../infrastructure/db/migrate'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { identityCapability, requireIdentityCapability } from './capabilities'
 import type { PasswordHasher } from './password'
 import { defaultAdministrator, IdentityService } from './service'
@@ -38,7 +38,7 @@ class TestScryptHasher implements PasswordHasher {
 
 describeWithPostgres('default administrator bootstrap', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let service: IdentityService
   let repository: PostgresIdentityRepository
 
@@ -48,9 +48,9 @@ describeWithPostgres('default administrator bootstrap', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 4 })
-    await runMigrations(database)
-    repository = new PostgresIdentityRepository(database.pool)
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 4 })
+    await runPostgresTestMigrations(database)
+    repository = new PostgresIdentityRepository(database.executor)
     service = new IdentityService(
       repository,
       new TestScryptHasher(),
@@ -61,7 +61,7 @@ describeWithPostgres('default administrator bootstrap', () => {
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -79,10 +79,10 @@ describeWithPostgres('default administrator bootstrap', () => {
       password: 'existing password',
     })
     await expect(service.bootstrapDefaultAdministrator()).resolves.toEqual({ created: false, identity: null })
-    await expect(database.pool.query('SELECT count(*)::int AS count FROM users'))
+    await expect(database.executor.query('SELECT count(*)::int AS count FROM users'))
       .resolves.toMatchObject({ rows: [{ count: 1 }] })
 
-    await database.pool.query('TRUNCATE TABLE users CASCADE')
+    await database.executor.query('TRUNCATE TABLE users CASCADE')
     const concurrent = await Promise.all([
       service.bootstrapDefaultAdministrator(),
       service.bootstrapDefaultAdministrator(),

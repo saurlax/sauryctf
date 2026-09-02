@@ -74,8 +74,10 @@ export async function enforceNetworkRateLimits(event: H3Event, store: RateLimitS
   const policy = actionPolicies.get(path)
   if (!policy) return
   const ip = getClientIp(event)
-  await enforceRateLimit(event, store, rateLimitBucket('network', ip, 'identity.security'), 120, 60_000)
-  await enforceRateLimit(event, store, rateLimitBucket('network', ip, policy.action), policy.limit, policy.windowMs)
+  await enforceRateLimitPolicies(event, store, [
+    { bucket: rateLimitBucket('network', ip, 'identity.security'), limit: 120, windowMs: 60_000 },
+    { bucket: rateLimitBucket('network', ip, policy.action), limit: policy.limit, windowMs: policy.windowMs },
+  ])
 }
 
 export function getClientIp(event: H3Event): string {
@@ -100,20 +102,32 @@ export async function enforceFlagSubmissionNetworkRateLimits(
   challengeId: string,
 ): Promise<void> {
   const ip = getClientIp(event)
-  await enforceRateLimit(
-    event,
-    store,
-    rateLimitBucket('network', ip, 'submission.flag'),
-    120,
-    60_000,
+  await enforceRateLimitPolicies(event, store, [
+    {
+      bucket: rateLimitBucket('network', ip, 'submission.flag'),
+      limit: 120,
+      windowMs: 60_000,
+    },
+    {
+      bucket: rateLimitBucket('network', `${ip}\0${challengeId}`, 'submission.flag.challenge'),
+      limit: 30,
+      windowMs: 60_000,
+    },
+  ])
+}
+
+async function enforceRateLimitPolicies(
+  event: H3Event,
+  store: RateLimitStore,
+  policies: Parameters<RateLimitStore['consumeMany']>[0],
+): Promise<void> {
+  const decisions = await store.consumeMany(policies)
+  const retryAfterMs = decisions.reduce(
+    (maximum, decision) => decision.allowed ? maximum : Math.max(maximum, decision.retryAfterMs),
+    0,
   )
-  await enforceRateLimit(
-    event,
-    store,
-    rateLimitBucket('network', `${ip}\0${challengeId}`, 'submission.flag.challenge'),
-    30,
-    60_000,
-  )
+  if (retryAfterMs <= 0) return
+  rejectRateLimit(event, retryAfterMs)
 }
 
 async function enforceRateLimit(
@@ -125,6 +139,10 @@ async function enforceRateLimit(
 ): Promise<void> {
   const decision = await store.consume(bucket, limit, windowMs)
   if (decision.allowed) return
-  setResponseHeader(event, 'retry-after', Math.max(1, Math.ceil(decision.retryAfterMs / 1000)))
+  rejectRateLimit(event, decision.retryAfterMs)
+}
+
+function rejectRateLimit(event: H3Event, retryAfterMs: number): never {
+  setResponseHeader(event, 'retry-after', Math.max(1, Math.ceil(retryAfterMs / 1000)))
   throw createApiError(429, 'security.rate_limited', '请求过于频繁，请稍后重试')
 }

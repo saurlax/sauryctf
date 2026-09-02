@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { ContentObjectService } from '../../domains/content/service'
 import { MailOutboxDispatcher } from '../../domains/notifications/mail-outbox'
 import { AesGcmIdentityMailTokenProtector } from '../auth/identity-mail-token-protector'
-import { createDatabaseClient, type DatabaseClient } from '../db/client'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
 import { PostgresContentObjectRepository } from '../db/content-object-repository'
-import { runMigrations } from '../db/migrate'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { PostgresMailOutboxRepository } from '../mail/postgres-mail-outbox'
 import { SmtpMailTransport } from '../mail/smtp-mail-transport'
 import {
@@ -25,6 +25,7 @@ const describeFaultDrill = adminConnectionString && s3Endpoint && smtpHost
   : describe.skip
 const databaseName = `sauryctf_fault_${randomUUID().replaceAll('-', '')}`
 const unavailableEndpoint = 'http://127.0.0.1:1'
+const faultDrillTime = new Date('2026-09-02T08:00:00.000Z')
 
 function quotedDatabaseName(): string {
   if (!/^sauryctf_fault_[a-f0-9]{32}$/u.test(databaseName)) throw new Error('Unexpected database name')
@@ -33,7 +34,7 @@ function quotedDatabaseName(): string {
 
 describeFaultDrill('authoritative dependency fault recovery', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let userId: string
   const storageKeys = new Set<string>()
   const liveS3Config: S3ContentObjectStoreConfig = {
@@ -51,13 +52,13 @@ describeFaultDrill('authoritative dependency fault recovery', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const databaseUrl = new URL(adminConnectionString!)
     databaseUrl.pathname = `/${databaseName}`
-    database = createDatabaseClient({
+    database = createPostgresTestDatabase({
       connectionString: databaseUrl.toString(),
       applicationName: 'sauryctf-dependency-fault-drill',
       maxConnections: 8,
     })
-    await runMigrations(database)
-    const user = await database.pool.query<{ id: string }>(`
+    await runPostgresTestMigrations(database)
+    const user = await database.executor.query<{ id: string }>(`
       INSERT INTO users
         (username, username_normalized, email, email_normalized, email_verified_at)
       VALUES ('FaultDrillUser', 'faultdrilluser',
@@ -72,7 +73,7 @@ describeFaultDrill('authoritative dependency fault recovery', () => {
       for (const storageKey of storageKeys) await store.delete(storageKey)
       store.close()
     }
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -88,7 +89,7 @@ describeFaultDrill('authoritative dependency fault recovery', () => {
     const digest = createHash('sha256').update(body).digest('hex')
     const firstStore = new S3ContentObjectStore(liveS3Config)
     const firstService = new ContentObjectService(
-      new PostgresContentObjectRepository(database.pool),
+      new PostgresContentObjectRepository(database.executor),
       firstStore,
     )
     const temporary = await firstService.uploadTemporary(userId, {
@@ -107,7 +108,7 @@ describeFaultDrill('authoritative dependency fault recovery', () => {
     await expect(unavailableStore.read(committed.storageKey)).rejects.toBeDefined()
     unavailableStore.close()
 
-    const metadata = await database.pool.query<{
+    const metadata = await database.executor.query<{
       status: string
       sha256_hex: string
       size_bytes: string
@@ -131,26 +132,26 @@ describeFaultDrill('authoritative dependency fault recovery', () => {
 
   it('keeps notification facts and retries the same message after SMTP recovery', async () => {
     const recipient = `fault-${randomUUID()}@example.test`
-    const event = await database.pool.query<{ id: string }>(`
+    const event = await database.executor.query<{ id: string }>(`
       INSERT INTO domain_outbox
         (aggregate_type, aggregate_id, event_type, dedupe_key, payload)
       VALUES ('user', $1, 'identity.password_changed', $2, '{}')
       RETURNING id`, [userId, `fault-mail-${randomUUID()}`])
     const eventId = event.rows[0]!.id
-    await database.pool.query(`
+    await database.executor.query(`
       INSERT INTO notifications (user_id, source_event_id, template_key, payload)
       VALUES ($1, $2, 'identity.password_changed', '{}')`, [userId, eventId])
-    const delivery = await database.pool.query<{ id: string }>(`
+    const delivery = await database.executor.query<{ id: string }>(`
       INSERT INTO mail_deliveries
-        (source_event_id, recipient, recipient_normalized, template_key, payload)
-      VALUES ($1, $2, $2, 'identity.password_changed', '{"locale":"zh-CN"}')
-      RETURNING id`, [eventId, recipient])
+        (source_event_id, recipient, recipient_normalized, template_key, payload, available_at)
+      VALUES ($1, $2, $2, 'identity.password_changed', '{"locale":"zh-CN"}', $3)
+      RETURNING id`, [eventId, recipient, faultDrillTime])
     const deliveryId = delivery.rows[0]!.id
     const tokenProtector = new AesGcmIdentityMailTokenProtector(
       'fault-drill-mail-token-secret-that-is-at-least-32-characters',
     )
-    let currentTime = new Date('2026-09-02T08:00:00.000Z')
-    const repository = new PostgresMailOutboxRepository(database.pool)
+    let currentTime = faultDrillTime
+    const repository = new PostgresMailOutboxRepository(database.executor)
     const unavailableDispatcher = new MailOutboxDispatcher(
       'control-plane-before-mail-recovery',
       repository,
@@ -164,7 +165,7 @@ describeFaultDrill('authoritative dependency fault recovery', () => {
     )
     await expect(unavailableDispatcher.runOnce()).resolves.toBe(1)
 
-    const retrying = await database.pool.query<{
+    const retrying = await database.executor.query<{
       status: string
       attempt_count: number
       notification_count: number
@@ -193,7 +194,7 @@ describeFaultDrill('authoritative dependency fault recovery', () => {
     await expect(recoveredDispatcher.runOnce()).resolves.toBe(1)
     await expect(recoveredDispatcher.runOnce()).resolves.toBe(0)
 
-    const sent = await database.pool.query<{ status: string, attempt_count: number }>(`
+    const sent = await database.executor.query<{ status: string, attempt_count: number }>(`
       SELECT status::text, attempt_count FROM mail_deliveries WHERE id = $1`, [deliveryId])
     expect(sent.rows).toEqual([{ status: 'sent', attempt_count: 2 }])
     await expect(waitForMailpitMessage(mailpitApiUrl!, recipient)).resolves.toBe(true)

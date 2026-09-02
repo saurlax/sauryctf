@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { SessionSubject } from '../identity/repository'
-import { createDatabaseClient, type DatabaseClient } from '../../infrastructure/db/client'
-import { runMigrations } from '../../infrastructure/db/migrate'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { PostgresTeamRepository } from '../../infrastructure/db/team-repository'
 import { TeamService } from './service'
 
@@ -14,22 +14,22 @@ function quoted() { if (!/^sauryctf_test_[a-f0-9]{32}$/u.test(databaseName)) thr
 
 describeWithPostgres('team membership transactions', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let teams: TeamService
   let sequence = 0
 
   beforeAll(async () => {
     admin = new Client({ connectionString: adminConnectionString }); await admin.connect(); await admin.query(`CREATE DATABASE ${quoted()}`)
     const url = new URL(adminConnectionString!); url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 12 }); await runMigrations(database)
-    teams = new TeamService(new PostgresTeamRepository(database.pool))
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 12 }); await runPostgresTestMigrations(database)
+    teams = new TeamService(new PostgresTeamRepository(database.executor))
   })
-  afterAll(async () => { if(database) await database.pool.end(); if(admin){ await admin.query('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname=$1 AND pid<>pg_backend_pid()',[databaseName]); await admin.query(`DROP DATABASE IF EXISTS ${quoted()}`); await admin.end() } })
+  afterAll(async () => { if(database) await database.close(); if(admin){ await admin.query('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname=$1 AND pid<>pg_backend_pid()',[databaseName]); await admin.query(`DROP DATABASE IF EXISTS ${quoted()}`); await admin.end() } })
 
   async function user(): Promise<SessionSubject> {
     sequence++
     const username=`TeamFlow${sequence}`; const email=`team-flow-${sequence}@example.test`
-    const result=await database.pool.query<{id:string}>(`INSERT INTO users(username,username_normalized,email,email_normalized,email_verified_at) VALUES($1::varchar(64),lower($1::varchar(64)),$2::varchar(320),lower($2::varchar(320)),now()) RETURNING id`,[username,email])
+    const result=await database.executor.query<{id:string}>(`INSERT INTO users(username,username_normalized,email,email_normalized,email_verified_at) VALUES($1::varchar(64),lower($1::varchar(64)),$2::varchar(320),lower($2::varchar(320)),now()) RETURNING id`,[username,email])
     return { userId:result.rows[0]!.id,username,email,emailVerified:true,status:'active',role:'user',sessionVersion:1,mustChangePassword:false }
   }
 
@@ -43,14 +43,14 @@ describeWithPostgres('team membership transactions', () => {
     const startAt = new Date(now - (phase === 'active' ? 60_000 : 7_200_000))
     const endAt = new Date(now + (phase === 'active' ? 3_600_000 : -3_600_000))
     const title = phase === 'active' ? `Locked Contest ${sequence}` : `Ended Contest ${sequence}`
-    const contest = await database.pool.query<{ id: string }>(
+    const contest = await database.executor.query<{ id: string }>(
       `INSERT INTO contests
          (title, slug, publication_status, start_at, end_at, published_at, created_by)
        VALUES ($1, $2, 'published', $3, $4, $3, $5)
        RETURNING id`,
       [title, `team-lock-${sequence}`, startAt, endAt, reviewerId],
     )
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO participations
          (contest_id, team_id, status, registered_by, reviewed_by, reviewed_at)
        VALUES ($1, $2, 'accepted', $3, $3, now())`,
@@ -113,13 +113,13 @@ describeWithPostgres('team membership transactions', () => {
   it('serializes participation acceptance on the same team row used by membership changes', async () => {
     const captain=await user(); const created=await teams.create(captain,'Acceptance Lock Team')
     sequence++
-    const contest=await database.pool.query<{id:string}>(
+    const contest=await database.executor.query<{id:string}>(
       `INSERT INTO contests
          (title,slug,publication_status,start_at,end_at,published_at,created_by)
        VALUES($1,$2,'published',now()-interval '1 minute',now()+interval '1 hour',now(),$3)
        RETURNING id`,[`Acceptance Lock ${sequence}`,`acceptance-lock-${sequence}`,captain.userId],
     )
-    const blocker=await database.pool.connect(); const contender=await database.pool.connect()
+    const blocker=await database.connect(); const contender=await database.connect()
     try {
       await blocker.query('BEGIN')
       await blocker.query('SELECT 1 FROM teams WHERE id=$1 FOR UPDATE',[created.team.id])
@@ -157,7 +157,7 @@ describeWithPostgres('team membership transactions', () => {
 
     expect(corrected.members.find(candidate=>candidate.role==='captain')?.userId).toBe(replacement.userId)
     expect(corrected.locks).toEqual([expect.objectContaining({id:contest.id})])
-    const audit=await database.pool.query<{reason:string,changes:{operation:string},metadata:{locked_contests:Array<{id:string}>}}>(
+    const audit=await database.executor.query<{reason:string,changes:{operation:string},metadata:{locked_contests:Array<{id:string}>}}>(
       `SELECT reason,changes,metadata FROM audit_events
        WHERE target_id=$1 AND action='team.membership.corrected'
        ORDER BY occurred_at,id`,[created.team.id],
@@ -177,7 +177,7 @@ describeWithPostgres('team membership transactions', () => {
     await expect(teams.correctMembership(admin,{
       requestId,teamId:created.team.id,operation:'remove_member',targetUserId:captain.userId,reason:'Invalid attempt to remove the captain',
     })).rejects.toMatchObject({code:'team.forbidden'})
-    const audit=await database.pool.query('SELECT 1 FROM audit_events WHERE request_id=$1',[requestId])
+    const audit=await database.executor.query('SELECT 1 FROM audit_events WHERE request_id=$1',[requestId])
     expect(audit.rows).toHaveLength(0)
   })
 

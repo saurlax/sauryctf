@@ -3,9 +3,7 @@ import type { OperationalCommand, OperationalCommandKind } from '../../../shared
 import type { SessionSubject } from '../identity/repository'
 import {
   AdministrationOperationsService,
-  OperationalCacheUnavailableError,
   type OperationalCommandRepository,
-  type OperationalScoreboardCache,
   type OperationalScoreboardService,
 } from './operations'
 
@@ -44,7 +42,7 @@ function dependencies() {
       replayed: null,
     })),
     completeExternal: vi.fn(async (_commandId, result) => ({
-      ...completed('cache_rebuild'),
+      ...completed('result_recalculate'),
       result,
     })),
     failExternal: vi.fn(async () => {}),
@@ -56,8 +54,7 @@ function dependencies() {
     clearScoreboardSnapshots: vi.fn(async () => 0),
   }
   const scoreboards: OperationalScoreboardService = { read: vi.fn(async () => ({})) }
-  const cache: OperationalScoreboardCache = { invalidateContest: vi.fn(async () => 3) }
-  return { repository, scoreboards, cache }
+  return { repository, scoreboards }
 }
 
 function input(kind: OperationalCommandKind, targetId = contestId) {
@@ -73,16 +70,16 @@ function input(kind: OperationalCommandKind, targetId = contestId) {
 describe('administration operations service', () => {
   it('requires the global operations capability at the domain boundary', async () => {
     const deps = dependencies()
-    const service = new AdministrationOperationsService(deps.repository, deps.scoreboards, deps.cache, () => at)
+    const service = new AdministrationOperationsService(deps.repository, deps.scoreboards, () => at)
 
     await expect(service.execute({ ...admin, role: 'organizer' }, input('session_invalidate', actorId)))
       .rejects.toMatchObject({ code: 'identity.capability_forbidden' })
     expect(deps.repository.executeDatabase).not.toHaveBeenCalled()
   })
 
-  it('delegates database-only commands with the authenticated actor and stable operation context', async () => {
+  it('delegates database-only commands with the authenticated actor and operation context', async () => {
     const deps = dependencies()
-    const service = new AdministrationOperationsService(deps.repository, deps.scoreboards, deps.cache, () => at)
+    const service = new AdministrationOperationsService(deps.repository, deps.scoreboards, () => at)
 
     await expect(service.execute(admin, input('session_invalidate', actorId)))
       .resolves.toMatchObject({ kind: 'session_invalidate', target_id: actorId })
@@ -94,68 +91,52 @@ describe('administration operations service', () => {
     }))
   })
 
-  it('rebuilds every internal and eligible public scope after invalidating contest cache', async () => {
-    const deps = dependencies()
-    const service = new AdministrationOperationsService(deps.repository, deps.scoreboards, deps.cache, () => at)
-
-    const result = await service.execute(admin, input('cache_rebuild'))
-
-    expect(deps.repository.clearScoreboardSnapshots).not.toHaveBeenCalled()
-    expect(deps.cache.invalidateContest).toHaveBeenCalledWith(contestId)
-    expect(deps.scoreboards.read).toHaveBeenCalledTimes(4)
-    expect(deps.scoreboards.read).toHaveBeenNthCalledWith(1, {
-      contestId, view: 'internal', viewerRole: 'admin', scope: { type: 'overall' },
-    })
-    expect(deps.scoreboards.read).toHaveBeenNthCalledWith(2, {
-      contestId, view: 'public', viewerRole: 'admin', scope: { type: 'overall' },
-    })
-    expect(result.result).toMatchObject({ cache_keys_deleted: 3, projections_rebuilt: 4, snapshots_cleared: 0 })
-  })
-
-  it('clears only derived snapshots before recalculating result projections', async () => {
+  it('clears derived PostgreSQL snapshots before rebuilding result projections', async () => {
     const deps = dependencies()
     const events: string[] = []
     deps.repository.clearScoreboardSnapshots = vi.fn(async () => { events.push('snapshots'); return 7 })
-    deps.cache.invalidateContest = vi.fn(async () => { events.push('cache'); return 2 })
     deps.scoreboards.read = vi.fn(async () => { events.push('projection'); return {} })
-    deps.repository.completeExternal = vi.fn(async (_commandId, result) => ({
-      ...completed('result_recalculate'), result,
-    }))
-    const service = new AdministrationOperationsService(deps.repository, deps.scoreboards, deps.cache, () => at)
+    const service = new AdministrationOperationsService(deps.repository, deps.scoreboards, () => at)
 
     const result = await service.execute(admin, input('result_recalculate'))
 
-    expect(events.slice(0, 3)).toEqual(['snapshots', 'cache', 'projection'])
-    expect(result.result).toMatchObject({ snapshots_cleared: 7, cache_keys_deleted: 2, projections_rebuilt: 4 })
+    expect(events.slice(0, 2)).toEqual(['snapshots', 'projection'])
+    expect(deps.scoreboards.read).toHaveBeenCalledTimes(4)
+    expect(result.result).toEqual({
+      contest_id: contestId,
+      snapshots_cleared: 7,
+      projections_rebuilt: 4,
+    })
+    expect(result.result).not.toHaveProperty('cache_keys_deleted')
   })
 
-  it('returns a completed idempotent replay without repeating external side effects', async () => {
+  it('returns a completed idempotent replay without repeating recalculation', async () => {
     const deps = dependencies()
     deps.repository.reserveExternal = vi.fn(async () => ({
       commandId: '018f47a2-4ef8-7e2c-9c24-000000000604',
-      replayed: completed('cache_rebuild', contestId, true),
+      replayed: completed('result_recalculate', contestId, true),
     }))
-    const service = new AdministrationOperationsService(deps.repository, deps.scoreboards, deps.cache, () => at)
+    const service = new AdministrationOperationsService(deps.repository, deps.scoreboards, () => at)
 
-    await expect(service.execute(admin, input('cache_rebuild'))).resolves.toMatchObject({ replayed: true })
+    await expect(service.execute(admin, input('result_recalculate')))
+      .resolves.toMatchObject({ replayed: true })
     expect(deps.repository.scoreboardContext).not.toHaveBeenCalled()
-    expect(deps.cache.invalidateContest).not.toHaveBeenCalled()
+    expect(deps.repository.clearScoreboardSnapshots).not.toHaveBeenCalled()
     expect(deps.scoreboards.read).not.toHaveBeenCalled()
     expect(deps.repository.completeExternal).not.toHaveBeenCalled()
   })
 
-  it('records a failed command when Redis prevents an explicit rebuild', async () => {
+  it('records a failed command when projection rebuilding fails', async () => {
     const deps = dependencies()
-    deps.cache.invalidateContest = vi.fn(async () => { throw new OperationalCacheUnavailableError() })
-    const service = new AdministrationOperationsService(deps.repository, deps.scoreboards, deps.cache, () => at)
+    deps.scoreboards.read = vi.fn(async () => { throw new Error('database overloaded') })
+    const service = new AdministrationOperationsService(deps.repository, deps.scoreboards, () => at)
 
-    await expect(service.execute(admin, input('cache_rebuild')))
-      .rejects.toMatchObject({ code: 'operations.cache_unavailable' })
+    await expect(service.execute(admin, input('result_recalculate')))
+      .rejects.toMatchObject({ code: 'operations.execution_failed' })
     expect(deps.repository.failExternal).toHaveBeenCalledWith(
       '018f47a2-4ef8-7e2c-9c24-000000000604',
-      'operations.cache_unavailable',
+      'operations.execution_failed',
       at,
     )
-    expect(deps.repository.completeExternal).not.toHaveBeenCalled()
   })
 })

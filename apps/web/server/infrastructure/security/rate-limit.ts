@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto'
-import { createResilientRedisClient } from '../cache/resilient-redis-client'
 
 export interface RateLimitDecision {
   allowed: boolean
@@ -8,8 +7,15 @@ export interface RateLimitDecision {
   retryAfterMs: number
 }
 
+export interface RateLimitPolicy {
+  bucket: string
+  limit: number
+  windowMs: number
+}
+
 export interface RateLimitStore {
   consume(bucket: string, limit: number, windowMs: number): Promise<RateLimitDecision>
+  consumeMany(policies: readonly RateLimitPolicy[]): Promise<RateLimitDecision[]>
 }
 
 interface MemoryWindow {
@@ -23,7 +29,12 @@ export class MemoryRateLimitStore implements RateLimitStore {
   constructor(private readonly now: () => number = Date.now) {}
 
   async consume(bucket: string, limit: number, windowMs: number): Promise<RateLimitDecision> {
+    return (await this.consumeMany([{ bucket, limit, windowMs }]))[0]!
+  }
+
+  async consumeMany(policies: readonly RateLimitPolicy[]): Promise<RateLimitDecision[]> {
     const now = this.now()
+    return policies.map(({ bucket, limit, windowMs }) => {
     const current = this.windows.get(bucket)
     const window = !current || current.expiresAt <= now
       ? { count: 0, expiresAt: now + windowMs }
@@ -36,55 +47,7 @@ export class MemoryRateLimitStore implements RateLimitStore {
       remaining: Math.max(0, limit - window.count),
       retryAfterMs: Math.max(1, window.expiresAt - now),
     }
-  }
-}
-
-const consumeScript = `
-local count = redis.call('INCR', KEYS[1])
-if count == 1 then
-  redis.call('PEXPIRE', KEYS[1], ARGV[1])
-end
-local ttl = redis.call('PTTL', KEYS[1])
-return { count, ttl }
-`
-
-export class ResilientRedisRateLimitStore implements RateLimitStore {
-  private readonly fallback = new MemoryRateLimitStore()
-  private readonly client
-  private connecting: Promise<unknown> | null = null
-
-  constructor(redisUrl?: string) {
-    this.client = createResilientRedisClient(redisUrl)
-    this.client?.on('error', () => {})
-  }
-
-  async consume(bucket: string, limit: number, windowMs: number): Promise<RateLimitDecision> {
-    if (!this.client) return this.fallback.consume(bucket, limit, windowMs)
-    try {
-      if (!this.client.isReady) {
-        this.connecting ??= this.client.connect().finally(() => { this.connecting = null })
-        await this.connecting
-      }
-      const result = await this.client.eval(consumeScript, {
-        keys: [`sauryctf:rate:v1:${bucket}`],
-        arguments: [String(windowMs)],
-      }) as [number, number]
-      const count = Number(result[0])
-      const ttl = Math.max(1, Number(result[1]))
-      return {
-        allowed: count <= limit,
-        limit,
-        remaining: Math.max(0, limit - count),
-        retryAfterMs: ttl,
-      }
-    }
-    catch {
-      return this.fallback.consume(bucket, limit, windowMs)
-    }
-  }
-
-  async close(): Promise<void> {
-    if (this.client?.isOpen) this.client.destroy()
+    })
   }
 }
 

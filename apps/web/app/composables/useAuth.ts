@@ -1,4 +1,11 @@
-import type { IdentityUser } from '~~/shared/contracts/identity'
+import type {
+  ChangeEmailRequest,
+  ChangePasswordRequest,
+  IdentitySessionResponse,
+  IdentityUser,
+  LoginIdentityRequest,
+  RegisterIdentityRequest,
+} from '~~/shared/contracts/identity'
 
 interface AuthState {
   user: IdentityUser | null
@@ -32,7 +39,7 @@ export function useAuth() {
 
     fetchUserPromise = (async () => {
       try {
-        const res = await $controlApi('get', '/api/auth/me')
+        const res = await $controlApi<IdentitySessionResponse>('get', '/api/auth/me')
         authState.user = res.user
         return res.user
       }
@@ -58,7 +65,7 @@ export function useAuth() {
   }
 
   async function login(identifier: string, password: string, turnstileToken?: string) {
-    const res = await $controlApi('post', '/api/auth/login', {
+    const res = await $controlApi<IdentitySessionResponse, LoginIdentityRequest>('post', '/api/auth/login', {
       body: { identifier, password, turnstile_token: turnstileToken },
     })
     authState.user = res.user
@@ -66,7 +73,7 @@ export function useAuth() {
   }
 
   async function register(username: string, email: string, password: string, turnstileToken?: string) {
-    const res = await $controlApi('post', '/api/auth/register', {
+    const res = await $controlApi<IdentitySessionResponse, RegisterIdentityRequest>('post', '/api/auth/register', {
       body: { username, email, password, turnstile_token: turnstileToken },
     })
     authState.user = res.user
@@ -84,14 +91,14 @@ export function useAuth() {
   }
 
   async function changePassword(currentPassword: string, newPassword: string) {
-    await $controlApi('post', '/api/auth/password/change', {
+    await $controlApi<unknown, ChangePasswordRequest>('post', '/api/auth/password/change', {
       body: { current_password: currentPassword, new_password: newPassword },
     })
     return fetchUser({ force: true })
   }
 
   async function changeEmail(email: string) {
-    await $controlApi('post', '/api/auth/email/change', { body: { email } })
+    await $controlApi<unknown, ChangeEmailRequest>('post', '/api/auth/email/change', { body: { email } })
     return fetchUser({ force: true })
   }
 

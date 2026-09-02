@@ -21,7 +21,6 @@ describe('platform settings contract', () => {
     for (const key of [
       'NUXT_SESSION_PASSWORD',
       'database_url',
-      'redis_url',
       's3_secret_access_key',
       'worker_credential',
       'oidc_client_secret',

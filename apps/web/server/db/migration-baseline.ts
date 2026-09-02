@@ -27,8 +27,12 @@ export const migrationBaseline = [
   ['0021_data_retention', 1788299100000, '700d014a31b0a2b37e633d98141f8d498935129375c315f05c0df11ad5e1d5fd'],
 ] as const
 
-// Update this build-time manifest whenever a new SQL migration is added.
-export const currentMigrationNames = migrationBaseline.map(([name]) => name)
+// Update this build-time manifest whenever a new SQL migration is added. The
+// takeover baseline above intentionally remains limited to legacy migrations.
+export const currentMigrationNames = [
+  ...migrationBaseline.map(([name]) => name),
+  '0022_rate_limit_windows',
+] as const
 
 export type MigrationBaselineEntry = {
   name: string

@@ -55,31 +55,11 @@ jobs:
       - name: Install JavaScript dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check pinned toolchain
-        run: pnpm check:toolchain
+      - name: Check repository
+        run: pnpm check
 
-      - name: Check Jeopardy scope
-        run: pnpm check:jeopardy-scope
+      - name: Test applications
+        run: pnpm test
 
-      - name: Check control-plane boundaries
-        run: pnpm check:boundaries
-
-      - name: Run contract tests
-        run: pnpm test:contracts
-
-      - name: Test PostgreSQL migrations
-        run: pnpm test:db
-
-      - name: Verify generated API artifacts
-        run: |
-          pnpm generate:api
-          git diff --exit-code -- api/openapi.yaml apps/web/app/types/control-plane-api.d.ts
-
-      - name: Type-check Nuxt
-        run: pnpm typecheck
-
-      - name: Build Nuxt/Nitro
-        run: pnpm --filter sauryctf-web build
-
-      - name: Test instance worker
-        run: go test ./apps/worker/...
+      - name: Build applications
+        run: pnpm build

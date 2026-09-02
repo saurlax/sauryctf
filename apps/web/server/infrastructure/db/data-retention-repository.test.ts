@@ -1,14 +1,14 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { DataRetentionService } from '../../jobs/data-retention'
 import { createPublishableChallenge } from '../../test-support/publishable-challenge'
-import { createDatabaseClient, type DatabaseClient } from './client'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
 import {
   PostgresDataRetentionRepository,
   PostgresSecurityLogWriter,
 } from './data-retention-repository'
-import { runMigrations } from './migrate'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 
 const adminConnectionString = process.env.TEST_DATABASE_ADMIN_URL
 const describeWithPostgres = adminConnectionString ? describe : describe.skip
@@ -22,7 +22,7 @@ function quotedDatabaseName(): string {
 
 describeWithPostgres('PostgreSQL data retention', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let repository: PostgresDataRetentionRepository
   let securityLogs: PostgresSecurityLogWriter
   let now: Date
@@ -39,21 +39,21 @@ describeWithPostgres('PostgreSQL data retention', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 4 })
-    await runMigrations(database)
-    repository = new PostgresDataRetentionRepository(database.pool)
-    securityLogs = new PostgresSecurityLogWriter(database.pool)
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 4 })
+    await runPostgresTestMigrations(database)
+    repository = new PostgresDataRetentionRepository(database.executor)
+    securityLogs = new PostgresSecurityLogWriter(database.executor)
     now = new Date(Date.now() - 2_000)
 
     const suffix = randomUUID()
-    const actor = await database.pool.query<{ id: string }>(`
+    const actor = await database.executor.query<{ id: string }>(`
       INSERT INTO users
         (username, username_normalized, email, email_normalized, email_verified_at)
       VALUES ($1, $2, $3, $3, $4)
       RETURNING id`, [`Retention-${suffix}`, `retention-${suffix}`, `retention-${suffix}@example.test`, now])
     actorId = actor.rows[0]!.id
 
-    const connection = await database.pool.connect()
+    const connection = await database.connect()
     let teamId: string
     try {
       await connection.query('BEGIN')
@@ -75,7 +75,7 @@ describeWithPostgres('PostgreSQL data retention', () => {
       connection.release()
     }
 
-    const contest = await database.pool.query<{ id: string }>(`
+    const contest = await database.executor.query<{ id: string }>(`
       INSERT INTO contests (title, slug, start_at, end_at, created_by)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING id`, [
@@ -86,15 +86,15 @@ describeWithPostgres('PostgreSQL data retention', () => {
       actorId,
     ])
     contestId = contest.rows[0]!.id
-    const participation = await database.pool.query<{ id: string }>(`
+    const participation = await database.executor.query<{ id: string }>(`
       INSERT INTO participations
         (contest_id, team_id, status, registered_by, reviewed_by, reviewed_at)
       VALUES ($1, $2, 'accepted', $3, $3, $4)
       RETURNING id`, [contestId, teamId, actorId, new Date(now.getTime() - 500 * dayMs)])
     const participationId = participation.rows[0]!.id
-    const challengeId = (await createPublishableChallenge(database.pool, contestId, actorId)).challengeId
+    const challengeId = (await createPublishableChallenge(database.executor, contestId, actorId)).challengeId
     const factAt = new Date(now.getTime() - 499 * dayMs)
-    const submission = await database.pool.query<{ id: string }>(`
+    const submission = await database.executor.query<{ id: string }>(`
       INSERT INTO submissions
         (contest_id, contest_challenge_id, participation_id, user_id, mode,
          result, answer_digest, answer_ciphertext, request_id, submitted_at)
@@ -103,24 +103,24 @@ describeWithPostgres('PostgreSQL data retention', () => {
       contestId, challengeId, participationId, actorId,
       randomBytes(32), randomBytes(33), `retention-submission-${suffix}`, factAt,
     ])
-    await database.pool.query(`
+    await database.executor.query(`
       INSERT INTO solves
         (submission_id, contest_id, contest_challenge_id, participation_id,
          mode, awarded_score, solve_order, solved_at)
       VALUES ($1, $2, $3, $4, 'official', 500, 1, $5)`, [
       submission.rows[0]!.id, contestId, challengeId, participationId, factAt,
     ])
-    await database.pool.query(`
+    await database.executor.query(`
       INSERT INTO score_adjustments
         (contest_id, participation_id, points_delta, reason, created_by, request_id, created_at)
       VALUES ($1, $2, 25, 'Historical ruling', $3, $4, $5)`, [
       contestId, participationId, actorId, `retention-adjustment-${suffix}`, factAt,
     ])
-    await database.pool.query(`
+    await database.executor.query(`
       INSERT INTO scoreboard_versions (contest_id, version, updated_at)
       VALUES ($1, 2, $2)`, [contestId, factAt])
 
-    const audits = await database.pool.query<{ id: string }>(`
+    const audits = await database.executor.query<{ id: string }>(`
       INSERT INTO audit_events
         (actor_user_id, action, target_type, target_id, reason, outcome,
          request_id, changes, metadata, occurred_at)
@@ -158,14 +158,14 @@ describeWithPostgres('PostgreSQL data retention', () => {
       statusCode: 401,
       occurredAt: new Date(now.getTime() - 89 * dayMs),
     })
-    const storedSecurity = await database.pool.query<{ id: string }>(`
+    const storedSecurity = await database.executor.query<{ id: string }>(`
       SELECT id::text FROM security_log_events ORDER BY occurred_at, id`)
     expiredSecurityId = storedSecurity.rows[0]!.id
     retainedSecurityId = storedSecurity.rows[1]!.id
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -177,9 +177,9 @@ describeWithPostgres('PostgreSQL data retention', () => {
   })
 
   it('keeps audit and security logs append-only outside the bounded retention function', async () => {
-    await expect(database.pool.query('DELETE FROM audit_events WHERE id = $1', [retainedAuditId]))
+    await expect(database.executor.query('DELETE FROM audit_events WHERE id = $1', [retainedAuditId]))
       .rejects.toMatchObject({ code: '55000' })
-    await expect(database.pool.query('UPDATE security_log_events SET route = $2 WHERE id = $1', [
+    await expect(database.executor.query('UPDATE security_log_events SET route = $2 WHERE id = $1', [
       retainedSecurityId,
       '/rewritten',
     ])).rejects.toMatchObject({ code: '55000' })
@@ -189,7 +189,7 @@ describeWithPostgres('PostgreSQL data retention', () => {
     const before = await factCounts()
     const result = await new DataRetentionService(repository, () => now).run(100, 2)
     const after = await factCounts()
-    const evidence = await database.pool.query<{ id: string }>(`
+    const evidence = await database.executor.query<{ id: string }>(`
       SELECT id::text FROM audit_events
       WHERE id = ANY($1::uuid[])
       UNION ALL
@@ -214,8 +214,46 @@ describeWithPostgres('PostgreSQL data retention', () => {
     })).rejects.toMatchObject({ code: '22023' })
   })
 
+  it('deletes expired rate limit windows in bounded batches while preserving active windows', async () => {
+    const activeDigest = randomBytes(32)
+    await database.executor.query(`
+      INSERT INTO rate_limit_windows (
+        bucket_digest,
+        window_started_at,
+        expires_at,
+        request_count
+      )
+      SELECT decode(lpad(to_hex(value), 64, '0'), 'hex'),
+             clock_timestamp() - interval '2 minutes',
+             clock_timestamp() - interval '1 minute',
+             1
+      FROM generate_series(1, 205) AS value
+    `)
+    await database.executor.query(`
+      INSERT INTO rate_limit_windows (
+        bucket_digest,
+        window_started_at,
+        expires_at,
+        request_count
+      ) VALUES ($1, clock_timestamp(), clock_timestamp() + interval '1 hour', 1)
+    `, [activeDigest])
+
+    const first = await new DataRetentionService(repository, () => now).run(100, 10)
+    expect(first).toMatchObject({ rateLimitWindowsDeleted: 205, batches: 3 })
+    const remaining = await database.executor.query<{ expired: number, active: number }>(`
+      SELECT
+        count(*) FILTER (WHERE expires_at <= clock_timestamp())::integer AS expired,
+        count(*) FILTER (WHERE bucket_digest = $1)::integer AS active
+      FROM rate_limit_windows
+    `, [activeDigest])
+    expect(remaining.rows[0]).toEqual({ expired: 0, active: 1 })
+
+    const repeated = await new DataRetentionService(repository, () => now).run(100, 10)
+    expect(repeated).toMatchObject({ rateLimitWindowsDeleted: 0, batches: 1 })
+  })
+
   async function factCounts() {
-    const result = await database.pool.query<{
+    const result = await database.executor.query<{
       submissions: string
       solves: string
       adjustments: string

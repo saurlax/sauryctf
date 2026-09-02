@@ -1,5 +1,4 @@
 import { isDeepStrictEqual } from 'node:util'
-import type { Pool } from 'pg'
 import {
   ScoreboardContestNotFoundError,
   ScoreboardSnapshotConflictError,
@@ -9,6 +8,7 @@ import {
   type ScoreboardViewRepository,
 } from '../../domains/scoreboards/view-service'
 import type { ScoreboardReadModel, ScoreboardScope } from '../../domains/scoreboards/builder'
+import type { DatabaseExecutor } from './executor'
 
 interface ContestStateRow {
   id: string
@@ -30,10 +30,10 @@ interface SnapshotRow {
 }
 
 export class PostgresScoreboardViewRepository implements ScoreboardViewRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly database: DatabaseExecutor) {}
 
   async readContestState(contestId: string): Promise<ScoreboardContestState> {
-    const result = await this.pool.query<ContestStateRow>(
+    const result = await this.database.query<ContestStateRow>(
       `SELECT c.id, c.publication_status::text, c.visibility::text,
               c.scoreboard_freeze_at, c.end_at,
               coalesce(sv.version, 0)::text AS current_version
@@ -57,7 +57,7 @@ export class PostgresScoreboardViewRepository implements ScoreboardViewRepositor
   }
 
   async divisionExists(contestId: string, divisionId: string): Promise<boolean> {
-    const result = await this.pool.query(
+    const result = await this.database.query(
       'SELECT 1 FROM divisions WHERE contest_id = $1 AND id = $2',
       [contestId, divisionId],
     )
@@ -69,7 +69,7 @@ export class PostgresScoreboardViewRepository implements ScoreboardViewRepositor
     view: ScoreboardView
     scopeKey: string
   }): Promise<ScoreboardSnapshotRecord | null> {
-    const result = await this.pool.query<SnapshotRow>(
+    const result = await this.database.query<SnapshotRow>(
       `SELECT contest_id, view::text, division_id, scope_key,
               version::text, payload, built_at
        FROM scoreboard_snapshots
@@ -86,7 +86,7 @@ export class PostgresScoreboardViewRepository implements ScoreboardViewRepositor
     view: ScoreboardView
     scopeKey: string
   }): Promise<number | null> {
-    const result = await this.pool.query<{ version: string }>(
+    const result = await this.database.query<{ version: string }>(
       `SELECT version::text
        FROM scoreboard_snapshots
        WHERE contest_id = $1 AND view = $2 AND scope_key = $3
@@ -103,7 +103,7 @@ export class PostgresScoreboardViewRepository implements ScoreboardViewRepositor
     scopeKey: string
     version: number
   }): Promise<ScoreboardSnapshotRecord | null> {
-    const result = await this.pool.query<SnapshotRow>(
+    const result = await this.database.query<SnapshotRow>(
       `SELECT contest_id, view::text, division_id, scope_key,
               version::text, payload, built_at
        FROM scoreboard_snapshots
@@ -115,7 +115,7 @@ export class PostgresScoreboardViewRepository implements ScoreboardViewRepositor
 
   async writeSnapshot(snapshot: ScoreboardSnapshotRecord): Promise<ScoreboardSnapshotRecord> {
     const divisionId = snapshot.scope.type === 'division' ? snapshot.scope.divisionId : null
-    const inserted = await this.pool.query<SnapshotRow>(
+    const inserted = await this.database.query<SnapshotRow>(
       `INSERT INTO scoreboard_snapshots
          (contest_id, view, division_id, scope_key, version, payload, built_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)

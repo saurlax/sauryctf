@@ -95,7 +95,7 @@ describe('platform settings HTTP adapters', () => {
       authentication_mode: 'password_only',
     } })
     expect(JSON.stringify(body)).not.toMatch(
-      /session_secret|database_url|redis_url|s3_secret_access_key|worker_credential/iu,
+      /session_secret|database_url|s3_secret_access_key|worker_credential/iu,
     )
   })
 

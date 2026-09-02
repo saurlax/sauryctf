@@ -1,26 +1,22 @@
 import { randomUUID } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
 import { performance } from 'node:perf_hooks'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { FlagVerifier, staticFlagDigest, VersionedFlagKeyring } from '../../domains/challenges/flag-verifier'
 import type { SessionSubject } from '../../domains/identity/repository'
-import { ScoreboardBuildCoordinator } from '../../domains/scoreboards/build-coordinator'
 import { ScoreboardViewService } from '../../domains/scoreboards/view-service'
 import { SubmissionService } from '../../domains/submissions/service'
 import { ContestScoringReplayService } from '../../domains/submissions/scoring-replay'
-import { ResilientRedisScoreboardBuildLock } from '../cache/redis-scoreboard-build-lock'
-import { ResilientRedisScoreboardCache } from '../cache/redis-scoreboard-cache'
-import { createDatabaseClient, type DatabaseClient } from '../db/client'
-import { runMigrations } from '../db/migrate'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { PostgresScoreboardViewRepository } from '../db/scoreboard-view-repository'
 import { PostgresScoringReplayRepository } from '../db/scoring-replay-repository'
 import { PostgresSubmissionRepository } from '../db/submission-repository'
 import { AesGcmSubmissionAnswerProtector } from '../security/submission-answer-protector'
 
 const adminConnectionString = process.env.TEST_DATABASE_ADMIN_URL
-const redisUrl = process.env.TEST_REDIS_URL
-const describeCapacity = adminConnectionString && redisUrl ? describe : describe.skip
+const describeCapacity = adminConnectionString ? describe : describe.skip
 const databaseName = `sauryctf_capacity_${randomUUID().replaceAll('-', '')}`
 const teamCount = 300
 const concurrentPlayerCount = 1_000
@@ -53,49 +49,41 @@ interface TimedSubmission {
 
 describeCapacity('first-release capacity acceptance', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let fixture: CapacityFixture
   let submissions: SubmissionService
   let scoreboards: ScoreboardViewService
-  let scoreboardCache: ResilientRedisScoreboardCache
-  let scoreboardLock: ResilientRedisScoreboardBuildLock
 
   beforeAll(async () => {
     admin = new Client({ connectionString: adminConnectionString })
     await admin.connect()
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
-    database = createDatabaseClient({
+    database = createPostgresTestDatabase({
       connectionString: databaseUrl(adminConnectionString!),
       applicationName: 'sauryctf-capacity-acceptance',
       maxConnections: 96,
       connectionTimeoutMs: 10_000,
     })
-    await runMigrations(database)
+    await runPostgresTestMigrations(database)
     fixture = await seedCapacityFixture(database)
 
     submissions = new SubmissionService(
-      new PostgresSubmissionRepository(database.pool),
+      new PostgresSubmissionRepository(database.executor),
       new FlagVerifier(new VersionedFlagKeyring({})),
       { consume: async () => ({ allowed: true, retryAfterMs: 0 }) },
       new AesGcmSubmissionAnswerProtector(Buffer.alloc(32, 23)),
       () => testTime,
     )
-    scoreboardCache = new ResilientRedisScoreboardCache(redisUrl)
-    scoreboardLock = new ResilientRedisScoreboardBuildLock(redisUrl)
     scoreboards = new ScoreboardViewService(
-      new PostgresScoreboardViewRepository(database.pool),
-      new ContestScoringReplayService(new PostgresScoringReplayRepository(database.pool)),
+      new PostgresScoreboardViewRepository(database.executor),
+      new ContestScoringReplayService(new PostgresScoringReplayRepository(database.executor)),
       undefined,
       () => testTime,
-      scoreboardCache,
-      new ScoreboardBuildCoordinator(scoreboardLock),
     )
   }, 60_000)
 
   afterAll(async () => {
-    await scoreboardCache?.close()
-    await scoreboardLock?.close()
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await waitForDatabaseConnectionsToClose(admin)
       await admin.query(`DROP DATABASE IF EXISTS ${quotedDatabaseName()}`)
@@ -104,7 +92,7 @@ describeCapacity('first-release capacity acceptance', () => {
   })
 
   it('sustains the declared team, player, instance, submission and scoreboard baseline', async () => {
-    const seeded = await database.pool.query<{
+    const seeded = await database.executor.query<{
       teams: number
       users: number
       accepted_participations: number
@@ -276,20 +264,20 @@ describeCapacity('first-release capacity acceptance', () => {
   }
 })
 
-async function seedCapacityFixture(database: DatabaseClient): Promise<CapacityFixture> {
-  const admin = await database.pool.query<{ id: string }>(`
+async function seedCapacityFixture(database: PostgresTestDatabase): Promise<CapacityFixture> {
+  const admin = await database.executor.query<{ id: string }>(`
     INSERT INTO users
       (username, username_normalized, email, email_normalized, email_verified_at)
     VALUES ('CapacityAdmin', 'capacityadmin', 'capacity-admin@example.test',
       'capacity-admin@example.test', $1)
     RETURNING id::text`, [testTime])
   const adminId = admin.rows[0]!.id
-  await database.pool.query(
+  await database.executor.query(
     `INSERT INTO user_roles (user_id, role) VALUES ($1, 'admin')`,
     [adminId],
   )
 
-  const players = await database.pool.query<{ id: string, username: string }>(`
+  const players = await database.executor.query<{ id: string, username: string }>(`
     INSERT INTO users
       (username, username_normalized, email, email_normalized, email_verified_at)
     SELECT
@@ -302,11 +290,11 @@ async function seedCapacityFixture(database: DatabaseClient): Promise<CapacityFi
     ORDER BY series
     RETURNING id::text, username`, [testTime, concurrentPlayerCount])
   const orderedPlayers = players.rows.toSorted((left, right) => left.username.localeCompare(right.username))
-  await database.pool.query(`
+  await database.executor.query(`
     INSERT INTO user_roles (user_id, role)
     SELECT id, 'user' FROM users WHERE username_normalized LIKE 'capacity-player-%'`)
 
-  const connection = await database.pool.connect()
+  const connection = await database.connect()
   let teamIds: string[]
   try {
     await connection.query('BEGIN')
@@ -339,7 +327,7 @@ async function seedCapacityFixture(database: DatabaseClient): Promise<CapacityFi
     connection.release()
   }
 
-  const contest = await database.pool.query<{ id: string }>(`
+  const contest = await database.executor.query<{ id: string }>(`
     INSERT INTO contests
       (title, slug, description, publication_status, visibility,
        registration_strategy, start_at, end_at, practice_enabled,
@@ -354,7 +342,7 @@ async function seedCapacityFixture(database: DatabaseClient): Promise<CapacityFi
   ])
   const contestId = contest.rows[0]!.id
 
-  const participations = await database.pool.query<{ id: string, team_id: string }>(`
+  const participations = await database.executor.query<{ id: string, team_id: string }>(`
     INSERT INTO participations
       (contest_id, team_id, status, registered_by, reviewed_by,
        review_reason, registered_at, reviewed_at)
@@ -376,7 +364,7 @@ async function seedCapacityFixture(database: DatabaseClient): Promise<CapacityFi
   const flags: string[] = []
   for (let index = 0; index < challengeCount; index += 1) {
     const flag = `flag{capacity-correct-${index}}`
-    const template = await database.pool.query<{ id: string }>(`
+    const template = await database.executor.query<{ id: string }>(`
       INSERT INTO challenge_templates
         (name, slug, created_by, latest_version)
       VALUES ($1, $2, $3, 1)
@@ -386,7 +374,7 @@ async function seedCapacityFixture(database: DatabaseClient): Promise<CapacityFi
       adminId,
     ])
     const templateId = template.rows[0]!.id
-    const version = await database.pool.query<{ id: string }>(`
+    const version = await database.executor.query<{ id: string }>(`
       INSERT INTO challenge_template_versions
         (template_id, version_number, title, category, description,
          flag_format, flag_policy, scoring_policy, instance_policy, created_by)
@@ -406,7 +394,7 @@ async function seedCapacityFixture(database: DatabaseClient): Promise<CapacityFi
       },
       adminId,
     ])
-    const challenge = await database.pool.query<{ id: string }>(`
+    const challenge = await database.executor.query<{ id: string }>(`
       INSERT INTO contest_challenges
         (contest_id, source_template_id, source_version_id, title, category,
          description, flag_format, flag_policy, scoring_policy, instance_policy,
@@ -440,7 +428,7 @@ async function seedCapacityFixture(database: DatabaseClient): Promise<CapacityFi
   const instanceChallengeIds = Array.from({ length: runningInstanceCount }, (_, index) =>
     challengeIds[Math.floor(index / teamCount)]!,
   )
-  await database.pool.query(`
+  await database.executor.query(`
     INSERT INTO instances
       (contest_id, contest_challenge_id, participation_id, provider,
        desired_state, desired_generation, observed_state, observed_generation,
@@ -461,7 +449,7 @@ async function seedCapacityFixture(database: DatabaseClient): Promise<CapacityFi
     instanceParticipationIds,
     instanceChallengeIds,
   ])
-  await database.pool.query(`
+  await database.executor.query(`
     UPDATE contests
     SET publication_status = 'published', published_at = $2,
         version = version + 1, updated_at = $2

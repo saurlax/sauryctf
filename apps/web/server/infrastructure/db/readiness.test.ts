@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { expectedMigrationBaseline } from '../../db/migration-baseline'
+import { currentMigrationNames, expectedMigrationBaseline } from '../../db/migration-baseline'
 import { PostgresControlPlaneReadiness } from './readiness'
 
 const baseline = expectedMigrationBaseline()
@@ -8,7 +8,7 @@ describe('PostgreSQL control-plane readiness', () => {
   it('accepts an exact NuxtHub journal without a legacy journal', async () => {
     const query = vi.fn()
       .mockResolvedValueOnce({ rows: [{ hub_journal: '_hub_migrations', legacy_journal: null }] })
-      .mockResolvedValueOnce({ rows: baseline.map(({ name }) => ({ name })) })
+      .mockResolvedValueOnce({ rows: currentMigrationNames.map(name => ({ name })) })
 
     await expect(new PostgresControlPlaneReadiness({ query } as never).ready()).resolves.toBeUndefined()
     expect(query).toHaveBeenCalledTimes(2)
@@ -19,7 +19,7 @@ describe('PostgreSQL control-plane readiness', () => {
       .mockResolvedValueOnce({
         rows: [{ hub_journal: '_hub_migrations', legacy_journal: 'control_plane.__drizzle_migrations' }],
       })
-      .mockResolvedValueOnce({ rows: baseline.map(({ name }) => ({ name })) })
+      .mockResolvedValueOnce({ rows: currentMigrationNames.map(name => ({ name })) })
       .mockResolvedValueOnce({
         rows: baseline.map(({ sha256, legacyCreatedAt }) => ({
           hash: sha256,
@@ -38,9 +38,9 @@ describe('PostgreSQL control-plane readiness', () => {
 
   it('rejects a database that is behind, ahead, reordered, or unknown', async () => {
     for (const names of [
-      baseline.slice(0, -1).map(({ name }) => name),
-      [...baseline.map(({ name }) => name), '9999_unknown'],
-      [baseline[1]!.name, baseline[0]!.name, ...baseline.slice(2).map(({ name }) => name)],
+      currentMigrationNames.slice(0, -1),
+      [...currentMigrationNames, '9999_unknown'],
+      [currentMigrationNames[1]!, currentMigrationNames[0]!, ...currentMigrationNames.slice(2)],
     ]) {
       const query = vi.fn()
         .mockResolvedValueOnce({ rows: [{ hub_journal: '_hub_migrations', legacy_journal: null }] })
@@ -55,7 +55,7 @@ describe('PostgreSQL control-plane readiness', () => {
       .mockResolvedValueOnce({
         rows: [{ hub_journal: '_hub_migrations', legacy_journal: 'control_plane.__drizzle_migrations' }],
       })
-      .mockResolvedValueOnce({ rows: baseline.map(({ name }) => ({ name })) })
+      .mockResolvedValueOnce({ rows: currentMigrationNames.map(name => ({ name })) })
       .mockResolvedValueOnce({ rows: [] })
     await expect(new PostgresControlPlaneReadiness({ query } as never).ready())
       .rejects.toThrow('has not been safely claimed')

@@ -4,8 +4,8 @@ import {
   ContentDownloadService,
   ContentDownloadServiceError,
   safeDownloadPresentation,
+  type ContentDownloadReader,
   type ContentDownloadRepository,
-  type ContentDownloadUrlSigner,
   type DownloadableContent,
 } from './download-service'
 
@@ -35,17 +35,17 @@ function repository(overrides: Partial<ContentDownloadRepository> = {}): Content
   }
 }
 
-function signer(): ContentDownloadUrlSigner & { signDownloadUrl: ReturnType<typeof vi.fn> } {
+function reader(): ContentDownloadReader & { read: ReturnType<typeof vi.fn> } {
   return {
-    signDownloadUrl: vi.fn(async () => 'https://objects.example.test/signed-download'),
+    read: vi.fn(async () => new Uint8Array([1, 2, 3])),
   }
 }
 
 describe('authorized content downloads', () => {
   it('passes only global contest managers through the challenge management bypass', async () => {
     const downloads = repository()
-    const urls = signer()
-    const service = new ContentDownloadService(downloads, urls, () => new Date('2026-09-02T08:00:00.000Z'))
+    const bodies = reader()
+    const service = new ContentDownloadService(downloads, bodies, () => new Date('2026-09-02T08:00:00.000Z'))
 
     const grant = await service.challengeAsset(player, '018f47a2-4ef8-7e2c-9c24-000000000202')
     expect(downloads.findChallengeAsset).toHaveBeenCalledWith(
@@ -67,33 +67,42 @@ describe('authorized content downloads', () => {
     expect(grant).toMatchObject({
       expiresAt: new Date('2026-09-02T08:01:00.000Z'),
       disposition: 'attachment',
+      storageKey: content.storageKey,
       filename: 'challenge.bin',
       mediaType: 'application/octet-stream',
     })
+    await expect(service.read(grant)).resolves.toEqual(new Uint8Array([1, 2, 3]))
+    expect(bodies.read).toHaveBeenCalledWith(content.storageKey)
   })
 
-  it('does not sign a URL when the repository hides an unauthorized reference', async () => {
-    const urls = signer()
+  it('does not read storage when the repository hides an unauthorized reference', async () => {
+    const bodies = reader()
     const service = new ContentDownloadService(repository({
       findWriteupAttachment: vi.fn(async () => null),
-    }), urls)
+    }), bodies)
 
     await expect(service.writeupAttachment(
       player,
       '018f47a2-4ef8-7e2c-9c24-000000000204',
     )).rejects.toBeInstanceOf(ContentDownloadServiceError)
-    expect(urls.signDownloadUrl).not.toHaveBeenCalled()
+    expect(bodies.read).not.toHaveBeenCalled()
   })
 
   it('rejects unverified identities before resolving private content', async () => {
     const downloads = repository()
-    const service = new ContentDownloadService(downloads, signer())
+    const service = new ContentDownloadService(downloads, reader())
 
     await expect(service.challengeAsset(
       { ...player, emailVerified: false },
       '018f47a2-4ef8-7e2c-9c24-000000000205',
     )).rejects.toMatchObject({ code: 'identity.email_verification_required' })
     expect(downloads.findChallengeAsset).not.toHaveBeenCalled()
+  })
+
+  it('maps a missing authorized object body to the same not-found error', async () => {
+    const service = new ContentDownloadService(repository(), { read: vi.fn(async () => null) })
+    const grant = await service.challengeAsset(player, '018f47a2-4ef8-7e2c-9c24-000000000205')
+    await expect(service.read(grant)).rejects.toMatchObject({ code: 'content.download_not_found' })
   })
 })
 

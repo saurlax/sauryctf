@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import type { ControlPlaneResponse } from '~/utils/control-plane-api'
+import type {
+  MonitoringKind,
+  MonitoringListRequest,
+  MonitoringListResponse,
+} from '#shared/contracts/monitoring'
 
 definePageMeta({ middleware: 'admin' })
 
-type Snapshot = ControlPlaneResponse<'/api/admin/monitoring', 'get'>
+type Snapshot = MonitoringListResponse
 
 const toast = useToast()
 const route = useRoute()
@@ -20,8 +24,6 @@ const kindOptions = [
   { label: 'Writeup', value: 'writeups' },
   { label: '审计', value: 'audit_events' },
 ] as const
-type MonitoringKind = typeof kindOptions[number]['value']
-
 const requestedKind = typeof route.query.kind === 'string' ? route.query.kind : ''
 const activeKind = ref<MonitoringKind>(kindOptions.some(item => item.value === requestedKind)
   ? requestedKind as MonitoringKind
@@ -37,7 +39,7 @@ const filters = reactive({
 async function loadMonitoring(kind: MonitoringKind = activeKind.value) {
   loading.value = true
   try {
-    snapshot.value = await $controlApi('get', '/api/admin/monitoring', {
+    snapshot.value = await $controlApi<Snapshot, never, MonitoringListRequest>('get', '/api/admin/monitoring', {
       query: {
         kind,
         contest_id: filters.contestId.trim() || undefined,
@@ -80,7 +82,7 @@ onMounted(() => void loadMonitoring())
   <UContainer class="py-8 space-y-6">
     <UPageHeader
       title="平台监控"
-      description="查看 PostgreSQL 权威事实、缓存观测时间与 Worker 最后观察时间。"
+      description="查看 PostgreSQL 权威事实、NuxtHub 数据服务健康状态与 Worker 最后观察时间。"
     >
       <template #links>
         <UButton label="比赛管理" to="/console/admin" variant="outline" icon="i-lucide-settings-2" />
@@ -110,13 +112,14 @@ onMounted(() => void loadMonitoring())
 
       <div v-if="snapshot" class="mb-4 grid gap-3 md:grid-cols-3">
         <div class="rounded-lg border border-default px-3 py-3">
-          <div class="text-xs text-muted">权威来源</div>
-          <div class="mt-1 font-medium">PostgreSQL</div>
-          <div class="mt-1 text-xs text-muted">生成于 {{ formatTime(snapshot.generated_at) }}</div>
+          <div class="text-xs text-muted">PostgreSQL</div>
+          <div class="mt-1 font-medium">{{ snapshot.data_services.postgresql.status === 'ready' ? '正常' : '不可用' }}</div>
+          <div class="mt-1 text-xs text-muted">迁移：{{ snapshot.data_services.postgresql.migrations === 'current' ? '当前版本' : '不可用' }}</div>
         </div>
         <div class="rounded-lg border border-default px-3 py-3">
-          <div class="text-xs text-muted">缓存观测</div>
-          <div class="mt-1 font-medium">{{ snapshot.cache_observed_at ? formatTime(snapshot.cache_observed_at) : '当前视图未使用缓存' }}</div>
+          <div class="text-xs text-muted">Blob</div>
+          <div class="mt-1 font-medium">{{ snapshot.data_services.blob.driver.toUpperCase() }} · {{ snapshot.data_services.blob.status === 'ready' ? '正常' : '不可用' }}</div>
+          <div class="mt-1 text-xs text-muted">生成于 {{ formatTime(snapshot.generated_at) }}</div>
         </div>
         <div class="rounded-lg border border-default px-3 py-3">
           <div class="text-xs text-muted">Worker 陈旧阈值</div>

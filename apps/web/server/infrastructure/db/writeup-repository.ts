@@ -1,4 +1,3 @@
-import type { Pool, PoolClient } from 'pg'
 import {
   WriteupAttachmentUnavailableError,
   WriteupContestArchivedError,
@@ -24,8 +23,9 @@ import {
   type WriteupStatus,
   type WriteupVersionRecord,
 } from '../../domains/writeups/repository'
+import type { DatabaseExecutor } from './executor'
 
-type Queryable = Pick<Pool, 'query'> | Pick<PoolClient, 'query'>
+type Queryable = Pick<DatabaseExecutor, 'query'>
 
 interface OwnContextRow {
   contest_id: string
@@ -86,11 +86,11 @@ interface ExportWriteupRow {
 }
 
 export class PostgresWriteupRepository implements WriteupRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly database: DatabaseExecutor) {}
 
   async readOwn(actorId: string, contestId: string): Promise<OwnWriteupState> {
-    const context = await this.ownContext(this.pool, actorId, contestId, false)
-    const result = await this.pool.query<{ id: string }>(
+    const context = await this.ownContext(this.database, actorId, contestId, false)
+    const result = await this.database.query<{ id: string }>(
       `SELECT id
        FROM writeups
        WHERE contest_id = $1 AND participation_id = $2`,
@@ -101,15 +101,13 @@ export class PostgresWriteupRepository implements WriteupRepository {
       writeupRequired: context.writeup_required,
       writeupDeadlineAt: context.writeup_deadline_at,
       writeup: result.rows[0]
-        ? await this.loadRecord(this.pool, contestId, result.rows[0].id)
+        ? await this.loadRecord(this.database, contestId, result.rows[0].id)
         : null,
     }
   }
 
   async saveOwn(command: SaveOwnWriteupCommand): Promise<WriteupRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       const context = await this.ownContext(connection, command.actorId, command.contestId, true)
       this.requireWritableOwnContext(context)
       await this.requireAttachments(connection, command.attachmentIds)
@@ -162,22 +160,12 @@ export class PostgresWriteupRepository implements WriteupRepository {
         [writeupId, nextVersion],
       )
       const record = await this.loadRecord(connection, command.contestId, writeupId)
-      await connection.query('COMMIT')
       return record
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async submitOwn(command: SubmitOwnWriteupCommand): Promise<WriteupRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       const context = await this.ownContext(connection, command.actorId, command.contestId, true)
       this.requireWritableOwnContext(context)
       const result = await connection.query<WriteupRow>(
@@ -205,16 +193,8 @@ export class PostgresWriteupRepository implements WriteupRepository {
         [current.id],
       )
       const record = await this.loadRecord(connection, command.contestId, current.id)
-      await connection.query('COMMIT')
       return record
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async listManaged(
@@ -223,8 +203,8 @@ export class PostgresWriteupRepository implements WriteupRepository {
     cursor: string | undefined,
     limit: number,
   ): Promise<ManagedWriteupPage> {
-    await this.requireContest(this.pool, contestId, false)
-    const result = await this.pool.query<{ id: string }>(
+    await this.requireContest(this.database, contestId, false)
+    const result = await this.database.query<{ id: string }>(
       `SELECT w.id
        FROM writeups w
        WHERE w.contest_id = $1
@@ -242,7 +222,7 @@ export class PostgresWriteupRepository implements WriteupRepository {
     const hasMore = result.rows.length > limit
     const selected = result.rows.slice(0, limit)
     const items: WriteupRecord[] = []
-    for (const row of selected) items.push(await this.loadRecord(this.pool, contestId, row.id))
+    for (const row of selected) items.push(await this.loadRecord(this.database, contestId, row.id))
     return {
       items,
       hasMore,
@@ -251,9 +231,7 @@ export class PostgresWriteupRepository implements WriteupRepository {
   }
 
   async review(command: ReviewWriteupCommand): Promise<WriteupRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       await this.requireContest(connection, command.contestId, true)
       const current = await this.lockWriteup(connection, command.contestId, command.writeupId)
       if (Number(current.version) !== command.expectedVersion) throw new WriteupVersionConflictError()
@@ -284,22 +262,12 @@ export class PostgresWriteupRepository implements WriteupRepository {
         },
       })
       const record = await this.loadRecord(connection, command.contestId, command.writeupId)
-      await connection.query('COMMIT')
       return record
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async correct(command: CorrectWriteupCommand): Promise<WriteupRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       await this.requireContest(connection, command.contestId, true)
       const current = await this.lockWriteup(connection, command.contestId, command.writeupId)
       if (Number(current.version) !== command.expectedVersion) throw new WriteupVersionConflictError()
@@ -344,25 +312,17 @@ export class PostgresWriteupRepository implements WriteupRepository {
         },
       })
       const record = await this.loadRecord(connection, command.contestId, command.writeupId)
-      await connection.query('COMMIT')
       return record
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async exportSubmitted(contestId: string): Promise<WriteupExportSnapshot> {
-    const contest = await this.pool.query<{ title: string }>(
+    const contest = await this.database.query<{ title: string }>(
       'SELECT title FROM contests WHERE id = $1',
       [contestId],
     )
     if (!contest.rows[0]) throw new WriteupNotFoundError()
-    const result = await this.pool.query<ExportWriteupRow>(
+    const result = await this.database.query<ExportWriteupRow>(
       `SELECT w.id AS writeup_id,
               w.participation_id,
               p.team_id,
@@ -384,7 +344,7 @@ export class PostgresWriteupRepository implements WriteupRepository {
     )
     const attachmentRows = result.rows.length === 0
       ? []
-      : (await this.pool.query<WriteupAttachmentRow>(
+      : (await this.database.query<WriteupAttachmentRow>(
           `${this.attachmentSelect()}
            AND reference.writeup_version_id = ANY($1::uuid[])
            ORDER BY reference.writeup_version_id, reference.created_at, reference.id`,
@@ -464,7 +424,7 @@ export class PostgresWriteupRepository implements WriteupRepository {
     }
   }
 
-  private async lockWriteup(connection: PoolClient, contestId: string, writeupId: string) {
+  private async lockWriteup(connection: DatabaseExecutor, contestId: string, writeupId: string) {
     const result = await connection.query<WriteupRow>(
       `${this.writeupSelect()}
        WHERE w.contest_id = $1 AND w.id = $2

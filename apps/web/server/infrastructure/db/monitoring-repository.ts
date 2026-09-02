@@ -1,6 +1,6 @@
-import type { Pool } from 'pg'
 import type { MonitoringItem, MonitoringKind, MonitoringListRequest } from '../../../shared/contracts/monitoring'
 import type { MonitoringRepository } from '../../domains/administration/monitoring'
+import type { DatabaseExecutor } from './executor'
 
 interface MonitoringRow {
   kind: MonitoringKind
@@ -14,13 +14,13 @@ interface MonitoringRow {
   details: Record<string, string | number | boolean | null>
 }
 
-type QueryPool = Pick<Pool, 'query'>
+type QueryExecutor = Pick<DatabaseExecutor, 'query'>
 
 export class PostgresMonitoringRepository implements MonitoringRepository {
-  constructor(private readonly pool: QueryPool) {}
+  constructor(private readonly database: QueryExecutor) {}
 
   async list(query: MonitoringListRequest, now: Date, workerStaleAfterMs: number): Promise<MonitoringItem[]> {
-    const result = await this.pool.query<MonitoringRow>(sqlFor(query.kind), [
+    const result = await this.database.query<MonitoringRow>(sqlFor(query.kind), [
       query.contest_id ?? null,
       query.challenge_id ?? null,
       query.team_id ?? null,

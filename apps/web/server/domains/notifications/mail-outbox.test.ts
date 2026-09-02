@@ -1,11 +1,11 @@
 import { randomUUID, scryptSync, timingSafeEqual } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { AesGcmIdentityMailTokenProtector } from '../../infrastructure/auth/identity-mail-token-protector'
 import { identityTokenCodec } from '../../infrastructure/auth/identity-token-codec'
-import { createDatabaseClient, type DatabaseClient } from '../../infrastructure/db/client'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
 import { PostgresIdentityRepository } from '../../infrastructure/db/identity-repository'
-import { runMigrations } from '../../infrastructure/db/migrate'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { PostgresMailOutboxRepository } from '../../infrastructure/mail/postgres-mail-outbox'
 import type { PasswordHasher } from '../identity/password'
 import { IdentityService } from '../identity/service'
@@ -38,7 +38,7 @@ class TestHasher implements PasswordHasher {
 
 describeWithPostgres('security mail outbox dispatcher', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let service: IdentityService
   let currentTime = new Date('2026-09-01T08:00:00.000Z')
 
@@ -48,10 +48,10 @@ describeWithPostgres('security mail outbox dispatcher', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 4 })
-    await runMigrations(database)
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 4 })
+    await runPostgresTestMigrations(database)
     service = new IdentityService(
-      new PostgresIdentityRepository(database.pool),
+      new PostgresIdentityRepository(database.executor),
       new TestHasher(),
       identityTokenCodec,
       () => new Date(currentTime),
@@ -60,7 +60,7 @@ describeWithPostgres('security mail outbox dispatcher', () => {
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -88,13 +88,13 @@ describeWithPostgres('security mail outbox dispatcher', () => {
     })
     const dispatcher = new MailOutboxDispatcher(
       'mail-test-worker',
-      new PostgresMailOutboxRepository(database.pool),
+      new PostgresMailOutboxRepository(database.executor),
       { send },
       () => new Date(currentTime),
     )
 
     await expect(dispatcher.runOnce()).resolves.toBe(1)
-    const retrying = await database.pool.query<{
+    const retrying = await database.executor.query<{
       status: string
       attempt_count: number
       last_error: string
@@ -123,7 +123,7 @@ describeWithPostgres('security mail outbox dispatcher', () => {
     await expect(dispatcher.runOnce()).resolves.toBe(1)
     await expect(dispatcher.runOnce()).resolves.toBe(0)
 
-    const sent = await database.pool.query<{ status: string, attempt_count: number }>(
+    const sent = await database.executor.query<{ status: string, attempt_count: number }>(
       `SELECT status::text, attempt_count FROM mail_deliveries
        WHERE template_key = 'identity.password_changed'`,
     )
@@ -149,7 +149,7 @@ describeWithPostgres('security mail outbox dispatcher', () => {
     })
     const dispatcher = new MailOutboxDispatcher(
       'reset-mail-test-worker',
-      new PostgresMailOutboxRepository(database.pool),
+      new PostgresMailOutboxRepository(database.executor),
       { send },
       () => new Date(currentTime),
     )
@@ -165,7 +165,7 @@ describeWithPostgres('security mail outbox dispatcher', () => {
     await expect(dispatcher.runOnce()).resolves.toBe(2)
     await expect(dispatcher.runOnce()).resolves.toBe(0)
 
-    const deliveries = await database.pool.query<{
+    const deliveries = await database.executor.query<{
       template_key: string
       status: string
       attempt_count: number

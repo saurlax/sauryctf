@@ -20,4 +20,6 @@ shared/contracts 可被页面、API 与领域共同使用，但不依赖其中�
 - `shared/contracts` 保存运行时协议 Schema，不导入页面或服务端实现。
 - `db/migrations` 是 PostgreSQL schema 的唯一演进入口。
 
-`pnpm check:boundaries` 在 CI 检查禁止的 import、常见直接数据库调用和反向依赖。该检查是快速防线，代码审查仍需确认领域事务没有被拆进 Handler。
+控制面数据库仓储只接受 NuxtHub `hub:db` 及其 transaction 实现的窄 executor；事务内不得回退全局连接。内容服务只接受 NuxtHub Blob adapter，API 不得创建供应商 SDK 客户端或暴露通用 Blob 路由。跨副本一致性只使用 PostgreSQL 事务、约束、版本和租约。
+
+`pnpm check` 在 CI 检查禁止的 import、常见直接数据库调用、Jeopardy scope、工具链和 Nuxt 类型。该检查是快速防线，代码审查仍需确认领域事务没有被拆进 Handler。

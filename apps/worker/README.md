@@ -7,6 +7,10 @@ to PostgreSQL.
 
 The worker must not expose public user, authentication, contest, submission, or
 administration APIs. Control-plane business logic belongs only in `apps/web`.
+It does not connect to Blob storage, a shared cache, or a message broker, and it
+does not call control-plane HTTP APIs. Its only coordination channel with the
+control plane is the restricted PostgreSQL instance tables; Provider APIs are
+used solely to converge approved resources.
 
 The executable entry point is `cmd/worker`. It starts the leased job runner,
 periodic reconciler, and private `/health/live` and `/health/ready` probes; all
@@ -152,9 +156,9 @@ cluster.
 
 The release lifecycle suite uses a real Docker Engine, an isolated PostgreSQL
 container, and a disposable single-node k3s cluster. Run it with
-`pnpm test:instances:lifecycle`. It verifies control-plane renewal and quota
+`bash ./scripts/test-instance-lifecycle.sh`. It verifies control-plane renewal and quota
 transactions, Worker lease fencing, expiry reconciliation, Docker and k3s
 creation/readiness/destruction, and recovery from the create-before-writeback
 crash window. The suite deletes its named containers and k3s namespace on exit.
 
-Run locally with `pnpm dev:worker` after configuring the Worker variables.
+Run locally with `pnpm worker` after configuring the Worker variables.

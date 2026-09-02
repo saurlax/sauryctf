@@ -1,4 +1,3 @@
-import type { Pool } from 'pg'
 import { publicTimelineEventSchema, type PublicTimelineEvent } from '../../../shared/contracts/timeline'
 import {
   PublicTimelineContestNotFoundError,
@@ -7,6 +6,7 @@ import {
   type PublicTimelinePage,
   type PublicTimelineRepository,
 } from '../../domains/timeline/repository'
+import type { DatabaseExecutor } from './executor'
 
 interface TimelineRow {
   event_key: string
@@ -22,10 +22,10 @@ interface TimelineCursor {
 }
 
 export class PostgresPublicTimelineRepository implements PublicTimelineRepository {
-  constructor(private pool: Pool) {}
+  constructor(private database: DatabaseExecutor) {}
 
   async listPublic(contestId: string, cursor: string | undefined, limit: number): Promise<PublicTimelinePage> {
-    const contest = await this.pool.query(
+    const contest = await this.database.query(
       `SELECT 1 FROM contests
        WHERE id = $1 AND visibility = 'public'
          AND publication_status IN ('published', 'archived')`,
@@ -34,7 +34,7 @@ export class PostgresPublicTimelineRepository implements PublicTimelineRepositor
     if (!contest.rows[0]) throw new PublicTimelineContestNotFoundError()
 
     const anchor = cursor ? this.decodeCursor(cursor) : null
-    const result = await this.pool.query<TimelineRow>(
+    const result = await this.database.query<TimelineRow>(
       `WITH contest_scope AS (
          SELECT id, published_at, start_at, end_at, scoreboard_freeze_at
          FROM contests

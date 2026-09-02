@@ -9,11 +9,14 @@ describe('administration monitoring contracts', () => {
     expect(() => monitoringListRequestSchema.parse({ kind: 'checker_runs' })).toThrow()
   })
 
-  it('keeps database, cache and worker observation times distinct', () => {
+  it('keeps safe data-service health and worker observation times distinct', () => {
     expect(monitoringListResponseSchema.parse({
       generated_at: '2026-09-02T00:00:00.000Z',
       source: 'postgresql',
-      cache_observed_at: null,
+      data_services: {
+        postgresql: { status: 'ready', migrations: 'current' },
+        blob: { driver: 'fs', status: 'ready' },
+      },
       worker_stale_after_seconds: 90,
       items: [{
         kind: 'instances',

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { InstanceJobCorrelation } from '../telemetry/telemetry'
 import { createPublishableChallenge } from '../../test-support/publishable-challenge'
@@ -8,9 +8,9 @@ import {
   InstanceQuotaExceededError,
   InstanceRenewalTooEarlyError,
 } from '../../domains/instances/repository'
-import { createDatabaseClient, type DatabaseClient } from './client'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
 import { PostgresInstanceRepository } from './instance-repository'
-import { runMigrations } from './migrate'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 
 const adminConnectionString = process.env.TEST_DATABASE_ADMIN_URL
 const describeWithPostgres = adminConnectionString ? describe : describe.skip
@@ -30,7 +30,7 @@ function quotedDatabaseName(): string {
 
 describeWithPostgres('PostgreSQL instance control plane', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let repository: PostgresInstanceRepository
   const correlations: InstanceJobCorrelation[] = []
 
@@ -40,9 +40,9 @@ describeWithPostgres('PostgreSQL instance control plane', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 8 })
-    await runMigrations(database)
-    repository = new PostgresInstanceRepository(database.pool, {
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 8 })
+    await runPostgresTestMigrations(database)
+    repository = new PostgresInstanceRepository(database.executor, {
       instanceJobQueued(correlation) {
         correlations.push(structuredClone(correlation))
       },
@@ -54,7 +54,7 @@ describeWithPostgres('PostgreSQL instance control plane', () => {
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -75,13 +75,13 @@ describeWithPostgres('PostgreSQL instance control plane', () => {
     closeAt?: Date | null
   } = {}) {
     const suffix = randomUUID()
-    const user = await database.pool.query<{ id: string }>(`
+    const user = await database.executor.query<{ id: string }>(`
       INSERT INTO users
         (username, username_normalized, email, email_normalized, email_verified_at)
       VALUES ($1, $2, $3, $3, $4)
       RETURNING id`, [`Player-${suffix}`, `player-${suffix}`, `player-${suffix}@example.test`, at])
     const userId = user.rows[0]!.id
-    const connection = await database.pool.connect()
+    const connection = await database.connect()
     let teamId: string
     try {
       await connection.query('BEGIN')
@@ -102,7 +102,7 @@ describeWithPostgres('PostgreSQL instance control plane', () => {
     finally {
       connection.release()
     }
-    const contest = await database.pool.query<{ id: string }>(`
+    const contest = await database.executor.query<{ id: string }>(`
       INSERT INTO contests
         (title, slug, start_at, end_at, practice_enabled, created_by)
       VALUES ($1, $2, $3, $4, $5, $6)
@@ -116,7 +116,7 @@ describeWithPostgres('PostgreSQL instance control plane', () => {
     ])
     const contestId = contest.rows[0]!.id
     const participationStatus = options.participationStatus ?? 'accepted'
-    const participation = await database.pool.query<{ id: string }>(`
+    const participation = await database.executor.query<{ id: string }>(`
       INSERT INTO participations
         (contest_id, team_id, status, registered_by, reviewed_by, reviewed_at)
       VALUES ($1, $2, $3, $4, $5, $6)
@@ -128,7 +128,7 @@ describeWithPostgres('PostgreSQL instance control plane', () => {
       participationStatus === 'accepted' ? userId : null,
       participationStatus === 'accepted' ? at : null,
     ])
-    const challenge = await createPublishableChallenge(database.pool, contestId, userId, {
+    const challenge = await createPublishableChallenge(database.executor, contestId, userId, {
       enabled: options.enabled,
       publishAt: options.publishAt,
       closeAt: options.closeAt,
@@ -140,7 +140,7 @@ describeWithPostgres('PostgreSQL instance control plane', () => {
         entry_protocol: 'http',
       },
     })
-    const secondChallenge = await createPublishableChallenge(database.pool, contestId, userId, {
+    const secondChallenge = await createPublishableChallenge(database.executor, contestId, userId, {
       instancePolicy: {
         type: 'dynamic',
         provider: 'docker',
@@ -149,7 +149,7 @@ describeWithPostgres('PostgreSQL instance control plane', () => {
         entry_protocol: 'http',
       },
     })
-    await database.pool.query(`
+    await database.executor.query(`
       UPDATE contests
       SET publication_status = 'published', published_at = $2, updated_at = $2
       WHERE id = $1`, [contestId, new Date(at.getTime() - 120_000)])
@@ -184,7 +184,7 @@ describeWithPostgres('PostgreSQL instance control plane', () => {
     expect(first.id).toBe(second.id)
     expect(first.desiredGeneration).toBe(1)
     expect(second.desiredGeneration).toBe(1)
-    const facts = await database.pool.query<{
+    const facts = await database.executor.query<{
       instances: string
       jobs: string
       audits: string
@@ -227,7 +227,7 @@ describeWithPostgres('PostgreSQL instance control plane', () => {
     await repository.start(command(input))
     await expect(repository.start(command({ ...input, challengeId: input.secondChallengeId })))
       .rejects.toBeInstanceOf(InstanceQuotaExceededError)
-    const count = await database.pool.query<{ count: string }>(`
+    const count = await database.executor.query<{ count: string }>(`
       SELECT count(*)::text FROM instances WHERE participation_id = $1`, [input.participationId])
     expect(count.rows[0]!.count).toBe('1')
   })
@@ -248,7 +248,7 @@ describeWithPostgres('PostgreSQL instance control plane', () => {
     expect(destroyed).toMatchObject({ desiredState: 'stopped', desiredGeneration: 3 })
     await repository.destroy(command(input))
 
-    const facts = await database.pool.query<{ jobs: string, audits: string }>(`
+    const facts = await database.executor.query<{ jobs: string, audits: string }>(`
       SELECT
         (SELECT count(*)::text FROM instance_jobs WHERE instance_id = $1) AS jobs,
         (SELECT count(*)::text FROM audit_events WHERE target_type = 'instance' AND target_id = $1) AS audits`,
@@ -261,7 +261,7 @@ describeWithPostgres('PostgreSQL instance control plane', () => {
     await expect(repository.start(command(upcoming))).rejects.toBeTruthy()
     const closed = await fixture({ closeAt: new Date(at.getTime() - 1) })
     await expect(repository.start(command(closed))).rejects.toBeInstanceOf(InstanceChallengeNotAvailableError)
-    const count = await database.pool.query<{ count: string }>(`
+    const count = await database.executor.query<{ count: string }>(`
       SELECT count(*)::text FROM instances WHERE participation_id IN ($1, $2)`,
     [upcoming.participationId, closed.participationId])
     expect(count.rows[0]!.count).toBe('0')
@@ -270,7 +270,7 @@ describeWithPostgres('PostgreSQL instance control plane', () => {
   it('rolls back instance and job facts when the audit insert fails', async () => {
     const input = await fixture()
     await expect(repository.start(command(input, ''))).rejects.toMatchObject({ code: '23514' })
-    const facts = await database.pool.query<{ instances: string, jobs: string, audits: string }>(`
+    const facts = await database.executor.query<{ instances: string, jobs: string, audits: string }>(`
       SELECT
         (SELECT count(*)::text FROM instances WHERE participation_id = $1) AS instances,
         (SELECT count(*)::text FROM instance_jobs job JOIN instances instance ON instance.id = job.instance_id WHERE instance.participation_id = $1) AS jobs,

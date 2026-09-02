@@ -1,4 +1,3 @@
-import type { Pool, PoolClient } from 'pg'
 import {
   IdentityConflictError,
   IdentityMutationConflictError,
@@ -23,6 +22,7 @@ import {
   type StoredIdentity,
   type UserStatusMutationResult,
 } from '../../domains/identity/repository'
+import type { DatabaseExecutor } from './executor'
 
 interface PostgresErrorLike {
   code?: unknown
@@ -44,9 +44,9 @@ interface SecurityEventInput {
 }
 
 export class PostgresIdentityRepository implements IdentityRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly database: DatabaseExecutor) {}
 
-  private async appendSecurityEvent(connection: PoolClient, input: SecurityEventInput): Promise<void> {
+  private async appendSecurityEvent(connection: DatabaseExecutor, input: SecurityEventInput): Promise<void> {
     const event = await connection.query<{ id: string }>(
       `INSERT INTO domain_outbox
          (aggregate_type, aggregate_id, event_type, event_version, dedupe_key, payload, occurred_at, available_at)
@@ -72,53 +72,45 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async createIdentity(identity: NewIdentity): Promise<RegisteredIdentity> {
-    const connection = await this.pool.connect()
     try {
-      await connection.query('BEGIN')
-      const settings = await connection.query<{ public_registration_enabled: boolean }>(`
-        SELECT public_registration_enabled FROM platform_settings
-        WHERE singleton = true FOR SHARE`)
-      if (settings.rows[0]?.public_registration_enabled !== true) {
-        throw new PublicRegistrationDisabledError()
-      }
-      const user = await connection.query<{ id: string, session_version: string }>(
-        `INSERT INTO users (username, username_normalized, email, email_normalized)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, session_version::text`,
-        [identity.username, identity.usernameNormalized, identity.email, identity.emailNormalized],
-      )
-      const created = user.rows[0]!
-      await connection.query(
-        `INSERT INTO credentials (user_id, algorithm, password_hash)
-         VALUES ($1, 'scrypt', $2)`,
-        [created.id, identity.passwordHash],
-      )
-      await connection.query(
-        `INSERT INTO user_roles (user_id, role)
-         VALUES ($1, 'user')`,
-        [created.id],
-      )
-      await connection.query('COMMIT')
-      return { userId: created.id, sessionVersion: Number(created.session_version) }
+      return await this.database.transaction(async (connection) => {
+        const settings = await connection.query<{ public_registration_enabled: boolean }>(`
+          SELECT public_registration_enabled FROM platform_settings
+          WHERE singleton = true FOR SHARE`)
+        if (settings.rows[0]?.public_registration_enabled !== true) {
+          throw new PublicRegistrationDisabledError()
+        }
+        const user = await connection.query<{ id: string, session_version: string }>(
+          `INSERT INTO users (username, username_normalized, email, email_normalized)
+           VALUES ($1, $2, $3, $4)
+           RETURNING id, session_version::text`,
+          [identity.username, identity.usernameNormalized, identity.email, identity.emailNormalized],
+        )
+        const created = user.rows[0]!
+        await connection.query(
+          `INSERT INTO credentials (user_id, algorithm, password_hash)
+           VALUES ($1, 'scrypt', $2)`,
+          [created.id, identity.passwordHash],
+        )
+        await connection.query(
+          `INSERT INTO user_roles (user_id, role)
+           VALUES ($1, 'user')`,
+          [created.id],
+        )
+        return { userId: created.id, sessionVersion: Number(created.session_version) }
+      })
     }
     catch (error) {
-      await connection.query('ROLLBACK')
       if (isUniqueViolation(error)) throw new IdentityConflictError()
       throw error
-    }
-    finally {
-      connection.release()
     }
   }
 
   async bootstrapDefaultAdministrator(identity: NewIdentity): Promise<DefaultAdministratorBootstrapResult> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       await connection.query('LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE')
       const existing = await connection.query('SELECT 1 FROM users LIMIT 1')
       if (existing.rowCount !== 0) {
-        await connection.query('COMMIT')
         return { created: false, identity: null }
       }
 
@@ -140,23 +132,15 @@ export class PostgresIdentityRepository implements IdentityRepository {
          VALUES ($1, 'admin')`,
         [created.id],
       )
-      await connection.query('COMMIT')
       return {
         created: true,
         identity: { userId: created.id, sessionVersion: Number(created.session_version) },
       }
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async findByLoginIdentifier(identifierNormalized: string): Promise<StoredIdentity | null> {
-    const result = await this.pool.query<{
+    const result = await this.database.query<{
       id: string
       username: string
       email: string
@@ -185,7 +169,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async findCredential(userId: string): Promise<StoredCredential | null> {
-    const result = await this.pool.query<{ user_id: string, password_hash: string }>(
+    const result = await this.database.query<{ user_id: string, password_hash: string }>(
       `SELECT user_id, password_hash FROM credentials WHERE user_id = $1`,
       [userId],
     )
@@ -194,7 +178,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async findPasswordResetRecipient(emailNormalized: string): Promise<PasswordResetRecipient | null> {
-    const result = await this.pool.query<{ id: string, email_normalized: string }>(
+    const result = await this.database.query<{ id: string, email_normalized: string }>(
       `SELECT id, email_normalized
        FROM users
        WHERE email_normalized = $1 AND status = 'active'`,
@@ -205,7 +189,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async findSessionSubject(userId: string): Promise<SessionSubject | null> {
-    const result = await this.pool.query<{
+    const result = await this.database.query<{
       id: string
       username: string
       email: string
@@ -237,7 +221,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async listManagedIdentities(cursor: string | undefined, limit: number): Promise<ManagedIdentityPage> {
-    const result = await this.pool.query<{
+    const result = await this.database.query<{
       id: string
       username: string
       email: string
@@ -279,7 +263,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async replacePasswordHash(userId: string, previousHash: string, nextHash: string): Promise<boolean> {
-    const result = await this.pool.query(
+    const result = await this.database.query(
       `UPDATE credentials
        SET password_hash = $3, password_updated_at = now()
        WHERE user_id = $1 AND password_hash = $2`,
@@ -294,9 +278,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
     nextHash: string,
     changedAt: Date,
   ): Promise<PasswordMutationResult> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       const credential = await connection.query(
         `UPDATE credentials
          SET password_hash = $3, password_updated_at = $4
@@ -328,16 +310,8 @@ export class PostgresIdentityRepository implements IdentityRepository {
         occurredAt: changedAt,
         eventPayload: { method: 'current_password' },
       })
-      await connection.query('COMMIT')
       return { userId, sessionVersion: Number(user.rows[0].session_version) }
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async resetPassword(
@@ -345,9 +319,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
     nextHash: string,
     consumedAt: Date,
   ): Promise<PasswordMutationResult> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       const token = await connection.query<{ id: string, user_id: string, email_normalized: string }>(
         `SELECT t.id, t.user_id, u.email_normalized
          FROM email_tokens t
@@ -390,22 +362,12 @@ export class PostgresIdentityRepository implements IdentityRepository {
         occurredAt: consumedAt,
         eventPayload: { method: 'password_reset' },
       })
-      await connection.query('COMMIT')
       return { userId: activeToken.user_id, sessionVersion: Number(user.rows[0]!.session_version) }
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async issueEmailToken(token: NewEmailToken): Promise<void> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       await connection.query(
         `UPDATE email_tokens SET used_at = $3
          WHERE user_id = $1 AND purpose = $2 AND used_at IS NULL`,
@@ -443,21 +405,11 @@ export class PostgresIdentityRepository implements IdentityRepository {
           token_envelope: token.tokenEnvelope,
         },
       })
-      await connection.query('COMMIT')
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async verifyEmail(tokenDigest: Buffer, consumedAt: Date): Promise<PasswordMutationResult> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       const token = await connection.query<{ id: string, user_id: string, email_normalized: string }>(
         `SELECT t.id, t.user_id, u.email_normalized
          FROM email_tokens t
@@ -494,22 +446,12 @@ export class PostgresIdentityRepository implements IdentityRepository {
         dedupeKey: `identity.email_verified:${tokenDigest.toString('hex')}`,
         occurredAt: consumedAt,
       })
-      await connection.query('COMMIT')
       return { userId: activeToken.user_id, sessionVersion: Number(user.rows[0]!.session_version) }
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async changeGlobalRole(command: ChangeGlobalRoleCommand): Promise<GlobalRoleMutationResult> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       const current = await connection.query<{
         role: GlobalRole
         session_version: string
@@ -526,7 +468,6 @@ export class PostgresIdentityRepository implements IdentityRepository {
       if (!existing) throw new IdentityNotFoundError()
 
       if (existing.role === command.role) {
-        await connection.query('COMMIT')
         return {
           userId: command.targetUserId,
           previousRole: existing.role,
@@ -571,7 +512,6 @@ export class PostgresIdentityRepository implements IdentityRepository {
           session_version: Number(user.rows[0]!.session_version),
         },
       })
-      await connection.query('COMMIT')
       return {
         userId: command.targetUserId,
         previousRole: existing.role,
@@ -579,20 +519,11 @@ export class PostgresIdentityRepository implements IdentityRepository {
         sessionVersion: Number(user.rows[0]!.session_version),
         changed: true,
       }
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async changeUserStatus(command: ChangeUserStatusCommand): Promise<UserStatusMutationResult> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       const current = await connection.query<{
         status: ManagedUserStatus
         session_version: string
@@ -607,7 +538,6 @@ export class PostgresIdentityRepository implements IdentityRepository {
       const existing = current.rows[0]
       if (!existing) throw new IdentityNotFoundError()
       if (existing.status === command.status) {
-        await connection.query('COMMIT')
         return {
           userId: command.targetUserId,
           previousStatus: existing.status,
@@ -649,7 +579,6 @@ export class PostgresIdentityRepository implements IdentityRepository {
           session_version: Number(user.rows[0]!.session_version),
         },
       })
-      await connection.query('COMMIT')
       return {
         userId: command.targetUserId,
         previousStatus: existing.status,
@@ -657,17 +586,10 @@ export class PostgresIdentityRepository implements IdentityRepository {
         sessionVersion: Number(user.rows[0]!.session_version),
         changed: true,
       }
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
-  private async appendManagementAudit(connection: PoolClient, input: {
+  private async appendManagementAudit(connection: DatabaseExecutor, input: {
     actorId: string
     action: string
     targetType: string
@@ -699,43 +621,38 @@ export class PostgresIdentityRepository implements IdentityRepository {
     emailNormalized: string,
     changedAt: Date,
   ): Promise<PasswordMutationResult> {
-    const connection = await this.pool.connect()
     try {
-      await connection.query('BEGIN')
-      const user = await connection.query<{ session_version: string }>(
-        `UPDATE users
-         SET email = $2,
-             email_normalized = $3,
-             email_verified_at = NULL,
-             session_version = session_version + 1,
-             version = version + 1,
-             updated_at = $4
-         WHERE id = $1
-         RETURNING session_version::text`,
-        [userId, email, emailNormalized, changedAt],
-      )
-      if (!user.rows[0]) throw new IdentityNotFoundError()
-      await connection.query(
-        `UPDATE email_tokens SET used_at = $2 WHERE user_id = $1 AND used_at IS NULL`,
-        [userId, changedAt],
-      )
-      await this.appendSecurityEvent(connection, {
-        userId,
-        recipientNormalized: emailNormalized,
-        templateKey: 'identity.email_changed',
-        dedupeKey: `identity.email_changed:${userId}:${user.rows[0].session_version}`,
-        occurredAt: changedAt,
+      return await this.database.transaction(async (connection) => {
+        const user = await connection.query<{ session_version: string }>(
+          `UPDATE users
+           SET email = $2,
+               email_normalized = $3,
+               email_verified_at = NULL,
+               session_version = session_version + 1,
+               version = version + 1,
+               updated_at = $4
+           WHERE id = $1
+           RETURNING session_version::text`,
+          [userId, email, emailNormalized, changedAt],
+        )
+        if (!user.rows[0]) throw new IdentityNotFoundError()
+        await connection.query(
+          `UPDATE email_tokens SET used_at = $2 WHERE user_id = $1 AND used_at IS NULL`,
+          [userId, changedAt],
+        )
+        await this.appendSecurityEvent(connection, {
+          userId,
+          recipientNormalized: emailNormalized,
+          templateKey: 'identity.email_changed',
+          dedupeKey: `identity.email_changed:${userId}:${user.rows[0].session_version}`,
+          occurredAt: changedAt,
+        })
+        return { userId, sessionVersion: Number(user.rows[0].session_version) }
       })
-      await connection.query('COMMIT')
-      return { userId, sessionVersion: Number(user.rows[0].session_version) }
     }
     catch (error) {
-      await connection.query('ROLLBACK')
       if (isUniqueViolation(error)) throw new IdentityConflictError()
       throw error
-    }
-    finally {
-      connection.release()
     }
   }
 }

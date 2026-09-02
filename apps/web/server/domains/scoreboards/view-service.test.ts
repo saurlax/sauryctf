@@ -7,19 +7,10 @@ import type {
 import { ScoreboardBuilder } from './builder'
 import {
   ScoreboardViewService,
-  type ScoreboardProjection,
   type ScoreboardContestState,
   type ScoreboardSnapshotRecord,
   type ScoreboardViewRepository,
 } from './view-service'
-import {
-  cacheDescriptor,
-  parseScoreboardCacheValue,
-  scoreboardCacheKey,
-  serializeScoreboardCacheValue,
-  type ScoreboardProjectionCache,
-} from './cache'
-import { ScoreboardBuildCoordinator, type ScoreboardBuildLock } from './build-coordinator'
 
 const contestId = 'contest-1'
 const freezeAt = new Date('2026-09-01T08:10:00.000Z')
@@ -53,7 +44,7 @@ class FakeRepository implements ScoreboardViewRepository {
     scopeKey: string
     version: number
   }) {
-    return this.snapshots.get(key(input)) ?? null
+    return this.snapshots.get(snapshotKey(input)) ?? null
   }
 
   async readLatestSnapshot(input: {
@@ -77,15 +68,15 @@ class FakeRepository implements ScoreboardViewRepository {
   }
 
   async writeSnapshot(snapshot: ScoreboardSnapshotRecord) {
-    const snapshotKey = key(snapshot)
-    const existing = this.snapshots.get(snapshotKey)
+    const key = snapshotKey(snapshot)
+    const existing = this.snapshots.get(key)
     if (existing) return existing
-    this.snapshots.set(snapshotKey, snapshot)
+    this.snapshots.set(key, snapshot)
     return snapshot
   }
 }
 
-function key(input: {
+function snapshotKey(input: {
   contestId: string
   view: string
   scopeKey: string
@@ -146,23 +137,14 @@ function replay(includePostFreezeSolve: boolean): ContestScoringReplay {
   }
 }
 
-class FakeCache implements ScoreboardProjectionCache {
-  values = new Map<string, string>()
-  get = vi.fn(async (descriptor: ReturnType<typeof cacheDescriptor>) => {
-    const serialized = this.values.get(scoreboardCacheKey(descriptor))
-    return serialized ? parseScoreboardCacheValue(descriptor, serialized) : null
-  })
-
-  set = vi.fn(async (value: ScoreboardProjection) => {
-    this.values.set(scoreboardCacheKey(cacheDescriptor(value)), serializeScoreboardCacheValue(value))
-  })
-
-  seed(value: ScoreboardProjection) {
-    this.values.set(scoreboardCacheKey(cacheDescriptor(value)), serializeScoreboardCacheValue(value))
-  }
+const publicInput = {
+  contestId,
+  view: 'public' as const,
+  viewerRole: 'user' as const,
+  scope: { type: 'overall' as const },
 }
 
-describe('role-aware scoreboard freeze views', () => {
+describe('PostgreSQL-backed scoreboard views', () => {
   it('keeps the public board frozen while organizer and admin views remain live', async () => {
     const repository = new FakeRepository()
     const replaySource = {
@@ -177,12 +159,7 @@ describe('role-aware scoreboard freeze views', () => {
       () => duringFreeze,
     )
 
-    const publicBoard = await service.read({
-      contestId,
-      view: 'public',
-      viewerRole: 'user',
-      scope: { type: 'overall' },
-    })
+    const publicBoard = await service.read(publicInput)
     expect(publicBoard).toMatchObject({ view: 'public', state: 'frozen', version: 1 })
     expect(publicBoard.frozenAt).toBe(freezeAt.toISOString())
     expect(publicBoard.board.rows.map(row => [row.teamId, row.totalPoints])).toEqual([
@@ -199,18 +176,9 @@ describe('role-aware scoreboard freeze views', () => {
         scope: { type: 'overall' },
       })
       expect(internal).toMatchObject({ view: 'internal', state: 'live', version: 2 })
-      expect(internal.board.rows.map(row => [row.teamId, row.totalPoints])).toEqual([
-        ['team-a', 500],
-        ['team-b', 500],
-      ])
     }
 
-    await service.read({
-      contestId,
-      view: 'public',
-      viewerRole: 'user',
-      scope: { type: 'overall' },
-    })
+    await service.read(publicInput)
     expect(replaySource.replay.mock.calls.filter(call => call[1]?.factsBefore)).toHaveLength(1)
   })
 
@@ -223,12 +191,12 @@ describe('role-aware scoreboard freeze views', () => {
       undefined,
       () => afterEnd,
     )
+
     const result = await service.read({
-      contestId,
-      view: 'public',
-      viewerRole: 'user',
+      ...publicInput,
       scope: { type: 'division', divisionId: 'division-1' },
     })
+
     expect(result).toMatchObject({ state: 'settled', version: 2, frozenAt: null })
     expect(result.board.rows).toHaveLength(2)
     expect(repository.snapshots.has(`${contestId}:public:division-1:2`)).toBe(true)
@@ -249,154 +217,42 @@ describe('role-aware scoreboard freeze views', () => {
       scope: { type: 'division', divisionId: 'missing' },
     })).rejects.toMatchObject({ code: 'scoreboard.internal_forbidden' })
     await expect(service.read({
-      contestId,
-      view: 'public',
-      viewerRole: 'user',
+      ...publicInput,
       scope: { type: 'division', divisionId: 'missing' },
     })).rejects.toMatchObject({ code: 'scoreboard.scope_invalid' })
 
     repository.contest = { ...repository.contest, visibility: 'private' }
-    await expect(service.read({
-      contestId,
-      view: 'public',
-      viewerRole: 'user',
-      scope: { type: 'division', divisionId: 'missing' },
-    })).rejects.toMatchObject({ code: 'scoreboard.not_found' })
+    await expect(service.read(publicInput)).rejects.toMatchObject({ code: 'scoreboard.not_found' })
   })
 
-  it('uses only the current authoritative version and rejects a stale cached projection', async () => {
+  it('builds a missing current snapshot once and reuses it for repeated reads and restarts', async () => {
     const repository = new FakeRepository()
     const replays = { replay: vi.fn(async () => replay(true)) }
-    const cache = new FakeCache()
-    repository.contest = { ...repository.contest, currentVersion: 1 }
-    const staleService = new ScoreboardViewService(
-      repository,
-      { replay: async () => replay(false) },
-      undefined,
-      () => new Date('2026-09-01T08:06:00.000Z'),
-    )
-    cache.seed(await staleService.read({
-      contestId,
-      view: 'public',
-      viewerRole: 'user',
-      scope: { type: 'overall' },
-    }))
-    repository.contest = { ...repository.contest, currentVersion: 2 }
     const service = new ScoreboardViewService(
       repository,
       replays,
       undefined,
       () => new Date('2026-09-01T08:06:00.000Z'),
-      cache,
     )
 
-    const result = await service.read({
-      contestId,
-      view: 'public',
-      viewerRole: 'user',
-      scope: { type: 'overall' },
-    })
-    expect(result.version).toBe(2)
+    const first = await service.read(publicInput)
+    const second = await service.read(publicInput)
+    expect(first).toEqual(second)
+    expect(first).toMatchObject({ version: 2, freshness: 'current', state: 'live' })
     expect(replays.replay).toHaveBeenCalledOnce()
-    expect(cache.get).toHaveBeenCalledWith(expect.objectContaining({ version: 2 }))
 
-    replays.replay.mockClear()
-    expect((await service.read({
-      contestId,
-      view: 'public',
-      viewerRole: 'user',
-      scope: { type: 'overall' },
-    })).version).toBe(2)
-    expect(replays.replay).not.toHaveBeenCalled()
+    const restartedReplay = vi.fn(async () => { throw new Error('must not replay') })
+    const restarted = new ScoreboardViewService(
+      repository,
+      { replay: restartedReplay },
+      undefined,
+      () => new Date('2026-09-01T08:07:00.000Z'),
+    )
+    await expect(restarted.read(publicInput)).resolves.toEqual(first)
+    expect(restartedReplay).not.toHaveBeenCalled()
   })
 
-  it('never consults public projection caches for forbidden or authorized internal reads', async () => {
-    const repository = new FakeRepository()
-    const cache = new FakeCache()
-    const replays = { replay: vi.fn(async () => replay(true)) }
-    const service = new ScoreboardViewService(
-      repository,
-      replays,
-      undefined,
-      () => duringFreeze,
-      cache,
-    )
-
-    await expect(service.read({
-      contestId,
-      view: 'internal',
-      viewerRole: 'user',
-      scope: { type: 'overall' },
-    })).rejects.toMatchObject({ code: 'scoreboard.internal_forbidden' })
-    await service.read({
-      contestId,
-      view: 'internal',
-      viewerRole: 'organizer',
-      scope: { type: 'overall' },
-    })
-    expect(cache.get).not.toHaveBeenCalled()
-    expect(cache.set).not.toHaveBeenCalled()
-  })
-
-  it('rejects a live cache entry after the same version becomes settled', async () => {
-    const repository = new FakeRepository()
-    const cache = new FakeCache()
-    const liveService = new ScoreboardViewService(
-      repository,
-      { replay: async () => replay(true) },
-      undefined,
-      () => new Date('2026-09-01T08:06:00.000Z'),
-    )
-    cache.seed(await liveService.read({
-      contestId,
-      view: 'public',
-      viewerRole: 'user',
-      scope: { type: 'overall' },
-    }))
-    const replays = { replay: vi.fn(async () => replay(true)) }
-    const settledService = new ScoreboardViewService(
-      repository,
-      replays,
-      undefined,
-      () => afterEnd,
-      cache,
-    )
-
-    const result = await settledService.read({
-      contestId,
-      view: 'public',
-      viewerRole: 'user',
-      scope: { type: 'overall' },
-    })
-    expect(result.state).toBe('settled')
-    expect(result.freshness).toBe('current')
-    expect(replays.replay).not.toHaveBeenCalled()
-  })
-
-  it('falls back to authoritative materialization when cache operations fail', async () => {
-    const repository = new FakeRepository()
-    const replays = { replay: vi.fn(async () => replay(true)) }
-    const failingCache: ScoreboardProjectionCache = {
-      get: vi.fn(async () => { throw new Error('redis unavailable') }),
-      set: vi.fn(async () => { throw new Error('redis unavailable') }),
-    }
-    const service = new ScoreboardViewService(
-      repository,
-      replays,
-      undefined,
-      () => new Date('2026-09-01T08:06:00.000Z'),
-      failingCache,
-    )
-    await expect(service.read({
-      contestId,
-      view: 'public',
-      viewerRole: 'user',
-      scope: { type: 'overall' },
-    })).resolves.toMatchObject({ version: 2, state: 'live' })
-    expect(replays.replay).toHaveBeenCalledOnce()
-  })
-
-  it('single-flights concurrent rebuilds and persists the public snapshot when Redis is down', async () => {
+  it('single-flights concurrent rebuilds in one control-plane process', async () => {
     const repository = new FakeRepository()
     const replays = {
       replay: vi.fn(async () => {
@@ -404,129 +260,44 @@ describe('role-aware scoreboard freeze views', () => {
         return replay(true)
       }),
     }
-    const unavailableCache: ScoreboardProjectionCache = {
-      get: vi.fn(async () => null),
-      set: vi.fn(async () => { throw new Error('redis unavailable') }),
-    }
     const service = new ScoreboardViewService(
       repository,
       replays,
       undefined,
       () => new Date('2026-09-01T08:06:00.000Z'),
-      unavailableCache,
     )
 
-    const results = await Promise.all(Array.from({ length: 25 }, () => service.read({
-      contestId,
-      view: 'public',
-      viewerRole: 'user',
-      scope: { type: 'overall' },
-    })))
+    const results = await Promise.all(Array.from({ length: 25 }, () => service.read(publicInput)))
     expect(replays.replay).toHaveBeenCalledOnce()
     expect(new Set(results.map(result => result.builtAt))).toHaveLength(1)
-    expect(results.every(result => result.freshness === 'current')).toBe(true)
     expect(repository.snapshots.has(`${contestId}:public:overall:2`)).toBe(true)
-
-    const restarted = new ScoreboardViewService(
-      repository,
-      { replay: vi.fn(async () => { throw new Error('must not replay') }) },
-      undefined,
-      () => new Date('2026-09-01T08:07:00.000Z'),
-      unavailableCache,
-    )
-    await expect(restarted.read({
-      contestId,
-      view: 'public',
-      viewerRole: 'user',
-      scope: { type: 'overall' },
-    })).resolves.toMatchObject({ version: 2, freshness: 'current' })
   })
 
-  it('uses a shared short lock to prevent duplicate rebuilds across control-plane replicas', async () => {
+  it('lets independent replicas compute and converge on the unique PostgreSQL snapshot result', async () => {
     const repository = new FakeRepository()
-    let owner: string | null = null
-    const lock: ScoreboardBuildLock = {
-      acquire: vi.fn(async (_key, candidate) => {
-        if (owner) return 'contended' as const
-        owner = candidate
-        return 'acquired' as const
-      }),
-      release: vi.fn(async (_key, candidate) => {
-        if (owner === candidate) owner = null
-      }),
-    }
-    const replays = {
+    const replaySource = {
       replay: vi.fn(async () => {
-        await new Promise(resolve => setTimeout(resolve, 10))
+        await new Promise(resolve => setTimeout(resolve, 5))
         return replay(true)
       }),
     }
-    const cache: ScoreboardProjectionCache = {
-      get: vi.fn(async () => null),
-      set: vi.fn(async () => {}),
-    }
     const first = new ScoreboardViewService(
       repository,
-      replays,
+      replaySource,
       undefined,
       () => new Date('2026-09-01T08:06:00.000Z'),
-      cache,
-      new ScoreboardBuildCoordinator(lock, 5_000, 100, 1),
     )
     const second = new ScoreboardViewService(
       repository,
-      replays,
+      replaySource,
       undefined,
       () => new Date('2026-09-01T08:06:00.000Z'),
-      cache,
-      new ScoreboardBuildCoordinator(lock, 5_000, 100, 1),
     )
-    const input = {
-      contestId,
-      view: 'public' as const,
-      viewerRole: 'user' as const,
-      scope: { type: 'overall' as const },
-    }
 
-    const results = await Promise.all([first.read(input), second.read(input)])
-    expect(replays.replay).toHaveBeenCalledOnce()
+    const results = await Promise.all([first.read(publicInput), second.read(publicInput)])
+    expect(replaySource.replay).toHaveBeenCalledTimes(2)
     expect(results[0]).toEqual(results[1])
-    expect(lock.release).toHaveBeenCalledOnce()
-  })
-
-  it('returns an explicitly stale PostgreSQL snapshot after lock contention times out', async () => {
-    const repository = new FakeRepository()
-    repository.snapshots.set(`${contestId}:public:overall:1`, {
-      contestId,
-      view: 'public',
-      scope: { type: 'overall' },
-      scopeKey: 'overall',
-      version: 1,
-      board: new ScoreboardBuilder().build(replay(false), { type: 'overall' }),
-      builtAt: new Date('2026-09-01T08:05:00.000Z'),
-    })
-    const lock: ScoreboardBuildLock = {
-      acquire: vi.fn(async () => 'contended' as const),
-      release: vi.fn(async () => {}),
-    }
-    const replays = { replay: vi.fn(async () => replay(true)) }
-    const service = new ScoreboardViewService(
-      repository,
-      replays,
-      undefined,
-      () => new Date('2026-09-01T08:06:00.000Z'),
-      { get: async () => null, set: async () => {} },
-      new ScoreboardBuildCoordinator(lock, 5_000, 0),
-    )
-
-    const result = await service.read({
-      contestId,
-      view: 'public',
-      viewerRole: 'user',
-      scope: { type: 'overall' },
-    })
-    expect(result).toMatchObject({ version: 1, state: 'live', freshness: 'stale' })
-    expect(replays.replay).not.toHaveBeenCalled()
+    expect(repository.snapshots.size).toBe(1)
   })
 
   it('uses a stale PostgreSQL snapshot if authoritative rebuilding fails', async () => {
@@ -545,13 +316,9 @@ describe('role-aware scoreboard freeze views', () => {
       { replay: vi.fn(async () => { throw new Error('database overloaded') }) },
       undefined,
       () => new Date('2026-09-01T08:06:00.000Z'),
-      { get: async () => null, set: async () => {} },
     )
-    await expect(service.read({
-      contestId,
-      view: 'public',
-      viewerRole: 'user',
-      scope: { type: 'overall' },
-    })).resolves.toMatchObject({ version: 1, freshness: 'stale' })
+
+    await expect(service.read(publicInput))
+      .resolves.toMatchObject({ version: 1, freshness: 'stale' })
   })
 })

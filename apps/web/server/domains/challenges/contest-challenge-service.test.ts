@@ -1,10 +1,10 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createDatabaseClient, type DatabaseClient } from '../../infrastructure/db/client'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
 import { PostgresChallengeTemplateRepository } from '../../infrastructure/db/challenge-template-repository'
 import { PostgresContestChallengeRepository } from '../../infrastructure/db/contest-challenge-repository'
-import { runMigrations } from '../../infrastructure/db/migrate'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import type { SessionSubject } from '../identity/repository'
 import { ContestChallengeService } from './contest-challenge-service'
 import { ChallengeTemplateService } from './service'
@@ -20,7 +20,7 @@ function quotedDatabaseName() {
 
 describeWithPostgres('contest challenge snapshots and explicit revisions', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let templates: ChallengeTemplateService
   let challenges: ContestChallengeService
   let sequence = 0
@@ -31,14 +31,14 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 16 })
-    await runMigrations(database)
-    templates = new ChallengeTemplateService(new PostgresChallengeTemplateRepository(database.pool))
-    challenges = new ContestChallengeService(new PostgresContestChallengeRepository(database.pool))
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 16 })
+    await runPostgresTestMigrations(database)
+    templates = new ChallengeTemplateService(new PostgresChallengeTemplateRepository(database.executor))
+    challenges = new ContestChallengeService(new PostgresContestChallengeRepository(database.executor))
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -53,7 +53,7 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
     sequence++
     const username = `SnapshotUser${sequence}`
     const email = `snapshot-user-${sequence}@example.test`
-    const result = await database.pool.query<{ id: string }>(
+    const result = await database.executor.query<{ id: string }>(
       `INSERT INTO users
          (username, username_normalized, email, email_normalized, email_verified_at)
        VALUES ($1::varchar(64), lower($1::text)::varchar(64),
@@ -74,7 +74,7 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
   }
 
   async function content(actorId: string, filename: string) {
-    const result = await database.pool.query<{ id: string }>(
+    const result = await database.executor.query<{ id: string }>(
       `INSERT INTO content_objects
          (storage_key, sha256_digest, size_bytes, media_type, original_filename,
           status, created_by, committed_at)
@@ -88,7 +88,7 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
 
   async function contest(actorId: string) {
     sequence++
-    const result = await database.pool.query<{ id: string, start_at: Date }>(
+    const result = await database.executor.query<{ id: string, start_at: Date }>(
       `INSERT INTO contests
          (title, slug, description, visibility, registration_strategy,
           start_at, end_at, created_by)
@@ -146,7 +146,7 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
     contestId: string,
     status: 'pending' | 'accepted',
   ) {
-    const connection = await database.pool.connect()
+    const connection = await database.connect()
     try {
       await connection.query('BEGIN')
       sequence++
@@ -204,7 +204,7 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
       fixture.draft.start_at.getTime() + 900_000,
     )
 
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contests SET publication_status = 'published', published_at = CURRENT_TIMESTAMP
        WHERE id = $1`,
       [fixture.draft.id],
@@ -228,27 +228,27 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
       hints: [expect.objectContaining({ title: 'Delayed hint' })],
     })
 
-    const audit = await database.pool.query<{ action: string }>(
+    const audit = await database.executor.query<{ action: string }>(
       'SELECT action FROM audit_events WHERE target_id = $1 ORDER BY occurred_at',
       [fixture.mounted.id],
     )
     expect(audit.rows.map(row => row.action)).toEqual(['contest.challenge.mounted'])
   })
 
-  it('blocks direct published mutations and applies one explicit revision with audit and client event', async () => {
+  it('blocks direct published mutations and applies one explicit revision with audit only', async () => {
     const fixture = await mountedFixture()
     const replacementId = await content(fixture.organizer.userId, 'replacement.zip')
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contests SET publication_status = 'published', published_at = CURRENT_TIMESTAMP
        WHERE id = $1`,
       [fixture.draft.id],
     )
 
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `UPDATE contest_challenges SET description = 'silent overwrite' WHERE id = $1`,
       [fixture.mounted.id],
     )).rejects.toMatchObject({ code: '55000' })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `UPDATE challenge_hints SET content = 'silent overwrite' WHERE contest_challenge_id = $1`,
       [fixture.mounted.id],
     )).rejects.toMatchObject({ code: '55000' })
@@ -276,20 +276,14 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
       assets: [expect.objectContaining({ contentObjectId: replacementId })],
       hints: [expect.objectContaining({ title: 'Corrected hint' })],
     })
-    const evidence = await database.pool.query<{
+    const evidence = await database.executor.query<{
       action: string
       reason: string
       changes: { snapshot_revision: number, resource_version: number, changed_fields: string[] }
-      event_type: string
-      event_version: number
-      dedupe_key: string
-      payload: { snapshot_revision: number, resource_version: number }
     }>(
-      `SELECT audit.action, audit.reason, audit.changes,
-              outbox.event_type, outbox.event_version, outbox.dedupe_key, outbox.payload
-       FROM audit_events audit
-       JOIN domain_outbox outbox ON outbox.aggregate_id = audit.target_id
-       WHERE audit.target_id = $1 AND audit.action = 'contest.challenge.snapshot_revised'`,
+      `SELECT action, reason, changes
+       FROM audit_events
+       WHERE target_id = $1 AND action = 'contest.challenge.snapshot_revised'`,
       [fixture.mounted.id],
     )
     expect(evidence.rows).toEqual([expect.objectContaining({
@@ -300,16 +294,18 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
         resource_version: 2,
         changed_fields: expect.arrayContaining(['description', 'assets', 'hints']),
       }),
-      event_type: 'contest.challenge.snapshot_revised',
-      event_version: 2,
-      dedupe_key: `contest-challenge:${fixture.mounted.id}:snapshot-revised:r2`,
-      payload: expect.objectContaining({ snapshot_revision: 2, resource_version: 2 }),
     })])
+    const broadcasts = await database.executor.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM domain_outbox
+       WHERE aggregate_id = $1 AND event_type = 'contest.challenge.snapshot_revised'`,
+      [fixture.mounted.id],
+    )
+    expect(broadcasts.rows[0]!.count).toBe('0')
   })
 
   it('serializes concurrent revisions and rolls unavailable attachments back atomically', async () => {
     const fixture = await mountedFixture()
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contests SET publication_status = 'published', published_at = CURRENT_TIMESTAMP
        WHERE id = $1`,
       [fixture.draft.id],
@@ -348,7 +344,7 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
       reason: 'Attempt a no-op emergency revision',
       title: current.title,
     })).rejects.toMatchObject({ code: 'challenge.revision_unchanged' })
-    const counts = await database.pool.query<{ audits: string, events: string }>(
+    const counts = await database.executor.query<{ audits: string, events: string }>(
       `SELECT
          (SELECT count(*)::text FROM audit_events
           WHERE target_id = $1 AND action = 'contest.challenge.snapshot_revised') AS audits,
@@ -356,7 +352,7 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
           WHERE aggregate_id = $1 AND event_type = 'contest.challenge.snapshot_revised') AS events`,
       [fixture.mounted.id],
     )
-    expect(counts.rows[0]).toEqual({ audits: '1', events: '1' })
+    expect(counts.rows[0]).toEqual({ audits: '1', events: '0' })
   })
 
   it('rolls a mount back when a version attachment is no longer committed', async () => {
@@ -364,7 +360,7 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
     const objectId = await content(organizer.userId, 'quarantined.zip')
     const draft = await contest(organizer.userId)
     const source = await template(organizer, objectId)
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE content_objects SET status = 'quarantined' WHERE id = $1`,
       [objectId],
     )
@@ -379,7 +375,7 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
       submissionLimit: null,
       sortOrder: 0,
     })).rejects.toMatchObject({ code: 'challenge.asset_unavailable' })
-    const facts = await database.pool.query<{ challenges: string, audits: string }>(
+    const facts = await database.executor.query<{ challenges: string, audits: string }>(
       `SELECT
          (SELECT count(*)::text FROM contest_challenges WHERE contest_id = $1) AS challenges,
          (SELECT count(*)::text FROM audit_events
@@ -400,7 +396,7 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
       expectedVersion: 1, reason: 'Not an emergency yet', description: 'Draft revision',
     })).rejects.toMatchObject({ code: 'challenge.revision_not_allowed' })
 
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contests
        SET publication_status = 'archived', published_at = CURRENT_TIMESTAMP,
            archived_at = CURRENT_TIMESTAMP
@@ -423,11 +419,11 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
     const player = await user('user')
     const projectionTime = new Date('2030-05-01T06:00:00.000Z')
     await participate(player, fixture.draft.id, 'accepted')
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contest_challenges SET publish_at = $2 WHERE id = $1`,
       [fixture.mounted.id, new Date('2030-05-01T05:00:00.000Z')],
     )
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contests
        SET publication_status = 'published', published_at = CURRENT_TIMESTAMP,
            start_at = $2, end_at = $3
@@ -439,7 +435,7 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
       ],
     )
     const playerChallenges = new ContestChallengeService(
-      new PostgresContestChallengeRepository(database.pool),
+      new PostgresContestChallengeRepository(database.executor),
       () => projectionTime,
     )
 
@@ -456,7 +452,7 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
       },
     })
 
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE participations SET status = 'pending', reviewed_by = NULL, reviewed_at = NULL
        WHERE contest_id = $1`,
       [fixture.draft.id],
@@ -467,7 +463,7 @@ describeWithPostgres('contest challenge snapshots and explicit revisions', () =>
       fixture.mounted.id,
     )).resolves.toMatchObject({ state: 'locked', content: null })
 
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contests SET visibility = 'private' WHERE id = $1`,
       [fixture.draft.id],
     )

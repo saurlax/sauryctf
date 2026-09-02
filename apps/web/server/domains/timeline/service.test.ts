@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { SessionSubject } from '../identity/repository'
 import { AnnouncementService } from '../announcements/service'
 import { ContestService } from '../contests/service'
-import { createDatabaseClient, type DatabaseClient } from '../../infrastructure/db/client'
-import { runMigrations } from '../../infrastructure/db/migrate'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { PostgresAnnouncementRepository } from '../../infrastructure/db/announcement-repository'
 import { PostgresContestRepository } from '../../infrastructure/db/contest-repository'
 import { PostgresPublicTimelineRepository } from '../../infrastructure/db/public-timeline-repository'
@@ -23,7 +23,7 @@ function quotedDatabaseName() {
 
 describeWithPostgres('selected public contest timeline', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let timeline: PublicTimelineService
   let contests: ContestService
   let announcements: AnnouncementService
@@ -35,15 +35,15 @@ describeWithPostgres('selected public contest timeline', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 12 })
-    await runMigrations(database)
-    timeline = new PublicTimelineService(new PostgresPublicTimelineRepository(database.pool))
-    contests = new ContestService(new PostgresContestRepository(database.pool))
-    announcements = new AnnouncementService(new PostgresAnnouncementRepository(database.pool))
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 12 })
+    await runPostgresTestMigrations(database)
+    timeline = new PublicTimelineService(new PostgresPublicTimelineRepository(database.executor))
+    contests = new ContestService(new PostgresContestRepository(database.executor))
+    announcements = new AnnouncementService(new PostgresAnnouncementRepository(database.executor))
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -58,7 +58,7 @@ describeWithPostgres('selected public contest timeline', () => {
     sequence++
     const username = `TimelineUser${sequence}`
     const email = `timeline-${sequence}@example.test`
-    const inserted = await database.pool.query<{ id: string }>(
+    const inserted = await database.executor.query<{ id: string }>(
       `INSERT INTO users
          (username, username_normalized, email, email_normalized, email_verified_at)
        VALUES ($1::varchar(64), lower($1::text)::varchar(64),
@@ -105,7 +105,7 @@ describeWithPostgres('selected public contest timeline', () => {
       endAt: new Date(windows[phase][1]),
       scoreboardFreezeAt: options.freeze ? new Date(now - 3_600_000) : null,
     })
-    await createPublishableChallenge(database.pool, created.id, organizer.userId)
+    await createPublishableChallenge(database.executor, created.id, organizer.userId)
     if (options.publish === false) return created
     return contests.publish(organizer, {
       requestId: randomUUID(),
@@ -124,7 +124,7 @@ describeWithPostgres('selected public contest timeline', () => {
       body: 'Registration remains available.',
       publishAt: new Date(Date.now() - 60_000),
     })
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO audit_events
          (actor_user_id, action, target_type, target_id, reason,
           outcome, request_id, changes, metadata)
@@ -185,7 +185,7 @@ describeWithPostgres('selected public contest timeline', () => {
     const challengeId = randomUUID()
     const hintId = randomUUID()
     const teamId = randomUUID()
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO contest_events
          (contest_id, event_type, event_key, occurred_at, visible_at, payload)
        VALUES
@@ -212,12 +212,12 @@ describeWithPostgres('selected public contest timeline', () => {
     ])
     expect(new Set(explicit.map(item => item.id)).size).toBe(3)
 
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `INSERT INTO contest_events (contest_id, event_type, event_key, payload)
        VALUES ($1, 'challenge_published', $2, $3)`,
       [target.id, `challenge:${challengeId}:published`, { challenge_id: challengeId }],
     )).rejects.toMatchObject({ code: '23505' })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `INSERT INTO contest_events (contest_id, event_type, event_key)
        VALUES ($1, 'contest_configuration_updated', 'management-event')`,
       [target.id],
@@ -228,7 +228,7 @@ describeWithPostgres('selected public contest timeline', () => {
     const organizer = await user()
     const target = await contest(organizer)
     const challengeId = randomUUID()
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO contest_events
          (contest_id, event_type, event_key, occurred_at, visible_at, payload)
        VALUES ($1, 'challenge_published', $2, CURRENT_TIMESTAMP,
@@ -248,7 +248,7 @@ describeWithPostgres('selected public contest timeline', () => {
     const target = await contest(organizer, { phase: 'running', freeze: true })
     const challengeId = randomUUID()
     const teamId = randomUUID()
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO contest_events
          (contest_id, event_type, event_key, occurred_at, visible_at, payload)
        VALUES ($1, 'first_solve', $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $3)`,
@@ -265,7 +265,7 @@ describeWithPostgres('selected public contest timeline', () => {
     ]))
     expect(frozen.items.map(item => item.eventType)).not.toContain('first_solve')
 
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contests SET end_at = CURRENT_TIMESTAMP - interval '1 second'
        WHERE id = $1`,
       [target.id],

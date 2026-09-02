@@ -1,5 +1,5 @@
 import { randomUUID, scryptSync, timingSafeEqual } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   FlagVerifier,
@@ -20,12 +20,12 @@ import { TeamService } from '../../domains/teams/service'
 import { WriteupService } from '../../domains/writeups/service'
 import { AesGcmIdentityMailTokenProtector } from '../auth/identity-mail-token-protector'
 import { identityTokenCodec } from '../auth/identity-token-codec'
-import { createDatabaseClient, type DatabaseClient } from '../db/client'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
 import { PostgresChallengeTemplateRepository } from '../db/challenge-template-repository'
 import { PostgresContestChallengeRepository } from '../db/contest-challenge-repository'
 import { PostgresContestRepository } from '../db/contest-repository'
 import { PostgresIdentityRepository } from '../db/identity-repository'
-import { runMigrations } from '../db/migrate'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { PostgresParticipationRepository } from '../db/participation-repository'
 import { PostgresScoreboardViewRepository } from '../db/scoreboard-view-repository'
 import { PostgresScoringReplayRepository } from '../db/scoring-replay-repository'
@@ -70,7 +70,7 @@ function databaseUrl(source: string): string {
 
 describeWithPostgres('fresh PostgreSQL Jeopardy smoke flow', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let identityRepository: PostgresIdentityRepository
   let identity: IdentityService
   let teams: TeamService
@@ -86,14 +86,14 @@ describeWithPostgres('fresh PostgreSQL Jeopardy smoke flow', () => {
     admin = new Client({ connectionString: adminConnectionString })
     await admin.connect()
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
-    database = createDatabaseClient({
+    database = createPostgresTestDatabase({
       connectionString: databaseUrl(adminConnectionString!),
       applicationName: 'sauryctf-jeopardy-smoke',
       maxConnections: 12,
     })
-    await runMigrations(database)
+    await runPostgresTestMigrations(database)
 
-    identityRepository = new PostgresIdentityRepository(database.pool)
+    identityRepository = new PostgresIdentityRepository(database.executor)
     identity = new IdentityService(
       identityRepository,
       smokePasswordHasher,
@@ -103,38 +103,38 @@ describeWithPostgres('fresh PostgreSQL Jeopardy smoke flow', () => {
         'jeopardy-smoke-session-secret-that-is-at-least-32-characters',
       ),
     )
-    teams = new TeamService(new PostgresTeamRepository(database.pool))
-    participations = new ParticipationService(new PostgresParticipationRepository(database.pool))
-    contests = new ContestService(new PostgresContestRepository(database.pool))
+    teams = new TeamService(new PostgresTeamRepository(database.executor))
+    participations = new ParticipationService(new PostgresParticipationRepository(database.executor))
+    contests = new ContestService(new PostgresContestRepository(database.executor))
     challengeTemplates = new ChallengeTemplateService(
-      new PostgresChallengeTemplateRepository(database.pool),
+      new PostgresChallengeTemplateRepository(database.executor),
     )
     contestChallenges = new ContestChallengeService(
-      new PostgresContestChallengeRepository(database.pool),
+      new PostgresContestChallengeRepository(database.executor),
       () => currentTime,
     )
     submissions = new SubmissionService(
-      new PostgresSubmissionRepository(database.pool),
+      new PostgresSubmissionRepository(database.executor),
       new FlagVerifier(new VersionedFlagKeyring({})),
       { consume: async () => ({ allowed: true, retryAfterMs: 0 }) },
       new AesGcmSubmissionAnswerProtector(Buffer.alloc(32, 11)),
       () => currentTime,
     )
     scoreboards = new ScoreboardViewService(
-      new PostgresScoreboardViewRepository(database.pool),
-      new ContestScoringReplayService(new PostgresScoringReplayRepository(database.pool)),
+      new PostgresScoreboardViewRepository(database.executor),
+      new ContestScoringReplayService(new PostgresScoringReplayRepository(database.executor)),
       undefined,
       () => currentTime,
     )
     writeups = new WriteupService(
-      new PostgresWriteupRepository(database.pool),
+      new PostgresWriteupRepository(database.executor),
       { build: async () => new Uint8Array() },
       () => currentTime,
     )
   }, 30_000)
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -323,7 +323,7 @@ describeWithPostgres('fresh PostgreSQL Jeopardy smoke flow', () => {
       board: { rows: [{ totalPoints: 500, officialSolveCount: 1 }] },
     })
 
-    const facts = await database.pool.query<{
+    const facts = await database.executor.query<{
       official_solves: number
       practice_solves: number
       scoreboard_version: number

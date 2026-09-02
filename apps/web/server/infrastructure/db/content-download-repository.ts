@@ -1,8 +1,8 @@
-import type { Pool } from 'pg'
 import type {
   ContentDownloadRepository,
   DownloadableContent,
 } from '../../domains/content/download-service'
+import type { DatabaseExecutor } from './executor'
 
 interface DownloadableContentRow {
   storage_key: string
@@ -15,7 +15,7 @@ const projection = `
   object.storage_key, object.media_type, object.original_filename`
 
 export class PostgresContentDownloadRepository implements ContentDownloadRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly database: DatabaseExecutor) {}
 
   async findChallengeAsset(
     actorId: string,
@@ -23,7 +23,7 @@ export class PostgresContentDownloadRepository implements ContentDownloadReposit
     assetId: string,
     at: Date,
   ): Promise<DownloadableContent | null> {
-    const result = await this.pool.query<DownloadableContentRow>(`
+    const result = await this.database.query<DownloadableContentRow>(`
       SELECT ${projection}, asset.display_name AS download_filename
       FROM challenge_assets asset
       JOIN contest_challenges challenge ON challenge.id = asset.contest_challenge_id
@@ -59,7 +59,7 @@ export class PostgresContentDownloadRepository implements ContentDownloadReposit
     canJudgeContests: boolean,
     referenceId: string,
   ): Promise<DownloadableContent | null> {
-    const result = await this.pool.query<DownloadableContentRow>(`
+    const result = await this.database.query<DownloadableContentRow>(`
       SELECT ${projection}, object.original_filename AS download_filename
       FROM content_references reference
       JOIN content_objects object ON object.id = reference.content_object_id

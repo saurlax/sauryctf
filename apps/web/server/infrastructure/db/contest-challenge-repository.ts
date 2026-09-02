@@ -1,5 +1,4 @@
 import { isDeepStrictEqual } from 'node:util'
-import type { Pool, PoolClient } from 'pg'
 import type {
   ChallengeCategory,
   ChallengeFlagPolicy,
@@ -29,6 +28,7 @@ import {
   type ReviseContestChallengeCommand,
 } from '../../domains/challenges/contest-challenge-repository'
 import { ChallengeContentObjectUnavailableError } from '../../domains/challenges/repository'
+import type { DatabaseExecutor } from './executor'
 
 type ContestStatus = 'draft' | 'published' | 'archived'
 
@@ -93,12 +93,10 @@ function isTitleConflict(error: unknown) {
 }
 
 export class PostgresContestChallengeRepository implements ContestChallengeRepository {
-  constructor(private pool: Pool) {}
+  constructor(private database: DatabaseExecutor) {}
 
   async mount(command: MountContestChallengeCommand): Promise<ContestChallengeRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.transaction(async (connection) => {
       const contest = await connection.query<{
         publication_status: ContestStatus
         start_at: Date
@@ -179,26 +177,17 @@ export class PostgresContestChallengeRepository implements ContestChallengeRepos
         },
       })
       const result = await this.readWith(connection, command.contestId, command.challengeId)
-      await connection.query('COMMIT')
       return result
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      if (isTitleConflict(error)) throw new ContestChallengeTitleConflictError()
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async read(contestId: string, challengeId: string): Promise<ContestChallengeRecord> {
-    return this.readWith(this.pool, contestId, challengeId)
+    return this.readWith(this.database, contestId, challengeId)
   }
 
   async listForPlayer(userId: string, contestId: string, at: Date): Promise<PlayerContestChallengeList> {
     const context = await this.readPlayerContext(userId, contestId, at)
-    const result = await this.pool.query<PlayerChallengeRow>(
+    const result = await this.database.query<PlayerChallengeRow>(
       `${this.playerChallengeSelect()}
        WHERE challenge.contest_id = $1 AND challenge.enabled = true
        ORDER BY challenge.sort_order, challenge.id`,
@@ -217,7 +206,7 @@ export class PostgresContestChallengeRepository implements ContestChallengeRepos
     at: Date,
   ): Promise<PlayerContestChallengeDetail> {
     const context = await this.readPlayerContext(userId, contestId, at)
-    const result = await this.pool.query<PlayerChallengeRow>(
+    const result = await this.database.query<PlayerChallengeRow>(
       `${this.playerChallengeSelect()}
        WHERE challenge.contest_id = $1
          AND challenge.id = $2
@@ -229,9 +218,7 @@ export class PostgresContestChallengeRepository implements ContestChallengeRepos
   }
 
   async revise(command: ReviseContestChallengeCommand): Promise<ContestChallengeRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.transaction(async (connection) => {
       const locked = await connection.query<{
         publication_status: ContestStatus
         version: string
@@ -334,42 +321,23 @@ export class PostgresContestChallengeRepository implements ContestChallengeRepos
           changed_fields: changedFields,
         },
       })
-      await connection.query(
-        `INSERT INTO domain_outbox
-           (aggregate_type, aggregate_id, event_type, event_version,
-            dedupe_key, payload)
-         VALUES ('contest_challenge', $1, 'contest.challenge.snapshot_revised', $2,
-                 $3, $4)
-         ON CONFLICT (dedupe_key) DO NOTHING`,
-        [
-          command.challengeId,
-          snapshotRevision,
-          `contest-challenge:${command.challengeId}:snapshot-revised:r${snapshotRevision}`,
-          {
-            schema_version: 1,
-            contest_id: command.contestId,
-            contest_challenge_id: command.challengeId,
-            snapshot_revision: snapshotRevision,
-            resource_version: resourceVersion,
-          },
-        ],
-      )
       const result = await this.readWith(connection, command.contestId, command.challengeId)
-      await connection.query('COMMIT')
       return result
+    })
+  }
+
+  private async transaction<T>(work: (connection: DatabaseExecutor) => Promise<T>): Promise<T> {
+    try {
+      return await this.database.transaction(work)
     }
     catch (error) {
-      await connection.query('ROLLBACK')
       if (isTitleConflict(error)) throw new ContestChallengeTitleConflictError()
       throw error
-    }
-    finally {
-      connection.release()
     }
   }
 
   private async readWith(
-    connection: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>,
+    connection: DatabaseExecutor,
     contestId: string,
     challengeId: string,
   ): Promise<ContestChallengeRecord> {
@@ -425,7 +393,7 @@ export class PostgresContestChallengeRepository implements ContestChallengeRepos
     contestId: string,
     at: Date,
   ): Promise<PlayerContestChallengeContext> {
-    const result = await this.pool.query<{
+    const result = await this.database.query<{
       contest_phase: PlayerContestChallengeContext['contestPhase']
       participation_status: PlayerContestChallengeContext['participationStatus']
     }>(
@@ -470,8 +438,8 @@ export class PostgresContestChallengeRepository implements ContestChallengeRepos
 
   private async playerRecord(row: PlayerChallengeRow): Promise<PlayerContestChallengeRecord> {
     const [assets, hints] = await Promise.all([
-      this.readAssets(this.pool, row.id),
-      this.readHints(this.pool, row.id),
+      this.readAssets(this.database, row.id),
+      this.readHints(this.database, row.id),
     ])
     return {
       id: row.id,
@@ -493,7 +461,7 @@ export class PostgresContestChallengeRepository implements ContestChallengeRepos
   }
 
   private async readAssets(
-    connection: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>,
+    connection: DatabaseExecutor,
     challengeId: string,
   ): Promise<ContestChallengeAssetRecord[]> {
     const result = await connection.query<{
@@ -516,7 +484,7 @@ export class PostgresContestChallengeRepository implements ContestChallengeRepos
   }
 
   private async readHints(
-    connection: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>,
+    connection: DatabaseExecutor,
     challengeId: string,
   ): Promise<ContestChallengeHintRecord[]> {
     const result = await connection.query<{
@@ -541,7 +509,7 @@ export class PostgresContestChallengeRepository implements ContestChallengeRepos
   }
 
   private async readTemplateAssets(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     versionId: string,
   ): Promise<ContestChallengeAssetCommand[]> {
     const result = await connection.query<{
@@ -561,7 +529,7 @@ export class PostgresContestChallengeRepository implements ContestChallengeRepos
     }))
   }
 
-  private async readTemplateHints(connection: PoolClient, versionId: string) {
+  private async readTemplateHints(connection: DatabaseExecutor, versionId: string) {
     const result = await connection.query<{
       title: string
       content: string
@@ -582,7 +550,7 @@ export class PostgresContestChallengeRepository implements ContestChallengeRepos
   }
 
   private async assertAssetsAvailable(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     assets: ContestChallengeAssetCommand[],
   ) {
     if (!assets.length) return
@@ -599,7 +567,7 @@ export class PostgresContestChallengeRepository implements ContestChallengeRepos
   }
 
   private async insertAssets(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     challengeId: string,
     assets: ContestChallengeAssetCommand[],
   ) {
@@ -614,7 +582,7 @@ export class PostgresContestChallengeRepository implements ContestChallengeRepos
   }
 
   private async insertHints(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     challengeId: string,
     hints: ContestChallengeHintCommand[],
   ) {
@@ -688,7 +656,7 @@ export class PostgresContestChallengeRepository implements ContestChallengeRepos
     }
   }
 
-  private async writeAudit(connection: PoolClient, input: {
+  private async writeAudit(connection: DatabaseExecutor, input: {
     actorId: string
     requestId: string
     challengeId: string

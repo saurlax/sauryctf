@@ -40,7 +40,16 @@ export const monitoringItemSchema = z.strictObject({
 export const monitoringListResponseSchema = z.strictObject({
   generated_at: utcTimestampSchema,
   source: z.literal('postgresql'),
-  cache_observed_at: utcTimestampSchema.nullable(),
+  data_services: z.strictObject({
+    postgresql: z.strictObject({
+      status: z.enum(['ready', 'unavailable']),
+      migrations: z.enum(['current', 'unavailable']),
+    }),
+    blob: z.strictObject({
+      driver: z.enum(['fs', 's3']),
+      status: z.enum(['ready', 'unavailable']),
+    }),
+  }),
   worker_stale_after_seconds: z.number().int().positive(),
   items: z.array(monitoringItemSchema),
 })
@@ -49,3 +58,4 @@ export type MonitoringKind = z.infer<typeof monitoringKindSchema>
 export type MonitoringListRequest = z.infer<typeof monitoringListRequestSchema>
 export type MonitoringItem = z.infer<typeof monitoringItemSchema>
 export type MonitoringListResponse = z.infer<typeof monitoringListResponseSchema>
+export type DataServicesHealth = MonitoringListResponse['data_services']

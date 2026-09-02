@@ -1,4 +1,3 @@
-import type { Pool, PoolClient } from 'pg'
 import { firstChallengePolicyIssue } from '../../domains/challenges/policies'
 import {
   ContestNotEndedError,
@@ -18,6 +17,7 @@ import {
   type ContestPublicationCheck,
   type ContestPublicationCheckIssue,
 } from '../../domains/contests/repository'
+import type { DatabaseExecutor } from './executor'
 
 interface ContestRow {
   id: string
@@ -70,12 +70,10 @@ function isSlugConflict(error: unknown) {
 }
 
 export class PostgresContestRepository implements ContestRepository {
-  constructor(private pool: Pool) {}
+  constructor(private database: DatabaseExecutor) {}
 
   async createDraft(command: CreateContestDraftCommand): Promise<ContestRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.transaction(async (connection) => {
       const inserted = await connection.query<{ id: string }>(
         `INSERT INTO contests
            (title, slug, description, visibility, invite_required, invite_digest,
@@ -117,23 +115,12 @@ export class PostgresContestRepository implements ContestRepository {
           writeup_required: command.writeupRequired,
         })
       const result = await this.read(connection, contestId)
-      await connection.query('COMMIT')
       return result
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      if (isSlugConflict(error)) throw new ContestSlugConflictError()
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    }, true)
   }
 
   async updateDraft(command: UpdateContestDraftCommand): Promise<ContestRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.transaction(async (connection) => {
       const locked = await connection.query<{
         publication_status: ContestPublicationStatus
         version: string
@@ -215,25 +202,16 @@ export class PostgresContestRepository implements ContestRepository {
         },
       )
       const result = await this.read(connection, command.contestId)
-      await connection.query('COMMIT')
       return result
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      if (isSlugConflict(error)) throw new ContestSlugConflictError()
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    }, true)
   }
 
   async readManaged(contestId: string): Promise<ContestRecord> {
-    return this.read(this.pool, contestId)
+    return this.read(this.database, contestId)
   }
 
   async readPublic(contestId: string): Promise<ContestRecord> {
-    const result = await this.pool.query<ContestRow>(
+    const result = await this.database.query<ContestRow>(
       `${this.select()} WHERE c.id = $1 AND c.visibility = 'public' AND c.publication_status IN ('published', 'archived')`,
       [contestId],
     )
@@ -242,7 +220,7 @@ export class PostgresContestRepository implements ContestRepository {
   }
 
   async checkPublication(contestId: string): Promise<ContestPublicationCheck> {
-    return this.publicationCheck(this.pool, contestId)
+    return this.publicationCheck(this.database, contestId)
   }
 
   async publish(command: ContestLifecycleCommand): Promise<ContestRecord> {
@@ -257,9 +235,7 @@ export class PostgresContestRepository implements ContestRepository {
     command: ContestLifecycleCommand,
     target: 'published' | 'archived',
   ): Promise<ContestRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       const locked = await connection.query<{
         publication_status: ContestPublicationStatus
         phase: ContestTimePhase
@@ -308,15 +284,20 @@ export class PostgresContestRepository implements ContestRepository {
         { publication_status: target },
       )
       const result = await this.read(connection, command.contestId)
-      await connection.query('COMMIT')
       return result
+    })
+  }
+
+  private async transaction<T>(
+    work: (connection: DatabaseExecutor) => Promise<T>,
+    mapSlugConflict: boolean,
+  ): Promise<T> {
+    try {
+      return await this.database.transaction(work)
     }
     catch (error) {
-      await connection.query('ROLLBACK')
+      if (mapSlugConflict && isSlugConflict(error)) throw new ContestSlugConflictError()
       throw error
-    }
-    finally {
-      connection.release()
     }
   }
 
@@ -337,7 +318,7 @@ export class PostgresContestRepository implements ContestRepository {
             FROM contests c`
   }
 
-  private async read(connection: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>, contestId: string) {
+  private async read(connection: DatabaseExecutor, contestId: string) {
     const result = await connection.query<ContestRow>(`${this.select()} WHERE c.id = $1`, [contestId])
     if (!result.rows[0]) throw new ContestNotFoundError()
     return this.record(result.rows[0])
@@ -382,7 +363,7 @@ export class PostgresContestRepository implements ContestRepository {
   }
 
   private async publicationCheck(
-    connection: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>,
+    connection: DatabaseExecutor,
     contestId: string,
   ): Promise<ContestPublicationCheck> {
     const contest = await connection.query<{ start_at: Date, end_at: Date }>(
@@ -511,7 +492,7 @@ export class PostgresContestRepository implements ContestRepository {
   }
 
   private async writeAudit(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     actorId: string,
     requestId: string,
     contestId: string,

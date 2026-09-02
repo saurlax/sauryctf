@@ -1,6 +1,6 @@
 # 排行榜
 
-排行榜只从 PostgreSQL 中的比赛题目快照、正式解和显式计分调整派生。练习解、Redis、SSE 和客户端状态不参与权威计分。
+排行榜只从 PostgreSQL 中的比赛题目快照、正式解和显式计分调整派生。练习解和客户端状态不参与权威计分。
 
 ## 排名规则
 
@@ -18,12 +18,10 @@
 
 配置封榜后，公共视图固定在封榜时可见事实；封榜后的正确提交继续写入正式事实并更新内部榜。比赛公开结算后再按策略展示最终排名。
 
-## 缓存与实时更新
+## 快照与更新
 
-Redis key 包含 schema、比赛、视图、分组和排行榜版本。影响榜单的事务先提交 PostgreSQL 事实和 Outbox，再发布可去重的版本失效与 SSE 事件。客户端携带 `Last-Event-ID` 重连；恢复窗口不足时收到 reset，并重新拉取完整榜单。
-
-Redis 清空或不可用时，控制面使用进程内 single-flight、短锁、限频重建和 PostgreSQL 持久快照降级。缓存故障不得改变权限、重复计分、泄露内部榜，也不得令每个请求独立执行全量重建。
+读取先检查 PostgreSQL 排行榜版本和持久快照。快照缺失时，同一进程通过 single-flight 合并相同版本的并发构建；多个副本允许重复计算，并由数据库唯一约束收敛到同一快照。公开榜页面仅在可见且排行榜标签激活时每 4 秒通过普通 HTTP 刷新。
 
 ## 运维核对
 
-排行榜超过 5 秒未更新时，依次检查 PostgreSQL scoreboard version、Outbox、Redis、SSE 和客户端版本。修复根因后由 `admin` 在 `/console/admin/operations` 执行 `cache_rebuild`；若怀疑权威派生结果错误，执行 `result_recalculate` 并核对不可变提交、解题和调整事实。禁止直接修改缓存或榜单快照来裁决正式成绩。
+排行榜超过 5 秒未更新时，依次检查 PostgreSQL scoreboard version、持久快照和客户端 HTTP 响应版本。若怀疑权威派生结果错误，由 `admin` 在 `/console/admin/operations` 执行 `result_recalculate` 并核对不可变提交、解题和调整事实。禁止直接修改榜单快照来裁决正式成绩。

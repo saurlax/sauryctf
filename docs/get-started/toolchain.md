@@ -19,7 +19,7 @@ pnpm install --frozen-lockfile
 - `pnpm-lock.yaml` 与 `apps/worker/go.sum` 必须提交。
 - 只有明确升级依赖时才能运行会改写锁文件的安装命令，并必须同时提交 manifest 与锁文件变化。
 - 禁止删除锁文件解决依赖冲突，也禁止在 CI 中使用浮动 Node、Go 或 pnpm 版本。
-- `api/openapi.yaml` 变更后运行 `pnpm generate:api`，并提交 OpenAPI 与 `apps/web` TypeScript 生成结果。Worker 不生成公网 Server。
-- 无契约源变化时，生成命令执行后 Git diff 必须为空。
+- 公网 API 的输入输出类型直接来自 `apps/web/shared/contracts` 的 Zod schema；仓库不提交独立 OpenAPI 生成物。
+- 运行 `pnpm check` 验证固定工具链、架构边界、Jeopardy scope 和 Nuxt 类型。
 
-CI 使用相同版本执行冻结安装、首期 scope guard、契约测试、API 生成一致性、Nuxt typecheck、Nitro build 与 Go 测试。任何一步失败都会阻止合并。
+CI 使用相同版本执行冻结安装、仓库检查、Web 与 Worker 测试以及应用构建。任何一步失败都会阻止合并。

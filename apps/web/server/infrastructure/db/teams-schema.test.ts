@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { Client, type PoolClient } from 'pg'
+import { PostgresTestClient as Client, type PostgresTestConnection as PoolClient } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createDatabaseClient, type DatabaseClient } from './client'
-import { runMigrations } from './migrate'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 
 const adminConnectionString = process.env.TEST_DATABASE_ADMIN_URL
 const describeWithPostgres = adminConnectionString ? describe : describe.skip
@@ -15,7 +15,7 @@ function quotedDatabaseName(): string {
 
 describeWithPostgres('team authority schema', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let userSequence = 0
 
   beforeAll(async () => {
@@ -24,12 +24,12 @@ describeWithPostgres('team authority schema', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 8 })
-    await runMigrations(database)
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 8 })
+    await runPostgresTestMigrations(database)
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -44,7 +44,7 @@ describeWithPostgres('team authority schema', () => {
     userSequence += 1
     const username = `TeamUser${userSequence}`
     const email = `team-user-${userSequence}@example.test`
-    const user = await database.pool.query<{ id: string }>(
+    const user = await database.executor.query<{ id: string }>(
       `INSERT INTO users (username, username_normalized, email, email_normalized)
        VALUES ($1::varchar(64), lower($1::varchar(64)), $2::varchar(320), lower($2::varchar(320)))
        RETURNING id`,
@@ -54,7 +54,7 @@ describeWithPostgres('team authority schema', () => {
   }
 
   async function createTeam(captainId: string): Promise<string> {
-    const connection = await database.pool.connect()
+    const connection = await database.connect()
     try {
       await connection.query('BEGIN')
       const team = await connection.query<{ id: string }>(
@@ -79,7 +79,7 @@ describeWithPostgres('team authority schema', () => {
   }
 
   async function transferCaptain(teamId: string, previousCaptainId: string, nextCaptainId: string): Promise<void> {
-    const connection = await database.pool.connect()
+    const connection = await database.connect()
     try {
       await connection.query('BEGIN')
       await connection.query(
@@ -106,13 +106,13 @@ describeWithPostgres('team authority schema', () => {
     const [teamA, teamB] = await Promise.all([createTeam(captainA), createTeam(captainB)])
 
     const outcomes = await Promise.allSettled([
-      database.pool.query('INSERT INTO team_members (team_id, user_id) VALUES ($1, $2)', [teamA, joiningUser]),
-      database.pool.query('INSERT INTO team_members (team_id, user_id) VALUES ($1, $2)', [teamB, joiningUser]),
+      database.executor.query('INSERT INTO team_members (team_id, user_id) VALUES ($1, $2)', [teamA, joiningUser]),
+      database.executor.query('INSERT INTO team_members (team_id, user_id) VALUES ($1, $2)', [teamB, joiningUser]),
     ])
     expect(outcomes.filter(result => result.status === 'fulfilled')).toHaveLength(1)
     expect(outcomes.filter(result => result.status === 'rejected')).toHaveLength(1)
 
-    const memberships = await database.pool.query<{ count: string }>(
+    const memberships = await database.executor.query<{ count: string }>(
       'SELECT count(*)::text AS count FROM team_members WHERE user_id = $1',
       [joiningUser],
     )
@@ -129,7 +129,7 @@ describeWithPostgres('team authority schema', () => {
 
     expect(outcomes.filter(result => result.status === 'fulfilled')).toHaveLength(1)
     expect(outcomes.filter(result => result.status === 'rejected')).toHaveLength(1)
-    const captains = await database.pool.query<{ count: string }>(
+    const captains = await database.executor.query<{ count: string }>(
       `SELECT count(*)::text AS count FROM team_members WHERE team_id = $1 AND role = 'captain'`,
       [teamId],
     )
@@ -139,18 +139,18 @@ describeWithPostgres('team authority schema', () => {
   it('requires invitation rotation to leave one current digest', async () => {
     const captain = await createUser()
     const teamId = await createTeam(captain)
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO team_invites (team_id, token_digest, generation, created_by)
        VALUES ($1, $2, 1, $3)`,
       [teamId, Buffer.from('invite-one'), captain],
     )
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `INSERT INTO team_invites (team_id, token_digest, generation, created_by)
        VALUES ($1, $2, 2, $3)`,
       [teamId, Buffer.from('invite-two'), captain],
     )).rejects.toMatchObject({ code: '23505' })
 
-    const connection: PoolClient = await database.pool.connect()
+    const connection: PoolClient = await database.connect()
     try {
       await connection.query('BEGIN')
       await connection.query(
@@ -172,7 +172,7 @@ describeWithPostgres('team authority schema', () => {
       connection.release()
     }
 
-    const current = await database.pool.query<{ generation: number }>(
+    const current = await database.executor.query<{ generation: number }>(
       'SELECT generation FROM team_invites WHERE team_id = $1 AND revoked_at IS NULL',
       [teamId],
     )

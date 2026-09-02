@@ -1,10 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { strFromU8, unzipSync } from 'fflate'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { SessionSubject } from '../identity/repository'
-import { createDatabaseClient, type DatabaseClient } from '../../infrastructure/db/client'
-import { runMigrations } from '../../infrastructure/db/migrate'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { PostgresWriteupRepository } from '../../infrastructure/db/writeup-repository'
 import { ZipWriteupArchiveBuilder } from '../../infrastructure/content/writeup-zip'
 import { WriteupService } from './service'
@@ -20,7 +20,7 @@ function quotedDatabaseName() {
 
 describeWithPostgres('versioned Writeup lifecycle', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let repository: PostgresWriteupRepository
   let writeups: WriteupService
   let sequence = 0
@@ -32,9 +32,9 @@ describeWithPostgres('versioned Writeup lifecycle', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 12 })
-    await runMigrations(database)
-    repository = new PostgresWriteupRepository(database.pool)
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 12 })
+    await runPostgresTestMigrations(database)
+    repository = new PostgresWriteupRepository(database.executor)
     writeups = new WriteupService(
       repository,
       new ZipWriteupArchiveBuilder({
@@ -45,7 +45,7 @@ describeWithPostgres('versioned Writeup lifecycle', () => {
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -60,7 +60,7 @@ describeWithPostgres('versioned Writeup lifecycle', () => {
     sequence++
     const username = `WriteupUser${sequence}`
     const email = `writeup-${sequence}@example.test`
-    const result = await database.pool.query<{ id: string }>(
+    const result = await database.executor.query<{ id: string }>(
       `INSERT INTO users
          (username, username_normalized, email, email_normalized, email_verified_at)
        VALUES ($1::varchar(64), lower($1::text)::varchar(64),
@@ -68,7 +68,7 @@ describeWithPostgres('versioned Writeup lifecycle', () => {
        RETURNING id`,
       [username, email],
     )
-    await database.pool.query(
+    await database.executor.query(
       'INSERT INTO user_roles (user_id, role) VALUES ($1, $2)',
       [result.rows[0]!.id, role],
     )
@@ -93,7 +93,7 @@ describeWithPostgres('versioned Writeup lifecycle', () => {
     sequence++
     const captain = await user()
     const organizer = await user('organizer')
-    const connection = await database.pool.connect()
+    const connection = await database.connect()
     let teamId: string
     try {
       await connection.query('BEGIN')
@@ -132,7 +132,7 @@ describeWithPostgres('versioned Writeup lifecycle', () => {
       ? null
       : new Date(now + (options.deadline === 'past' ? -24 : 24) * 60 * 60_000)
     const required = options.writeupRequired ?? true
-    const contest = await database.pool.query<{ id: string }>(
+    const contest = await database.executor.query<{ id: string }>(
       `INSERT INTO contests (
          title, slug, publication_status, visibility,
          start_at, end_at, writeup_required, writeup_deadline_at,
@@ -152,7 +152,7 @@ describeWithPostgres('versioned Writeup lifecycle', () => {
       ],
     )
     const status = options.participationStatus ?? 'accepted'
-    const participation = await database.pool.query<{ id: string }>(
+    const participation = await database.executor.query<{ id: string }>(
       status === 'accepted'
         ? `INSERT INTO participations (
              contest_id, team_id, status, registered_by, reviewed_by, reviewed_at
@@ -179,7 +179,7 @@ describeWithPostgres('versioned Writeup lifecycle', () => {
     const body = Buffer.from(text)
     const sha256 = createHash('sha256').update(body).digest()
     const storageKey = `temporary/writeup-${randomUUID()}`
-    const result = await database.pool.query<{ id: string }>(
+    const result = await database.executor.query<{ id: string }>(
       `INSERT INTO content_objects (
          storage_key, sha256_digest, size_bytes, media_type,
          original_filename, status, created_by, committed_at
@@ -233,7 +233,7 @@ describeWithPostgres('versioned Writeup lifecycle', () => {
     expect(resubmitted).toMatchObject({
       status: 'submitted', currentVersion: 2, submittedVersion: 2, version: 4,
     })
-    const facts = await database.pool.query<{ version_number: number, body: string }>(
+    const facts = await database.executor.query<{ version_number: number, body: string }>(
       `SELECT version_number, body FROM writeup_versions
        WHERE writeup_id = $1 ORDER BY version_number`,
       [first.id],
@@ -268,7 +268,7 @@ describeWithPostgres('versioned Writeup lifecycle', () => {
     expect(results.find(result => result.status === 'rejected')).toMatchObject({
       reason: { code: 'resource.version_conflict' },
     })
-    const count = await database.pool.query<{ count: string }>(
+    const count = await database.executor.query<{ count: string }>(
       'SELECT count(*)::text AS count FROM writeup_versions WHERE writeup_id = $1',
       [initial.id],
     )
@@ -284,7 +284,7 @@ describeWithPostgres('versioned Writeup lifecycle', () => {
     const submitted = await writeups.submitOwn(target.captain, {
       contestId: target.contestId, expectedVersion: saved.version,
     })
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contests
        SET writeup_deadline_at = CURRENT_TIMESTAMP - interval '1 second'
        WHERE id = $1`,
@@ -339,7 +339,7 @@ describeWithPostgres('versioned Writeup lifecycle', () => {
       expectedVersion: submitted.version, decision: 'approved', note: 'Verified by the jury',
     })
     expect(approved).toMatchObject({ status: 'approved', version: 3 })
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contests SET writeup_deadline_at = CURRENT_TIMESTAMP - interval '1 second'
        WHERE id = $1`,
       [target.contestId],
@@ -359,7 +359,7 @@ describeWithPostgres('versioned Writeup lifecycle', () => {
       reviewedBy: null, reviewedAt: null,
       submitted: { body: 'Authorized post-deadline correction' },
     })
-    const audit = await database.pool.query<{
+    const audit = await database.executor.query<{
       action: string
       reason: string
       changes: { submitted_version: number }
@@ -374,7 +374,7 @@ describeWithPostgres('versioned Writeup lifecycle', () => {
       changes: expect.objectContaining({ submitted_version: 2 }),
     }])
 
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contests
        SET publication_status = 'archived', archived_at = CURRENT_TIMESTAMP
        WHERE id = $1`,
@@ -398,7 +398,7 @@ describeWithPostgres('versioned Writeup lifecycle', () => {
     })
     const attachment = await committedObject(target.organizer, 'correction.txt', 'correction attachment')
     const requestId = randomUUID()
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO audit_events (
          actor_user_id, action, target_type, target_id, reason,
          outcome, request_id, changes, metadata
@@ -415,7 +415,7 @@ describeWithPostgres('versioned Writeup lifecycle', () => {
       attachmentIds: [attachment.id],
       reason: 'Trigger duplicate audit rollback',
     })).rejects.toMatchObject({ code: '23505' })
-    const facts = await database.pool.query<{
+    const facts = await database.executor.query<{
       aggregate_version: string
       current_version: number
       versions: string
@@ -461,7 +461,7 @@ describeWithPostgres('versioned Writeup lifecycle', () => {
     })
 
     const draftCaptain = await user()
-    const draftConnection = await database.pool.connect()
+    const draftConnection = await database.connect()
     let draftTeamId: string
     try {
       await draftConnection.query('BEGIN')
@@ -484,7 +484,7 @@ describeWithPostgres('versioned Writeup lifecycle', () => {
     finally {
       draftConnection.release()
     }
-    const draftParticipation = await database.pool.query<{ id: string }>(
+    const draftParticipation = await database.executor.query<{ id: string }>(
       `INSERT INTO participations (
          contest_id, team_id, status, registered_by, reviewed_by, reviewed_at
        ) VALUES ($1, $2, 'accepted', $3, $4, CURRENT_TIMESTAMP)
@@ -496,7 +496,7 @@ describeWithPostgres('versioned Writeup lifecycle', () => {
         submittedTarget.organizer.userId,
       ],
     )
-    await database.pool.query(
+    await database.executor.query(
       `WITH created AS (
          INSERT INTO writeups (contest_id, participation_id)
          VALUES ($1, $2) RETURNING id

@@ -14,4 +14,12 @@ export class RateLimitStoreSubmissionLimiter implements SubmissionRateLimiter {
       input.windowMs,
     )
   }
+
+  consumeMany(inputs: Array<Parameters<SubmissionRateLimiter['consume']>[0]>): Promise<SubmissionRateLimitDecision[]> {
+    return this.store.consumeMany(inputs.map(input => ({
+      bucket: rateLimitBucket(input.scope, input.identity, input.action),
+      limit: input.limit,
+      windowMs: input.windowMs,
+    })))
+  }
 }

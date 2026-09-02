@@ -1,9 +1,9 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createDatabaseClient, type DatabaseClient } from '../../infrastructure/db/client'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
 import { PostgresChallengeTemplateRepository } from '../../infrastructure/db/challenge-template-repository'
-import { runMigrations } from '../../infrastructure/db/migrate'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import type { SessionSubject } from '../identity/repository'
 import { ChallengeTemplateService } from './service'
 
@@ -18,7 +18,7 @@ function quotedDatabaseName() {
 
 describeWithPostgres('challenge template immutable version maintenance', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let templates: ChallengeTemplateService
   let sequence = 0
 
@@ -28,13 +28,13 @@ describeWithPostgres('challenge template immutable version maintenance', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 12 })
-    await runMigrations(database)
-    templates = new ChallengeTemplateService(new PostgresChallengeTemplateRepository(database.pool))
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 12 })
+    await runPostgresTestMigrations(database)
+    templates = new ChallengeTemplateService(new PostgresChallengeTemplateRepository(database.executor))
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -49,7 +49,7 @@ describeWithPostgres('challenge template immutable version maintenance', () => {
     sequence++
     const username = `ChallengeAuthor${sequence}`
     const email = `challenge-author-${sequence}@example.test`
-    const result = await database.pool.query<{ id: string }>(
+    const result = await database.executor.query<{ id: string }>(
       `INSERT INTO users
          (username, username_normalized, email, email_normalized, email_verified_at)
        VALUES ($1::varchar(64), lower($1::text)::varchar(64),
@@ -70,7 +70,7 @@ describeWithPostgres('challenge template immutable version maintenance', () => {
   }
 
   async function content(actorId: string, filename: string) {
-    const result = await database.pool.query<{ id: string }>(
+    const result = await database.executor.query<{ id: string }>(
       `INSERT INTO content_objects
          (storage_key, sha256_digest, size_bytes, media_type, original_filename,
           status, created_by, committed_at)
@@ -125,7 +125,7 @@ describeWithPostgres('challenge template immutable version maintenance', () => {
         hints: [expect.objectContaining({ title: 'Starter hint', releaseAfterSeconds: 900 })],
       },
     })
-    const audit = await database.pool.query<{ action: string, target_id: string }>(
+    const audit = await database.executor.query<{ action: string, target_id: string }>(
       `SELECT action, target_id FROM audit_events WHERE target_id = $1`,
       [created.template.id],
     )
@@ -133,14 +133,14 @@ describeWithPostgres('challenge template immutable version maintenance', () => {
       action: 'challenge.template.created',
       target_id: created.template.id,
     }])
-    const temporary = await database.pool.query<{ id: string }>(
+    const temporary = await database.executor.query<{ id: string }>(
       `INSERT INTO content_objects
          (storage_key, sha256_digest, size_bytes, media_type, original_filename, status, created_by)
        VALUES ($1, $2, 16, 'application/octet-stream', 'temporary.bin', 'temporary', $3)
        RETURNING id`,
       [`temporary/${randomUUID()}`, randomBytes(32), organizer.userId],
     )
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `INSERT INTO challenge_template_assets
          (template_version_id, content_object_id, display_name)
        VALUES ($1, $2, 'temporary.bin')`,
@@ -166,7 +166,7 @@ describeWithPostgres('challenge template immutable version maintenance', () => {
     await expect(templates.read(organizer, created.template.id, 1)).resolves.toMatchObject({
       challengeVersion: { id: created.challengeVersion.id, description: 'Original immutable statement' },
     })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `UPDATE challenge_template_versions SET description = 'Overwrite' WHERE id = $1`,
       [created.challengeVersion.id],
     )).rejects.toMatchObject({ code: '55000' })
@@ -190,11 +190,11 @@ describeWithPostgres('challenge template immutable version maintenance', () => {
     expect(updated.challengeVersion.assets.map(asset => asset.contentObjectId)).toEqual([newObjectId])
     const historical = await templates.read(organizer, created.template.id, 1)
     expect(historical.challengeVersion.assets.map(asset => asset.contentObjectId)).toEqual([oldObjectId])
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `UPDATE challenge_template_assets SET display_name = 'overwrite.zip' WHERE id = $1`,
       [historical.challengeVersion.assets[0]!.id],
     )).rejects.toMatchObject({ code: '55000' })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `UPDATE challenge_template_hints SET content = 'overwrite' WHERE id = $1`,
       [historical.challengeVersion.hints[0]!.id],
     )).rejects.toMatchObject({ code: '55000' })
@@ -203,7 +203,7 @@ describeWithPostgres('challenge template immutable version maintenance', () => {
   it('rejects unavailable attachments atomically with resource-specific fields', async () => {
     const organizer = await user()
     const unavailableId = randomUUID()
-    const before = await database.pool.query<{ count: string }>(
+    const before = await database.executor.query<{ count: string }>(
       'SELECT count(*)::text AS count FROM challenge_templates',
     )
     await expect(create(organizer, [{
@@ -212,7 +212,7 @@ describeWithPostgres('challenge template immutable version maintenance', () => {
       code: 'challenge.asset_unavailable',
       fields: { [`assets.${unavailableId}`]: ['内容对象不存在、未提交或已被隔离'] },
     })
-    const after = await database.pool.query<{ count: string }>(
+    const after = await database.executor.query<{ count: string }>(
       'SELECT count(*)::text AS count FROM challenge_templates',
     )
     expect(after.rows[0]!.count).toBe(before.rows[0]!.count)

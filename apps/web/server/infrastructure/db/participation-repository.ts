@@ -1,5 +1,4 @@
 import { timingSafeEqual } from 'node:crypto'
-import type { Pool, PoolClient } from 'pg'
 import {
   ParticipationConfigurationInvalidError,
   ParticipationConflictError,
@@ -21,6 +20,7 @@ import {
   type ParticipationReviewCommand,
   type ParticipationStatus,
 } from '../../domains/participations/repository'
+import type { DatabaseExecutor } from './executor'
 
 interface LockedContest {
   id: string
@@ -57,12 +57,12 @@ function isUniqueViolation(error: unknown) {
 }
 
 export class PostgresParticipationRepository implements ParticipationRepository {
-  constructor(private pool: Pool) {}
+  constructor(private database: DatabaseExecutor) {}
 
   async current(userId: string, contestId: string): Promise<CurrentParticipationRecord> {
-    const contest = await this.pool.query('SELECT 1 FROM contests WHERE id = $1', [contestId])
+    const contest = await this.database.query('SELECT 1 FROM contests WHERE id = $1', [contestId])
     if (!contest.rows[0]) throw new ParticipationContestNotFoundError()
-    const team = await this.pool.query<{
+    const team = await this.database.query<{
       id: string
       name: string
       role: 'member' | 'captain'
@@ -76,100 +76,92 @@ export class PostgresParticipationRepository implements ParticipationRepository 
     if (!team.rows[0]) return { team: null, participation: null }
     return {
       team: team.rows[0],
-      participation: await this.readByTeam(this.pool, contestId, team.rows[0].id),
+      participation: await this.readByTeam(this.database, contestId, team.rows[0].id),
     }
   }
 
   async register(userId: string, contestId: string, inviteDigest: Buffer | null): Promise<ParticipationRecord> {
-    const connection = await this.pool.connect()
     try {
-      await connection.query('BEGIN')
-      const team = await this.lockActorTeam(connection, userId)
-      const contest = await this.lockContest(connection, contestId)
-      this.requireRegistrationOpen(contest)
-      const verifiedInviteDigest = this.verifySubmittedInvite(contest, inviteDigest)
-      await this.validateTeamEligibility(connection, team.id, contest)
+      return await this.database.transaction(async (connection) => {
+        const team = await this.lockActorTeam(connection, userId)
+        const contest = await this.lockContest(connection, contestId)
+        this.requireRegistrationOpen(contest)
+        const verifiedInviteDigest = this.verifySubmittedInvite(contest, inviteDigest)
+        await this.validateTeamEligibility(connection, team.id, contest)
 
-      const existing = await connection.query<{ id: string, status: ParticipationStatus }>(
-        'SELECT id, status::text FROM participations WHERE contest_id = $1 AND team_id = $2 FOR UPDATE',
-        [contestId, team.id],
-      )
-      if (existing.rows[0] && existing.rows[0].status !== 'withdrawn') {
-        throw new ParticipationConflictError()
-      }
-
-      const divisionId = await this.defaultDivision(connection, contestId)
-      const accepted = contest.registrationStrategy === 'auto_accept'
-      const status: ParticipationStatus = accepted ? 'accepted' : 'pending'
-      let participationId: string
-      if (existing.rows[0]) {
-        const result = await connection.query<{ id: string }>(
-          `UPDATE participations
-           SET status = $2,
-               division_id = $3,
-               registered_by = $4,
-               registered_at = now(),
-               reviewed_by = $5,
-               reviewed_at = CASE WHEN $5::uuid IS NULL THEN NULL ELSE now() END,
-               review_reason = $6,
-               withdrawn_at = NULL,
-               invite_digest_verified = $7,
-               version = version + 1,
-               updated_at = now()
-           WHERE id = $1
-           RETURNING id`,
-          [
-            existing.rows[0].id,
-            status,
-            divisionId,
-            userId,
-            accepted ? userId : null,
-            accepted ? 'auto_accept' : null,
-            verifiedInviteDigest,
-          ],
+        const existing = await connection.query<{ id: string, status: ParticipationStatus }>(
+          'SELECT id, status::text FROM participations WHERE contest_id = $1 AND team_id = $2 FOR UPDATE',
+          [contestId, team.id],
         )
-        participationId = result.rows[0]!.id
-      }
-      else {
-        const result = await connection.query<{ id: string }>(
-          `INSERT INTO participations
-             (contest_id, team_id, division_id, status, registered_by,
-              reviewed_by, reviewed_at, review_reason, invite_digest_verified)
-           VALUES ($1, $2, $3, $4, $5, $6,
-                   CASE WHEN $6::uuid IS NULL THEN NULL ELSE now() END, $7, $8)
-           RETURNING id`,
-          [
-            contestId,
-            team.id,
-            divisionId,
-            status,
-            userId,
-            accepted ? userId : null,
-            accepted ? 'auto_accept' : null,
-            verifiedInviteDigest,
-          ],
-        )
-        participationId = result.rows[0]!.id
-      }
+        if (existing.rows[0] && existing.rows[0].status !== 'withdrawn') {
+          throw new ParticipationConflictError()
+        }
 
-      const participation = await this.readById(connection, contestId, participationId)
-      await connection.query('COMMIT')
-      return participation
+        const divisionId = await this.defaultDivision(connection, contestId)
+        const accepted = contest.registrationStrategy === 'auto_accept'
+        const status: ParticipationStatus = accepted ? 'accepted' : 'pending'
+        let participationId: string
+        if (existing.rows[0]) {
+          const result = await connection.query<{ id: string }>(
+            `UPDATE participations
+             SET status = $2,
+                 division_id = $3,
+                 registered_by = $4,
+                 registered_at = now(),
+                 reviewed_by = $5,
+                 reviewed_at = CASE WHEN $5::uuid IS NULL THEN NULL ELSE now() END,
+                 review_reason = $6,
+                 withdrawn_at = NULL,
+                 invite_digest_verified = $7,
+                 version = version + 1,
+                 updated_at = now()
+             WHERE id = $1
+             RETURNING id`,
+            [
+              existing.rows[0].id,
+              status,
+              divisionId,
+              userId,
+              accepted ? userId : null,
+              accepted ? 'auto_accept' : null,
+              verifiedInviteDigest,
+            ],
+          )
+          participationId = result.rows[0]!.id
+        }
+        else {
+          const result = await connection.query<{ id: string }>(
+            `INSERT INTO participations
+               (contest_id, team_id, division_id, status, registered_by,
+                reviewed_by, reviewed_at, review_reason, invite_digest_verified)
+             VALUES ($1, $2, $3, $4, $5, $6,
+                     CASE WHEN $6::uuid IS NULL THEN NULL ELSE now() END, $7, $8)
+             RETURNING id`,
+            [
+              contestId,
+              team.id,
+              divisionId,
+              status,
+              userId,
+              accepted ? userId : null,
+              accepted ? 'auto_accept' : null,
+              verifiedInviteDigest,
+            ],
+          )
+          participationId = result.rows[0]!.id
+        }
+
+        return this.readById(connection, contestId, participationId)
+      })
     }
     catch (error) {
-      await connection.query('ROLLBACK')
       if (isUniqueViolation(error)) throw new ParticipationConflictError()
       throw error
-    }
-    finally {
-      connection.release()
     }
   }
 
   async withdraw(userId: string, contestId: string): Promise<ParticipationRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       const team = await this.lockActorTeam(connection, userId)
       await this.lockContest(connection, contestId)
       const participation = await connection.query<{ id: string, status: ParticipationStatus }>(
@@ -187,22 +179,12 @@ export class PostgresParticipationRepository implements ParticipationRepository 
         [participation.rows[0].id],
       )
       const result = await this.readById(connection, contestId, participation.rows[0].id)
-      await connection.query('COMMIT')
       return result
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async review(command: ParticipationReviewCommand): Promise<ParticipationRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       const teamId = await this.locateParticipationTeam(connection, command.contestId, command.participationId)
       await this.lockTeam(connection, teamId)
       const contest = await this.lockContest(connection, command.contestId)
@@ -246,22 +228,12 @@ export class PostgresParticipationRepository implements ParticipationRepository 
         changes: { status: command.decision },
       })
       const result = await this.readById(connection, command.contestId, command.participationId)
-      await connection.query('COMMIT')
       return result
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async assignDivision(command: ParticipationDivisionCommand): Promise<ParticipationRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       const teamId = await this.locateParticipationTeam(connection, command.contestId, command.participationId)
       await this.lockTeam(connection, teamId)
       await this.lockContest(connection, command.contestId)
@@ -294,16 +266,8 @@ export class PostgresParticipationRepository implements ParticipationRepository 
         changes: { division_id: command.divisionId },
       })
       const result = await this.readById(connection, command.contestId, command.participationId)
-      await connection.query('COMMIT')
       return result
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async list(
@@ -312,7 +276,7 @@ export class PostgresParticipationRepository implements ParticipationRepository 
     limit: number,
     status: ParticipationStatus | undefined,
   ): Promise<ParticipationPage> {
-    const contest = await this.pool.query('SELECT 1 FROM contests WHERE id = $1', [contestId])
+    const contest = await this.database.query('SELECT 1 FROM contests WHERE id = $1', [contestId])
     if (!contest.rows[0]) throw new ParticipationContestNotFoundError()
     const parameters: unknown[] = [contestId]
     const conditions = ['p.contest_id = $1']
@@ -325,7 +289,7 @@ export class PostgresParticipationRepository implements ParticipationRepository 
       conditions.push(`p.status = $${parameters.length}`)
     }
     parameters.push(limit + 1)
-    const result = await this.pool.query<ParticipationRow>(
+    const result = await this.database.query<ParticipationRow>(
       `${this.participationSelect()}
        WHERE ${conditions.join(' AND ')}
        ORDER BY p.id
@@ -341,7 +305,7 @@ export class PostgresParticipationRepository implements ParticipationRepository 
     }
   }
 
-  private async lockActorTeam(connection: PoolClient, userId: string) {
+  private async lockActorTeam(connection: DatabaseExecutor, userId: string) {
     const located = await connection.query<{ team_id: string }>(
       'SELECT team_id FROM team_members WHERE user_id = $1',
       [userId],
@@ -364,12 +328,12 @@ export class PostgresParticipationRepository implements ParticipationRepository 
     return team.rows[0]
   }
 
-  private async lockTeam(connection: PoolClient, teamId: string) {
+  private async lockTeam(connection: DatabaseExecutor, teamId: string) {
     const result = await connection.query('SELECT 1 FROM teams WHERE id = $1 FOR UPDATE', [teamId])
     if (!result.rows[0]) throw new ParticipationTeamRequiredError()
   }
 
-  private async lockContest(connection: PoolClient, contestId: string): Promise<LockedContest> {
+  private async lockContest(connection: DatabaseExecutor, contestId: string): Promise<LockedContest> {
     const result = await connection.query<{
       id: string
       publication_status: LockedContest['publicationStatus']
@@ -440,7 +404,7 @@ export class PostgresParticipationRepository implements ParticipationRepository 
     return expected.length === actual.length && timingSafeEqual(expected, actual)
   }
 
-  private async validateTeamEligibility(connection: PoolClient, teamId: string, contest: LockedContest) {
+  private async validateTeamEligibility(connection: DatabaseExecutor, teamId: string, contest: LockedContest) {
     const members = await connection.query<{
       email_normalized: string
       email_verified_at: Date | null
@@ -490,7 +454,7 @@ export class PostgresParticipationRepository implements ParticipationRepository 
     return [...new Set(constraints.allowed_email_domains.map(domain => domain.toLowerCase()))]
   }
 
-  private async defaultDivision(connection: PoolClient, contestId: string): Promise<string | null> {
+  private async defaultDivision(connection: DatabaseExecutor, contestId: string): Promise<string | null> {
     const result = await connection.query<{ id: string }>(
       'SELECT id FROM divisions WHERE contest_id = $1 ORDER BY sort_order, id LIMIT 2',
       [contestId],
@@ -498,7 +462,7 @@ export class PostgresParticipationRepository implements ParticipationRepository 
     return result.rows.length === 1 ? result.rows[0]!.id : null
   }
 
-  private async locateParticipationTeam(connection: PoolClient, contestId: string, participationId: string) {
+  private async locateParticipationTeam(connection: DatabaseExecutor, contestId: string, participationId: string) {
     const result = await connection.query<{ team_id: string }>(
       'SELECT team_id FROM participations WHERE id = $1 AND contest_id = $2',
       [participationId, contestId],
@@ -507,7 +471,7 @@ export class PostgresParticipationRepository implements ParticipationRepository 
     return result.rows[0].team_id
   }
 
-  private async writeAudit(connection: PoolClient, input: {
+  private async writeAudit(connection: DatabaseExecutor, input: {
     actorId: string
     requestId: string
     contestId: string
@@ -533,7 +497,7 @@ export class PostgresParticipationRepository implements ParticipationRepository 
   }
 
   private async readByTeam(
-    connection: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>,
+    connection: DatabaseExecutor,
     contestId: string,
     teamId: string,
   ): Promise<ParticipationRecord | null> {
@@ -545,7 +509,7 @@ export class PostgresParticipationRepository implements ParticipationRepository 
   }
 
   private async readById(
-    connection: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>,
+    connection: DatabaseExecutor,
     contestId: string,
     participationId: string,
   ): Promise<ParticipationRecord> {

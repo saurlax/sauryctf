@@ -1,11 +1,11 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { SessionSubject } from '../identity/repository'
 import { PublicRegistrationDisabledError } from '../identity/repository'
 import { PostgresIdentityRepository } from '../../infrastructure/db/identity-repository'
-import { createDatabaseClient, type DatabaseClient } from '../../infrastructure/db/client'
-import { runMigrations } from '../../infrastructure/db/migrate'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { PostgresContentObjectRepository } from '../../infrastructure/db/content-object-repository'
 import { ContentObjectService, type ContentObjectStore, type StoredContentObject } from '../content/service'
 import { PostgresPlatformSettingsRepository } from '../../infrastructure/db/platform-settings-repository'
@@ -22,7 +22,7 @@ function quotedDatabaseName() {
 
 describeWithPostgres('typed platform settings', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let service: PlatformSettingsService
   let administrator: SessionSubject
   const store = new MemoryStore()
@@ -33,15 +33,15 @@ describeWithPostgres('typed platform settings', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 6 })
-    await runMigrations(database)
-    const user = await database.pool.query<{ id: string }>(`
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 6 })
+    await runPostgresTestMigrations(database)
+    const user = await database.executor.query<{ id: string }>(`
       INSERT INTO users
         (username, username_normalized, email, email_normalized, email_verified_at)
       VALUES ('SettingsAdmin', 'settingsadmin',
               'settings@example.test', 'settings@example.test', now())
       RETURNING id`)
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO user_roles (user_id, role) VALUES ($1, 'admin')`,
       [user.rows[0]!.id],
     )
@@ -56,17 +56,17 @@ describeWithPostgres('typed platform settings', () => {
       mustChangePassword: false,
     }
     const content = new ContentObjectService(
-      new PostgresContentObjectRepository(database.pool),
+      new PostgresContentObjectRepository(database.executor),
       store,
     )
     service = new PlatformSettingsService(
-      new PostgresPlatformSettingsRepository(database.pool),
+      new PostgresPlatformSettingsRepository(database.executor),
       content,
     )
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -90,7 +90,7 @@ describeWithPostgres('typed platform settings', () => {
     })
     const logoBody = Buffer.from('not-decoded-by-control-plane')
     const content = new ContentObjectService(
-      new PostgresContentObjectRepository(database.pool),
+      new PostgresContentObjectRepository(database.executor),
       store,
       () => new Date('2026-09-02T00:00:00.000Z'),
       () => `temporary/${randomUUID()}`,
@@ -127,7 +127,7 @@ describeWithPostgres('typed platform settings', () => {
       filename: 'logo.png',
       body: expect.any(Uint8Array),
     })
-    const evidence = await database.pool.query<{ references: string, audits: string }>(`
+    const evidence = await database.executor.query<{ references: string, audits: string }>(`
       SELECT
         (SELECT count(*)::text FROM content_references
           WHERE reference_type = 'platform_logo' AND platform_setting_id = true) AS references,
@@ -145,7 +145,7 @@ describeWithPostgres('typed platform settings', () => {
       theme: 'light',
     })).rejects.toMatchObject({ code: 'resource.version_conflict' })
 
-    const object = await database.pool.query<{ id: string }>(`
+    const object = await database.executor.query<{ id: string }>(`
       INSERT INTO content_objects
         (storage_key, sha256_digest, size_bytes, media_type, original_filename,
          status, created_by, committed_at)
@@ -161,7 +161,7 @@ describeWithPostgres('typed platform settings', () => {
   })
 
   it('makes the public registration switch authoritative in the identity transaction', async () => {
-    const repository = new PostgresIdentityRepository(database.pool)
+    const repository = new PostgresIdentityRepository(database.executor)
     await expect(repository.createIdentity({
       username: 'ClosedRegistration',
       usernameNormalized: 'closedregistration',
@@ -169,7 +169,7 @@ describeWithPostgres('typed platform settings', () => {
       emailNormalized: 'closed@example.test',
       passwordHash: 'scrypt-test-hash',
     })).rejects.toBeInstanceOf(PublicRegistrationDisabledError)
-    const result = await database.pool.query<{ count: string }>(`
+    const result = await database.executor.query<{ count: string }>(`
       SELECT count(*)::text AS count FROM users WHERE username_normalized = 'closedregistration'`)
     expect(result.rows[0]!.count).toBe('0')
   })

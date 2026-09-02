@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import type { ControlPlaneResponse } from '~/utils/control-plane-api'
+import type {
+  ExecuteOperationalCommandRequest,
+  OperationalCommand,
+  OperationalCommandKind,
+} from '#shared/contracts/operations'
 
 definePageMeta({ middleware: 'admin' })
 
-type OperationResponse = ControlPlaneResponse<'/api/admin/operations', 'post'>
-type OperationKind = OperationResponse['command']['kind']
+type OperationResponse = { command: OperationalCommand }
+type OperationKind = OperationalCommandKind
 
 const operationOptions = [
-  { value: 'cache_rebuild', label: '缓存重建', target: '比赛 ID', description: '清理指定比赛的排行榜缓存，并从 PostgreSQL 持久快照重新生成公开投影。' },
   { value: 'dead_letter_replay', label: '死信重放', target: '实例任务 ID', description: '为已修复的 dead 任务增加一次尝试额度，保留既有任务尝试历史。' },
   { value: 'instance_reconcile', label: '实例对账', target: '实例 ID', description: '按当前期望代次创建或重新排队 reconcile 任务，不直接操作运行时资源。' },
   { value: 'session_invalidate', label: 'Session 版本失效', target: '用户 ID', description: '递增目标用户的 session_version，使全部旧 sealed Cookie 失效。' },
@@ -28,7 +31,7 @@ const idempotencyKey = ref('')
 const lastAttemptSignature = ref('')
 const requestedKind = typeof route.query.kind === 'string' ? route.query.kind : ''
 const draft = reactive({
-  kind: (operationOptions.some(item => item.value === requestedKind) ? requestedKind : 'cache_rebuild') as OperationKind,
+  kind: (operationOptions.some(item => item.value === requestedKind) ? requestedKind : 'result_recalculate') as OperationKind,
   targetId: typeof route.query.target_id === 'string' ? route.query.target_id : '',
   reason: '',
 })
@@ -61,7 +64,7 @@ async function executeOperation() {
   }
   submitting.value = true
   try {
-    const result = await $controlApi('post', '/api/admin/operations', {
+    const result = await $controlApi<OperationResponse, ExecuteOperationalCommandRequest>('post', '/api/admin/operations', {
       headers: { 'Idempotency-Key': idempotencyKey.value },
       body: {
         kind: draft.kind,

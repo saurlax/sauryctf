@@ -18,13 +18,21 @@ const admin: SessionSubject = {
 describe('administration monitoring service', () => {
   it('returns an authoritative snapshot with a fixed Worker staleness boundary', async () => {
     const repository: MonitoringRepository = { list: vi.fn(async () => []) }
-    const service = new AdministrationMonitoringService(repository, 125_000, () => at)
+    const service = new AdministrationMonitoringService(repository, 125_000, () => at, {
+      inspect: vi.fn(async () => ({
+        postgresql: { status: 'ready' as const, migrations: 'current' as const },
+        blob: { driver: 's3' as const, status: 'ready' as const },
+      })),
+    })
     const query = { kind: 'instances' as const, limit: 50 }
 
     await expect(service.list(admin, query)).resolves.toEqual({
       generated_at: at.toISOString(),
       source: 'postgresql',
-      cache_observed_at: null,
+      data_services: {
+        postgresql: { status: 'ready', migrations: 'current' },
+        blob: { driver: 's3', status: 'ready' },
+      },
       worker_stale_after_seconds: 125,
       items: [],
     })

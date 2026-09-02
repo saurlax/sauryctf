@@ -1,4 +1,3 @@
-import type { Pool, PoolClient } from 'pg'
 import { dynamicInstancePolicySchema, type ChallengeInstancePolicy } from '../../../shared/contracts/challenges'
 import {
   destroyInstanceJobPayloadSchema,
@@ -24,6 +23,7 @@ import {
   type InstanceRepository,
 } from '../../domains/instances/repository'
 import type { ControlPlaneTelemetry, InstanceJobCorrelation } from '../telemetry/telemetry'
+import type { DatabaseExecutor } from './executor'
 
 interface CommandContextRow {
   participation_id: string
@@ -64,14 +64,12 @@ const instanceProjection = `
 
 export class PostgresInstanceRepository implements InstanceRepository {
   constructor(
-    private readonly pool: Pool,
+    private readonly database: DatabaseExecutor,
     private readonly telemetry?: Pick<ControlPlaneTelemetry, 'instanceJobQueued'>,
   ) {}
 
   async read(command: Omit<InstanceCommand, 'requestId'>): Promise<InstanceRecord | null> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       const context = await this.commandContext(connection, command, false)
       this.assertParticipation(context)
       this.assertDynamicChallenge(context)
@@ -82,16 +80,8 @@ export class PostgresInstanceRepository implements InstanceRepository {
         context.participation_id,
         command.challengeId,
       ])
-      await connection.query('COMMIT')
       return result.rows[0] ? record(result.rows[0]) : null
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async start(command: InstanceCommand): Promise<InstanceRecord> {
@@ -234,25 +224,12 @@ export class PostgresInstanceRepository implements InstanceRepository {
     return completed.instance
   }
 
-  private async transaction<T>(operation: (connection: PoolClient) => Promise<T>): Promise<T> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
-      const result = await operation(connection)
-      await connection.query('COMMIT')
-      return result
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+  private async transaction<T>(operation: (connection: DatabaseExecutor) => Promise<T>): Promise<T> {
+    return this.database.transaction(operation)
   }
 
   private async commandContext(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     command: Pick<InstanceCommand, 'actorId' | 'contestId' | 'challengeId' | 'at'>,
     lock: boolean,
   ): Promise<CommandContextRow> {
@@ -319,7 +296,7 @@ export class PostgresInstanceRepository implements InstanceRepository {
     return parsed.data
   }
 
-  private async lockInstance(connection: PoolClient, participationId: string, challengeId: string) {
+  private async lockInstance(connection: DatabaseExecutor, participationId: string, challengeId: string) {
     const result = await connection.query<InstanceRow>(`
       SELECT ${instanceProjection} FROM instances
       WHERE participation_id = $1 AND contest_challenge_id = $2
@@ -328,7 +305,7 @@ export class PostgresInstanceRepository implements InstanceRepository {
   }
 
   private async enqueueEnsure(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     row: InstanceRow,
     context: CommandContextRow,
     policy: ReturnType<typeof dynamicInstancePolicySchema.parse>,
@@ -339,7 +316,7 @@ export class PostgresInstanceRepository implements InstanceRepository {
   }
 
   private async enqueue(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     row: InstanceRow,
     operation: 'ensure' | 'destroy',
     payload: EnsureInstanceJobPayload | DestroyInstanceJobPayload,
@@ -362,7 +339,7 @@ export class PostgresInstanceRepository implements InstanceRepository {
   }
 
   private async writeAudit(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     command: InstanceCommand,
     row: InstanceRow,
     action: string,

@@ -1,10 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { SessionSubject } from '../identity/repository'
 import { TeamService } from '../teams/service'
-import { createDatabaseClient, type DatabaseClient } from '../../infrastructure/db/client'
-import { runMigrations } from '../../infrastructure/db/migrate'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { PostgresParticipationRepository } from '../../infrastructure/db/participation-repository'
 import { PostgresTeamRepository } from '../../infrastructure/db/team-repository'
 import { ParticipationService } from './service'
@@ -20,7 +20,7 @@ function quotedDatabaseName() {
 
 describeWithPostgres('participation registration transactions', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let participations: ParticipationService
   let teams: TeamService
   let sequence = 0
@@ -31,14 +31,14 @@ describeWithPostgres('participation registration transactions', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 16 })
-    await runMigrations(database)
-    participations = new ParticipationService(new PostgresParticipationRepository(database.pool))
-    teams = new TeamService(new PostgresTeamRepository(database.pool))
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 16 })
+    await runPostgresTestMigrations(database)
+    participations = new ParticipationService(new PostgresParticipationRepository(database.executor))
+    teams = new TeamService(new PostgresTeamRepository(database.executor))
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -62,7 +62,7 @@ describeWithPostgres('participation registration transactions', () => {
     const verifiedAt = options.emailVerified === false ? null : new Date()
     const status = options.status ?? 'active'
     const mustChangePassword = options.mustChangePassword ?? false
-    const result = await database.pool.query<{ id: string }>(
+    const result = await database.executor.query<{ id: string }>(
       `INSERT INTO users
          (username, username_normalized, email, email_normalized, email_verified_at, status, must_change_password)
        VALUES ($1::varchar(64), lower($1::varchar(64)), $2::varchar(320), lower($2::varchar(320)), $3, $4, $5)
@@ -100,7 +100,7 @@ describeWithPostgres('participation registration transactions', () => {
     const inviteDigest = options.inviteCode
       ? createHash('sha256').update(options.inviteCode).digest()
       : null
-    const inserted = await database.pool.query<{ id: string }>(
+    const inserted = await database.executor.query<{ id: string }>(
       `INSERT INTO contests
          (title, slug, publication_status, visibility, registration_strategy, invite_required, invite_digest,
           start_at, end_at, published_at, min_team_size, max_team_size,
@@ -127,7 +127,7 @@ describeWithPostgres('participation registration transactions', () => {
     )
     const divisions: Array<{ id: string, name: string }> = []
     for (const [sortOrder, name] of (options.divisionNames ?? []).entries()) {
-      const division = await database.pool.query<{ id: string }>(
+      const division = await database.executor.query<{ id: string }>(
         `INSERT INTO divisions (contest_id, name, name_normalized, sort_order)
          VALUES ($1, $2::varchar(80), lower($2::text)::varchar(80), $3)
          RETURNING id`,
@@ -162,7 +162,7 @@ describeWithPostgres('participation registration transactions', () => {
     expect(accepted.status).toBe('accepted')
     expect(accepted.reviewedAt).toBeInstanceOf(Date)
 
-    const audit = await database.pool.query<{ action: string, outcome: string }>(
+    const audit = await database.executor.query<{ action: string, outcome: string }>(
       'SELECT action, outcome FROM audit_events WHERE target_id = $1',
       [pending.id],
     )
@@ -209,7 +209,7 @@ describeWithPostgres('participation registration transactions', () => {
     })
     const pending = await participations.register(captain, target.id, firstInvite)
     const nextDigest = createHash('sha256').update('contest-invite-next-value-000000000002').digest()
-    await database.pool.query('UPDATE contests SET invite_digest = $2 WHERE id = $1', [target.id, nextDigest])
+    await database.executor.query('UPDATE contests SET invite_digest = $2 WHERE id = $1', [target.id, nextDigest])
 
     await expect(participations.review(organizer, {
       requestId: randomUUID(),
@@ -281,12 +281,12 @@ describeWithPostgres('participation registration transactions', () => {
     await registeredTeam(securityCaptain, 'Security Team')
     const securityContest = await contest(organizer)
     const securityPending = await participations.register(securityCaptain, securityContest.id)
-    await database.pool.query('UPDATE users SET email_verified_at = NULL WHERE id = $1', [securityCaptain.userId])
+    await database.executor.query('UPDATE users SET email_verified_at = NULL WHERE id = $1', [securityCaptain.userId])
     await expect(participations.review(organizer, {
       requestId: randomUUID(), contestId: securityContest.id, participationId: securityPending.id,
       decision: 'accepted', reason: 'Review unverified member',
     })).rejects.toMatchObject({ code: 'participation.member_ineligible' })
-    await database.pool.query(
+    await database.executor.query(
       'UPDATE users SET email_verified_at = now(), must_change_password = true WHERE id = $1',
       [securityCaptain.userId],
     )
@@ -294,7 +294,7 @@ describeWithPostgres('participation registration transactions', () => {
       requestId: randomUUID(), contestId: securityContest.id, participationId: securityPending.id,
       decision: 'accepted', reason: 'Review setup-restricted member',
     })).rejects.toMatchObject({ code: 'participation.member_ineligible' })
-    await database.pool.query(
+    await database.executor.query(
       "UPDATE users SET must_change_password = false, status = 'banned' WHERE id = $1",
       [securityCaptain.userId],
     )
@@ -307,7 +307,7 @@ describeWithPostgres('participation registration transactions', () => {
     await registeredTeam(domainCaptain, 'Domain Team')
     const domainContest = await contest(organizer, { allowedEmailDomains: ['school.test'] })
     const domainPending = await participations.register(domainCaptain, domainContest.id)
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE users SET email = $2::varchar(320), email_normalized = lower($2::text)::varchar(320)
        WHERE id = $1`,
       [domainCaptain.userId, `changed-${sequence}@outside.test`],
@@ -331,7 +331,7 @@ describeWithPostgres('participation registration transactions', () => {
     await registeredTeam(pendingCaptain, 'Ending Team')
     const target = await contest(organizer)
     const pending = await participations.register(pendingCaptain, target.id)
-    await database.pool.query('UPDATE contests SET end_at = now() - interval \'1 second\' WHERE id = $1', [target.id])
+    await database.executor.query('UPDATE contests SET end_at = now() - interval \'1 second\' WHERE id = $1', [target.id])
     await expect(participations.review(organizer, {
       requestId: randomUUID(), contestId: target.id, participationId: pending.id,
       decision: 'accepted', reason: 'Review after contest ended',
@@ -394,7 +394,7 @@ describeWithPostgres('participation registration transactions', () => {
     const target = await contest(organizer)
     const pending = await participations.register(captain, target.id)
     const requestId = randomUUID()
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO audit_events
          (actor_user_id, action, target_type, target_id, reason, outcome, request_id, changes, metadata)
        VALUES ($1, 'contest.participation.reviewed', 'participation', $2,
@@ -430,7 +430,7 @@ describeWithPostgres('participation registration transactions', () => {
       teams.join(newcomer, created.inviteCode),
     ])
 
-    const state = await database.pool.query<{ status: string, members: string }>(
+    const state = await database.executor.query<{ status: string, members: string }>(
       `SELECT p.status::text,
               (SELECT count(*)::text FROM team_members m WHERE m.team_id = p.team_id) AS members
        FROM participations p

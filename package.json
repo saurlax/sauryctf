@@ -7,39 +7,13 @@
     "pnpm": "10.34.5"
   },
   "scripts": {
-    "dev": "pnpm dev:web",
-    "dev:dependencies": "docker compose -f compose.dev.yml up -d --wait postgres redis minio mailpit && docker compose -f compose.dev.yml run --rm minio-init",
-    "dev:dependencies:down": "docker compose -f compose.dev.yml down",
+    "dev": "pnpm --filter sauryctf-web dev",
+    "start": "node apps/web/.output/server/index.mjs",
+    "build": "pnpm --filter sauryctf-web build && go build ./apps/worker/...",
+    "test": "pnpm --filter sauryctf-web test && go test ./apps/worker/...",
+    "check": "node ./scripts/check-toolchain.mjs && node ./scripts/check-control-plane-boundaries.mjs && node ./scripts/check-jeopardy-scope.mjs && pnpm --filter sauryctf-web check",
     "db:migrate": "pnpm --filter sauryctf-web db:migrate",
-    "dev:web": "pnpm --filter sauryctf-web dev:local",
-    "dev:worker": "go run ./apps/worker/cmd/worker",
-    "dev:frontend": "pnpm dev:web",
-    "check:auth-redirects": "node ./scripts/check-auth-redirects.mjs",
-    "check:boundaries": "node ./scripts/check-control-plane-boundaries.mjs",
-    "check:jeopardy-scope": "node ./scripts/check-jeopardy-scope.mjs",
-    "check:toolchain": "node ./scripts/check-toolchain.mjs",
-    "test": "pnpm test:backend && pnpm test:web",
-    "test:backend": "pnpm test:worker",
-    "test:worker": "go test ./apps/worker/...",
-    "build:worker": "go build ./apps/worker/...",
-    "test:contracts": "pnpm --filter sauryctf-web test:contracts",
-    "test:db": "pnpm --filter sauryctf-web exec vitest run server/infrastructure/db",
-    "test:instances:lifecycle": "bash ./scripts/test-instance-lifecycle.sh",
-    "test:smoke": "bash ./scripts/test-jeopardy-smoke.sh",
-    "test:onboarding": "bash ./scripts/test-onboarding.sh",
-    "test:release": "bash ./scripts/test-release-acceptance.sh",
-    "test:capacity": "bash ./scripts/test-capacity-acceptance.sh",
-    "test:backup-recovery": "bash ./scripts/test-backup-recovery.sh",
-    "test:faults": "bash ./scripts/test-fault-recovery.sh",
-    "test:security": "bash ./scripts/test-security-acceptance.sh",
-    "test:web": "pnpm --filter sauryctf-web typecheck",
-    "test:frontend": "pnpm test:web",
-    "generate:openapi": "pnpm --filter sauryctf-web generate:openapi",
-    "generate:api:frontend": "openapi-typescript api/openapi.yaml -o apps/web/app/types/control-plane-api.d.ts",
-    "generate:api": "pnpm generate:openapi && pnpm generate:api:frontend",
-    "build": "pnpm generate:api && pnpm --filter sauryctf-web build",
-    "generate": "pnpm build",
-    "typecheck": "pnpm --filter sauryctf-web typecheck"
+    "worker": "go run ./apps/worker/cmd/worker"
   },
   "pnpm": {
     "overrides": {
@@ -53,8 +27,5 @@
       "shell-quote": "1.9.0",
       "tar": "7.5.21"
     }
-  },
-  "devDependencies": {
-    "openapi-typescript": "^6.7.6"
   }
 }

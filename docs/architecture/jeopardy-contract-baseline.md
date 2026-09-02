@@ -1,11 +1,11 @@
 # Jeopardy 首期行为基线
 
-本文记录重建前 smoke flow、`api/openapi.yaml` 与 Go 测试中可观察行为的取舍。它只用于回答“哪些产品行为值得保留”，不是旧 API 的兼容声明，也不是新 API 的机器可读契约。
+本文记录重建前 smoke flow、当时的 OpenAPI 快照与 Go 测试中可观察行为的取舍。它只用于回答“哪些产品行为值得保留”；该 OpenAPI 生成物现已移除，也不是旧 API 的兼容声明。
 
 新契约的唯一来源依次为：
 
 1. `openspec/changes/rebuild-platform-with-nuxt-control-plane/specs/` 中的首期规格；
-2. 后续由 `shared/contracts/` 生成并经契约测试验证的 OpenAPI；
+2. `apps/web/shared/contracts/` 中运行时 Zod schema 及其推导类型；
 3. 实现测试与本文件引用的回归场景。
 
 旧路径、请求字段、响应字段、状态码、Cookie 名称、数据库主键、枚举值和错误文案，除非在新 OpenSpec 与新生成契约中再次明确声明，否则全部不兼容。
@@ -49,7 +49,7 @@
 | CH-02 | `static/dynamic` 单一题型枚举同时暗示 Flag、计分和实例能力 | OpenAPI `Challenge.type` | 明确废弃 | 内容、Flag、计分与实例改为正交策略并校验组合。 |
 | CH-03 | 展示分类包含 `web/pwn/crypto/reverse/misc/forensics/awd` | OpenAPI；model enum | 明确废弃 | 只保留前六类；任何创建、导入或发布中的 `awd` 均拒绝。 |
 | CH-04 | 未接受或未开赛用户只能看到题目基础元数据 | challenge visibility tests；smoke manual checks | 纳入新契约 | 题面、提示、附件、Flag 材料和实例信息统一由选手投影控制。 |
-| CH-05 | 题目附件保存到本地 `/attachments/**` | attachment tests；旧导入导出 | 明确废弃 | 权威内容进入 S3 兼容对象存储，以不可变摘要对象和业务引用授权。 |
+| CH-05 | 题目附件保存到本地 `/attachments/**` | attachment tests；旧导入导出 | 明确废弃 | 权威内容进入 NuxtHub Blob；完整 S3 配置使用共享 S3，否则使用受约束的本机持久目录，并始终以不可变摘要对象和业务引用授权。 |
 | CH-06 | 存在不属于比赛的 standalone challenge submit | `/api/challenges/{id}/submit`；challenge tests | 明确废弃 | 首期没有个人训练；提交必须属于比赛题目快照与参赛记录。 |
 | SC-01 | 正确/错误 Flag、重复解和动态衰减计分 | challenge/game scoring tests | 纳入新契约 | 以追加提交事实、正式解唯一事务和 `fixed-v1/decay-v1` 快照策略重建。 |
 | SC-02 | first/second/third blood 元数据稳定展示但不默认加成 | scoring tests；项目约定 | 纳入新契约 | 首解次序在事务内确定；只有比赛明确配置奖励时才影响总分。 |
@@ -58,7 +58,7 @@
 | SC-05 | 共享错误 Flag 形成反作弊线索 | cheat clue tests | 纳入新契约 | 线索保留证据并人工复核，不能自动处罚用户或删分。 |
 | SB-01 | 排行榜展示队伍总分、题目统计和最后解题时间 | scoreboard tests；smoke | 纳入新契约 | 只从正式事实与显式调整重建，排序为总分降序、最后计分时间升序、稳定 ID 升序。 |
 | SB-02 | 支持总榜和 division 过滤 | division scoreboard tests | 纳入新契约 | 分组属于参赛记录；过滤不改变同一队伍的总榜分数事实。 |
-| SB-03 | 封榜后公共榜冻结但内部成绩继续更新 | freeze tests | 纳入新契约 | 形成角色相关视图和持久快照，内部榜不得进入公共缓存。 |
+| SB-03 | 封榜后公共榜冻结但内部成绩继续更新 | freeze tests | 纳入新契约 | 形成角色相关视图和 PostgreSQL 持久快照，不使用共享缓存。 |
 | IN-01 | 实例有初始时长、续期增量、续期窗口和队伍并发上限 | instance tests；smoke | 纳入新契约 | 配额由 Nuxt 在事务内裁决，期限随版本化任务传给 Worker。 |
 | IN-02 | 旧同步 POST 在 Provider 完成后直接返回 `running` | smoke；instance handler tests | 明确废弃 | 创建请求原子写实例期望与 `instance_jobs` 后返回 `pending`；只有 Worker 确认入口 Ready 才返回 `running`。 |
 | IN-03 | Go 进程内定时清理数据库 lease | cleanup tests | 明确废弃 | 过期与偏差由私有 Worker Reconciler 根据权威期望状态收敛。 |
@@ -68,7 +68,7 @@
 | CO-01 | 比赛包可导出并重新导入为 draft，保留挂题与附件 | smoke；import/export tests | 纳入新契约 | 使用新的版本化 Jeopardy 清单、文件摘要和原子导入；不承诺旧 `sauryctf.export.v1/v2` 格式。 |
 | CO-02 | 导入只按版本检查并可恢复旧本地附件 | import tests | 明确废弃 | 新导入增加路径、大小、条目数、压缩比和摘要校验；不得任意抓取外部 URL。 |
 | CO-03 | 队伍 Writeup 可保存、提交、审核和导出 | writeup tests | 纳入新契约 | 改为不可变版本历史；截止后普通用户不可修改，管理员纠正需授权和审计。 |
-| AD-01 | 管理员可查看用户、审计、参赛、提交、线索、实例和 Writeup | admin handler/service tests；前端管理路由 | 纳入新契约 | 统一为 Nuxt 管理投影，明确数据库事实、缓存时间和 Worker 观察时间。 |
+| AD-01 | 管理员可查看用户、审计、参赛、提交、线索、实例和 Writeup | admin handler/service tests；前端管理路由 | 纳入新契约 | 统一为 Nuxt 管理投影，明确 PostgreSQL 事实、NuxtHub 数据服务健康和 Worker 观察时间。 |
 | AD-02 | 审计日志允许可变详情字符串和整数目标 ID | old `AuditLog` schema/model | 明确废弃 | 改为不可变、结构化、UUID 目标与请求关联标识，并与业务事务同边界提交。 |
 | PL-01 | Nuxt `generate` 产出纯 SSG，浏览器 `/api/**` 代理到公网 Go | package scripts；Nuxt config | 明确废弃 | Nuxt/Nitro 成为唯一公网控制面，Go 只保留私有实例 Worker。 |
 | PL-02 | SQLite 可作为默认业务数据库和测试语义 | db implementation；smoke | 明确废弃 | PostgreSQL 是唯一权威数据库和标准集成测试语义。 |
@@ -93,7 +93,7 @@
 ## 文档审查结论
 
 - [x] 已覆盖现有 smoke flow 的每个业务步骤，并为变化后的断言给出新基线。
-- [x] 已覆盖 `api/openapi.yaml` 的认证、用户、队伍、题库、比赛、报名、提交、排行榜、实例、公告、Writeup、导入导出和审计能力族。
+- [x] 已覆盖重建前 OpenAPI 快照中的认证、用户、队伍、题库、比赛、报名、提交、排行榜、实例、公告、Writeup、导入导出和审计能力族。
 - [x] 已覆盖现有 auth、rbac、teams、challenges、games、scoring、instance、audit 与 server 测试族中的产品行为。
 - [x] 所有条目均明确标为“纳入新契约”或“明确废弃”，无“尽量兼容”“暂时沿用”或待定项。
 - [x] “纳入新契约”只保留业务意图，不保留未在新 OpenSpec 与生成契约中声明的旧协议细节。

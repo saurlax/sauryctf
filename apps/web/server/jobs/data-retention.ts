@@ -5,6 +5,7 @@ export const officialContestFactsRetention = 'indefinite' as const
 export interface RetentionBatchResult {
   auditDeleted: number
   securityLogsDeleted: number
+  rateLimitWindowsDeleted: number
 }
 
 export interface DataRetentionRepository {
@@ -37,19 +38,24 @@ export class DataRetentionService {
     const securityBefore = new Date(at.getTime() - securityLogRetentionMs)
     let auditDeleted = 0
     let securityLogsDeleted = 0
+    let rateLimitWindowsDeleted = 0
     let batches = 0
 
     while (batches < maxBatches) {
       const batch = await this.repository.purgeExpired({ auditBefore, securityBefore, limit })
       auditDeleted += boundedCount(batch.auditDeleted)
       securityLogsDeleted += boundedCount(batch.securityLogsDeleted)
+      rateLimitWindowsDeleted += boundedCount(batch.rateLimitWindowsDeleted)
       batches += 1
-      if (batch.auditDeleted < limit && batch.securityLogsDeleted < limit) break
+      if (batch.auditDeleted < limit
+        && batch.securityLogsDeleted < limit
+        && batch.rateLimitWindowsDeleted < limit) break
     }
 
     return {
       auditDeleted,
       securityLogsDeleted,
+      rateLimitWindowsDeleted,
       batches,
       auditBefore,
       securityBefore,

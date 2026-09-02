@@ -1,9 +1,9 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { contestPackageFormat, contestPackageManifestSchema } from '../../../shared/contracts/contest-packages'
-import { createDatabaseClient, type DatabaseClient } from './client'
-import { runMigrations } from './migrate'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { PostgresContestPackageRepository } from './contest-package-repository'
 
 const adminConnectionString = process.env.TEST_DATABASE_ADMIN_URL
@@ -17,7 +17,7 @@ function quotedDatabaseName() {
 
 describeWithPostgres('atomic Jeopardy contest package import', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let repository: PostgresContestPackageRepository
   let organizerId: string
   let packageObjectId: string
@@ -28,17 +28,17 @@ describeWithPostgres('atomic Jeopardy contest package import', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 6 })
-    await runMigrations(database)
-    repository = new PostgresContestPackageRepository(database.pool)
-    const organizer = await database.pool.query<{ id: string }>(`
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 6 })
+    await runPostgresTestMigrations(database)
+    repository = new PostgresContestPackageRepository(database.executor)
+    const organizer = await database.executor.query<{ id: string }>(`
       INSERT INTO users
         (username, username_normalized, email, email_normalized, email_verified_at)
       VALUES ('PackageOrganizer', 'packageorganizer',
               'package@example.test', 'package@example.test', now())
       RETURNING id`)
     organizerId = organizer.rows[0]!.id
-    const object = await database.pool.query<{ id: string }>(`
+    const object = await database.executor.query<{ id: string }>(`
       INSERT INTO content_objects
         (storage_key, sha256_digest, size_bytes, media_type, original_filename,
          status, created_by, committed_at)
@@ -49,7 +49,7 @@ describeWithPostgres('atomic Jeopardy contest package import', () => {
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -85,7 +85,7 @@ describeWithPostgres('atomic Jeopardy contest package import', () => {
     })
 
     expect(second).toEqual(first)
-    const state = await database.pool.query<{
+    const state = await database.executor.query<{
       publication_status: string
       challenge_count: string
       version_count: string
@@ -123,7 +123,7 @@ describeWithPostgres('atomic Jeopardy contest package import', () => {
   })
 
   async function counts() {
-    const result = await database.pool.query<{ contests: string, templates: string, imports: string }>(`
+    const result = await database.executor.query<{ contests: string, templates: string, imports: string }>(`
       SELECT
         (SELECT count(*)::text FROM contests) AS contests,
         (SELECT count(*)::text FROM challenge_templates) AS templates,

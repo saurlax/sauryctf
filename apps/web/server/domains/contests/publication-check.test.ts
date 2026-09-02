@@ -1,8 +1,8 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createDatabaseClient, type DatabaseClient } from '../../infrastructure/db/client'
-import { runMigrations } from '../../infrastructure/db/migrate'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { PostgresContestRepository } from '../../infrastructure/db/contest-repository'
 import { createPublishableChallenge } from '../../test-support/publishable-challenge'
 import type { SessionSubject } from '../identity/repository'
@@ -19,7 +19,7 @@ function quotedDatabaseName() {
 
 describeWithPostgres('contest publication preflight', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let contests: ContestService
   let sequence = 0
 
@@ -29,13 +29,13 @@ describeWithPostgres('contest publication preflight', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 12 })
-    await runMigrations(database)
-    contests = new ContestService(new PostgresContestRepository(database.pool))
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 12 })
+    await runPostgresTestMigrations(database)
+    contests = new ContestService(new PostgresContestRepository(database.executor))
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -50,7 +50,7 @@ describeWithPostgres('contest publication preflight', () => {
     sequence++
     const username = `PublicationUser${sequence}`
     const email = `publication-${sequence}@example.test`
-    const inserted = await database.pool.query<{ id: string }>(
+    const inserted = await database.executor.query<{ id: string }>(
       `INSERT INTO users
          (username, username_normalized, email, email_normalized, email_verified_at)
        VALUES ($1::varchar(64), lower($1::text)::varchar(64),
@@ -122,7 +122,7 @@ describeWithPostgres('contest publication preflight', () => {
       publishedAt: null,
       version: 1,
     })
-    const publishedAudits = await database.pool.query<{ count: string }>(
+    const publishedAudits = await database.executor.query<{ count: string }>(
       `SELECT count(*)::text AS count FROM audit_events
        WHERE target_id = $1 AND action = 'contest.published'`,
       [target.id],
@@ -133,8 +133,8 @@ describeWithPostgres('contest publication preflight', () => {
   it('publishes a complete static challenge and ignores disabled invalid challenges', async () => {
     const organizer = await user()
     const target = await draft(organizer)
-    await createPublishableChallenge(database.pool, target.id, organizer.userId)
-    await createPublishableChallenge(database.pool, target.id, organizer.userId, {
+    await createPublishableChallenge(database.executor, target.id, organizer.userId)
+    await createPublishableChallenge(database.executor, target.id, organizer.userId, {
       enabled: false,
       flagPolicy: { type: 'static', digest: '' },
       instancePolicy: { type: 'dynamic', provider: 'docker', entry_port: 80 },
@@ -149,10 +149,10 @@ describeWithPostgres('contest publication preflight', () => {
   it('locates incomplete challenge content and Flag policy fields', async () => {
     const organizer = await user()
     const target = await draft(organizer)
-    const challenge = await createPublishableChallenge(database.pool, target.id, organizer.userId, {
+    const challenge = await createPublishableChallenge(database.executor, target.id, organizer.userId, {
       flagPolicy: { type: 'static' },
     })
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contest_challenges SET title = '', description = '' WHERE id = $1`,
       [challenge.challengeId],
     )
@@ -181,8 +181,8 @@ describeWithPostgres('contest publication preflight', () => {
   it('locates unavailable attachments by challenge and asset identifier', async () => {
     const organizer = await user()
     const target = await draft(organizer)
-    const challenge = await createPublishableChallenge(database.pool, target.id, organizer.userId)
-    const object = await database.pool.query<{ id: string }>(
+    const challenge = await createPublishableChallenge(database.executor, target.id, organizer.userId)
+    const object = await database.executor.query<{ id: string }>(
       `INSERT INTO content_objects
          (storage_key, sha256_digest, size_bytes, media_type, original_filename,
           status, created_by, committed_at)
@@ -191,12 +191,12 @@ describeWithPostgres('contest publication preflight', () => {
        RETURNING id`,
       [`objects/${randomUUID()}`, randomBytes(32), organizer.userId],
     )
-    const asset = await database.pool.query<{ id: string }>(
+    const asset = await database.executor.query<{ id: string }>(
       `INSERT INTO challenge_assets (contest_challenge_id, content_object_id, display_name)
        VALUES ($1, $2, 'pending.bin') RETURNING id`,
       [challenge.challengeId, object.rows[0]!.id],
     )
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE content_objects SET status = 'quarantined' WHERE id = $1`,
       [object.rows[0]!.id],
     )
@@ -221,7 +221,7 @@ describeWithPostgres('contest publication preflight', () => {
   ] as const)('locates invalid dynamic instance policy field %s', async (instancePolicy, field) => {
     const organizer = await user()
     const target = await draft(organizer)
-    const challenge = await createPublishableChallenge(database.pool, target.id, organizer.userId, { instancePolicy })
+    const challenge = await createPublishableChallenge(database.executor, target.id, organizer.userId, { instancePolicy })
 
     await expect(contests.checkPublication(organizer, target.id)).resolves.toMatchObject({
       ready: false,
@@ -241,7 +241,7 @@ describeWithPostgres('contest publication preflight', () => {
   ] as const)('locates invalid scoring policy field %s', async (scoringPolicy, field) => {
     const organizer = await user()
     const target = await draft(organizer)
-    const challenge = await createPublishableChallenge(database.pool, target.id, organizer.userId, { scoringPolicy })
+    const challenge = await createPublishableChallenge(database.executor, target.id, organizer.userId, { scoringPolicy })
 
     await expect(contests.checkPublication(organizer, target.id)).resolves.toMatchObject({
       ready: false,

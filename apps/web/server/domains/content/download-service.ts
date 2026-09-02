@@ -24,19 +24,15 @@ export interface ContentDownloadRepository {
   ): Promise<DownloadableContent | null>
 }
 
-export interface ContentDownloadUrlSigner {
-  signDownloadUrl(input: {
-    storageKey: string
-    contentDisposition: string
-    responseMediaType: string
-    expiresInSeconds: number
-  }): Promise<string>
+export interface ContentDownloadReader {
+  read(storageKey: string): Promise<Uint8Array | null>
 }
 
 export interface ContentDownloadGrant {
-  url: string
+  storageKey: string
   expiresAt: Date
   disposition: 'inline' | 'attachment'
+  contentDisposition: string
   filename: string
   mediaType: string
 }
@@ -51,7 +47,7 @@ export class ContentDownloadServiceError extends Error {
 export class ContentDownloadService {
   constructor(
     private readonly repository: ContentDownloadRepository,
-    private readonly signer: ContentDownloadUrlSigner,
+    private readonly reader: ContentDownloadReader,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
@@ -78,22 +74,23 @@ export class ContentDownloadService {
     return this.grant(content, at)
   }
 
+  async read(grant: ContentDownloadGrant): Promise<Uint8Array> {
+    const body = await this.reader.read(grant.storageKey)
+    if (!body) throw new ContentDownloadServiceError('content.download_not_found')
+    return body
+  }
+
   private async grant(
     content: DownloadableContent | null,
     issuedAt: Date,
   ): Promise<ContentDownloadGrant> {
     if (!content) throw new ContentDownloadServiceError('content.download_not_found')
     const presentation = safeDownloadPresentation(content.mediaType, content.downloadFilename)
-    const url = await this.signer.signDownloadUrl({
-      storageKey: content.storageKey,
-      contentDisposition: presentation.contentDisposition,
-      responseMediaType: presentation.mediaType,
-      expiresInSeconds: contentDownloadUrlLifetimeSeconds,
-    })
     return {
-      url,
+      storageKey: content.storageKey,
       expiresAt: new Date(issuedAt.getTime() + contentDownloadUrlLifetimeSeconds * 1000),
       disposition: presentation.disposition,
+      contentDisposition: presentation.contentDisposition,
       filename: presentation.filename,
       mediaType: presentation.mediaType,
     }

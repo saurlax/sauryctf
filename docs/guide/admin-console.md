@@ -33,7 +33,6 @@ Writeup 支持版本化保存、截止时间、提交、审核、管理员纠正
 
 专用页面 `/console/admin/operations` 仅允许 `admin` 使用。每次操作都要选择目标、填写至少 10 个字符的原因、明确确认并提供幂等键：
 
-- `cache_rebuild`：重建比赛排行榜缓存；
 - `dead_letter_replay`：重放实例死信任务；
 - `instance_reconcile`：触发实例对账；
 - `session_invalidate`：使用户全部旧 Cookie 失效；

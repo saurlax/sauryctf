@@ -11,6 +11,10 @@ export interface ReadinessResult {
   body: {
     status?: 'ready'
     component?: 'control-plane'
+    data_services?: {
+      postgresql: { status: 'ready', migrations: 'current' }
+      blob: { driver: 'fs' | 's3', status: 'ready' }
+    }
     error?: {
       code: 'platform.not_ready'
       message: string
@@ -64,6 +68,10 @@ export async function evaluateControlPlaneReadiness(
     body: {
       status: 'ready',
       component: 'control-plane',
+      data_services: {
+        postgresql: { status: 'ready', migrations: 'current' },
+        blob: { driver: dataServices.data.blob.driver, status: 'ready' },
+      },
     },
   }
 }
@@ -74,10 +82,10 @@ function dependencyFailure(requestId: string): ReadinessResult {
     body: {
       error: {
         code: 'platform.not_ready',
-        message: '控制面权威数据库或迁移版本尚未就绪',
+        message: '控制面权威数据服务尚未就绪',
         request_id: requestId,
         fields: {
-          dependencies: ['PostgreSQL 不可用或数据库迁移版本与当前发布不一致'],
+          dependencies: ['PostgreSQL、数据库迁移或 Blob 后端不可用'],
         },
       },
     },

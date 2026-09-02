@@ -11,7 +11,6 @@ import type { ChallengeTemplateService } from './domains/challenges/service'
 import type { ContestChallengeService } from './domains/challenges/contest-challenge-service'
 import type { SubmissionService } from './domains/submissions/service'
 import type { ScoreboardViewService } from './domains/scoreboards/view-service'
-import type { PublicRealtimeLog } from './domains/events/public-realtime'
 import type { ContentObjectService } from './domains/content/service'
 import type { ContentDownloadService } from './domains/content/download-service'
 import type { WriteupService } from './domains/writeups/service'
@@ -38,7 +37,6 @@ export interface ControlPlaneServices {
   contestChallenges: ContestChallengeService
   submissions: SubmissionService
   scoreboards: ScoreboardViewService
-  publicRealtime: PublicRealtimeLog
   content: ContentObjectService
   contentDownloads: ContentDownloadService
   writeups: WriteupService

@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
-import type { GlobalRole, ManagedIdentity, ManagedUserStatus } from '~~/shared/contracts/identity'
+import type {
+  AdminUserListRequest,
+  AdminUserListResponse,
+  ChangeGlobalRoleRequest,
+  ChangeUserStatusRequest,
+  GlobalRole,
+  GlobalRoleChanged,
+  ManagedIdentity,
+  ManagedUserStatus,
+  UserStatusChanged,
+} from '~~/shared/contracts/identity'
 
 definePageMeta({ middleware: 'admin' })
 
@@ -67,7 +77,7 @@ async function loadUsers() {
     const items: ManagedIdentity[] = []
     let cursor: string | undefined
     do {
-      const response = await $controlApi('get', '/api/admin/users', {
+      const response = await $controlApi<AdminUserListResponse, never, AdminUserListRequest>('get', '/api/admin/users', {
         query: { cursor, limit: 100 },
       })
       items.push(...response.items)
@@ -119,14 +129,14 @@ async function saveUser() {
     const nextStatus = statusDrafts[user.id] ?? user.status
     let sessionVersion = user.session_version
     if (nextRole !== user.role) {
-      const result = await $controlApi('patch', '/api/admin/users/{userId}/role', {
+      const result = await $controlApi<GlobalRoleChanged, ChangeGlobalRoleRequest>('patch', '/api/admin/users/{userId}/role', {
         params: { userId: user.id },
         body: { role: nextRole, reason },
       })
       sessionVersion = result.session_version
     }
     if (nextStatus !== user.status) {
-      const result = await $controlApi('patch', '/api/admin/users/{userId}/status', {
+      const result = await $controlApi<UserStatusChanged, ChangeUserStatusRequest>('patch', '/api/admin/users/{userId}/status', {
         params: { userId: user.id },
         body: { status: nextStatus, reason },
       })

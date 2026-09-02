@@ -1,14 +1,14 @@
-import type { Pool } from 'pg'
 import type {
   ClaimedMailDelivery,
   MailOutboxRepository,
 } from '../../domains/notifications/mail-outbox'
+import type { DatabaseExecutor } from '../db/executor'
 
 export class PostgresMailOutboxRepository implements MailOutboxRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly database: DatabaseExecutor) {}
 
   async claim(workerId: string, claimedAt: Date, leaseUntil: Date, limit: number): Promise<ClaimedMailDelivery[]> {
-    const result = await this.pool.query<{
+    const result = await this.database.query<{
       id: string
       recipient: string
       template_key: string
@@ -51,7 +51,7 @@ export class PostgresMailOutboxRepository implements MailOutboxRepository {
   }
 
   async markSent(deliveryId: string, workerId: string, sentAt: Date): Promise<boolean> {
-    const result = await this.pool.query(
+    const result = await this.database.query(
       `UPDATE mail_deliveries
        SET status = 'sent', sent_at = $3, lease_owner = NULL, lease_until = NULL,
            last_error = NULL, updated_at = $3
@@ -69,7 +69,7 @@ export class PostgresMailOutboxRepository implements MailOutboxRepository {
     terminal: boolean,
     errorCode: string,
   ): Promise<boolean> {
-    const result = await this.pool.query(
+    const result = await this.database.query(
       `UPDATE mail_deliveries
        SET status = CASE WHEN $4 THEN 'failed'::mail_delivery_status ELSE 'retry_wait'::mail_delivery_status END,
            available_at = CASE WHEN $4 THEN available_at ELSE $5 END,

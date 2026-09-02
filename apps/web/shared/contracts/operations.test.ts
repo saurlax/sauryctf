@@ -6,9 +6,8 @@ import {
 } from './operations'
 
 describe('administration operational command contracts', () => {
-  it('covers only the five first-release repair commands', () => {
+  it('covers only the four supported repair commands', () => {
     expect(operationalCommandKindSchema.options).toEqual([
-      'cache_rebuild',
       'dead_letter_replay',
       'instance_reconcile',
       'session_invalidate',

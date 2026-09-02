@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import { getHeader, setResponseHeader, setResponseStatus } from 'h3'
+import { getHeader, getQuery, getRequestURL, setResponseHeader, setResponseStatus } from 'h3'
 import {
   commitContentUploadRequestSchema,
   contentDownloadResponseSchema,
@@ -26,7 +26,7 @@ import { readValidatedJsonBody } from '../http/body'
 import { createApiError } from '../http/errors'
 
 type ContentCommands = Pick<ContentObjectService, 'uploadTemporary' | 'commitTemporary'>
-type ContentDownloadCommands = Pick<ContentDownloadService, 'challengeAsset' | 'writeupAttachment'>
+type ContentDownloadCommands = Pick<ContentDownloadService, 'challengeAsset' | 'writeupAttachment' | 'read'>
 
 export interface ContentHttpDependencies {
   identity: IdentityHttpDependencies
@@ -114,7 +114,7 @@ export async function handleChallengeAssetDownload(
     identityCapability.contentDownload,
     dependencies.identity,
   )
-  return downloadResponse(event, await runContentDownload(() => (
+  return handleDownload(event, dependencies.downloads, await runContentDownload(() => (
     dependencies.downloads.challengeAsset(context.subject, pathId(assetId))
   )))
 }
@@ -129,7 +129,7 @@ export async function handleWriteupAttachmentDownload(
     identityCapability.contentDownload,
     dependencies.identity,
   )
-  return downloadResponse(event, await runContentDownload(() => (
+  return handleDownload(event, dependencies.downloads, await runContentDownload(() => (
     dependencies.downloads.writeupAttachment(context.subject, pathId(referenceId))
   )))
 }
@@ -200,10 +200,24 @@ function pathId(value: string): string {
   return parsed.data
 }
 
-function downloadResponse(event: H3Event, grant: Awaited<ReturnType<ContentDownloadService['challengeAsset']>>) {
+async function handleDownload(
+  event: H3Event,
+  downloads: ContentDownloadCommands,
+  grant: Awaited<ReturnType<ContentDownloadService['challengeAsset']>>,
+) {
   setResponseHeader(event, 'cache-control', 'private, no-store')
+  if (getQuery(event).download === '1') {
+    const body = await runContentDownload(() => downloads.read(grant))
+    setResponseHeader(event, 'content-disposition', grant.contentDisposition)
+    setResponseHeader(event, 'content-length', body.byteLength)
+    setResponseHeader(event, 'content-type', grant.mediaType)
+    return body
+  }
+  const url = getRequestURL(event)
+  url.search = ''
+  url.searchParams.set('download', '1')
   return contentDownloadResponseSchema.parse({
-    url: grant.url,
+    url: url.toString(),
     expires_at: grant.expiresAt.toISOString(),
     disposition: grant.disposition,
     filename: grant.filename,

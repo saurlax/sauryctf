@@ -1,34 +1,32 @@
-import type { QueryResult, QueryResultRow } from 'pg'
 import { currentMigrationNames, expectedMigrationBaseline } from '../../db/migration-baseline'
 import { assertLegacyJournal, type LegacyMigrationRow } from '../../db/takeover'
+import type { DatabaseExecutor, DatabaseQueryResult } from './executor'
 
-interface MigrationTablesRow extends QueryResultRow {
+interface MigrationTablesRow {
   hub_journal: string | null
   legacy_journal: string | null
 }
 
-interface HubMigrationRow extends QueryResultRow {
+interface HubMigrationRow {
   name: string
 }
 
-interface LegacyMigrationStateRow extends QueryResultRow {
+interface LegacyMigrationStateRow {
   hash: string
   created_at: string
 }
 
-interface ReadinessDatabase {
-  query<Row extends QueryResultRow>(text: string): Promise<QueryResult<Row>>
-}
+type ReadinessDatabase = Pick<DatabaseExecutor, 'query'>
 
 export class PostgresControlPlaneReadiness {
-  constructor(private readonly pool: ReadinessDatabase) {
+  constructor(private readonly database: ReadinessDatabase) {
     if (currentMigrationNames.length < 1) throw new Error('Control-plane migration manifest is empty')
   }
 
   async ready(): Promise<void> {
-    let tables: QueryResult<MigrationTablesRow>
+    let tables: DatabaseQueryResult<MigrationTablesRow>
     try {
-      tables = await this.pool.query<MigrationTablesRow>(`
+      tables = await this.database.query<MigrationTablesRow>(`
         SELECT
           to_regclass('public._hub_migrations')::text AS hub_journal,
           to_regclass('control_plane.__drizzle_migrations')::text AS legacy_journal
@@ -43,9 +41,9 @@ export class PostgresControlPlaneReadiness {
       throw new Error('Control-plane NuxtHub migration journal is unavailable')
     }
 
-    let hubMigrations: QueryResult<HubMigrationRow>
+    let hubMigrations: DatabaseQueryResult<HubMigrationRow>
     try {
-      hubMigrations = await this.pool.query<HubMigrationRow>(
+      hubMigrations = await this.database.query<HubMigrationRow>(
         'SELECT name FROM public._hub_migrations ORDER BY id',
       )
     }
@@ -62,9 +60,9 @@ export class PostgresControlPlaneReadiness {
   }
 
   private async assertLegacyJournalClaimed(): Promise<void> {
-    let legacyRows: QueryResult<LegacyMigrationStateRow>
+    let legacyRows: DatabaseQueryResult<LegacyMigrationStateRow>
     try {
-      legacyRows = await this.pool.query<LegacyMigrationStateRow>(`
+      legacyRows = await this.database.query<LegacyMigrationStateRow>(`
         SELECT hash, created_at::text AS created_at
         FROM control_plane.__drizzle_migrations
         ORDER BY created_at, id

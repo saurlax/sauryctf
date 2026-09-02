@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { staticFlagDigest } from '../../domains/challenges/flag-verifier'
 import { ContestScoringReplayService } from '../../domains/submissions/scoring-replay'
@@ -19,8 +19,8 @@ import {
   SubmissionTeamRequiredError,
 } from '../../domains/submissions/repository'
 import { createPublishableChallenge } from '../../test-support/publishable-challenge'
-import { createDatabaseClient, type DatabaseClient } from './client'
-import { runMigrations } from './migrate'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { PostgresSubmissionRepository } from './submission-repository'
 import { PostgresScoringReplayRepository } from './scoring-replay-repository'
 import { AesGcmSubmissionAnswerProtector } from '../security/submission-answer-protector'
@@ -37,7 +37,7 @@ function quotedDatabaseName(): string {
 
 describeWithPostgres('PostgreSQL submission eligibility', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let repository: PostgresSubmissionRepository
   const answers = new AesGcmSubmissionAnswerProtector(Buffer.alloc(32, 7))
 
@@ -47,13 +47,13 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 8 })
-    await runMigrations(database)
-    repository = new PostgresSubmissionRepository(database.pool)
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 8 })
+    await runPostgresTestMigrations(database)
+    repository = new PostgresSubmissionRepository(database.executor)
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -78,7 +78,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     practiceEnabled?: boolean
   } = {}) {
     const suffix = randomUUID()
-    const user = await database.pool.query<{ id: string }>(
+    const user = await database.executor.query<{ id: string }>(
       `INSERT INTO users
          (username, username_normalized, email, email_normalized, email_verified_at)
        VALUES ($1, $2, $3, $3, $4)
@@ -86,7 +86,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       [`Player-${suffix}`, `player-${suffix}`, `player-${suffix}@example.test`, at],
     )
     const userId = user.rows[0]!.id
-    const connection = await database.pool.connect()
+    const connection = await database.connect()
     let teamId: string
     try {
       await connection.query('BEGIN')
@@ -122,7 +122,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     finally {
       connection.release()
     }
-    const contest = await database.pool.query<{ id: string }>(
+    const contest = await database.executor.query<{ id: string }>(
       `INSERT INTO contests
          (title, slug, start_at, end_at, practice_enabled, created_by)
        VALUES ($1, $2, $3, $4, $5, $6)
@@ -140,7 +140,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     const participationStatus = options.participationStatus ?? 'accepted'
     const reviewed = ['accepted', 'rejected'].includes(participationStatus)
     const withdrawn = participationStatus === 'withdrawn'
-    const participation = await database.pool.query<{ id: string }>(
+    const participation = await database.executor.query<{ id: string }>(
       `INSERT INTO participations
          (contest_id, team_id, status, registered_by, reviewed_by,
           reviewed_at, withdrawn_at)
@@ -156,7 +156,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
         withdrawn ? at : null,
       ],
     )
-    const challenge = await createPublishableChallenge(database.pool, contestId, userId, {
+    const challenge = await createPublishableChallenge(database.executor, contestId, userId, {
       enabled: options.enabled,
       publishAt: options.publishAt,
       closeAt: options.closeAt,
@@ -165,7 +165,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
         ?? { type: 'static', digest: staticFlagDigest('flag{correct}') },
       scoringPolicy: options.scoringPolicy,
     })
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contests
        SET publication_status = 'published', published_at = $2, updated_at = $2
        WHERE id = $1`,
@@ -186,7 +186,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     sameTeam = false,
   ) {
     const suffix = randomUUID()
-    const user = await database.pool.query<{ id: string }>(
+    const user = await database.executor.query<{ id: string }>(
       `INSERT INTO users
          (username, username_normalized, email, email_normalized, email_verified_at)
        VALUES ($1, $2, $3, $3, $4)
@@ -195,7 +195,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     )
     const userId = user.rows[0]!.id
     if (sameTeam) {
-      await database.pool.query(
+      await database.executor.query(
         `INSERT INTO team_members (team_id, user_id, role)
          VALUES ($1, $2, 'member')`,
         [input.teamId, userId],
@@ -204,7 +204,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     }
 
     const teamName = `Team-${suffix}`
-    const connection = await database.pool.connect()
+    const connection = await database.connect()
     try {
       await connection.query('BEGIN')
       const team = await connection.query<{ id: string }>(
@@ -354,7 +354,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
 
   it('counts only existing official attempts against the per-team challenge limit', async () => {
     const input = await fixture({ submissionLimit: 1 })
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO submissions
          (contest_id, contest_challenge_id, participation_id, user_id,
           mode, result, answer_digest, answer_ciphertext, request_id, submitted_at)
@@ -390,7 +390,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       submittedAt: at,
     })
 
-    const persisted = await database.pool.query<{
+    const persisted = await database.executor.query<{
       answer_digest: Buffer
       answer_ciphertext: Buffer
     }>(
@@ -401,7 +401,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     expect(persisted.rows[0]!.answer_digest).toEqual(protectedInput.command.answerDigest)
     expect(persisted.rows[0]!.answer_ciphertext.includes(Buffer.from(answer))).toBe(false)
     expect(answers.reveal(persisted.rows[0]!.answer_ciphertext, protectedInput.context)).toBe(answer)
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `UPDATE submissions SET result = 'correct' WHERE id = $1`,
       [stored.id],
     )).rejects.toMatchObject({ code: '55000' })
@@ -413,7 +413,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     const first = await repository.append(protectedInput.command)
     const repeated = await repository.append(protectedInput.command)
     expect(repeated.id).toBe(first.id)
-    const count = await database.pool.query<{ count: string }>(
+    const count = await database.executor.query<{ count: string }>(
       'SELECT count(*)::text AS count FROM submissions WHERE request_id = $1',
       [protectedInput.command.requestId],
     )
@@ -433,7 +433,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     ])
 
     expect(outcomes.map(item => item.result).sort()).toEqual(['already_solved', 'correct'])
-    const facts = await database.pool.query<{ result: string }>(
+    const facts = await database.executor.query<{ result: string }>(
       `SELECT result::text
        FROM submissions
        WHERE participation_id = $1 AND contest_challenge_id = $2
@@ -441,7 +441,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       [captain.participationId, captain.challengeId],
     )
     expect(facts.rows.map(row => row.result).sort()).toEqual(['already_solved', 'correct'])
-    const solves = await database.pool.query<{ count: string, first_count: string }>(
+    const solves = await database.executor.query<{ count: string, first_count: string }>(
       `SELECT count(*)::text AS count,
               count(*) FILTER (WHERE solve_order = 1)::text AS first_count
        FROM solves
@@ -459,7 +459,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       appendCommand(input, 'flag{correct}', 'correct').command,
     )))
 
-    const ordered = await database.pool.query<{
+    const ordered = await database.executor.query<{
       participation_id: string
       team_id: string
       solve_order: number
@@ -476,7 +476,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     expect(new Set(ordered.rows.map(row => row.participation_id)).size).toBe(3)
     expect(ordered.rows.every(row => row.solved_at.toISOString() === at.toISOString())).toBe(true)
 
-    const timeline = await database.pool.query<{ count: string, payload: { team_id: string } }>(
+    const timeline = await database.executor.query<{ count: string, payload: { team_id: string } }>(
       `SELECT (count(*) OVER ())::text AS count, payload
        FROM contest_events
        WHERE contest_id = $1 AND event_type = 'first_solve'`,
@@ -502,7 +502,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       await repository.append(appendCommand(input, 'flag{correct}', 'correct').command)
     }
 
-    const solves = await database.pool.query<{ solve_order: number, awarded_score: number }>(
+    const solves = await database.executor.query<{ solve_order: number, awarded_score: number }>(
       `SELECT solve_order, awarded_score
        FROM solves
        WHERE contest_challenge_id = $1 AND mode = 'official'
@@ -514,7 +514,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       { solve_order: 2, awarded_score: 461 },
       { solve_order: 3, awarded_score: 427 },
     ])
-    const version = await database.pool.query<{ version: string, event_count: string }>(
+    const version = await database.executor.query<{ version: string, event_count: string }>(
       `SELECT version::text,
               (SELECT count(*)::text
                FROM domain_outbox
@@ -524,7 +524,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
        WHERE contest_id = $1`,
       [firstTeam.contestId],
     )
-    expect(version.rows[0]).toEqual({ version: '3', event_count: '3' })
+    expect(version.rows[0]).toEqual({ version: '3', event_count: '0' })
   })
 
   it('records positive and negative adjustments idempotently without rewriting solve facts', async () => {
@@ -541,7 +541,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       pointsDelta: -30,
     })).rejects.toBeInstanceOf(ScoreAdjustmentRequestConflictError)
 
-    const facts = await database.pool.query<{
+    const facts = await database.executor.query<{
       adjustment_count: string
       adjustment_total: string
       submission_count: string
@@ -569,11 +569,11 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       submission_count: '0',
       solve_count: '0',
       version: '2',
-      outbox_count: '2',
+      outbox_count: '0',
       audit_count: '2',
     })
 
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contests
        SET publication_status = 'archived', archived_at = $2, updated_at = $2
        WHERE id = $1`,
@@ -584,7 +584,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       10,
       'Attempt an archived score correction',
     ))).rejects.toBeInstanceOf(ScoreAdjustmentArchivedContestError)
-    const unchanged = await database.pool.query<{ count: string }>(
+    const unchanged = await database.executor.query<{ count: string }>(
       'SELECT count(*)::text AS count FROM score_adjustments WHERE contest_id = $1',
       [input.contestId],
     )
@@ -605,7 +605,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     )
     expect(official).toMatchObject({ mode: 'official', result: 'correct' })
 
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contests
        SET end_at = $2, practice_enabled = true, updated_at = $3
        WHERE id = $1`,
@@ -621,7 +621,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     expect(practice).toMatchObject({ mode: 'practice', result: 'correct' })
     expect(repeatedPractice).toMatchObject({ mode: 'practice', result: 'already_solved' })
 
-    const facts = await database.pool.query<{
+    const facts = await database.executor.query<{
       official_submissions: string
       practice_submissions: string
       official_solves: string
@@ -661,7 +661,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       official_score: '500',
       practice_score: '0',
       scoreboard_version: '1',
-      scoreboard_events: '1',
+      scoreboard_events: '0',
       first_solve_events: '1',
     })
   })
@@ -696,7 +696,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     expect(serializedEvidence).not.toContain('flag{same-wrong}')
     expect(serializedEvidence).not.toMatch(/ciphertext|encrypted|plaintext/u)
 
-    const facts = await database.pool.query<{
+    const facts = await database.executor.query<{
       user_status: string
       submission_count: string
       solve_count: string
@@ -719,7 +719,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       scoreboard_version: null,
     })
 
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contests
        SET end_at = $2, practice_enabled = true, updated_at = $3
        WHERE id = $1`,
@@ -728,7 +728,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       await repository.append(appendCommand(input, 'flag{practice-wrong}', 'incorrect').command)
     }
-    const unchanged = await database.pool.query<{ count: string }>(
+    const unchanged = await database.executor.query<{ count: string }>(
       `SELECT count(*)::text AS count
        FROM cheat_clues
        WHERE contest_id = $1 AND clue_type = 'repeated_incorrect_answer'`,
@@ -742,7 +742,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     const sharedPeer = await addParticipant(sharedOwner)
     await repository.append(appendCommand(sharedOwner, 'flag{shared-wrong}', 'incorrect').command)
     await repository.append(appendCommand(sharedPeer, 'flag{shared-wrong}', 'incorrect').command)
-    const shared = await database.pool.query<{ count: string }>(
+    const shared = await database.executor.query<{ count: string }>(
       `SELECT count(*)::text AS count
        FROM cheat_clues
        WHERE contest_id = $1 AND clue_type = 'shared_incorrect_answer'`,
@@ -758,7 +758,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
         'incorrect',
       ).command)
     }
-    const frequency = await database.pool.query<{ count: string, evidence: Record<string, unknown> }>(
+    const frequency = await database.executor.query<{ count: string, evidence: Record<string, unknown> }>(
       `SELECT (count(*) OVER ())::text AS count, evidence
        FROM cheat_clues
        WHERE contest_id = $1 AND clue_type = 'abnormal_submission_frequency'`,
@@ -781,7 +781,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     const correct = await repository.append(
       appendCommand(owner, stolenFlag, 'correct').command,
     )
-    const foreign = await database.pool.query<{
+    const foreign = await database.executor.query<{
       participation_id: string
       evidence: Record<string, unknown>
     }>(
@@ -853,7 +853,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       note: 'Conflicting reuse of the first request',
     })).rejects.toBeInstanceOf(CheatClueRequestConflictError)
 
-    const facts = await database.pool.query<{
+    const facts = await database.executor.query<{
       audit_count: string
       adjustment_count: string
       solve_count: string
@@ -915,7 +915,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
       -25,
       'Apply the reviewed replay fixture penalty',
     ))
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contests
        SET end_at = $2, practice_enabled = true, updated_at = $3
        WHERE id = $1`,
@@ -924,7 +924,7 @@ describeWithPostgres('PostgreSQL submission eligibility', () => {
     await repository.append(appendCommand(firstTeam, 'flag{correct}', 'correct').command)
 
     const replayer = new ContestScoringReplayService(
-      new PostgresScoringReplayRepository(database.pool),
+      new PostgresScoringReplayRepository(database.executor),
     )
     const first = await replayer.replay(firstTeam.contestId)
     const second = await replayer.replay(firstTeam.contestId)

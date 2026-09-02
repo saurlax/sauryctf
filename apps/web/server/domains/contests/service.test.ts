@@ -1,11 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { SessionSubject } from '../identity/repository'
 import { ParticipationService } from '../participations/service'
 import { TeamService } from '../teams/service'
-import { createDatabaseClient, type DatabaseClient } from '../../infrastructure/db/client'
-import { runMigrations } from '../../infrastructure/db/migrate'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { PostgresContestRepository } from '../../infrastructure/db/contest-repository'
 import { PostgresParticipationRepository } from '../../infrastructure/db/participation-repository'
 import { PostgresTeamRepository } from '../../infrastructure/db/team-repository'
@@ -23,7 +23,7 @@ function quotedDatabaseName() {
 
 describeWithPostgres('contest lifecycle and shared UTC phase', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let contests: ContestService
   let participations: ParticipationService
   let teams: TeamService
@@ -35,15 +35,15 @@ describeWithPostgres('contest lifecycle and shared UTC phase', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 16 })
-    await runMigrations(database)
-    contests = new ContestService(new PostgresContestRepository(database.pool))
-    participations = new ParticipationService(new PostgresParticipationRepository(database.pool))
-    teams = new TeamService(new PostgresTeamRepository(database.pool))
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 16 })
+    await runPostgresTestMigrations(database)
+    contests = new ContestService(new PostgresContestRepository(database.executor))
+    participations = new ParticipationService(new PostgresParticipationRepository(database.executor))
+    teams = new TeamService(new PostgresTeamRepository(database.executor))
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -58,7 +58,7 @@ describeWithPostgres('contest lifecycle and shared UTC phase', () => {
     sequence++
     const username = `ContestFlow${sequence}`
     const email = `contest-flow-${sequence}@example.test`
-    const inserted = await database.pool.query<{ id: string }>(
+    const inserted = await database.executor.query<{ id: string }>(
       `INSERT INTO users
          (username, username_normalized, email, email_normalized, email_verified_at)
        VALUES ($1::varchar(64), lower($1::text)::varchar(64),
@@ -97,7 +97,7 @@ describeWithPostgres('contest lifecycle and shared UTC phase', () => {
       startAt: new Date(windows[timing][0]),
       endAt: new Date(windows[timing][1]),
     })
-    await createPublishableChallenge(database.pool, created.id, organizer.userId)
+    await createPublishableChallenge(database.executor, created.id, organizer.userId)
     return created
   }
 
@@ -111,7 +111,7 @@ describeWithPostgres('contest lifecycle and shared UTC phase', () => {
     await expect(contests.readManaged(ordinary, created.id)).rejects.toMatchObject({
       code: 'identity.capability_forbidden',
     })
-    const audit = await database.pool.query<{ action: string, outcome: string }>(
+    const audit = await database.executor.query<{ action: string, outcome: string }>(
       'SELECT action, outcome FROM audit_events WHERE target_id = $1',
       [created.id],
     )
@@ -158,7 +158,7 @@ describeWithPostgres('contest lifecycle and shared UTC phase', () => {
       locks: [expect.objectContaining({ id: created.id })],
     })
 
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contests SET start_at = CURRENT_TIMESTAMP - interval '1 hour',
                            end_at = CURRENT_TIMESTAMP + interval '1 hour'
        WHERE id = $1`,
@@ -168,7 +168,7 @@ describeWithPostgres('contest lifecycle and shared UTC phase', () => {
     await expect(participations.register(runningCaptain, created.id)).resolves.toMatchObject({ status: 'pending' })
     await expect(teams.current(upcomingCaptain)).resolves.toMatchObject({ locks: [expect.anything()] })
 
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contests SET start_at = CURRENT_TIMESTAMP - interval '2 hours',
                            end_at = CURRENT_TIMESTAMP - interval '1 hour'
        WHERE id = $1`,
@@ -192,7 +192,7 @@ describeWithPostgres('contest lifecycle and shared UTC phase', () => {
       requestId: randomUUID(), contestId: created.id, reason: 'Archive too early',
     })).rejects.toMatchObject({ code: 'contest.not_ended' })
 
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE contests SET start_at = CURRENT_TIMESTAMP - interval '2 hours',
                            end_at = CURRENT_TIMESTAMP - interval '1 hour'
        WHERE id = $1`,
@@ -213,7 +213,7 @@ describeWithPostgres('contest lifecycle and shared UTC phase', () => {
     const organizer = await user('organizer')
     const created = await draft(organizer)
     const requestId = randomUUID()
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO audit_events
          (actor_user_id, action, target_type, target_id, reason, outcome, request_id, changes, metadata)
        VALUES ($1, 'contest.published', 'contest', $2, 'Existing event',
@@ -288,7 +288,7 @@ describeWithPostgres('contest lifecycle and shared UTC phase', () => {
     })
     expect(JSON.stringify(created)).not.toContain(inviteCode)
 
-    const stored = await database.pool.query<{
+    const stored = await database.executor.query<{
       invite_digest: Buffer
       registration_constraints: { allowed_email_domains: string[] }
     }>('SELECT invite_digest, registration_constraints FROM contests WHERE id = $1', [created.id])
@@ -311,7 +311,7 @@ describeWithPostgres('contest lifecycle and shared UTC phase', () => {
     expect(privateWithoutInvite).toMatchObject({
       visibility: 'private', inviteRequired: false, inviteConfigured: false,
     })
-    await createPublishableChallenge(database.pool, privateWithoutInvite.id, organizer.userId)
+    await createPublishableChallenge(database.executor, privateWithoutInvite.id, organizer.userId)
     await contests.publish(organizer, {
       requestId: randomUUID(),
       contestId: privateWithoutInvite.id,
@@ -347,14 +347,14 @@ describeWithPostgres('contest lifecycle and shared UTC phase', () => {
       { field: 'registration_strategy', input: { ...base, registrationStrategy: 'instant' as 'review' } },
       { field: 'registration_constraints.allowed_email_domains.0', input: { ...base, allowedEmailDomains: ['invalid_domain!'] } },
     ]
-    const before = await database.pool.query<{ count: string }>('SELECT count(*)::text AS count FROM contests')
+    const before = await database.executor.query<{ count: string }>('SELECT count(*)::text AS count FROM contests')
     for (const testCase of cases) {
       await expect(contests.createDraft(organizer, testCase.input)).rejects.toMatchObject({
         code: 'contest.configuration_invalid',
         fields: { [testCase.field]: expect.any(Array) },
       })
     }
-    const after = await database.pool.query<{ count: string }>('SELECT count(*)::text AS count FROM contests')
+    const after = await database.executor.query<{ count: string }>('SELECT count(*)::text AS count FROM contests')
     expect(after.rows[0]!.count).toBe(before.rows[0]!.count)
   })
 
@@ -397,7 +397,7 @@ describeWithPostgres('contest lifecycle and shared UTC phase', () => {
       reason: 'Attempt stale update', practiceEnabled: false,
     })).rejects.toMatchObject({ code: 'resource.version_conflict' })
 
-    const audit = await database.pool.query<{ action: string, request_id: string }>(
+    const audit = await database.executor.query<{ action: string, request_id: string }>(
       `SELECT action, request_id FROM audit_events
        WHERE target_id = $1 AND action = 'contest.configuration_updated'`,
       [created.id],
@@ -435,7 +435,7 @@ describeWithPostgres('contest lifecycle and shared UTC phase', () => {
     const organizer = await user('organizer')
     const created = await draft(organizer)
     const requestId = randomUUID()
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO audit_events
          (actor_user_id, action, target_type, target_id, reason, outcome, request_id, changes, metadata)
        VALUES ($1, 'contest.configuration_updated', 'contest', $2, 'Existing event',

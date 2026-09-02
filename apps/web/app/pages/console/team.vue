@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import type { FormSubmitEvent } from '@nuxt/ui'
 import * as z from 'zod'
-import type { Team, TeamMember } from '~~/shared/contracts/teams'
+import type {
+  CreateTeamRequest,
+  InviteRotatedResponse,
+  JoinTeamRequest,
+  Team,
+  TeamMember,
+  TeamMutationResponse,
+  TeamResponse,
+  TransferCaptainRequest,
+} from '~~/shared/contracts/teams'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -92,7 +101,7 @@ async function fetchTeam() {
   loading.value = true
   loadError.value = null
   try {
-    const response = await $controlApi('get', '/api/teams')
+    const response = await $controlApi<TeamResponse>('get', '/api/teams')
     team.value = response.team
   }
   catch (error) {
@@ -107,7 +116,7 @@ async function fetchTeam() {
 async function createTeam(event: FormSubmitEvent<CreateTeamForm>) {
   createBusy.value = true
   try {
-    const response = await $controlApi('post', '/api/teams', {
+    const response = await $controlApi<TeamMutationResponse, CreateTeamRequest>('post', '/api/teams', {
       body: { name: event.data.name },
     })
     oneTimeInviteCode.value = response.team.invite_code
@@ -127,7 +136,7 @@ async function createTeam(event: FormSubmitEvent<CreateTeamForm>) {
 async function joinTeam(event: FormSubmitEvent<JoinTeamForm>) {
   joinBusy.value = true
   try {
-    const response = await $controlApi('post', '/api/teams/join', {
+    const response = await $controlApi<TeamMutationResponse, JoinTeamRequest>('post', '/api/teams/join', {
       body: { invite_code: event.data.invite_code.trim() },
     })
     team.value = withoutInvite(response.team)
@@ -147,7 +156,7 @@ async function joinTeam(event: FormSubmitEvent<JoinTeamForm>) {
 async function rotateInvite() {
   inviteBusy.value = true
   try {
-    const response = await $controlApi('post', '/api/teams/invite/rotate')
+    const response = await $controlApi<InviteRotatedResponse>('post', '/api/teams/invite/rotate')
     oneTimeInviteCode.value = response.invite_code
     toast.add({ title: '邀请码已轮换', description: '旧邀请码已失效。', color: 'success' })
   }
@@ -180,7 +189,7 @@ async function removeMember(member: TeamMember) {
 async function transferCaptain(member: TeamMember) {
   memberBusyId.value = member.user_id
   try {
-    const response = await $controlApi('post', '/api/teams/captain/transfer', {
+    const response = await $controlApi<TeamMutationResponse, TransferCaptainRequest>('post', '/api/teams/captain/transfer', {
       body: { user_id: member.user_id },
     })
     team.value = withoutInvite(response.team)

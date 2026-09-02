@@ -25,7 +25,14 @@ describe('control-plane readiness', () => {
 
     expect(result).toEqual({
       statusCode: 200,
-      body: { status: 'ready', component: 'control-plane' },
+      body: {
+        status: 'ready',
+        component: 'control-plane',
+        data_services: {
+          postgresql: { status: 'ready', migrations: 'current' },
+          blob: { driver: 'fs', status: 'ready' },
+        },
+      },
     })
   })
 
@@ -37,8 +44,21 @@ describe('control-plane readiness', () => {
     expect(result.statusCode).toBe(503)
     expect(JSON.stringify(result.body)).not.toContain('secret@database')
     expect(apiErrorSchema.parse(result.body).error.fields).toEqual({
-      dependencies: ['PostgreSQL 不可用或数据库迁移版本与当前发布不一致'],
+      dependencies: ['PostgreSQL、数据库迁移或 Blob 后端不可用'],
     })
+  })
+
+  it('reports only the selected S3 driver kind after all dependencies are ready', async () => {
+    const result = await evaluateControlPlaneReadiness({
+      ...readyEnvironment(),
+      S3_ACCESS_KEY_ID: 'private-access',
+      S3_SECRET_ACCESS_KEY: 'private-secret',
+      S3_BUCKET: 'private-bucket',
+      S3_REGION: 'us-east-1',
+      S3_ENDPOINT: 'https://private-endpoint.example.test',
+    }, { ready: async () => undefined }, requestId)
+    expect(result.body.data_services?.blob).toEqual({ driver: 's3', status: 'ready' })
+    expect(JSON.stringify(result.body)).not.toMatch(/private|bucket|endpoint|database\.invalid/u)
   })
 })
 

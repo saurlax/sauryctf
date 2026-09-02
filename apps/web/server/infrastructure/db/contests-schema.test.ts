@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createDatabaseClient, type DatabaseClient } from './client'
-import { runMigrations } from './migrate'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 
 const adminConnectionString = process.env.TEST_DATABASE_ADMIN_URL
 const describeWithPostgres = adminConnectionString ? describe : describe.skip
@@ -15,7 +15,7 @@ function quotedDatabaseName(): string {
 
 describeWithPostgres('Jeopardy contest authority schema', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let organizerId: string
   let teamId: string
 
@@ -25,15 +25,15 @@ describeWithPostgres('Jeopardy contest authority schema', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 4 })
-    await runMigrations(database)
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 4 })
+    await runPostgresTestMigrations(database)
 
-    const organizer = await database.pool.query<{ id: string }>(
+    const organizer = await database.executor.query<{ id: string }>(
       `INSERT INTO users (username, username_normalized, email, email_normalized)
        VALUES ('ContestOrganizer', 'contestorganizer', 'organizer@example.test', 'organizer@example.test') RETURNING id`,
     )
     organizerId = organizer.rows[0]!.id
-    const connection = await database.pool.connect()
+    const connection = await database.connect()
     try {
       await connection.query('BEGIN')
       const team = await connection.query<{ id: string }>(
@@ -58,7 +58,7 @@ describeWithPostgres('Jeopardy contest authority schema', () => {
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -70,7 +70,7 @@ describeWithPostgres('Jeopardy contest authority schema', () => {
   })
 
   async function createContest(slug: string): Promise<string> {
-    const contest = await database.pool.query<{ id: string }>(
+    const contest = await database.executor.query<{ id: string }>(
       `INSERT INTO contests (title, slug, start_at, end_at, created_by)
        VALUES ($1, $2, '2030-05-01T08:00:00+08:00', '2030-05-01T20:00:00+08:00', $3)
        RETURNING id`,
@@ -81,16 +81,16 @@ describeWithPostgres('Jeopardy contest authority schema', () => {
 
   it('enforces publication states and derives phases from UTC instants', async () => {
     const contestId = await createContest(`phase-${randomUUID()}`)
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `UPDATE contests SET publication_status = 'active' WHERE id = $1`,
       [contestId],
     )).rejects.toMatchObject({ code: '22P02' })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `UPDATE contests SET publication_status = 'published' WHERE id = $1`,
       [contestId],
     )).rejects.toMatchObject({ code: '23514' })
 
-    const phases = await database.pool.query<{ upcoming: string, running: string, ended: string }>(
+    const phases = await database.executor.query<{ upcoming: string, running: string, ended: string }>(
       `SELECT
          derive_contest_time_phase(start_at, end_at, '2030-04-30T23:59:59Z')::text AS upcoming,
          derive_contest_time_phase(start_at, end_at, '2030-05-01T06:00:00Z')::text AS running,
@@ -100,7 +100,7 @@ describeWithPostgres('Jeopardy contest authority schema', () => {
     )
     expect(phases.rows[0]).toEqual({ upcoming: 'upcoming', running: 'running', ended: 'ended' })
 
-    const timestamps = await database.pool.query<{ start_at: Date, end_at: Date }>(
+    const timestamps = await database.executor.query<{ start_at: Date, end_at: Date }>(
       'SELECT start_at, end_at FROM contests WHERE id = $1',
       [contestId],
     )
@@ -110,24 +110,24 @@ describeWithPostgres('Jeopardy contest authority schema', () => {
 
   it('allows one participation per team and contest with a contest-owned division', async () => {
     const contestId = await createContest(`participation-${randomUUID()}`)
-    const division = await database.pool.query<{ id: string }>(
+    const division = await database.executor.query<{ id: string }>(
       `INSERT INTO divisions (contest_id, name, name_normalized)
        VALUES ($1, 'Open', 'open') RETURNING id`,
       [contestId],
     )
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO participations (contest_id, team_id, division_id, status, registered_by)
        VALUES ($1, $2, $3, 'pending', $4)`,
       [contestId, teamId, division.rows[0]!.id, organizerId],
     )
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `INSERT INTO participations (contest_id, team_id, status, registered_by)
        VALUES ($1, $2, 'pending', $3)`,
       [contestId, teamId, organizerId],
     )).rejects.toMatchObject({ code: '23505' })
 
     const otherContestId = await createContest(`other-${randomUUID()}`)
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `INSERT INTO participations (contest_id, team_id, division_id, status, registered_by)
        VALUES ($1, $2, $3, 'pending', $4)`,
       [otherContestId, teamId, division.rows[0]!.id, organizerId],
@@ -136,44 +136,44 @@ describeWithPostgres('Jeopardy contest authority schema', () => {
 
   it('defends contest configuration invariants at the database boundary', async () => {
     const contestId = await createContest(`configuration-${randomUUID()}`)
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       'UPDATE contests SET end_at = start_at WHERE id = $1',
       [contestId],
     )).rejects.toMatchObject({ code: '23514', constraint: 'contests_time_window' })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `UPDATE contests SET scoreboard_freeze_at = start_at - interval '1 second' WHERE id = $1`,
       [contestId],
     )).rejects.toMatchObject({ code: '23514', constraint: 'contests_freeze_window' })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `UPDATE contests SET writeup_required = true,
                            writeup_deadline_at = end_at - interval '1 second'
        WHERE id = $1`,
       [contestId],
     )).rejects.toMatchObject({ code: '23514', constraint: 'contests_writeup_deadline' })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `UPDATE contests SET writeup_required = false,
                            writeup_deadline_at = end_at + interval '1 day'
        WHERE id = $1`,
       [contestId],
     )).rejects.toMatchObject({ code: '23514', constraint: 'contests_writeup_configuration' })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       'UPDATE contests SET invite_required = true WHERE id = $1',
       [contestId],
     )).rejects.toMatchObject({ code: '23514', constraint: 'contests_invite_configuration' })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `UPDATE contests SET invite_digest = decode('abcd', 'hex') WHERE id = $1`,
       [contestId],
     )).rejects.toMatchObject({ code: '23514', constraint: 'contests_invite_configuration' })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       'UPDATE contests SET max_team_size = 101 WHERE id = $1',
       [contestId],
     )).rejects.toMatchObject({ code: '23514', constraint: 'contests_team_size' })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `UPDATE contests SET registration_constraints = '{"unknown":true}'::jsonb WHERE id = $1`,
       [contestId],
     )).rejects.toMatchObject({ code: '23514', constraint: 'contests_registration_constraints_shape' })
 
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `UPDATE contests
        SET visibility = 'public', invite_required = true,
            invite_digest = decode(repeat('ab', 32), 'hex'),
@@ -184,14 +184,14 @@ describeWithPostgres('Jeopardy contest authority schema', () => {
   })
 
   it('has no contest mode storage and leaves contests and runtime resources unchanged on mode writes', async () => {
-    const columns = await database.pool.query<{ column_name: string }>(
+    const columns = await database.executor.query<{ column_name: string }>(
       `SELECT column_name
        FROM information_schema.columns
        WHERE table_schema = 'public' AND table_name = 'contests' AND column_name = 'mode'`,
     )
     expect(columns.rows).toEqual([])
 
-    const before = await database.pool.query<{
+    const before = await database.executor.query<{
       contests: string
       instances: string
       jobs: string
@@ -201,12 +201,12 @@ describeWithPostgres('Jeopardy contest authority schema', () => {
          (SELECT count(*)::text FROM instances) AS instances,
          (SELECT count(*)::text FROM instance_jobs) AS jobs`,
     )
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `INSERT INTO contests (title, slug, mode, start_at, end_at, created_by)
        VALUES ('Unsupported Mode', $1, $2, now(), now() + interval '1 hour', $3)`,
       [`unsupported-mode-${randomUUID()}`, 'awd', organizerId],
     )).rejects.toMatchObject({ code: '42703' })
-    const after = await database.pool.query<{
+    const after = await database.executor.query<{
       contests: string
       instances: string
       jobs: string
@@ -221,17 +221,17 @@ describeWithPostgres('Jeopardy contest authority schema', () => {
 
   it('deduplicates public timeline events within a contest', async () => {
     const contestId = await createContest(`timeline-${randomUUID()}`)
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO contest_events (contest_id, event_type, event_key)
        VALUES ($1, 'contest_phase_changed', 'phase:running')`,
       [contestId],
     )
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `INSERT INTO contest_events (contest_id, event_type, event_key)
        VALUES ($1, 'contest_phase_changed', 'phase:running')`,
       [contestId],
     )).rejects.toMatchObject({ code: '23505' })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `INSERT INTO contest_events (contest_id, event_type, event_key)
        VALUES ($1, 'user_banned', 'security:event')`,
       [contestId],

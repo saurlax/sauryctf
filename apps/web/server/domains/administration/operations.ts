@@ -49,10 +49,6 @@ export interface OperationalScoreboardService {
   }): Promise<unknown>
 }
 
-export interface OperationalScoreboardCache {
-  invalidateContest(contestId: string): Promise<number>
-}
-
 export type OperationalCommandRepositoryErrorCode =
   | 'operations.idempotency_conflict'
   | 'operations.command_in_progress'
@@ -73,21 +69,12 @@ export class OperationalCommandRepositoryError extends Error {
   }
 }
 
-export class OperationalCacheUnavailableError extends Error {
-  constructor() {
-    super('Redis 缓存当前不可用于受控重建')
-    this.name = 'OperationalCacheUnavailableError'
-  }
-}
-
 export type AdministrationOperationsErrorCode = OperationalCommandRepositoryErrorCode
-  | 'operations.cache_unavailable'
   | 'operations.execution_failed'
 
 export class AdministrationOperationsError extends Error {
   constructor(readonly code: AdministrationOperationsErrorCode, message?: string) {
     super(message ?? {
-      'operations.cache_unavailable': 'Redis 缓存当前不可用于受控重建',
       'operations.execution_failed': '运维命令执行失败',
       'operations.idempotency_conflict': 'Idempotency-Key 已用于不同的运维命令',
       'operations.command_in_progress': '相同运维命令正在执行',
@@ -103,7 +90,6 @@ export class AdministrationOperationsService {
   constructor(
     private readonly repository: OperationalCommandRepository,
     private readonly scoreboards: OperationalScoreboardService,
-    private readonly cache: OperationalScoreboardCache,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
@@ -114,7 +100,7 @@ export class AdministrationOperationsService {
       actorId: subject.userId,
       at: this.now(),
     }
-    if (input.kind !== 'cache_rebuild' && input.kind !== 'result_recalculate') {
+    if (input.kind !== 'result_recalculate') {
       return this.mapRepository(() => this.repository.executeDatabase(command))
     }
 
@@ -122,10 +108,7 @@ export class AdministrationOperationsService {
     if (reservation.replayed) return reservation.replayed
     try {
       const context = await this.mapRepository(() => this.repository.scoreboardContext(input.targetId))
-      const snapshotsCleared = input.kind === 'result_recalculate'
-        ? await this.repository.clearScoreboardSnapshots(input.targetId)
-        : 0
-      const cacheKeysDeleted = await this.cache.invalidateContest(input.targetId)
+      const snapshotsCleared = await this.repository.clearScoreboardSnapshots(input.targetId)
       let projectionsRebuilt = 0
       for (const scope of context.scopes) {
         await this.scoreboards.read({
@@ -147,7 +130,6 @@ export class AdministrationOperationsService {
       }
       return await this.repository.completeExternal(reservation.commandId, {
         contest_id: input.targetId,
-        cache_keys_deleted: cacheKeysDeleted,
         snapshots_cleared: snapshotsCleared,
         projections_rebuilt: projectionsRebuilt,
       }, this.now())
@@ -172,9 +154,6 @@ export class AdministrationOperationsService {
     if (error instanceof AdministrationOperationsError) return error
     if (error instanceof OperationalCommandRepositoryError) {
       return new AdministrationOperationsError(error.code, error.message)
-    }
-    if (error instanceof OperationalCacheUnavailableError) {
-      return new AdministrationOperationsError('operations.cache_unavailable', error.message)
     }
     return new AdministrationOperationsError('operations.execution_failed')
   }

@@ -155,6 +155,13 @@
       "when": 1788299100000,
       "tag": "0021_data_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1788301800000,
+      "tag": "0022_rate_limit_windows",
+      "breakpoints": true
     }
   ]
 }

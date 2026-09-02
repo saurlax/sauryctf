@@ -1,4 +1,3 @@
-import type { Pool, PoolClient } from 'pg'
 import {
   operationalCommandSchema,
   type OperationalCommand,
@@ -17,6 +16,7 @@ import {
   type OperationalCommandReservation,
   type OperationalScoreboardContext,
 } from '../../domains/administration/operations'
+import type { DatabaseExecutor } from './executor'
 
 interface CommandRow {
   id: string
@@ -51,7 +51,7 @@ const commandProjection = `
   result, error_code, completed_at`
 
 export class PostgresOperationalCommandRepository implements OperationalCommandRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly database: DatabaseExecutor) {}
 
   async executeDatabase(command: OperationalCommandRecordInput): Promise<OperationalCommand> {
     return this.transaction(async (connection) => {
@@ -105,14 +105,14 @@ export class PostgresOperationalCommandRepository implements OperationalCommandR
   }
 
   async scoreboardContext(contestId: string): Promise<OperationalScoreboardContext> {
-    const contest = await this.pool.query<{
+    const contest = await this.database.query<{
       publication_status: OperationalScoreboardContext['publicationStatus']
       visibility: OperationalScoreboardContext['visibility']
     }>(`
       SELECT publication_status::text, visibility::text
       FROM contests WHERE id = $1`, [contestId])
     if (!contest.rows[0]) throw new OperationalCommandRepositoryError('operations.target_not_found')
-    const divisions = await this.pool.query<{ id: string }>(`
+    const divisions = await this.database.query<{ id: string }>(`
       SELECT id::text FROM divisions WHERE contest_id = $1 ORDER BY sort_order, id`, [contestId])
     return {
       publicationStatus: contest.rows[0].publication_status,
@@ -125,12 +125,12 @@ export class PostgresOperationalCommandRepository implements OperationalCommandR
   }
 
   async clearScoreboardSnapshots(contestId: string): Promise<number> {
-    const result = await this.pool.query('DELETE FROM scoreboard_snapshots WHERE contest_id = $1', [contestId])
+    const result = await this.database.query('DELETE FROM scoreboard_snapshots WHERE contest_id = $1', [contestId])
     return result.rowCount ?? 0
   }
 
   private async claim(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     command: OperationalCommandRecordInput,
   ): Promise<OperationalCommandReservation> {
     const inserted = await connection.query<CommandRow>(`
@@ -171,7 +171,7 @@ export class PostgresOperationalCommandRepository implements OperationalCommandR
   }
 
   private async replayDeadLetter(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     jobId: string,
     at: Date,
   ): Promise<OperationalCommandResult> {
@@ -200,7 +200,7 @@ export class PostgresOperationalCommandRepository implements OperationalCommandR
   }
 
   private async enqueueReconcile(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     instanceId: string,
     at: Date,
   ): Promise<OperationalCommandResult> {
@@ -269,7 +269,7 @@ export class PostgresOperationalCommandRepository implements OperationalCommandR
   }
 
   private async invalidateSessions(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     userId: string,
     at: Date,
   ): Promise<OperationalCommandResult> {
@@ -287,7 +287,7 @@ export class PostgresOperationalCommandRepository implements OperationalCommandR
     }
   }
 
-  private async requireInstanceJobTargetState(connection: PoolClient, id: string): Promise<never> {
+  private async requireInstanceJobTargetState(connection: DatabaseExecutor, id: string): Promise<never> {
     const existing = await connection.query('SELECT 1 FROM instance_jobs WHERE id = $1', [id])
     throw new OperationalCommandRepositoryError(
       existing.rows[0] ? 'operations.target_state_invalid' : 'operations.target_not_found',
@@ -295,7 +295,7 @@ export class PostgresOperationalCommandRepository implements OperationalCommandR
   }
 
   private async complete(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     commandId: string,
     result: OperationalCommandResult,
     at: Date,
@@ -310,7 +310,7 @@ export class PostgresOperationalCommandRepository implements OperationalCommandR
   }
 
   private async writeAudit(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     command: CommandRow,
     outcome: 'succeeded' | 'failed',
     errorCode: string | null,
@@ -337,21 +337,8 @@ export class PostgresOperationalCommandRepository implements OperationalCommandR
     ])
   }
 
-  private async transaction<T>(operation: (connection: PoolClient) => Promise<T>): Promise<T> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
-      const result = await operation(connection)
-      await connection.query('COMMIT')
-      return result
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+  private async transaction<T>(operation: (connection: DatabaseExecutor) => Promise<T>): Promise<T> {
+    return this.database.transaction(operation)
   }
 }
 

@@ -117,7 +117,6 @@ export const contentReferenceType = pgEnum('content_reference_type', [
 ])
 export const auditOutcome = pgEnum('audit_outcome', ['succeeded', 'rejected', 'failed'])
 export const operationalCommandKind = pgEnum('operational_command_kind', [
-  'cache_rebuild',
   'dead_letter_replay',
   'instance_reconcile',
   'session_invalidate',
@@ -973,4 +972,18 @@ export const securityLogEvents = pgTable('security_log_events', {
   check('security_log_events_method_not_empty', sql`length(btrim(${table.method})) > 0`),
   check('security_log_events_route_absolute', sql`left(${table.route}, 1) = '/'`),
   check('security_log_events_status_code', sql`${table.statusCode} BETWEEN 400 AND 599`),
+])
+
+export const rateLimitWindows = pgTable('rate_limit_windows', {
+  bucketDigest: bytea('bucket_digest').notNull(),
+  windowStartedAt: timestamp('window_started_at', { withTimezone: true, mode: 'date' }).notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+  requestCount: integer('request_count').notNull().default(0),
+}, (table) => [
+  uniqueIndex('rate_limit_windows_bucket_window_unique')
+    .on(table.bucketDigest, table.windowStartedAt),
+  index('rate_limit_windows_expiry').on(table.expiresAt, table.windowStartedAt),
+  check('rate_limit_windows_bucket_digest_sha256', sql`octet_length(${table.bucketDigest}) = 32`),
+  check('rate_limit_windows_expiry_after_start', sql`${table.expiresAt} > ${table.windowStartedAt}`),
+  check('rate_limit_windows_request_count_nonnegative', sql`${table.requestCount} >= 0`),
 ])

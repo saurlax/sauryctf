@@ -1,10 +1,10 @@
 import { randomUUID, scryptSync, timingSafeEqual } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { structuredLog } from '../../infrastructure/telemetry/logging'
-import { createDatabaseClient, type DatabaseClient } from '../../infrastructure/db/client'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
 import { PostgresIdentityRepository } from '../../infrastructure/db/identity-repository'
-import { runMigrations } from '../../infrastructure/db/migrate'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { identityTokenCodec } from '../../infrastructure/auth/identity-token-codec'
 import { AesGcmIdentityMailTokenProtector } from '../../infrastructure/auth/identity-mail-token-protector'
 import type { PasswordHasher } from './password'
@@ -43,7 +43,7 @@ class TestScryptHasher implements PasswordHasher {
 
 describeWithPostgres('scrypt identity registration and login', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let repository: PostgresIdentityRepository
   let service: IdentityService
   let hasher: TestScryptHasher
@@ -55,11 +55,11 @@ describeWithPostgres('scrypt identity registration and login', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 4 })
-    await runMigrations(database)
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 4 })
+    await runPostgresTestMigrations(database)
     hasher = new TestScryptHasher()
     currentTime = new Date('2026-09-01T08:00:00.000Z')
-    repository = new PostgresIdentityRepository(database.pool)
+    repository = new PostgresIdentityRepository(database.executor)
     service = new IdentityService(
       repository,
       hasher,
@@ -70,7 +70,7 @@ describeWithPostgres('scrypt identity registration and login', () => {
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -89,7 +89,7 @@ describeWithPostgres('scrypt identity registration and login', () => {
     })
     expect(registered.sessionVersion).toBe(1)
 
-    const rows = await database.pool.query<{
+    const rows = await database.executor.query<{
       username_normalized: string
       email_normalized: string
       algorithm: string
@@ -124,7 +124,7 @@ describeWithPostgres('scrypt identity registration and login', () => {
     const oldHasher = new TestScryptHasher('old')
     const password = 'upgrade this credential'
     const registered = await new IdentityService(
-      new PostgresIdentityRepository(database.pool),
+      new PostgresIdentityRepository(database.executor),
       oldHasher,
     ).register({
       username: 'UpgradeUser',
@@ -134,7 +134,7 @@ describeWithPostgres('scrypt identity registration and login', () => {
 
     const result = await service.login({ identifier: 'upgrade@example.test', password })
     expect(result.passwordHashUpgraded).toBe(true)
-    const credential = await database.pool.query<{ password_hash: string }>(
+    const credential = await database.executor.query<{ password_hash: string }>(
       'SELECT password_hash FROM credentials WHERE user_id = $1',
       [registered.userId],
     )
@@ -160,7 +160,7 @@ describeWithPostgres('scrypt identity registration and login', () => {
   })
 
   it('re-reads status and session version for every protected identity lookup', async () => {
-    const repository = new PostgresIdentityRepository(database.pool)
+    const repository = new PostgresIdentityRepository(database.executor)
     const registered = await service.register({
       username: 'SessionUser',
       email: 'session-user@example.test',
@@ -174,14 +174,14 @@ describeWithPostgres('scrypt identity registration and login', () => {
     }
 
     await expect(sessions.validate(cookie)).resolves.toMatchObject({ status: 'active', role: 'user' })
-    await database.pool.query(`UPDATE users SET status = 'banned' WHERE id = $1`, [registered.userId])
+    await database.executor.query(`UPDATE users SET status = 'banned' WHERE id = $1`, [registered.userId])
     await expect(sessions.validate(cookie)).rejects.toMatchObject({ name: 'InvalidIdentitySessionError' })
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE users SET status = 'active', session_version = session_version + 1 WHERE id = $1`,
       [registered.userId],
     )
     await expect(sessions.validate(cookie)).rejects.toMatchObject({ name: 'InvalidIdentitySessionError' })
-    await database.pool.query('DELETE FROM users WHERE id = $1', [registered.userId])
+    await database.executor.query('DELETE FROM users WHERE id = $1', [registered.userId])
     await expect(sessions.validate(cookie)).rejects.toMatchObject({ name: 'InvalidIdentitySessionError' })
   })
 
@@ -198,7 +198,7 @@ describeWithPostgres('scrypt identity registration and login', () => {
     )
     expect(result.sessionVersion).toBe(registered.sessionVersion + 1)
 
-    const sessions = new IdentitySessionService(new PostgresIdentityRepository(database.pool))
+    const sessions = new IdentitySessionService(new PostgresIdentityRepository(database.executor))
     await expect(sessions.validate({
       user_id: registered.userId,
       session_version: registered.sessionVersion,
@@ -234,7 +234,7 @@ describeWithPostgres('scrypt identity registration and login', () => {
     }))
       .rejects.toMatchObject({ code: 'identity.capability_forbidden' })
 
-    const before = await database.pool.query<{ role: string, session_version: string }>(
+    const before = await database.executor.query<{ role: string, session_version: string }>(
       `SELECT r.role::text, u.session_version::text
        FROM users u JOIN user_roles r ON r.user_id = u.id WHERE u.id = $1`,
       [registered.userId],
@@ -246,11 +246,11 @@ describeWithPostgres('scrypt identity registration and login', () => {
       email: 'role-administrator@example.test',
       password: 'role administrator password',
     })
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE users SET email_verified_at = $2 WHERE id = $1`,
       [actorRegistration.userId, currentTime],
     )
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE user_roles SET role = 'admin', updated_at = $2 WHERE user_id = $1`,
       [actorRegistration.userId, currentTime],
     )
@@ -277,7 +277,7 @@ describeWithPostgres('scrypt identity registration and login', () => {
       sessionVersion: 2,
       changed: true,
     })
-    const securityRecords = await database.pool.query<{
+    const securityRecords = await database.executor.query<{
       event_count: string
       notification_count: string
       delivery_count: string
@@ -314,7 +314,7 @@ describeWithPostgres('scrypt identity registration and login', () => {
       audit_count: '1',
     }])
 
-    const sessions = new IdentitySessionService(new PostgresIdentityRepository(database.pool))
+    const sessions = new IdentitySessionService(new PostgresIdentityRepository(database.executor))
     await expect(sessions.validate({
       user_id: registered.userId,
       session_version: registered.sessionVersion,
@@ -345,11 +345,11 @@ describeWithPostgres('scrypt identity registration and login', () => {
       email: 'status-administrator@example.test',
       password: 'status administrator password',
     })
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE users SET email_verified_at = $2 WHERE id = $1`,
       [actor.userId, currentTime],
     )
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE user_roles SET role = 'admin', updated_at = $2 WHERE user_id = $1`,
       [actor.userId, currentTime],
     )
@@ -371,7 +371,7 @@ describeWithPostgres('scrypt identity registration and login', () => {
       sessionVersion: 2,
       changed: true,
     })
-    const evidence = await database.pool.query<{
+    const evidence = await database.executor.query<{
       event_count: string
       notification_count: string
       delivery_count: string
@@ -424,11 +424,11 @@ describeWithPostgres('scrypt identity registration and login', () => {
       email: 'status-rollback-target@example.test',
       password: 'status rollback target password',
     })
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE users SET email_verified_at = $2 WHERE id = $1`,
       [actor.userId, currentTime],
     )
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE user_roles SET role = 'admin', updated_at = $2 WHERE user_id = $1`,
       [actor.userId, currentTime],
     )
@@ -436,7 +436,7 @@ describeWithPostgres('scrypt identity registration and login', () => {
     expect(administrator).not.toBeNull()
     const roleRequestId = randomUUID()
     const statusRequestId = randomUUID()
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO audit_events
         (actor_user_id, action, target_type, target_id, reason, outcome, request_id)
        VALUES
@@ -458,7 +458,7 @@ describeWithPostgres('scrypt identity registration and login', () => {
       requestId: statusRequestId,
     })).rejects.toMatchObject({ code: '23505' })
 
-    const facts = await database.pool.query<{
+    const facts = await database.executor.query<{
       role: string
       role_session_version: string
       status: string
@@ -523,13 +523,13 @@ describeWithPostgres('scrypt identity registration and login', () => {
     expect(missing).toEqual({ accepted: true, delivery: null })
     expect(existing.delivery?.token).toBeTruthy()
 
-    const stored = await database.pool.query<{ token_digest: Buffer }>(
+    const stored = await database.executor.query<{ token_digest: Buffer }>(
       `SELECT token_digest FROM email_tokens WHERE user_id = $1 AND purpose = 'reset_password'`,
       [registered.userId],
     )
     expect(stored.rows[0]!.token_digest).toEqual(identityTokenCodec.digest(existing.delivery!.token))
     expect(stored.rows[0]!.token_digest.toString('utf8')).not.toContain(existing.delivery!.token)
-    const queuedMail = await database.pool.query<{ payload: Record<string, unknown> }>(
+    const queuedMail = await database.executor.query<{ payload: Record<string, unknown> }>(
       `SELECT payload FROM mail_deliveries
        WHERE template_key = 'identity.password_reset_requested'
        ORDER BY created_at DESC LIMIT 1`,
@@ -570,7 +570,7 @@ describeWithPostgres('scrypt identity registration and login', () => {
     await expect(service.verifyEmail(second.token)).resolves.toMatchObject({ userId: registered.userId })
     await expect(service.verifyEmail(second.token)).rejects.toMatchObject({ code: 'identity.token_invalid' })
 
-    const subject = await new PostgresIdentityRepository(database.pool).findSessionSubject(registered.userId)
+    const subject = await new PostgresIdentityRepository(database.executor).findSessionSubject(registered.userId)
     expect(subject?.emailVerified).toBe(true)
   })
 })

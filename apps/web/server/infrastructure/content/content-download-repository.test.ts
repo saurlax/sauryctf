@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createDatabaseClient, type DatabaseClient } from '../db/client'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
 import { PostgresContentDownloadRepository } from '../db/content-download-repository'
-import { runMigrations } from '../db/migrate'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 
 const adminConnectionString = process.env.TEST_DATABASE_ADMIN_URL
 const describeWithPostgres = adminConnectionString ? describe : describe.skip
@@ -16,7 +16,7 @@ function quotedDatabaseName(): string {
 
 describeWithPostgres('PostgreSQL content download authorization', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let repository: PostgresContentDownloadRepository
   let ownerId: string
   let outsiderId: string
@@ -30,16 +30,16 @@ describeWithPostgres('PostgreSQL content download authorization', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 4 })
-    await runMigrations(database)
-    repository = new PostgresContentDownloadRepository(database.pool)
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 4 })
+    await runPostgresTestMigrations(database)
+    repository = new PostgresContentDownloadRepository(database.executor)
 
     const owner = await createUser(database, 'DownloadOwner')
     const outsider = await createUser(database, 'DownloadOutsider')
     ownerId = owner
     outsiderId = outsider
 
-    const connection = await database.pool.connect()
+    const connection = await database.connect()
     try {
       await connection.query('BEGIN')
       const team = await connection.query<{ id: string }>(`
@@ -140,7 +140,7 @@ describeWithPostgres('PostgreSQL content download authorization', () => {
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -188,7 +188,7 @@ describeWithPostgres('PostgreSQL content download authorization', () => {
   })
 
   it('does not authorize content that has entered quarantine', async () => {
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE content_objects SET status = 'quarantined' WHERE id = $1`,
       [challengeObjectId],
     )
@@ -201,11 +201,11 @@ describeWithPostgres('PostgreSQL content download authorization', () => {
   })
 })
 
-async function createUser(database: DatabaseClient, prefix: string): Promise<string> {
+async function createUser(database: PostgresTestDatabase, prefix: string): Promise<string> {
   const suffix = randomUUID().replaceAll('-', '')
   const username = `${prefix}${suffix.slice(0, 8)}`
   const normalized = username.toLowerCase()
-  const result = await database.pool.query<{ id: string }>(`
+  const result = await database.executor.query<{ id: string }>(`
     INSERT INTO users (
       username, username_normalized, email, email_normalized,
       email_verified_at

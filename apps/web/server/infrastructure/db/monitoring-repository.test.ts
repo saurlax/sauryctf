@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { monitoringKindSchema } from '../../../shared/contracts/monitoring'
 import { createPublishableChallenge } from '../../test-support/publishable-challenge'
-import { createDatabaseClient, type DatabaseClient } from './client'
-import { runMigrations } from './migrate'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { PostgresMonitoringRepository } from './monitoring-repository'
 
 const adminConnectionString = process.env.TEST_DATABASE_ADMIN_URL
@@ -80,7 +80,7 @@ describe('PostgreSQL administration monitoring projection', () => {
 
 describeWithPostgres('PostgreSQL administration monitoring queries', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let repository: PostgresMonitoringRepository
   const now = new Date('2026-09-02T00:00:00.000Z')
   let contestId: string
@@ -97,18 +97,18 @@ describeWithPostgres('PostgreSQL administration monitoring queries', () => {
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 4 })
-    await runMigrations(database)
-    repository = new PostgresMonitoringRepository(database.pool)
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 4 })
+    await runPostgresTestMigrations(database)
+    repository = new PostgresMonitoringRepository(database.executor)
 
     const suffix = randomUUID()
-    const user = await database.pool.query<{ id: string }>(`
+    const user = await database.executor.query<{ id: string }>(`
       INSERT INTO users
         (username, username_normalized, email, email_normalized, email_verified_at)
       VALUES ($1, $2, $3, $3, $4)
       RETURNING id`, [`Monitor-${suffix}`, `monitor-${suffix}`, `monitor-${suffix}@example.test`, now])
     const userId = user.rows[0]!.id
-    const connection = await database.pool.connect()
+    const connection = await database.connect()
     try {
       await connection.query('BEGIN')
       const team = await connection.query<{ id: string }>(`
@@ -129,7 +129,7 @@ describeWithPostgres('PostgreSQL administration monitoring queries', () => {
       connection.release()
     }
 
-    const contest = await database.pool.query<{ id: string }>(`
+    const contest = await database.executor.query<{ id: string }>(`
       INSERT INTO contests (title, slug, start_at, end_at, created_by)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING id`, [
@@ -140,13 +140,13 @@ describeWithPostgres('PostgreSQL administration monitoring queries', () => {
       userId,
     ])
     contestId = contest.rows[0]!.id
-    const participation = await database.pool.query<{ id: string }>(`
+    const participation = await database.executor.query<{ id: string }>(`
       INSERT INTO participations
         (contest_id, team_id, status, registered_by, reviewed_by, reviewed_at)
       VALUES ($1, $2, 'accepted', $3, $3, $4)
       RETURNING id`, [contestId, teamId, userId, now])
     const participationId = participation.rows[0]!.id
-    challengeId = (await createPublishableChallenge(database.pool, contestId, userId, {
+    challengeId = (await createPublishableChallenge(database.executor, contestId, userId, {
       instancePolicy: {
         type: 'dynamic',
         provider: 'docker',
@@ -156,7 +156,7 @@ describeWithPostgres('PostgreSQL administration monitoring queries', () => {
       },
     })).challengeId
 
-    const instance = await database.pool.query<{ id: string }>(`
+    const instance = await database.executor.query<{ id: string }>(`
       INSERT INTO instances
         (contest_id, contest_challenge_id, participation_id, provider,
          desired_state, observed_state, expires_at, last_observed_at,
@@ -171,7 +171,7 @@ describeWithPostgres('PostgreSQL administration monitoring queries', () => {
       'provider secret must stay private',
     ])
     instanceId = instance.rows[0]!.id
-    const job = await database.pool.query<{ id: string }>(`
+    const job = await database.executor.query<{ id: string }>(`
       INSERT INTO instance_jobs
         (instance_id, operation, payload_version, payload, desired_generation,
          idempotency_key, status, error_code, error_summary, finished_at)
@@ -185,19 +185,19 @@ describeWithPostgres('PostgreSQL administration monitoring queries', () => {
     ])
     jobId = job.rows[0]!.id
 
-    const event = await database.pool.query<{ id: string }>(`
+    const event = await database.executor.query<{ id: string }>(`
       INSERT INTO domain_outbox
         (aggregate_type, aggregate_id, event_type, dedupe_key, payload)
       VALUES ('user', $1, 'identity.password_changed', $2, $3)
       RETURNING id`, [userId, `monitor-mail-${suffix}`, { reset_token: 'never expose' }])
-    await database.pool.query(`
+    await database.executor.query(`
       INSERT INTO notifications (user_id, source_event_id, template_key, payload)
       VALUES ($1, $2, 'identity.password_changed', $3)`, [
       userId,
       event.rows[0]!.id,
       { reset_token: 'never expose' },
     ])
-    const delivery = await database.pool.query<{ id: string }>(`
+    const delivery = await database.executor.query<{ id: string }>(`
       INSERT INTO mail_deliveries
         (source_event_id, recipient, recipient_normalized, template_key,
          payload, status, attempt_count, last_error, updated_at)
@@ -205,7 +205,7 @@ describeWithPostgres('PostgreSQL administration monitoring queries', () => {
               'identity.password_changed', $2, 'failed', 1, $3, $4)
       RETURNING id`, [event.rows[0]!.id, { reset_token: 'never expose' }, 'SMTP credential must stay private', now])
     mailDeliveryId = delivery.rows[0]!.id
-    const audit = await database.pool.query<{ id: string }>(`
+    const audit = await database.executor.query<{ id: string }>(`
       INSERT INTO audit_events
         (actor_user_id, action, target_type, target_id, reason, outcome,
          request_id, changes, metadata, occurred_at)
@@ -222,7 +222,7 @@ describeWithPostgres('PostgreSQL administration monitoring queries', () => {
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',

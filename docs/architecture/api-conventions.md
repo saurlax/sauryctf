@@ -1,6 +1,6 @@
 # 公网 API 约定
 
-首期公网 API 由共享 Zod Schema 生成 OpenAPI 与客户端类型。本文固定跨领域的错误、分页和并发写入规则；领域资源不得自行设计第二套包络。
+首期公网 API 以共享 Zod Schema 作为运行时校验和 TypeScript 类型来源。本文固定跨领域的错误、分页和并发写入规则；领域资源不得自行设计第二套包络。
 
 ## 稳定错误
 
@@ -51,8 +51,8 @@
 - 更新、删除及高风险命令使用强 `ETag: "<version>"`；客户端通过 `If-Match` 提交预期版本。
 - 缺少前置条件返回 `resource.precondition_required`，版本冲突返回 `resource.version_conflict`，均不得静默覆盖。
 - 创建任务、导入、批量操作等可安全重试的管理写请求使用 16 至 128 字符的 `Idempotency-Key`。相同身份、作用域和键必须收敛到同一结果；载荷不同则返回 `request.idempotency_conflict`。
-- 资源版本属于业务聚合并发控制，不得用 Redis 版本替代；缓存版本和排行榜版本是独立命名的派生版本。
+- 资源版本属于业务聚合并发控制；排行榜版本是由 PostgreSQL 维护的独立派生版本。
 
 可执行定义与边界测试位于 `apps/web/shared/contracts/http.ts` 和 `apps/web/shared/contracts/http.test.ts`。
 
-`pnpm generate:api` 先从共享 Zod Schema 生成 `api/openapi.yaml`，再生成 `apps/web/app/types/control-plane-api.d.ts`。Go Worker 不实现公网 API，因此 OpenAPI 不生成 Go HTTP Server。
+客户端直接导入 `apps/web/shared/contracts` 导出的类型，契约测试验证 Handler 与 schema 一致。仓库不生成或提交独立 OpenAPI 文件；Go Worker 也不实现公网业务 API。

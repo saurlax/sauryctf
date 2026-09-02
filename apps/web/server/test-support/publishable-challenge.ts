@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { Pool } from 'pg'
+import type { DatabaseExecutor } from '../infrastructure/db/executor'
 
 export interface PublishableChallengeOptions {
   title?: string
@@ -14,7 +14,7 @@ export interface PublishableChallengeOptions {
 }
 
 export async function createPublishableChallenge(
-  pool: Pool,
+  pool: DatabaseExecutor,
   contestId: string,
   actorId: string,
   options: PublishableChallengeOptions = {},

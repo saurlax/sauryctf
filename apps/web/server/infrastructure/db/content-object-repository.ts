@@ -1,9 +1,9 @@
-import type { Pool } from 'pg'
 import type {
   ContentObject,
   ContentObjectRepository,
   ContentObjectStatus,
 } from '../../domains/content/service'
+import type { DatabaseExecutor } from './executor'
 
 interface ContentObjectRow {
   id: string
@@ -28,7 +28,7 @@ const qualifiedContentObjectProjection = `
   object.created_by::text, object.committed_at, object.created_at`
 
 export class PostgresContentObjectRepository implements ContentObjectRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly database: DatabaseExecutor) {}
 
   async registerTemporary(input: {
     storageKey: string
@@ -39,7 +39,7 @@ export class PostgresContentObjectRepository implements ContentObjectRepository 
     createdBy: string
     createdAt: Date
   }): Promise<{ object: ContentObject, inserted: boolean }> {
-    const result = await this.pool.query<ContentObjectRow & { inserted: boolean }>(`
+    const result = await this.database.query<ContentObjectRow & { inserted: boolean }>(`
       WITH inserted AS (
         INSERT INTO content_objects (
           storage_key, sha256_digest, size_bytes, media_type,
@@ -70,7 +70,7 @@ export class PostgresContentObjectRepository implements ContentObjectRepository 
   }
 
   async findOwned(objectId: string, userId: string): Promise<ContentObject | null> {
-    const result = await this.pool.query<ContentObjectRow>(`
+    const result = await this.database.query<ContentObjectRow>(`
       SELECT ${contentObjectProjection}
       FROM content_objects
       WHERE id = $1 AND created_by = $2`, [objectId, userId])
@@ -78,7 +78,7 @@ export class PostgresContentObjectRepository implements ContentObjectRepository 
   }
 
   async find(objectId: string): Promise<ContentObject | null> {
-    const result = await this.pool.query<ContentObjectRow>(`
+    const result = await this.database.query<ContentObjectRow>(`
       SELECT ${contentObjectProjection}
       FROM content_objects
       WHERE id = $1`, [objectId])
@@ -91,7 +91,7 @@ export class PostgresContentObjectRepository implements ContentObjectRepository 
     sha256Digest: Buffer,
     committedAt: Date,
   ): Promise<ContentObject | null> {
-    const result = await this.pool.query<ContentObjectRow>(`
+    const result = await this.database.query<ContentObjectRow>(`
       UPDATE content_objects
       SET status = 'committed', committed_at = $4
       WHERE id = $1 AND created_by = $2 AND sha256_digest = $3
@@ -101,7 +101,7 @@ export class PostgresContentObjectRepository implements ContentObjectRepository 
   }
 
   async claimGarbage(cutoff: Date, limit: number): Promise<ContentObject[]> {
-    const result = await this.pool.query<ContentObjectRow>(`
+    const result = await this.database.query<ContentObjectRow>(`
       WITH candidates AS (
         SELECT object.id
         FROM content_objects AS object
@@ -141,7 +141,7 @@ export class PostgresContentObjectRepository implements ContentObjectRepository 
   }
 
   async markDeleted(objectId: string, storageKey: string): Promise<boolean> {
-    const result = await this.pool.query(`
+    const result = await this.database.query(`
       UPDATE content_objects
       SET status = 'deleted', deletion_claimed_at = NULL
       WHERE id = $1 AND storage_key = $2
@@ -150,7 +150,7 @@ export class PostgresContentObjectRepository implements ContentObjectRepository 
   }
 
   async confirmGarbageUnreferenced(objectId: string, storageKey: string): Promise<boolean> {
-    const result = await this.pool.query<{ unreferenced: boolean }>(`
+    const result = await this.database.query<{ unreferenced: boolean }>(`
       WITH candidate AS MATERIALIZED (
         SELECT object.id, object.committed_at,
           NOT (

@@ -9,19 +9,19 @@
 ```bash
 corepack enable
 pnpm install --frozen-lockfile
-pnpm check:toolchain
+pnpm check
 ```
 
 如果本机 Docker Engine 可用，可运行完整 onboarding：
 
 ```bash
-pnpm test:onboarding
+bash ./scripts/test-onboarding.sh
 ```
 
-该命令会创建随机命名且相互隔离的 PostgreSQL、Redis、MinIO 和 Mailpit 容器，迁移空数据库，应用 Worker 限权角色，构建并启动真实 Nitro 控制面与 Go Worker，检查两者的 live/ready 端点，然后执行完整 Jeopardy smoke。成功标志为：
+该命令会创建随机命名且相互隔离的 PostgreSQL 和 Mailpit 容器，并使用临时本机 Blob 目录；它会迁移空数据库，应用 Worker 限权角色，构建并启动真实 Nitro 控制面与 Go Worker，检查两者的 live/ready 端点，然后执行完整 Jeopardy smoke。默认路径不需要 S3 或 MinIO。成功标志为：
 
 ```text
-DOCS_ONBOARDING {"status":"passed","dependencies":"fresh","control_plane":"ready","worker":"ready-private","jeopardy_smoke":"passed"}
+DOCS_ONBOARDING {"status":"passed","dependencies":"fresh-postgresql-mailpit-local-blob","control_plane":"ready","worker":"ready-private","jeopardy_smoke":"passed"}
 ```
 
 脚本退出时会删除自己创建的容器、进程和临时日志。不要把这套随机测试凭据用于开发共享环境或生产环境。
@@ -29,10 +29,10 @@ DOCS_ONBOARDING {"status":"passed","dependencies":"fresh","control_plane":"ready
 只验证业务链路时，先准备一个已迁移的隔离 PostgreSQL，再运行：
 
 ```bash
-pnpm test:smoke
+bash ./scripts/test-jeopardy-smoke.sh
 ```
 
-该测试覆盖默认管理员引导、注册与邮箱验证、建队、创建和发布比赛、题库版本和挂题、报名、正式提交、排行榜、Writeup 审核以及赛后练习隔离。它不会复用或修改 `.env` 中的日常开发数据库。
+该测试覆盖默认管理员引导、注册与邮箱验证、建队、本机附件上传与授权读取、创建和发布比赛、题库版本和挂题、报名、正式提交、排行榜、Writeup 审核、赛后练习隔离，以及动态实例启动、续期、销毁时的 PostgreSQL 任务闭环。它不会复用或修改 `.env` 中的日常开发数据库。
 
 ## 手工启动
 
@@ -40,15 +40,15 @@ pnpm test:smoke
 
 ```bash
 cp .env.example .env
-pnpm dev:dependencies
+docker compose -f compose.dev.yml up -d --wait postgres mailpit
 pnpm db:migrate
-pnpm dev:web
+pnpm dev
 ```
 
 另开终端，为 Worker 创建独立登录角色。先以数据库所有者执行 `deploy/postgres/worker-role.sql`，再创建部署专用 LOGIN 并授予 `sauryctf_worker` 组角色。将凭据写入本地 `.env` 的 `WORKER_DATABASE_URL`，然后启动：
 
 ```bash
-pnpm dev:worker
+pnpm worker
 ```
 
 控制面默认地址为 `http://127.0.0.1:3000`。Worker 健康端点默认只监听私有地址 `127.0.0.1:18081`。
@@ -80,5 +80,5 @@ curl --fail http://127.0.0.1:18081/health/ready
 结束开发环境：
 
 ```bash
-pnpm dev:dependencies:down
+docker compose -f compose.dev.yml down
 ```

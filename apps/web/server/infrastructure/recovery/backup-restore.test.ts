@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { ContentObjectService } from '../../domains/content/service'
 import { ScoreboardViewService } from '../../domains/scoreboards/view-service'
 import { ContestScoringReplayService } from '../../domains/submissions/scoring-replay'
-import { createDatabaseClient, type DatabaseClient } from '../db/client'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
 import { PostgresContentObjectRepository } from '../db/content-object-repository'
 import { PostgresScoreboardViewRepository } from '../db/scoreboard-view-repository'
 import { PostgresScoringReplayRepository } from '../db/scoring-replay-repository'
@@ -11,11 +11,15 @@ import {
   S3ContentObjectStore,
   type S3ContentObjectStoreConfig,
 } from '../storage/s3-content-object-store'
+import { createBlobStorage } from '@nuxthub/core/blob'
+import { createDriver as createFileSystemDriver } from '@nuxthub/core/blob/drivers/fs'
+import { NuxtHubContentObjectStore } from '../storage/nuxthub-content-object-store'
 
 const phase = process.env.BACKUP_RECOVERY_PHASE
 const databaseUrl = process.env.TEST_DATABASE_URL
 const s3Endpoint = process.env.TEST_S3_ENDPOINT
-const dependenciesConfigured = Boolean(databaseUrl && s3Endpoint)
+const blobDirectory = process.env.TEST_BLOB_DIR
+const dependenciesConfigured = Boolean(databaseUrl && (s3Endpoint || blobDirectory))
 const describeSeed = phase === 'seed' && dependenciesConfigured ? describe : describe.skip
 const describeRestore = phase === 'restore' && dependenciesConfigured ? describe : describe.skip
 const fixtureSlug = 'backup-recovery-contest'
@@ -31,33 +35,33 @@ const s3Config: S3ContentObjectStoreConfig = {
 }
 
 describeSeed('backup recovery source fixture', () => {
-  let database: DatabaseClient
-  let store: S3ContentObjectStore
+  let database: PostgresTestDatabase
+  let store: NuxtHubContentObjectStore
 
   beforeAll(() => {
-    database = createDatabaseClient({
+    database = createPostgresTestDatabase({
       connectionString: databaseUrl!,
       applicationName: 'sauryctf-backup-source',
       maxConnections: 8,
     })
-    store = new S3ContentObjectStore(s3Config)
+    store = createStore()
   })
 
   afterAll(async () => {
     store?.close()
-    if (database) await database.pool.end()
+    if (database) await database.close()
   })
 
   it('creates a consistent PostgreSQL and object-storage recovery point', async () => {
     const now = new Date()
-    const operator = await database.pool.query<{ id: string }>(`
+    const operator = await database.executor.query<{ id: string }>(`
       INSERT INTO users
         (username, username_normalized, email, email_normalized, email_verified_at)
       VALUES ('BackupOperator', 'backupoperator',
               'backup-operator@example.test', 'backup-operator@example.test', $1)
       RETURNING id`, [now])
     const operatorId = operator.rows[0]!.id
-    const player = await database.pool.query<{ id: string }>(`
+    const player = await database.executor.query<{ id: string }>(`
       INSERT INTO users
         (username, username_normalized, email, email_normalized, email_verified_at)
       VALUES ('BackupPlayer', 'backupplayer',
@@ -65,7 +69,7 @@ describeSeed('backup recovery source fixture', () => {
       RETURNING id`, [now])
     const playerId = player.rows[0]!.id
 
-    const teamConnection = await database.pool.connect()
+    const teamConnection = await database.connect()
     let teamId: string
     try {
       await teamConnection.query('BEGIN')
@@ -87,7 +91,7 @@ describeSeed('backup recovery source fixture', () => {
       teamConnection.release()
     }
 
-    const contest = await database.pool.query<{ id: string }>(`
+    const contest = await database.executor.query<{ id: string }>(`
       INSERT INTO contests
         (title, slug, description, publication_status, visibility,
          start_at, end_at, published_at, created_by)
@@ -100,7 +104,7 @@ describeSeed('backup recovery source fixture', () => {
       operatorId,
     ])
     const contestId = contest.rows[0]!.id
-    const participation = await database.pool.query<{ id: string }>(`
+    const participation = await database.executor.query<{ id: string }>(`
       INSERT INTO participations
         (contest_id, team_id, status, registered_by, reviewed_by, reviewed_at)
       VALUES ($1, $2, 'accepted', $3, $4, $5)
@@ -108,7 +112,7 @@ describeSeed('backup recovery source fixture', () => {
     const participationId = participation.rows[0]!.id
 
     const content = new ContentObjectService(
-      new PostgresContentObjectRepository(database.pool),
+      new PostgresContentObjectRepository(database.executor),
       store,
       () => now,
     )
@@ -121,12 +125,12 @@ describeSeed('backup recovery source fixture', () => {
     })
     const committed = await content.commitTemporary(operatorId, temporary.id, attachmentDigest)
 
-    const template = await database.pool.query<{ id: string }>(`
+    const template = await database.executor.query<{ id: string }>(`
       INSERT INTO challenge_templates (name, slug, created_by, latest_version)
       VALUES ('Backup Recovery Challenge', 'backup-recovery-challenge', $1, 1)
       RETURNING id`, [operatorId])
     const templateId = template.rows[0]!.id
-    const version = await database.pool.query<{ id: string }>(`
+    const version = await database.executor.query<{ id: string }>(`
       INSERT INTO challenge_template_versions
         (template_id, version_number, title, category, description,
          flag_policy, scoring_policy, instance_policy, created_by)
@@ -134,7 +138,7 @@ describeSeed('backup recovery source fixture', () => {
               '{"type":"static","digest":"masked"}',
               '{"type":"fixed-v1","points":500}', '{"type":"none"}', $2)
       RETURNING id`, [templateId, operatorId])
-    const challenge = await database.pool.query<{ id: string }>(`
+    const challenge = await database.executor.query<{ id: string }>(`
       INSERT INTO contest_challenges
         (contest_id, source_template_id, source_version_id, title, category,
          description, flag_policy, scoring_policy, instance_policy, enabled, publish_at)
@@ -143,16 +147,16 @@ describeSeed('backup recovery source fixture', () => {
               '{"type":"fixed-v1","points":500}', '{"type":"none"}', true, $4)
       RETURNING id`, [contestId, templateId, version.rows[0]!.id, now])
     const challengeId = challenge.rows[0]!.id
-    await database.pool.query(`
+    await database.executor.query(`
       INSERT INTO challenge_assets
         (contest_challenge_id, content_object_id, display_name, sort_order)
       VALUES ($1, $2, $3, 0)`, [challengeId, committed.id, objectFilename])
-    await database.pool.query(`
+    await database.executor.query(`
       UPDATE contests
       SET publication_status = 'published', published_at = $2
       WHERE id = $1`, [contestId, now])
 
-    const submission = await database.pool.query<{ id: string }>(`
+    const submission = await database.executor.query<{ id: string }>(`
       INSERT INTO submissions
         (contest_id, contest_challenge_id, participation_id, user_id, mode,
          result, answer_digest, answer_ciphertext, request_id, submitted_at)
@@ -167,7 +171,7 @@ describeSeed('backup recovery source fixture', () => {
       randomUUID(),
       now,
     ])
-    await database.pool.query(`
+    await database.executor.query(`
       INSERT INTO solves
         (submission_id, contest_id, contest_challenge_id, participation_id,
          mode, awarded_score, solve_order, solved_at)
@@ -178,13 +182,13 @@ describeSeed('backup recovery source fixture', () => {
       participationId,
       now,
     ])
-    await database.pool.query(`
+    await database.executor.query(`
       INSERT INTO scoreboard_versions (contest_id, version, updated_at)
       VALUES ($1, 1, $2)`, [contestId, now])
 
     const scoreboards = new ScoreboardViewService(
-      new PostgresScoreboardViewRepository(database.pool),
-      new ContestScoringReplayService(new PostgresScoringReplayRepository(database.pool)),
+      new PostgresScoreboardViewRepository(database.executor),
+      new ContestScoringReplayService(new PostgresScoringReplayRepository(database.executor)),
       undefined,
       () => now,
     )
@@ -199,7 +203,7 @@ describeSeed('backup recovery source fixture', () => {
     ])
 
     const cutoff = new Date()
-    await database.pool.query(`
+    await database.executor.query(`
       INSERT INTO domain_outbox
         (aggregate_type, aggregate_id, event_type, dedupe_key, payload, occurred_at, available_at)
       VALUES ('contest', $1, 'backup.recovery_point', $2,
@@ -222,25 +226,25 @@ describeSeed('backup recovery source fixture', () => {
 })
 
 describeRestore('isolated backup restore verification', () => {
-  let database: DatabaseClient
-  let store: S3ContentObjectStore
+  let database: PostgresTestDatabase
+  let store: NuxtHubContentObjectStore
 
   beforeAll(() => {
-    database = createDatabaseClient({
+    database = createPostgresTestDatabase({
       connectionString: databaseUrl!,
       applicationName: 'sauryctf-backup-restore',
       maxConnections: 8,
     })
-    store = new S3ContentObjectStore(s3Config)
+    store = createStore()
   })
 
   afterAll(async () => {
     store?.close()
-    if (database) await database.pool.end()
+    if (database) await database.close()
   })
 
   it('restores authoritative facts, verifies attachment digest and rebuilds the scoreboard', async () => {
-    const fixture = await database.pool.query<{
+    const fixture = await database.executor.query<{
       contest_id: string
       participation_id: string
       content_object_id: string
@@ -273,15 +277,15 @@ describeRestore('isolated backup restore verification', () => {
       sha256Hex: restored.sha256_hex,
     })
 
-    const solveCount = await database.pool.query<{ count: number }>(`
+    const solveCount = await database.executor.query<{ count: number }>(`
       SELECT count(*)::int AS count FROM solves
       WHERE contest_id = $1 AND mode = 'official'`, [restored.contest_id])
     expect(solveCount.rows[0]?.count).toBe(1)
-    await database.pool.query(`DELETE FROM scoreboard_snapshots WHERE contest_id = $1`, [restored.contest_id])
+    await database.executor.query(`DELETE FROM scoreboard_snapshots WHERE contest_id = $1`, [restored.contest_id])
 
     const scoreboards = new ScoreboardViewService(
-      new PostgresScoreboardViewRepository(database.pool),
-      new ContestScoringReplayService(new PostgresScoringReplayRepository(database.pool)),
+      new PostgresScoreboardViewRepository(database.executor),
+      new ContestScoringReplayService(new PostgresScoringReplayRepository(database.executor)),
     )
     const rebuilt = await scoreboards.read({
       contestId: restored.contest_id,
@@ -297,7 +301,7 @@ describeRestore('isolated backup restore verification', () => {
         officialSolveCount: 1,
       }),
     ])
-    const rebuiltSnapshots = await database.pool.query<{ count: number }>(`
+    const rebuiltSnapshots = await database.executor.query<{ count: number }>(`
       SELECT count(*)::int AS count FROM scoreboard_snapshots
       WHERE contest_id = $1 AND view = 'public' AND version = 1`, [restored.contest_id])
     expect(rebuiltSnapshots.rows[0]?.count).toBe(1)
@@ -312,3 +316,10 @@ describeRestore('isolated backup restore verification', () => {
     })}`)
   }, 30_000)
 })
+
+function createStore(): NuxtHubContentObjectStore {
+  if (blobDirectory) {
+    return new NuxtHubContentObjectStore(createBlobStorage(createFileSystemDriver({ dir: blobDirectory })))
+  }
+  return new S3ContentObjectStore(s3Config)
+}

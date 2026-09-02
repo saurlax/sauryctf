@@ -3,6 +3,7 @@ import * as z from 'zod'
 import type { FormSubmitEvent } from '@nuxt/ui'
 import type { components } from '~/types/api'
 import { buildAuthEntryPath } from '~/utils/auth-redirect'
+import { createVisiblePolling } from '~/utils/visible-polling'
 import {
   getChallengeAttachmentDisplayName,
   getChallengeAttachmentMeta,
@@ -48,6 +49,7 @@ const participationLoading = ref(false)
 const joining = ref(false)
 const leaving = ref(false)
 const activeTab = ref('challenges')
+let scoreboardPolling: ReturnType<typeof createVisiblePolling> | undefined
 const submitting = ref<number | null>(null) // challenge id being submitted
 const writeupSubmitting = ref(false)
 const instanceLoading = reactive<Record<number, boolean>>({})
@@ -2117,6 +2119,7 @@ const tabItems = [
 
 watch(activeTab, (v) => {
   if (v === 'scoreboard') fetchScoreboard()
+  scoreboardPolling?.sync()
   if (v === 'challenges' && routeRequestedChallengeId.value) {
     void focusChallengeFromRoute()
   }
@@ -2146,6 +2149,11 @@ onMounted(async () => {
   if (routeRequestedTab.value === 'overview' || routeRequestedTab.value === 'scoreboard' || routeRequestedTab.value === 'writeup' || routeRequestedTab.value === 'challenges') {
     activeTab.value = routeRequestedTab.value
   }
+  scoreboardPolling = createVisiblePolling({
+    task: fetchScoreboard,
+    enabled: () => activeTab.value === 'scoreboard',
+  })
+  scoreboardPolling.start()
   const timer = window.setInterval(() => {
     now.value = Date.now()
   }, 1000)
@@ -2161,6 +2169,7 @@ onMounted(async () => {
   }
 
   onBeforeUnmount(() => {
+    scoreboardPolling?.stop()
     window.clearInterval(timer)
     window.clearInterval(instanceRefreshTimer)
   })

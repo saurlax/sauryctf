@@ -2,14 +2,12 @@
 set -euo pipefail
 
 postgres_image="${TEST_POSTGRES_IMAGE:-postgres:17.6-alpine}"
-redis_image="${TEST_REDIS_IMAGE:-redis:7.4.5-alpine}"
 run_id="$(date +%s)-$$"
 postgres_container="sauryctf-security-postgres-${run_id}"
-redis_container="sauryctf-security-redis-${run_id}"
 
 cleanup() {
-  docker container stop "${postgres_container}" "${redis_container}" >/dev/null 2>&1 || true
-  docker container rm "${postgres_container}" "${redis_container}" >/dev/null 2>&1 || true
+  docker container stop "${postgres_container}" >/dev/null 2>&1 || true
+  docker container rm "${postgres_container}" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT INT TERM
 
@@ -35,31 +33,11 @@ postgres_binding="$(docker port "${postgres_container}" 5432/tcp)"
 postgres_port="${postgres_binding##*:}"
 database_url="postgresql://postgres:sauryctf-security@127.0.0.1:${postgres_port}/postgres"
 
-docker run --detach --name "${redis_container}" \
-  --publish 127.0.0.1::6379 \
-  --health-cmd='redis-cli ping' \
-  --health-interval=1s --health-timeout=3s --health-retries=60 \
-  "${redis_image}" redis-server --save '' --appendonly no >/dev/null
-
-for _ in $(seq 1 90); do
-  if [[ "$(docker inspect --format '{{.State.Health.Status}}' "${redis_container}")" == "healthy" ]]; then
-    break
-  fi
-  sleep 1
-done
-if [[ "$(docker inspect --format '{{.State.Health.Status}}' "${redis_container}")" != "healthy" ]]; then
-  docker logs "${redis_container}"
-  exit 1
-fi
-redis_binding="$(docker port "${redis_container}" 6379/tcp)"
-redis_port="${redis_binding##*:}"
-redis_url="redis://127.0.0.1:${redis_port}"
-
 # Authentication, global-role authorization, CSRF, Turnstile, upload and ZIP
 # hardening, Flag redaction, and the restricted Worker database role.
 TEST_DATABASE_ADMIN_URL="${database_url}" \
-TEST_REDIS_URL="${redis_url}" \
   pnpm --filter sauryctf-web exec vitest run \
+    server/db/migrate.test.ts \
     server/domains/identity/bootstrap.test.ts \
     server/domains/identity/capabilities.test.ts \
     server/domains/identity/human-verification.test.ts \
@@ -71,11 +49,13 @@ TEST_REDIS_URL="${redis_url}" \
     server/infrastructure/auth/protected-session.test.ts \
     server/infrastructure/auth/turnstile.test.ts \
     server/infrastructure/security/rate-limit.test.ts \
+    server/infrastructure/security/postgres-rate-limit-store.test.ts \
     server/infrastructure/security/request-security.test.ts \
     server/infrastructure/security/submission-answer-protector.test.ts \
     server/domains/content/service.test.ts \
     server/domains/content/download-service.test.ts \
     server/infrastructure/content/content-http.test.ts \
+    server/infrastructure/content/blob-route-security.test.ts \
     server/infrastructure/content/content-download-repository.test.ts \
     server/domains/contest-packages/service.test.ts \
     server/infrastructure/content/contest-package-archive.test.ts \

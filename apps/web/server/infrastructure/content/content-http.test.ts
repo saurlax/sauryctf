@@ -81,19 +81,22 @@ function downloadDependencies(
     identity: dependencies().identity,
     downloads: {
       challengeAsset: vi.fn(async () => ({
-        url: 'https://objects.example.test/challenge-download',
+        storageKey: 'temporary/challenge-download',
         expiresAt: new Date('2026-09-02T04:01:00.000Z'),
         disposition: 'attachment' as const,
+        contentDisposition: 'attachment; filename="challenge.zip"',
         filename: 'challenge.zip',
         mediaType: 'application/zip',
       })),
       writeupAttachment: vi.fn(async () => ({
-        url: 'https://objects.example.test/writeup-download',
+        storageKey: 'temporary/writeup-download',
         expiresAt: new Date('2026-09-02T04:01:00.000Z'),
         disposition: 'inline' as const,
+        contentDisposition: 'inline; filename="proof.png"',
         filename: 'proof.png',
         mediaType: 'image/png',
       })),
+      read: vi.fn(async () => new Uint8Array([1, 2, 3])),
       ...overrides,
     },
   }
@@ -214,12 +217,16 @@ describe('content HTTP adapters', () => {
     expect(challenge.status).toBe(200)
     expect(challenge.headers.get('cache-control')).toBe('private, no-store')
     await expect(challenge.json()).resolves.toEqual({
-      url: 'https://objects.example.test/challenge-download',
+      url: `http://localhost/api/content/challenge-assets/${objectId}/download?download=1`,
       expires_at: '2026-09-02T04:01:00.000Z',
       disposition: 'attachment',
       filename: 'challenge.zip',
       media_type: 'application/zip',
     })
+    expect(JSON.stringify(await (await invoke(
+      event => handleChallengeAssetDownload(event, objectId, deps),
+      new Request(`https://ctf.example.test/api/content/challenge-assets/${objectId}/download`),
+    )).json())).not.toMatch(/temporary\/|objects\.example|\.data\/blob/u)
     expect(deps.downloads.challengeAsset).toHaveBeenCalledWith(subject, objectId)
 
     const writeup = await invoke(
@@ -233,6 +240,22 @@ describe('content HTTP adapters', () => {
       media_type: 'image/png',
     })
     expect(deps.downloads.writeupAttachment).toHaveBeenCalledWith(subject, objectId)
+  })
+
+  it('streams an authorized object through the control plane without exposing a storage URL', async () => {
+    const deps = downloadDependencies()
+    const response = await invoke(
+      event => handleChallengeAssetDownload(event, objectId, deps),
+      new Request(`https://ctf.example.test/api/content/challenge-assets/${objectId}/download?download=1`),
+    )
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('application/zip')
+    expect(response.headers.get('content-disposition')).toBe('attachment; filename="challenge.zip"')
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]))
+    expect(deps.downloads.challengeAsset).toHaveBeenCalledWith(subject, objectId)
+    expect(deps.downloads.read).toHaveBeenCalledWith(expect.objectContaining({
+      storageKey: 'temporary/challenge-download',
+    }))
   })
 
   it('uses one not-found response for absent and unauthorized downloads', async () => {
@@ -249,5 +272,16 @@ describe('content HTTP adapters', () => {
     await expect(response.json()).resolves.toMatchObject({
       error: { code: 'content.download_not_found' },
     })
+  })
+
+  it('rejects a guessed storage key before any content lookup or storage read', async () => {
+    const deps = downloadDependencies()
+    const response = await invoke(
+      event => handleChallengeAssetDownload(event, 'temporary-guessed-object-key', deps),
+      new Request('https://ctf.example.test/api/content/challenge-assets/temporary-guessed-object-key/download?download=1'),
+    )
+    expect(response.status).toBe(400)
+    expect(deps.downloads.challengeAsset).not.toHaveBeenCalled()
+    expect(deps.downloads.read).not.toHaveBeenCalled()
   })
 })

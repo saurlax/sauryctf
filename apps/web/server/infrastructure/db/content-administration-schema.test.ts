@@ -1,8 +1,8 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createDatabaseClient, type DatabaseClient } from './client'
-import { runMigrations } from './migrate'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 
 const adminConnectionString = process.env.TEST_DATABASE_ADMIN_URL
 const describeWithPostgres = adminConnectionString ? describe : describe.skip
@@ -15,7 +15,7 @@ function quotedDatabaseName(): string {
 
 describeWithPostgres('content, writeup, transfer, settings, and audit authority schema', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let organizerId: string
   let contestId: string
   let participationId: string
@@ -26,17 +26,17 @@ describeWithPostgres('content, writeup, transfer, settings, and audit authority 
     await admin.query(`CREATE DATABASE ${quotedDatabaseName()}`)
     const url = new URL(adminConnectionString!)
     url.pathname = `/${databaseName}`
-    database = createDatabaseClient({ connectionString: url.toString(), maxConnections: 4 })
-    await runMigrations(database)
+    database = createPostgresTestDatabase({ connectionString: url.toString(), maxConnections: 4 })
+    await runPostgresTestMigrations(database)
 
-    const organizer = await database.pool.query<{ id: string }>(
+    const organizer = await database.executor.query<{ id: string }>(
       `INSERT INTO users (username, username_normalized, email, email_normalized)
        VALUES ('ContentOrganizer', 'contentorganizer', 'content@example.test', 'content@example.test')
        RETURNING id`,
     )
     organizerId = organizer.rows[0]!.id
 
-    const connection = await database.pool.connect()
+    const connection = await database.connect()
     let teamId: string
     try {
       await connection.query('BEGIN')
@@ -59,14 +59,14 @@ describeWithPostgres('content, writeup, transfer, settings, and audit authority 
     finally {
       connection.release()
     }
-    const contest = await database.pool.query<{ id: string }>(
+    const contest = await database.executor.query<{ id: string }>(
       `INSERT INTO contests (title, slug, start_at, end_at, created_by)
        VALUES ('Content Contest', $1, now() + interval '1 day', now() + interval '2 days', $2)
        RETURNING id`,
       [`content-${randomUUID()}`, organizerId],
     )
     contestId = contest.rows[0]!.id
-    const participation = await database.pool.query<{ id: string }>(
+    const participation = await database.executor.query<{ id: string }>(
       `INSERT INTO participations (contest_id, team_id, status, registered_by)
        VALUES ($1, $2, 'pending', $3) RETURNING id`,
       [contestId, teamId, organizerId],
@@ -75,7 +75,7 @@ describeWithPostgres('content, writeup, transfer, settings, and audit authority 
   })
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -87,7 +87,7 @@ describeWithPostgres('content, writeup, transfer, settings, and audit authority 
   })
 
   async function createContentObject(status: 'temporary' | 'committed' = 'committed'): Promise<string> {
-    const object = await database.pool.query<{ id: string }>(
+    const object = await database.executor.query<{ id: string }>(
       `INSERT INTO content_objects
          (storage_key, sha256_digest, size_bytes, media_type, original_filename, status, created_by, committed_at)
        VALUES ($1, $2, 32, 'application/octet-stream', 'artifact.bin', $3::content_object_status, $4,
@@ -99,7 +99,7 @@ describeWithPostgres('content, writeup, transfer, settings, and audit authority 
   }
 
   async function createWriteupVersion(): Promise<{ writeupId: string, versionId: string, versionNumber: number }> {
-    const writeup = await database.pool.query<{ id: string, current_version: number | null }>(
+    const writeup = await database.executor.query<{ id: string, current_version: number | null }>(
       `INSERT INTO writeups (contest_id, participation_id)
        VALUES ($1, $2)
        ON CONFLICT (contest_id, participation_id)
@@ -109,24 +109,24 @@ describeWithPostgres('content, writeup, transfer, settings, and audit authority 
     )
     const writeupId = writeup.rows[0]!.id
     const versionNumber = (writeup.rows[0]!.current_version ?? 0) + 1
-    const version = await database.pool.query<{ id: string }>(
+    const version = await database.executor.query<{ id: string }>(
       `INSERT INTO writeup_versions (writeup_id, version_number, body, created_by)
        VALUES ($1, $2, '# Writeup', $3) RETURNING id`,
       [writeupId, versionNumber, organizerId],
     )
-    await database.pool.query('UPDATE writeups SET current_version = $2 WHERE id = $1', [writeupId, versionNumber])
+    await database.executor.query('UPDATE writeups SET current_version = $2 WHERE id = $1', [writeupId, versionNumber])
     return { writeupId, versionId: version.rows[0]!.id, versionNumber }
   }
 
   it('keeps content identity immutable and accepts only canonical SHA-256 metadata', async () => {
     const objectId = await createContentObject()
 
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `UPDATE content_objects SET storage_key = $2 WHERE id = $1`,
       [objectId, `objects/${randomUUID()}`],
     )).rejects.toMatchObject({ code: '55000' })
 
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `INSERT INTO content_objects
          (storage_key, sha256_digest, size_bytes, media_type, original_filename, created_by)
        VALUES ($1, $2, 1, 'application/octet-stream', 'bad.bin', $3)`,
@@ -139,19 +139,19 @@ describeWithPostgres('content, writeup, transfer, settings, and audit authority 
     const temporaryObjectId = await createContentObject('temporary')
     const { versionId } = await createWriteupVersion()
 
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO content_references (content_object_id, reference_type, writeup_version_id)
        VALUES ($1, 'writeup_attachment', $2)`,
       [committedObjectId, versionId],
     )
 
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `INSERT INTO content_references (content_object_id, reference_type, writeup_version_id)
        VALUES ($1, 'challenge_attachment', $2)`,
       [committedObjectId, versionId],
     )).rejects.toMatchObject({ code: '23514' })
 
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `INSERT INTO content_references (content_object_id, reference_type, writeup_version_id)
        VALUES ($1, 'writeup_attachment', $2)`,
       [temporaryObjectId, versionId],
@@ -161,16 +161,16 @@ describeWithPostgres('content, writeup, transfer, settings, and audit authority 
   it('keeps writeup versions, public timeline events, and audit events append-only', async () => {
     const { writeupId, versionId, versionNumber } = await createWriteupVersion()
 
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       'UPDATE writeup_versions SET body = $2 WHERE id = $1',
       [versionId, 'mutated'],
     )).rejects.toMatchObject({ code: '55000' })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       'DELETE FROM writeup_versions WHERE id = $1',
       [versionId],
     )).rejects.toMatchObject({ code: '55000' })
 
-    const versionForeignKeys = await database.pool.query<{ conname: string }>(
+    const versionForeignKeys = await database.executor.query<{ conname: string }>(
       `SELECT conname FROM pg_constraint
        WHERE conrelid = 'public.writeups'::regclass
          AND conname IN ('writeups_current_version_fk', 'writeups_submitted_version_fk')
@@ -180,37 +180,37 @@ describeWithPostgres('content, writeup, transfer, settings, and audit authority 
       'writeups_current_version_fk',
       'writeups_submitted_version_fk',
     ])
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       'UPDATE writeups SET status = $2, submitted_version = $3, submitted_at = now() WHERE id = $1',
       [writeupId, 'submitted', versionNumber + 1],
     )).rejects.toMatchObject({ code: '23514' })
 
-    const timeline = await database.pool.query<{ id: string }>(
+    const timeline = await database.executor.query<{ id: string }>(
       `INSERT INTO contest_events (contest_id, event_type, event_key)
        VALUES ($1, 'contest_phase_changed', $2) RETURNING id`,
       [contestId, `phase-${randomUUID()}`],
     )
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `DELETE FROM contest_events WHERE id = $1`,
       [timeline.rows[0]!.id],
     )).rejects.toMatchObject({ code: '55000' })
 
     const requestId = randomUUID()
-    const audit = await database.pool.query<{ id: string }>(
+    const audit = await database.executor.query<{ id: string }>(
       `INSERT INTO audit_events
          (actor_user_id, action, target_type, target_id, outcome, request_id, changes, metadata)
        VALUES ($1, 'contest.update', 'contest', $2, 'succeeded', $3, '{}', '{}') RETURNING id`,
       [organizerId, contestId, requestId],
     )
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `UPDATE audit_events SET reason = 'rewritten' WHERE id = $1`,
       [audit.rows[0]!.id],
     )).rejects.toMatchObject({ code: '55000' })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `DELETE FROM audit_events WHERE id = $1`,
       [audit.rows[0]!.id],
     )).rejects.toMatchObject({ code: '55000' })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `INSERT INTO audit_events
          (actor_user_id, action, target_type, target_id, outcome, request_id)
        VALUES ($1, 'contest.update', 'contest', $2, 'succeeded', $3)`,
@@ -219,31 +219,30 @@ describeWithPostgres('content, writeup, transfer, settings, and audit authority 
   })
 
   it('rejects unimplemented or secret-shaped platform settings', async () => {
-    await database.pool.query(
+    await database.executor.query(
       'INSERT INTO platform_settings DEFAULT VALUES ON CONFLICT (singleton) DO NOTHING',
     )
 
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `UPDATE platform_settings SET authentication_mode = 'oidc_only' WHERE singleton = true`,
     )).rejects.toMatchObject({ code: '22P02' })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `UPDATE platform_settings SET theme = 'unknown' WHERE singleton = true`,
     )).rejects.toMatchObject({ code: '22P02' })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `UPDATE platform_settings SET brand_name = '   ' WHERE singleton = true`,
     )).rejects.toMatchObject({ code: '23514' })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `INSERT INTO platform_settings (singleton) VALUES (false)`,
     )).rejects.toMatchObject({ code: '23514' })
 
-    const columns = await database.pool.query<{ column_name: string }>(
+    const columns = await database.executor.query<{ column_name: string }>(
       `SELECT column_name FROM information_schema.columns
        WHERE table_schema = 'public' AND table_name = 'platform_settings'`,
     )
     expect(columns.rows.map(row => row.column_name)).not.toEqual(expect.arrayContaining([
       'session_secret',
       'database_url',
-      'redis_url',
       's3_secret_access_key',
       'worker_credential',
     ]))
@@ -253,33 +252,33 @@ describeWithPostgres('content, writeup, transfer, settings, and audit authority 
     const packageObjectId = await createContentObject()
     const temporaryObjectId = await createContentObject('temporary')
 
-    await database.pool.query(
+    await database.executor.query(
       `INSERT INTO imports (package_object_id, package_version, idempotency_key, requested_by)
        VALUES ($1, 'sauryctf.jeopardy.v1', $2, $3)`,
       [packageObjectId, `import-${randomUUID()}`, organizerId],
     )
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `INSERT INTO imports (package_object_id, package_version, idempotency_key, requested_by, status, finished_at)
        VALUES ($1, 'sauryctf.jeopardy.v1', $2, $3, 'queued', now())`,
       [packageObjectId, `import-${randomUUID()}`, organizerId],
     )).rejects.toMatchObject({ code: '23514' })
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `INSERT INTO imports (package_object_id, package_version, idempotency_key, requested_by)
        VALUES ($1, 'sauryctf.jeopardy.v1', $2, $3)`,
       [temporaryObjectId, `import-${randomUUID()}`, organizerId],
     )).rejects.toMatchObject({ code: '23514' })
 
-    const exportRow = await database.pool.query<{ id: string }>(
+    const exportRow = await database.executor.query<{ id: string }>(
       `INSERT INTO exports (contest_id, package_version, idempotency_key, requested_by)
        VALUES ($1, 'sauryctf.jeopardy.v1', $2, $3) RETURNING id`,
       [contestId, `export-${randomUUID()}`, organizerId],
     )
-    await database.pool.query(
+    await database.executor.query(
       `UPDATE exports SET status = 'succeeded', package_object_id = $2, finished_at = now()
        WHERE id = $1`,
       [exportRow.rows[0]!.id, packageObjectId],
     )
-    await expect(database.pool.query(
+    await expect(database.executor.query(
       `INSERT INTO exports (contest_id, package_version, idempotency_key, requested_by, status, finished_at)
        VALUES ($1, 'sauryctf.jeopardy.v1', $2, $3, 'failed', now())`,
       [contestId, `export-${randomUUID()}`, organizerId],

@@ -1,4 +1,3 @@
-import type { Pool } from 'pg'
 import { challengeScoringPolicySchema } from '../../../shared/contracts/challenges'
 import {
   ScoringReplayContestNotFoundError,
@@ -9,6 +8,7 @@ import {
   type ScoringReplayOptions,
   type ScoringReplayRepository,
 } from '../../domains/submissions/scoring-replay'
+import type { DatabaseExecutor } from './executor'
 
 interface ChallengeRow {
   id: string
@@ -50,13 +50,11 @@ interface AdjustmentRow {
 }
 
 export class PostgresScoringReplayRepository implements ScoringReplayRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly database: DatabaseExecutor) {}
 
   async load(contestId: string, options?: ScoringReplayOptions): Promise<ContestScoringFacts> {
-    const connection = await this.pool.connect()
     const factsBefore = options?.factsBefore ?? null
-    try {
-      await connection.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY')
+    return this.database.transaction(async (connection) => {
       const contest = await connection.query('SELECT 1 FROM contests WHERE id = $1', [contestId])
       if (!contest.rows[0]) throw new ScoringReplayContestNotFoundError()
 
@@ -101,8 +99,6 @@ export class PostgresScoringReplayRepository implements ScoringReplayRepository 
          ORDER BY created_at, id`,
         [contestId, factsBefore],
       )
-      await connection.query('COMMIT')
-
       return {
         challenges: challengeRows.rows.map(row => ({
           id: row.id,
@@ -139,13 +135,6 @@ export class PostgresScoringReplayRepository implements ScoringReplayRepository 
           createdAt: row.created_at,
         })),
       }
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    }, { isolationLevel: 'repeatable read', accessMode: 'read only' })
   }
 }

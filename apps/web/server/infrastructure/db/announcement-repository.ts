@@ -1,4 +1,3 @@
-import type { Pool, PoolClient } from 'pg'
 import {
   AnnouncementContestArchivedError,
   AnnouncementContestNotFoundError,
@@ -13,6 +12,7 @@ import {
   type UpdateAnnouncementCommand,
   type WithdrawAnnouncementCommand,
 } from '../../domains/announcements/repository'
+import type { DatabaseExecutor } from './executor'
 
 interface AnnouncementRow {
   id: string
@@ -32,12 +32,10 @@ interface LockedAnnouncementRow extends AnnouncementRow {
 }
 
 export class PostgresAnnouncementRepository implements AnnouncementRepository {
-  constructor(private pool: Pool) {}
+  constructor(private database: DatabaseExecutor) {}
 
   async create(command: CreateAnnouncementCommand): Promise<AnnouncementRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       await this.lockWritableContest(connection, command.contestId)
       await connection.query(
         `INSERT INTO announcements
@@ -52,12 +50,6 @@ export class PostgresAnnouncementRepository implements AnnouncementRepository {
           command.actorId,
         ],
       )
-      await this.replaceScheduledPublication(connection, {
-        announcementId: command.announcementId,
-        contestId: command.contestId,
-        version: 1,
-        availableAt: command.publishAt,
-      })
       await this.writeAudit(connection, {
         actorId: command.actorId,
         requestId: command.requestId,
@@ -71,26 +63,18 @@ export class PostgresAnnouncementRepository implements AnnouncementRepository {
         },
       })
       const result = await this.read(connection, command.contestId, command.announcementId)
-      await connection.query('COMMIT')
       return result
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async readManaged(contestId: string, announcementId: string): Promise<AnnouncementRecord> {
-    await this.requireContest(this.pool, contestId, false)
-    return this.read(this.pool, contestId, announcementId)
+    await this.requireContest(this.database, contestId, false)
+    return this.read(this.database, contestId, announcementId)
   }
 
   async listManaged(contestId: string, cursor: string | undefined, limit: number): Promise<AnnouncementPage> {
-    await this.requireContest(this.pool, contestId, false)
-    const result = await this.pool.query<AnnouncementRow>(
+    await this.requireContest(this.database, contestId, false)
+    const result = await this.database.query<AnnouncementRow>(
       `${this.select()}
        WHERE a.contest_id = $1
          AND ($2::uuid IS NULL OR (a.created_at, a.id) < (
@@ -106,8 +90,8 @@ export class PostgresAnnouncementRepository implements AnnouncementRepository {
   }
 
   async listPublic(contestId: string, cursor: string | undefined, limit: number): Promise<AnnouncementPage> {
-    await this.requireContest(this.pool, contestId, true)
-    const result = await this.pool.query<AnnouncementRow>(
+    await this.requireContest(this.database, contestId, true)
+    const result = await this.database.query<AnnouncementRow>(
       `${this.select()}
        WHERE a.contest_id = $1
          AND a.withdrawn_at IS NULL
@@ -128,17 +112,13 @@ export class PostgresAnnouncementRepository implements AnnouncementRepository {
   }
 
   async update(command: UpdateAnnouncementCommand): Promise<AnnouncementRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       await this.lockWritableContest(connection, command.contestId)
       const current = await this.lockAnnouncement(connection, command.contestId, command.announcementId)
       if (current.withdrawn_at) throw new AnnouncementWithdrawnError()
       if (Number(current.version) !== command.expectedVersion) throw new AnnouncementVersionConflictError()
 
       const nextVersion = command.expectedVersion + 1
-      const wasVisible = current.publish_at.getTime() <= current.database_now.getTime()
-      const willBeVisible = command.publishAt.getTime() <= current.database_now.getTime()
       await connection.query(
         `UPDATE announcements
          SET title = $3,
@@ -149,33 +129,6 @@ export class PostgresAnnouncementRepository implements AnnouncementRepository {
          WHERE contest_id = $1 AND id = $2`,
         [command.contestId, command.announcementId, command.title, command.body, command.publishAt],
       )
-
-      const publicationWasEmitted = await this.clearPendingPublications(connection, command.announcementId)
-      if (!willBeVisible || !publicationWasEmitted) {
-        await this.insertPublication(connection, {
-          announcementId: command.announcementId,
-          contestId: command.contestId,
-          version: nextVersion,
-          availableAt: command.publishAt,
-          versionedKey: publicationWasEmitted,
-        })
-      }
-      if (willBeVisible && publicationWasEmitted) {
-        await this.insertImmediateEvent(connection, {
-          announcementId: command.announcementId,
-          contestId: command.contestId,
-          version: nextVersion,
-          action: 'updated',
-        })
-      }
-      else if (!willBeVisible && wasVisible) {
-        await this.insertImmediateEvent(connection, {
-          announcementId: command.announcementId,
-          contestId: command.contestId,
-          version: nextVersion,
-          action: 'updated',
-        })
-      }
 
       await this.writeAudit(connection, {
         actorId: command.actorId,
@@ -192,28 +145,17 @@ export class PostgresAnnouncementRepository implements AnnouncementRepository {
         },
       })
       const result = await this.read(connection, command.contestId, command.announcementId)
-      await connection.query('COMMIT')
       return result
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async withdraw(command: WithdrawAnnouncementCommand): Promise<AnnouncementRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       await this.lockWritableContest(connection, command.contestId)
       const current = await this.lockAnnouncement(connection, command.contestId, command.announcementId)
       if (current.withdrawn_at) throw new AnnouncementWithdrawnError()
       if (Number(current.version) !== command.expectedVersion) throw new AnnouncementVersionConflictError()
 
-      const wasVisible = current.publish_at.getTime() <= current.database_now.getTime()
       const nextVersion = command.expectedVersion + 1
       await connection.query(
         `UPDATE announcements
@@ -223,22 +165,6 @@ export class PostgresAnnouncementRepository implements AnnouncementRepository {
          WHERE contest_id = $1 AND id = $2`,
         [command.contestId, command.announcementId],
       )
-      await connection.query(
-        `DELETE FROM domain_outbox
-         WHERE aggregate_type = 'announcement'
-           AND aggregate_id = $1
-           AND event_type = 'contest.announcement.published'
-           AND published_at IS NULL`,
-        [command.announcementId],
-      )
-      if (wasVisible) {
-        await this.insertImmediateEvent(connection, {
-          announcementId: command.announcementId,
-          contestId: command.contestId,
-          version: nextVersion,
-          action: 'withdrawn',
-        })
-      }
       await this.writeAudit(connection, {
         actorId: command.actorId,
         requestId: command.requestId,
@@ -249,19 +175,11 @@ export class PostgresAnnouncementRepository implements AnnouncementRepository {
         changes: { version: nextVersion },
       })
       const result = await this.read(connection, command.contestId, command.announcementId)
-      await connection.query('COMMIT')
       return result
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
-  private async lockWritableContest(connection: PoolClient, contestId: string) {
+  private async lockWritableContest(connection: DatabaseExecutor, contestId: string) {
     const result = await connection.query<{ publication_status: 'draft' | 'published' | 'archived' }>(
       'SELECT publication_status::text FROM contests WHERE id = $1 FOR UPDATE',
       [contestId],
@@ -271,7 +189,7 @@ export class PostgresAnnouncementRepository implements AnnouncementRepository {
   }
 
   private async requireContest(
-    connection: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>,
+    connection: DatabaseExecutor,
     contestId: string,
     publicOnly: boolean,
   ) {
@@ -287,7 +205,7 @@ export class PostgresAnnouncementRepository implements AnnouncementRepository {
   }
 
   private async lockAnnouncement(
-    connection: PoolClient,
+    connection: DatabaseExecutor,
     contestId: string,
     announcementId: string,
   ): Promise<LockedAnnouncementRow> {
@@ -310,7 +228,7 @@ export class PostgresAnnouncementRepository implements AnnouncementRepository {
   }
 
   private async read(
-    connection: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>,
+    connection: DatabaseExecutor,
     contestId: string,
     announcementId: string,
   ): Promise<AnnouncementRecord> {
@@ -359,107 +277,7 @@ export class PostgresAnnouncementRepository implements AnnouncementRepository {
     }
   }
 
-  private async replaceScheduledPublication(connection: PoolClient, input: {
-    announcementId: string
-    contestId: string
-    version: number
-    availableAt: Date
-  }) {
-    const publicationWasEmitted = await this.clearPendingPublications(connection, input.announcementId)
-    await this.insertPublication(connection, { ...input, versionedKey: publicationWasEmitted })
-  }
-
-  private async clearPendingPublications(connection: PoolClient, announcementId: string) {
-    await connection.query(
-      `DELETE FROM domain_outbox
-       WHERE aggregate_type = 'announcement'
-         AND aggregate_id = $1
-         AND event_type = 'contest.announcement.published'
-         AND published_at IS NULL`,
-      [announcementId],
-    )
-    const published = await connection.query<{ emitted: boolean }>(
-      `SELECT EXISTS (
-         SELECT 1 FROM domain_outbox
-         WHERE aggregate_type = 'announcement'
-           AND aggregate_id = $1
-           AND event_type = 'contest.announcement.published'
-           AND published_at IS NOT NULL
-       ) AS emitted`,
-      [announcementId],
-    )
-    return published.rows[0]!.emitted
-  }
-
-  private async insertPublication(connection: PoolClient, input: {
-    announcementId: string
-    contestId: string
-    version: number
-    availableAt: Date
-    versionedKey: boolean
-  }) {
-    const dedupeKey = input.versionedKey
-      ? `announcement:${input.announcementId}:publication:v${input.version}`
-      : `announcement:${input.announcementId}:publication`
-    await this.insertOutbox(connection, {
-      announcementId: input.announcementId,
-      contestId: input.contestId,
-      version: input.version,
-      action: 'published',
-      eventType: 'contest.announcement.published',
-      dedupeKey,
-      availableAt: input.availableAt,
-    })
-  }
-
-  private async insertImmediateEvent(connection: PoolClient, input: {
-    announcementId: string
-    contestId: string
-    version: number
-    action: 'updated' | 'withdrawn'
-  }) {
-    await this.insertOutbox(connection, {
-      ...input,
-      eventType: `contest.announcement.${input.action}`,
-      dedupeKey: `announcement:${input.announcementId}:${input.action}:v${input.version}`,
-      availableAt: null,
-    })
-  }
-
-  private async insertOutbox(connection: PoolClient, input: {
-    announcementId: string
-    contestId: string
-    version: number
-    action: 'published' | 'updated' | 'withdrawn'
-    eventType: string
-    dedupeKey: string
-    availableAt: Date | null
-  }) {
-    await connection.query(
-      `INSERT INTO domain_outbox
-         (aggregate_type, aggregate_id, event_type, event_version,
-          dedupe_key, payload, occurred_at, available_at)
-       VALUES ('announcement', $1, $2, $3, $4, $5,
-               CURRENT_TIMESTAMP, COALESCE($6::timestamptz, CURRENT_TIMESTAMP))
-       ON CONFLICT (dedupe_key) DO NOTHING`,
-      [
-        input.announcementId,
-        input.eventType,
-        input.version,
-        input.dedupeKey,
-        {
-          schema_version: 1,
-          contest_id: input.contestId,
-          announcement_id: input.announcementId,
-          announcement_version: input.version,
-          action: input.action,
-        },
-        input.availableAt,
-      ],
-    )
-  }
-
-  private async writeAudit(connection: PoolClient, input: {
+  private async writeAudit(connection: DatabaseExecutor, input: {
     actorId: string
     requestId: string
     contestId: string

@@ -1,36 +1,12 @@
-import type { paths } from '~/types/control-plane-api'
 import type { FetchOptions } from 'ofetch'
 
 export type ControlPlaneMethod = 'get' | 'post' | 'patch' | 'put' | 'delete'
 
-type Operation<P extends keyof paths, M extends ControlPlaneMethod> =
-  paths[P] extends Record<M, infer Op> ? Op : never
-
-type SuccessResponse<T> = T extends { responses: infer Responses }
-  ? {
-      [Status in keyof Responses]: Status extends 200 | 201 | 202 | 203 | 204
-        ? Responses[Status] extends { content: { 'application/json': infer Body } }
-          ? Body
-          : never
-        : never
-    }[keyof Responses]
-  : never
-
-type RequestBody<T> = T extends { requestBody: { content: { 'application/json': infer Body } } }
-  ? Body
-  : never
-
-type QueryParams<T> = T extends { parameters: { query?: infer Query } } ? Query : never
-type PathParams<T> = T extends { parameters: { path: infer Path } } ? Path : never
-
-export type ControlPlaneResponse<P extends keyof paths, M extends ControlPlaneMethod>
-  = SuccessResponse<Operation<P, M>>
-
-export type ControlPlaneOptions<P extends keyof paths, M extends ControlPlaneMethod>
+export type ControlPlaneOptions<Body = unknown, Query = Record<string, unknown>, Params = Record<string, string | number>>
   = Omit<FetchOptions, 'method' | 'body' | 'query'> & {
-    body?: RequestBody<Operation<P, M>>
-    query?: QueryParams<Operation<P, M>>
-    params?: PathParams<Operation<P, M>>
+    body?: Body
+    query?: Query
+    params?: Params
   }
 
 const csrfFreeWrites = new Set<string>([
@@ -60,18 +36,18 @@ function resolvePath(path: string, params?: Record<string, string | number>): st
   })
 }
 
-export async function $controlApi<M extends ControlPlaneMethod, P extends keyof paths>(
-  method: M,
-  path: P,
-  options?: ControlPlaneOptions<P, M>,
-): Promise<ControlPlaneResponse<P, M>> {
+export async function $controlApi<Response, Body = unknown, Query = Record<string, unknown>, Params = Record<string, string | number>>(
+  method: ControlPlaneMethod,
+  path: string,
+  options?: ControlPlaneOptions<Body, Query, Params>,
+): Promise<Response> {
   const resolvedPath = resolvePath(path, options?.params as Record<string, string | number> | undefined)
   const headers = new Headers(options?.headers)
   if (method !== 'get' && !csrfFreeWrites.has(path)) {
     headers.set('X-CSRF-Token', await csrfToken())
   }
-  // The generated operation types narrow body/query per path; ofetch's generic
-  // options cannot preserve that relationship after the path is resolved.
+  // Shared contract types are supplied by each caller; ofetch cannot preserve
+  // those generics after path interpolation.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return $fetch(resolvedPath, {
     ...(options as any),
@@ -81,7 +57,7 @@ export async function $controlApi<M extends ControlPlaneMethod, P extends keyof 
     headers,
     method: method.toUpperCase() as Uppercase<ControlPlaneMethod>,
     credentials: 'include',
-  }) as Promise<ControlPlaneResponse<P, M>>
+  }) as Promise<Response>
 }
 
 export function controlPlaneErrorMessage(error: unknown): string {

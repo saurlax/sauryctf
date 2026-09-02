@@ -1,4 +1,3 @@
-import type { Pool, PoolClient } from 'pg'
 import {
   TeamConflictError,
   TeamForbiddenError,
@@ -12,6 +11,7 @@ import {
   type TeamRecord,
   type TeamRepository,
 } from '../../domains/teams/repository'
+import type { DatabaseExecutor } from './executor'
 
 function isUniqueViolation(error: unknown) {
   return typeof error === 'object'
@@ -20,14 +20,14 @@ function isUniqueViolation(error: unknown) {
 }
 
 export class PostgresTeamRepository implements TeamRepository {
-  constructor(private pool: Pool) {}
+  constructor(private database: DatabaseExecutor) {}
 
   async findByUser(userId: string): Promise<TeamRecord | null> {
-    const result = await this.pool.query<{ team_id: string }>(
+    const result = await this.database.query<{ team_id: string }>(
       'SELECT team_id FROM team_members WHERE user_id = $1',
       [userId],
     )
-    return result.rows[0] ? this.readTeam(this.pool, result.rows[0].team_id) : null
+    return result.rows[0] ? this.readTeam(this.database, result.rows[0].team_id) : null
   }
 
   async create(
@@ -37,9 +37,7 @@ export class PostgresTeamRepository implements TeamRepository {
     inviteDigest: Buffer,
     inviteCode: string,
   ): Promise<CreatedTeam> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.transaction(async (connection) => {
       const result = await connection.query<{ id: string }>(
         'INSERT INTO teams (name, name_normalized, created_by) VALUES ($1, $2, $3) RETURNING id',
         [name, normalizedName, captainId],
@@ -54,23 +52,12 @@ export class PostgresTeamRepository implements TeamRepository {
         [teamId, inviteDigest, captainId],
       )
       const team = await this.readTeam(connection, teamId)
-      await connection.query('COMMIT')
       return { team, inviteCode }
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      if (isUniqueViolation(error)) throw new TeamConflictError()
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    }, true)
   }
 
   async join(userId: string, inviteDigest: Buffer): Promise<TeamRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.transaction(async (connection) => {
       const located = await connection.query<{ team_id: string }>(
         `SELECT team_id
          FROM team_invites
@@ -101,23 +88,12 @@ export class PostgresTeamRepository implements TeamRepository {
       )
       await this.incrementVersion(connection, teamId)
       const team = await this.readTeam(connection, teamId)
-      await connection.query('COMMIT')
       return team
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      if (isUniqueViolation(error)) throw new TeamConflictError()
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    }, true)
   }
 
   async leave(userId: string): Promise<void> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       const located = await this.findTeamForUser(connection, userId)
       await this.requireUnlockedTeam(connection, located)
       const member = await connection.query<{ role: string }>(
@@ -131,21 +107,11 @@ export class PostgresTeamRepository implements TeamRepository {
         [located, userId],
       )
       await this.incrementVersion(connection, located)
-      await connection.query('COMMIT')
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async removeMember(actorId: string, memberId: string): Promise<void> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       const actor = await this.requireCaptain(connection, actorId, true)
       const target = await connection.query<{ role: string }>(
         'SELECT role::text FROM team_members WHERE team_id = $1 AND user_id = $2 FOR UPDATE',
@@ -158,21 +124,11 @@ export class PostgresTeamRepository implements TeamRepository {
         [actor.teamId, memberId],
       )
       await this.incrementVersion(connection, actor.teamId)
-      await connection.query('COMMIT')
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async rotateInvite(actorId: string, inviteDigest: Buffer, inviteCode: string): Promise<string> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.transaction(async (connection) => {
       const actor = await this.requireCaptain(connection, actorId, false)
       const generation = await connection.query<{ next: number }>(
         'SELECT COALESCE(max(generation), 0) + 1 AS next FROM team_invites WHERE team_id = $1',
@@ -187,23 +143,12 @@ export class PostgresTeamRepository implements TeamRepository {
         [actor.teamId, inviteDigest, generation.rows[0]!.next, actorId],
       )
       await this.incrementVersion(connection, actor.teamId)
-      await connection.query('COMMIT')
       return inviteCode
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      if (isUniqueViolation(error)) throw new TeamConflictError()
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    }, true)
   }
 
   async transferCaptain(actorId: string, memberId: string): Promise<void> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.database.transaction(async (connection) => {
       const actor = await this.requireCaptain(connection, actorId, true)
       if (actorId === memberId) throw new TeamForbiddenError()
       const target = await connection.query(
@@ -213,21 +158,11 @@ export class PostgresTeamRepository implements TeamRepository {
       if (!target.rows[0]) throw new TeamNotFoundError()
       await this.assignCaptain(connection, actor.teamId, memberId)
       await this.incrementVersion(connection, actor.teamId)
-      await connection.query('COMMIT')
-    }
-    catch (error) {
-      await connection.query('ROLLBACK')
-      throw error
-    }
-    finally {
-      connection.release()
-    }
+    })
   }
 
   async correctMembership(command: TeamCorrectionCommand): Promise<TeamRecord> {
-    const connection = await this.pool.connect()
-    try {
-      await connection.query('BEGIN')
+    return this.transaction(async (connection) => {
       const locks = await this.lockTeam(connection, command.teamId)
 
       if (command.operation === 'add_member') {
@@ -284,20 +219,24 @@ export class PostgresTeamRepository implements TeamRepository {
         ],
       )
       const team = await this.readTeam(connection, command.teamId)
-      await connection.query('COMMIT')
       return team
+    }, true)
+  }
+
+  private async transaction<T>(
+    work: (connection: DatabaseExecutor) => Promise<T>,
+    mapUniqueViolation: boolean,
+  ): Promise<T> {
+    try {
+      return await this.database.transaction(work)
     }
     catch (error) {
-      await connection.query('ROLLBACK')
-      if (isUniqueViolation(error)) throw new TeamConflictError()
+      if (mapUniqueViolation && isUniqueViolation(error)) throw new TeamConflictError()
       throw error
-    }
-    finally {
-      connection.release()
     }
   }
 
-  private async findTeamForUser(connection: PoolClient, userId: string): Promise<string> {
+  private async findTeamForUser(connection: DatabaseExecutor, userId: string): Promise<string> {
     const result = await connection.query<{ team_id: string }>(
       'SELECT team_id FROM team_members WHERE user_id = $1',
       [userId],
@@ -306,7 +245,7 @@ export class PostgresTeamRepository implements TeamRepository {
     return result.rows[0].team_id
   }
 
-  private async requireCaptain(connection: PoolClient, userId: string, requireUnlocked: boolean) {
+  private async requireCaptain(connection: DatabaseExecutor, userId: string, requireUnlocked: boolean) {
     const teamId = await this.findTeamForUser(connection, userId)
     const locks = await this.lockTeam(connection, teamId)
     if (requireUnlocked && locks.length) throw new TeamLockedError(locks)
@@ -319,18 +258,18 @@ export class PostgresTeamRepository implements TeamRepository {
     return { teamId }
   }
 
-  private async requireUnlockedTeam(connection: PoolClient, teamId: string): Promise<void> {
+  private async requireUnlockedTeam(connection: DatabaseExecutor, teamId: string): Promise<void> {
     const locks = await this.lockTeam(connection, teamId)
     if (locks.length) throw new TeamLockedError(locks)
   }
 
-  private async lockTeam(connection: PoolClient, teamId: string): Promise<TeamLockRecord[]> {
+  private async lockTeam(connection: DatabaseExecutor, teamId: string): Promise<TeamLockRecord[]> {
     const team = await connection.query('SELECT 1 FROM teams WHERE id = $1 FOR UPDATE', [teamId])
     if (!team.rows[0]) throw new TeamNotFoundError()
     return this.readLocks(connection, teamId)
   }
 
-  private async assignCaptain(connection: PoolClient, teamId: string, memberId: string) {
+  private async assignCaptain(connection: DatabaseExecutor, teamId: string, memberId: string) {
     await connection.query(
       "UPDATE team_members SET role = 'member' WHERE team_id = $1 AND role = 'captain'",
       [teamId],
@@ -341,7 +280,7 @@ export class PostgresTeamRepository implements TeamRepository {
     )
   }
 
-  private async incrementVersion(connection: PoolClient, teamId: string) {
+  private async incrementVersion(connection: DatabaseExecutor, teamId: string) {
     await connection.query(
       'UPDATE teams SET version = version + 1, updated_at = now() WHERE id = $1',
       [teamId],
@@ -349,7 +288,7 @@ export class PostgresTeamRepository implements TeamRepository {
   }
 
   private async readLocks(
-    connection: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>,
+    connection: DatabaseExecutor,
     teamId: string,
   ): Promise<TeamLockRecord[]> {
     const result = await connection.query<{
@@ -376,7 +315,7 @@ export class PostgresTeamRepository implements TeamRepository {
   }
 
   private async readTeam(
-    connection: Pick<Pool, 'query'> | Pick<PoolClient, 'query'>,
+    connection: DatabaseExecutor,
     teamId: string,
   ): Promise<TeamRecord> {
     const team = await connection.query<{ id: string, name: string, version: string }>(

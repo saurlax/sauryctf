@@ -58,9 +58,9 @@ const requiredCiFragments = [
   `version: ${expected.pnpm}`,
   'go-version-file: .go-version',
   'pnpm install --frozen-lockfile',
-  'pnpm typecheck',
-  'pnpm --filter sauryctf-web build',
-  'go test ./apps/worker/...',
+  'pnpm check',
+  'pnpm test',
+  'pnpm build',
 ]
 
 for (const fragment of requiredCiFragments) {

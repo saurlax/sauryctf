@@ -18,35 +18,36 @@ pnpm install --frozen-lockfile
 
 ## 启动控制面
 
-复制 `.env.example` 为 `.env`，启动 PostgreSQL、Redis、MinIO 和 Mailpit：
+复制 `.env.example` 为 `.env`，默认启动 PostgreSQL 和 Mailpit；NuxtHub Blob 使用本机持久目录：
 
 ```bash
-pnpm dev:dependencies
+docker compose -f compose.dev.yml up -d --wait
 pnpm db:migrate
-pnpm dev:web
+pnpm dev
 ```
 
 Nuxt 默认监听 `http://127.0.0.1:3000`。`/api/**` 由 Nitro 自己处理，不代理
 到 Go 服务。
 
+需要验证多副本共享存储时，运行 `docker compose -f compose.dev.yml --profile s3 up -d --wait`，并一次性启用示例中的完整 S3 变量组。不能只配置部分 S3 字段，也不能在 S3 故障时降级到本机目录。
+
 生产构建与启动：
 
 ```bash
 pnpm build
-node apps/web/.output/server/index.mjs
+pnpm start
 ```
 
 ## Worker
 
 `apps/worker` 是独立 Go module，包含任务领取、Docker/Kubernetes Provider、
-观察回写和周期 Reconciler。它只提供私有存活、就绪与指标端点，不提供公网
-业务 API。
+观察回写和周期 Reconciler。它只连接受限 PostgreSQL 与启用的 Provider，只提供私有存活、就绪与指标端点；不连接 Blob，也不调用控制面 HTTP API。
 
 当前可以单独验证 module：
 
 ```bash
-pnpm test:worker
-pnpm build:worker
+go test ./apps/worker/...
+go build ./apps/worker/...
 ```
 
 Worker 生产运行需要独立数据库 LOGIN，且必须继承迁移后由 `deploy/postgres/worker-role.sql` 创建的 `sauryctf_worker` 限权组角色。完整配置和 Provider 说明见 `apps/worker/README.md`。
@@ -58,26 +59,21 @@ Worker 生产运行需要独立数据库 LOGIN，且必须继承迁移后由 `de
 ## 空环境验证
 
 ```bash
-pnpm test:onboarding
-pnpm test:smoke
+bash ./scripts/test-onboarding.sh
+bash ./scripts/test-jeopardy-smoke.sh
 ```
 
-`test:onboarding` 从随机命名的新依赖容器启动真实控制面和 Worker；`test:smoke` 在隔离数据库中验证完整 Jeopardy 业务链路。步骤和人工检查清单见 [Jeopardy 空环境与冒烟验证](./jeopardy-smoke.md)。
+`test-onboarding.sh` 从随机命名的新依赖容器启动真实控制面和 Worker；`test-jeopardy-smoke.sh` 在隔离数据库中验证完整 Jeopardy 业务链路。步骤和人工检查清单见 [Jeopardy 空环境与冒烟验证](./jeopardy-smoke.md)。
 
 ## 建议验证顺序
 
 ```bash
-pnpm check:toolchain
-pnpm check:boundaries
-pnpm check:jeopardy-scope
-pnpm generate:api
-pnpm test:contracts
-pnpm test:db
-pnpm test:onboarding
-pnpm test:smoke
-pnpm typecheck
+pnpm check
+pnpm test
 pnpm build
-pnpm test:worker
+bash ./scripts/test-onboarding.sh
+bash ./scripts/test-jeopardy-smoke.sh
+bash ./scripts/test-release-acceptance.sh
 ```
 
 详细设计见 [文档索引](../README.md)、[生产部署](../deployment/production.md) 与当前 OpenSpec change。

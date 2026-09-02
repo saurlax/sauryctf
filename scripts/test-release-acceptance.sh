@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-change_name='rebuild-platform-with-nuxt-control-plane'
+change_name='adopt-nuxthub-data-management'
 started_epoch="$(date +%s)"
 source_revision="$(git rev-parse --verify HEAD)"
 
@@ -28,28 +28,31 @@ require_command openspec
 require_command pnpm
 require_command rg
 
+verify_removed_cache_runtime() {
+  local service_name='re''dis'
+  local client_name='io''re''dis'
+  if rg -n -i "${service_name}|${client_name}" \
+    package.json apps/web/package.json apps/worker/go.mod apps/worker/go.sum \
+    .env.example compose.dev.yml .github scripts \
+    apps/web/app apps/web/server apps/web/shared apps/web/nuxt.config.ts \
+    apps/web/.output --glob '!**/*.map'; then
+    echo 'Removed cache backend found in a direct dependency, runtime input, source, or publishable build artifact' >&2
+    return 1
+  fi
+}
+
 run_gate frozen_install pnpm install --frozen-lockfile
-run_gate toolchain pnpm check:toolchain
-run_gate boundaries pnpm check:boundaries
-run_gate jeopardy_scope pnpm check:jeopardy-scope
-
-run_gate openapi_generation pnpm generate:api
-run_gate openapi_clean git diff --exit-code -- \
-  api/openapi.yaml apps/web/app/types/control-plane-api.d.ts
-
-run_gate contracts pnpm test:contracts
-run_gate fresh_onboarding pnpm test:onboarding
-run_gate jeopardy_smoke pnpm test:smoke
-run_gate security pnpm test:security
-run_gate capacity pnpm test:capacity
-run_gate fault_recovery pnpm test:faults
-run_gate backup_recovery pnpm test:backup-recovery
-run_gate instance_lifecycle pnpm test:instances:lifecycle
-
-run_gate nuxt_typecheck pnpm typecheck
-run_gate nuxt_build pnpm build
-run_gate worker_tests pnpm test:worker
-run_gate worker_build pnpm build:worker
+run_gate checks pnpm check
+run_gate unit_tests pnpm test
+run_gate fresh_onboarding bash ./scripts/test-onboarding.sh
+run_gate security bash ./scripts/test-security-acceptance.sh
+run_gate capacity bash ./scripts/test-capacity-acceptance.sh
+run_gate fault_recovery bash ./scripts/test-fault-recovery.sh
+run_gate backup_recovery_s3 env BACKUP_BLOB_DRIVER=s3 bash ./scripts/test-backup-recovery.sh
+run_gate backup_recovery_fs env BACKUP_BLOB_DRIVER=fs bash ./scripts/test-backup-recovery.sh
+run_gate instance_lifecycle bash ./scripts/test-instance-lifecycle.sh
+run_gate applications_build pnpm build
+run_gate removed_cache_runtime verify_removed_cache_runtime
 run_gate openspec_strict openspec validate "${change_name}" --strict
 run_gate diff_check git diff --check
 

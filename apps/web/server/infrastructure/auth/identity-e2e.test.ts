@@ -6,16 +6,16 @@ import {
   toWebHandler,
   type H3Event,
 } from 'h3'
-import { Client } from 'pg'
+import { PostgresTestClient as Client } from '../../test-support/postgres-database'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { AuthSessionData } from '../../../shared/contracts/auth-session'
 import { DisabledHumanVerificationProvider } from '../../domains/identity/human-verification'
 import { IdentityService } from '../../domains/identity/service'
 import { IdentitySessionService } from '../../domains/identity/session'
 import type { PasswordHasher } from '../../domains/identity/password'
-import { createDatabaseClient, type DatabaseClient } from '../db/client'
+import { createPostgresTestDatabase, type PostgresTestDatabase } from '../../test-support/postgres-database'
 import { PostgresIdentityRepository } from '../db/identity-repository'
-import { runMigrations } from '../db/migrate'
+import { runPostgresTestMigrations } from '../../test-support/postgres-database'
 import { normalizeApiError } from '../http/errors'
 import { MemoryRateLimitStore } from '../security/rate-limit'
 import {
@@ -104,7 +104,7 @@ async function request(
 
 describeWithPostgres('identity HTTP to PostgreSQL flow', () => {
   let admin: Client
-  let database: DatabaseClient
+  let database: PostgresTestDatabase
   let identity: IdentityService
   let sessions: IdentitySessionService
 
@@ -112,19 +112,19 @@ describeWithPostgres('identity HTTP to PostgreSQL flow', () => {
     admin = new Client({ connectionString: adminConnectionString })
     await admin.connect()
     await admin.query(`CREATE DATABASE ${quoteIdentifier(databaseName)}`)
-    database = createDatabaseClient({
+    database = createPostgresTestDatabase({
       connectionString: databaseUrl(adminConnectionString!, databaseName),
       applicationName: 'sauryctf-identity-e2e',
       maxConnections: 4,
     })
-    await runMigrations(database)
-    const repository = new PostgresIdentityRepository(database.pool)
+    await runPostgresTestMigrations(database)
+    const repository = new PostgresIdentityRepository(database.executor)
     identity = new IdentityService(repository, testPasswordHasher)
     sessions = new IdentitySessionService(repository)
   }, 30_000)
 
   afterAll(async () => {
-    if (database) await database.pool.end()
+    if (database) await database.close()
     if (admin) {
       await admin.query(
         'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
@@ -195,8 +195,8 @@ describeWithPostgres('identity HTTP to PostgreSQL flow', () => {
       email: 'identity-admin@example.test',
       password: 'administrator password value',
     })
-    await database.pool.query('UPDATE users SET email_verified_at = now() WHERE id = $1', [adminIdentity.userId])
-    await database.pool.query("UPDATE user_roles SET role = 'admin' WHERE user_id = $1", [adminIdentity.userId])
+    await database.executor.query('UPDATE users SET email_verified_at = now() WHERE id = $1', [adminIdentity.userId])
+    await database.executor.query("UPDATE user_roles SET role = 'admin' WHERE user_id = $1", [adminIdentity.userId])
     const adminJar = sessionJar()
     const adminDependencies = dependencies(adminJar.adapter)
     const adminLogin = await request(handleLogin, adminDependencies, {
@@ -226,7 +226,7 @@ describeWithPostgres('identity HTTP to PostgreSQL flow', () => {
       { body: { status: 'banned', reason: 'Confirmed account abuse' } },
     )
     expect(banned.status).toBe(200)
-    const audits = await database.pool.query<{ action: string, actor_user_id: string, reason: string }>(
+    const audits = await database.executor.query<{ action: string, actor_user_id: string, reason: string }>(
       `SELECT action, actor_user_id, reason
        FROM audit_events
        WHERE request_id = $1 AND target_id = $2
