@@ -243,6 +243,9 @@ export interface paths {
   "/api/admin/monitoring": {
     get: operations["listAdministrationMonitoring"];
   };
+  "/api/admin/operations": {
+    post: operations["executeAdministrationOperation"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -6794,6 +6797,122 @@ export interface operations {
       };
       /** @description Stable API error */
       403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      503: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+    };
+  };
+  executeAdministrationOperation: {
+    parameters: {
+      header: {
+        /** @description Must match the configured public control-plane origin. */
+        Origin: string;
+        /** @description Double-submit proof matching the sauryctf-csrf cookie. */
+        "X-CSRF-Token": string;
+        /** @description Stable caller-generated key for one logical package operation. */
+        "Idempotency-Key": string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          kind: "cache_rebuild" | "dead_letter_replay" | "instance_reconcile" | "session_invalidate" | "result_recalculate";
+          target_id: string;
+          reason: string;
+          /** @constant */
+          confirmed: true;
+        };
+      };
+    };
+    responses: {
+      /** @description Previously completed idempotent operational command */
+      200: {
+        content: {
+          "application/json": {
+            command: {
+              id: string;
+              /** @enum {string} */
+              kind: "cache_rebuild" | "dead_letter_replay" | "instance_reconcile" | "session_invalidate" | "result_recalculate";
+              target_id: string;
+              /** @constant */
+              status: "succeeded";
+              replayed: boolean;
+              /** Format: date-time */
+              completed_at: string;
+              result: {
+                [key: string]: string | number | boolean | null;
+              };
+            };
+          };
+        };
+      };
+      /** @description Operational command completed with immutable audit evidence */
+      201: {
+        content: {
+          "application/json": {
+            command: {
+              id: string;
+              /** @enum {string} */
+              kind: "cache_rebuild" | "dead_letter_replay" | "instance_reconcile" | "session_invalidate" | "result_recalculate";
+              target_id: string;
+              /** @constant */
+              status: "succeeded";
+              replayed: boolean;
+              /** Format: date-time */
+              completed_at: string;
+              result: {
+                [key: string]: string | number | boolean | null;
+              };
+            };
+          };
+        };
+      };
+      /** @description Stable API error */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      403: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      428: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
+      /** @description Stable API error */
+      500: {
         content: {
           "application/json": components["schemas"]["ErrorResponse"];
         };

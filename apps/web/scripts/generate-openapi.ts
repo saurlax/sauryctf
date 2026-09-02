@@ -129,6 +129,10 @@ import {
   monitoringListRequestSchema,
   monitoringListResponseSchema,
 } from '../shared/contracts/monitoring'
+import {
+  executeOperationalCommandRequestSchema,
+  executeOperationalCommandResponseSchema,
+} from '../shared/contracts/operations'
 
 function openApiSchema(schema: z.ZodType): Record<string, unknown> {
   const jsonSchema = z.toJSONSchema(schema, { target: 'draft-7' }) as Record<string, unknown>
@@ -1123,6 +1127,27 @@ const document = {
           401: errorResponse,
           403: errorResponse,
           503: errorResponse,
+        },
+      },
+    },
+    '/api/admin/operations': {
+      post: {
+        operationId: 'executeAdministrationOperation',
+        tags: ['Administration', 'Observability'],
+        security: [{ cookieSession: [] }],
+        parameters: [originParameter, csrfParameter, idempotencyKeyParameter],
+        requestBody: jsonRequestBody(executeOperationalCommandRequestSchema),
+        responses: {
+          200: jsonResponse('Previously completed idempotent operational command', executeOperationalCommandResponseSchema),
+          201: jsonResponse('Operational command completed with immutable audit evidence', executeOperationalCommandResponseSchema),
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          428: errorResponse,
+          503: errorResponse,
+          500: errorResponse,
         },
       },
     },

@@ -34,6 +34,9 @@ describe('disabled Redis scoreboard cache', () => {
     const value = projection(randomUUID())
     await expect(cache.set(value)).resolves.toBeUndefined()
     await expect(cache.get(cacheDescriptor(value))).resolves.toBeNull()
+    await expect(cache.invalidateContest(value.contestId)).rejects.toMatchObject({
+      name: 'OperationalCacheUnavailableError',
+    })
     await expect(cache.close()).resolves.toBeUndefined()
   })
 })
@@ -73,6 +76,22 @@ describeWithRedis('Redis scoreboard cache adapter', () => {
     }
     finally {
       if (inspector.isOpen) inspector.destroy()
+      await cache.close()
+    }
+  })
+
+  it('invalidates only scoreboard keys owned by the selected contest', async () => {
+    const cache = new ResilientRedisScoreboardCache(redisUrl)
+    const selected = projection(randomUUID())
+    const unrelated = projection(randomUUID())
+    try {
+      await cache.set(selected)
+      await cache.set(unrelated)
+      await expect(cache.invalidateContest(selected.contestId)).resolves.toBe(1)
+      await expect(cache.get(cacheDescriptor(selected))).resolves.toBeNull()
+      await expect(cache.get(cacheDescriptor(unrelated))).resolves.toEqual(unrelated)
+    }
+    finally {
       await cache.close()
     }
   })

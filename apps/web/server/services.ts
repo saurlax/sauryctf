@@ -19,6 +19,7 @@ import type { ContestPackageService } from './domains/contest-packages/service'
 import type { PlatformSettingsService } from './domains/platform-settings/service'
 import type { InstanceService } from './domains/instances/service'
 import type { AdministrationMonitoringService } from './domains/administration/monitoring'
+import type { AdministrationOperationsService } from './domains/administration/operations'
 
 export interface ControlPlaneServices {
   identity: IdentityService
@@ -42,4 +43,5 @@ export interface ControlPlaneServices {
   platformSettings: PlatformSettingsService
   instances: InstanceService
   monitoring: AdministrationMonitoringService
+  operations: AdministrationOperationsService
 }

@@ -8,6 +8,7 @@ import {
   type ScoreboardProjectionCache,
 } from '../../domains/scoreboards/cache'
 import type { ScoreboardProjection } from '../../domains/scoreboards/view-service'
+import { OperationalCacheUnavailableError } from '../../domains/administration/operations'
 
 const liveTtlSeconds = 60
 const durableTtlSeconds = 24 * 60 * 60
@@ -49,6 +50,25 @@ export class ResilientRedisScoreboardCache implements ScoreboardProjectionCache 
     }
     catch {
       // Redis is an optional projection cache; authoritative reads remain available.
+    }
+  }
+
+  async invalidateContest(contestId: string): Promise<number> {
+    if (!this.client) throw new OperationalCacheUnavailableError()
+    try {
+      await this.ensureConnected()
+      let deleted = 0
+      for await (const keys of this.client.scanIterator({
+        MATCH: `sauryctf:scoreboard:scoreboard-cache.v1:contest=${encodeURIComponent(contestId)}:*`,
+        COUNT: 100,
+      })) {
+        if (keys.length > 0) deleted += await this.client.del(keys)
+      }
+      return deleted
+    }
+    catch (error) {
+      if (error instanceof OperationalCacheUnavailableError) throw error
+      throw new OperationalCacheUnavailableError()
     }
   }
 

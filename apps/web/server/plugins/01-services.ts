@@ -16,7 +16,9 @@ import { ResilientRedisRateLimitStore } from '../infrastructure/security/rate-li
 import { structuredLog } from '../infrastructure/telemetry/logging'
 import { activeControlPlaneTelemetry } from '../infrastructure/telemetry/telemetry'
 import { AdministrationMonitoringService } from '../domains/administration/monitoring'
+import { AdministrationOperationsService } from '../domains/administration/operations'
 import { PostgresMonitoringRepository } from '../infrastructure/db/monitoring-repository'
+import { PostgresOperationalCommandRepository } from '../infrastructure/db/operations-repository'
 import type { ControlPlaneServices } from '../services'
 import { TeamService } from '../domains/teams/service'
 import { PostgresTeamRepository } from '../infrastructure/db/team-repository'
@@ -116,6 +118,15 @@ export default defineNitroPlugin(async (nitroApp) => {
     new PostgresPlatformSettingsRepository(database.pool),
     content,
   )
+  const scoreboards = new ScoreboardViewService(
+    new PostgresScoreboardViewRepository(database.pool),
+    scoringReplays,
+    undefined,
+    undefined,
+    scoreboardCache,
+    new ScoreboardBuildCoordinator(scoreboardBuildLock),
+  )
+  const operationalCommands = new PostgresOperationalCommandRepository(database.pool)
   const services: ControlPlaneServices = {
     identity,
     identitySessions: new IdentitySessionService(identityRepository),
@@ -134,14 +145,7 @@ export default defineNitroPlugin(async (nitroApp) => {
       new RateLimitStoreSubmissionLimiter(rateLimits),
       new AesGcmSubmissionAnswerProtector(Buffer.from(submissionAnswerKey, 'base64url')),
     ),
-    scoreboards: new ScoreboardViewService(
-      new PostgresScoreboardViewRepository(database.pool),
-      scoringReplays,
-      undefined,
-      undefined,
-      scoreboardCache,
-      new ScoreboardBuildCoordinator(scoreboardBuildLock),
-    ),
+    scoreboards,
     publicRealtime,
     content,
     contentDownloads: new ContentDownloadService(
@@ -165,6 +169,11 @@ export default defineNitroPlugin(async (nitroApp) => {
     monitoring: new AdministrationMonitoringService(
       new PostgresMonitoringRepository(database.pool),
       positiveSeconds(process.env.WORKER_OBSERVATION_STALE_SECONDS, 90) * 1000,
+    ),
+    operations: new AdministrationOperationsService(
+      operationalCommands,
+      scoreboards,
+      scoreboardCache,
     ),
   }
 

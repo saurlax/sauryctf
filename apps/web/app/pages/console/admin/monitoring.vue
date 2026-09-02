@@ -84,6 +84,7 @@ onMounted(() => void loadMonitoring())
     >
       <template #links>
         <UButton label="比赛管理" to="/console/admin" variant="outline" icon="i-lucide-settings-2" />
+        <UButton label="运维操作" to="/console/admin/operations" variant="outline" icon="i-lucide-wrench" />
         <UButton label="审计日志" to="/console/admin/audit" variant="outline" icon="i-lucide-scroll-text" />
       </template>
     </UPageHeader>
@@ -142,6 +143,15 @@ onMounted(() => void loadMonitoring())
               <div v-if="item.contest_id">比赛 {{ item.contest_id }}</div>
               <div v-if="item.challenge_id">题目 {{ item.challenge_id }}</div>
               <div v-if="item.team_id">队伍 {{ item.team_id }}</div>
+              <UButton
+                v-if="item.kind === 'instances' && item.worker_observation_stale"
+                class="mt-2"
+                size="xs"
+                variant="outline"
+                icon="i-lucide-refresh-cw"
+                label="发起对账"
+                :to="`/console/admin/operations?kind=instance_reconcile&target_id=${encodeURIComponent(item.id)}`"
+              />
             </div>
           </div>
           <div v-if="detailEntries(item.details).length" class="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">

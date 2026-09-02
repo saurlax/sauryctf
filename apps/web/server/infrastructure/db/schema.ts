@@ -116,6 +116,18 @@ export const contentReferenceType = pgEnum('content_reference_type', [
   'platform_logo',
 ])
 export const auditOutcome = pgEnum('audit_outcome', ['succeeded', 'rejected', 'failed'])
+export const operationalCommandKind = pgEnum('operational_command_kind', [
+  'cache_rebuild',
+  'dead_letter_replay',
+  'instance_reconcile',
+  'session_invalidate',
+  'result_recalculate',
+])
+export const operationalCommandStatus = pgEnum('operational_command_status', [
+  'pending',
+  'succeeded',
+  'failed',
+])
 
 export const users = pgTable('users', {
   id: uuid().primaryKey().defaultRandom(),
@@ -916,4 +928,27 @@ export const auditEvents = pgTable('audit_events', {
   check('audit_events_reason_not_empty', sql`${table.reason} IS NULL OR length(btrim(${table.reason})) > 0`),
   check('audit_events_changes_object', sql`jsonb_typeof(${table.changes}) = 'object'`),
   check('audit_events_metadata_object', sql`jsonb_typeof(${table.metadata}) = 'object'`),
+])
+
+export const operationalCommands = pgTable('operational_commands', {
+  id: uuid().primaryKey().defaultRandom(),
+  kind: operationalCommandKind().notNull(),
+  targetId: uuid('target_id').notNull(),
+  idempotencyKey: varchar('idempotency_key', { length: 128 }).notNull(),
+  actorUserId: uuid('actor_user_id').notNull().references(() => users.id),
+  requestId: varchar('request_id', { length: 128 }).notNull(),
+  reason: text().notNull(),
+  status: operationalCommandStatus().notNull().default('pending'),
+  result: jsonb(),
+  errorCode: varchar('error_code', { length: 128 }),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  completedAt: timestamp('completed_at', { withTimezone: true, mode: 'date' }),
+}, (table) => [
+  uniqueIndex('operational_commands_idempotency_key_unique').on(table.idempotencyKey),
+  index('operational_commands_status_time').on(table.status, table.createdAt),
+  check('operational_commands_idempotency_key_length', sql`length(${table.idempotencyKey}) BETWEEN 16 AND 128`),
+  check('operational_commands_request_id_not_empty', sql`length(btrim(${table.requestId})) > 0`),
+  check('operational_commands_reason_length', sql`length(btrim(${table.reason})) BETWEEN 10 AND 1000`),
+  check('operational_commands_result_object', sql`${table.result} IS NULL OR jsonb_typeof(${table.result}) = 'object'`),
+  check('operational_commands_result_state', sql`(${table.status} = 'pending' AND ${table.result} IS NULL AND ${table.errorCode} IS NULL AND ${table.completedAt} IS NULL) OR (${table.status} = 'succeeded' AND ${table.result} IS NOT NULL AND ${table.errorCode} IS NULL AND ${table.completedAt} IS NOT NULL) OR (${table.status} = 'failed' AND ${table.result} IS NULL AND ${table.errorCode} IS NOT NULL AND ${table.completedAt} IS NOT NULL)`),
 ])
