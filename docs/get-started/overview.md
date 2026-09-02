@@ -49,6 +49,21 @@ pnpm test:worker
 pnpm build:worker
 ```
 
+Worker 生产运行需要独立数据库 LOGIN，且必须继承迁移后由 `deploy/postgres/worker-role.sql` 创建的 `sauryctf_worker` 限权组角色。完整配置和 Provider 说明见 `apps/worker/README.md`。
+
+## 默认管理员
+
+空用户表首次启动只创建一个受限制账号 `admin / sauryctf`。首次登录后必须在现有账号维护页完成改密、邮箱设置与验证；在此之前不能执行管理操作。改密会递增 `session_version` 并使旧 Cookie 失效。
+
+## 空环境验证
+
+```bash
+pnpm test:onboarding
+pnpm test:smoke
+```
+
+`test:onboarding` 从随机命名的新依赖容器启动真实控制面和 Worker；`test:smoke` 在隔离数据库中验证完整 Jeopardy 业务链路。步骤和人工检查清单见 [Jeopardy 空环境与冒烟验证](./jeopardy-smoke.md)。
+
 ## 建议验证顺序
 
 ```bash
@@ -58,9 +73,11 @@ pnpm check:jeopardy-scope
 pnpm generate:api
 pnpm test:contracts
 pnpm test:db
+pnpm test:onboarding
+pnpm test:smoke
 pnpm typecheck
 pnpm build
 pnpm test:worker
 ```
 
-详细设计见 [文档索引](../README.md) 与当前 OpenSpec change。
+详细设计见 [文档索引](../README.md)、[生产部署](../deployment/production.md) 与当前 OpenSpec change。

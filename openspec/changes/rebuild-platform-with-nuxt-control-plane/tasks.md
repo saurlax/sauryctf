@@ -124,5 +124,5 @@
 - [x] 11.6 执行 PostgreSQL 与对象存储备份恢复，验证 RPO 5 分钟、RTO 30 分钟、附件摘要和排行榜重建目标
 - [x] 11.7 运行仓库级 AWD 禁入检查，验证数据库、OpenAPI、前端路由、Worker 任务和部署清单均无 AWD 实现
 - [x] 11.8 删除 `legacy/go-monolith` 及所有 Go 公网 Handler、Auth 和业务 Service 引用，验证 `apps/worker` 只产生私有 Worker 且浏览器只能访问 `apps/web`
-- [ ] 11.9 更新部署、运维、应急与开发文档，验证新成员能仅按文档启动空环境并完成 Jeopardy smoke flow
+- [x] 11.9 更新部署、运维、应急与开发文档，验证新成员能仅按文档启动空环境并完成 Jeopardy smoke flow
 - [ ] 11.10 执行 OpenSpec、OpenAPI、类型检查、Go 测试、Nuxt 构建和端到端套件，保存首期发布验收报告并阻止未达指标的发布

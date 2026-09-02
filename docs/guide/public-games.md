@@ -94,7 +94,7 @@
   - 只有在当前账号满足提交流程时才会展示编辑入口
   - 真正的编辑和提交统一在 `UModal` 中完成，正文只保留状态、备注和规则摘要
   - 未登录、未组队或报名未通过时，会直接显示对应入口
-  - 更完整的提交流程与状态约束见 [writeup-workflow.md](/d:/Projects/sauryctf/docs/guide/writeup-workflow.md)
+  - 更完整的提交流程与状态约束见 [Writeup 工作流](./writeup-workflow.md)
 - 标签页顶部状态：
   - `题目 / 排行榜 / Writeup` 这三类标签页如果需要说明公开边界、封榜状态或提交权限，优先使用紧凑摘要头
   - 不再为同一标签页状态额外堆整块说明型 `UAlert`

@@ -20,6 +20,13 @@ pnpm db:migrate
 pnpm dev:web
 ```
 
+空环境自动 onboarding 与完整 Jeopardy 冒烟：
+
+```bash
+pnpm test:onboarding
+pnpm test:smoke
+```
+
 Run the repository checks with:
 
 ```bash
@@ -33,9 +40,12 @@ pnpm test:backup-recovery
 pnpm test:faults
 pnpm test:security
 pnpm test:instances:lifecycle
+pnpm test:onboarding
+pnpm test:smoke
 pnpm typecheck
 pnpm build
 pnpm test:worker
 ```
 
-See [docs/README.md](docs/README.md) for architecture and development guides.
+See [docs/README.md](docs/README.md) for onboarding, production deployment,
+operations, incident response, backup and architecture guides.

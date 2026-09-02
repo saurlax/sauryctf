@@ -25,6 +25,8 @@
     "test:contracts": "pnpm --filter sauryctf-web test:contracts",
     "test:db": "pnpm --filter sauryctf-web exec vitest run server/infrastructure/db",
     "test:instances:lifecycle": "bash ./scripts/test-instance-lifecycle.sh",
+    "test:smoke": "bash ./scripts/test-jeopardy-smoke.sh",
+    "test:onboarding": "bash ./scripts/test-onboarding.sh",
     "test:capacity": "bash ./scripts/test-capacity-acceptance.sh",
     "test:backup-recovery": "bash ./scripts/test-backup-recovery.sh",
     "test:faults": "bash ./scripts/test-fault-recovery.sh",

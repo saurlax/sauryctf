@@ -1,102 +1,12 @@
-# 管理端赛事监控
+# 管理监控
 
-当前 `/console/admin` 已经把一场比赛的赛时监控入口前置到了管理页中部。
+`/console/admin/monitoring` 使用专用 `GET /api/admin/monitoring`，从 PostgreSQL 返回生成时间明确的安全投影。可按比赛、题目、队伍、状态和条数筛选：
 
-## 当前能力
+- `submissions`、`cheat_clues`；
+- `instances`、`instance_jobs`；
+- `announcements`、`notifications`、`mail_deliveries`；
+- `writeups`、`audit_events`。
 
-- 先选中一场比赛，再进入“赛事监控”面板
-- 总览当前比赛的最近提交、正确提交、错误 Flag、重复提交、可疑线索与公告数量
-- 直接汇总当前最值得优先处理的事项：
-  - 待审核报名
-  - 待审 Writeup
-  - 跨队重复错误 Flag 线索
-  - 已出现正确提交后的赛况变化
-- 使用分栏标签查看：
-  - `总览`
-  - `榜单`
-  - `提交流`
-  - `线索`
-  - `时间线`
-  - `运维`
+实例与任务项包含 Worker 最近观察时间和是否超过 `WORKER_OBSERVATION_STALE_SECONDS`。页面不得把 Redis 数据当作权威状态，也不得显示完整提交答案、Flag、邮件 payload、Cookie、令牌、签名 URL 或 Provider 凭据。
 
-## 当前结构
-
-- `#monitoring` 现在直接落到监控区本体
-- `总览` 只保留摘要统计、待处理事项和最新公告
-- 实例租约明细统一收口到 `运维` 标签：
-  - 不再散落在总览卡片里
-  - 便于从审计日志、统计卡和赛时线索直接回到真实实例明细
-- `运维` 标签下当前主要承接两类内容：
-  - 动态实例租约列表
-  - 赛后归档与公告维护入口
-
-## 运维视图
-
-- 实例租约列表会展示：
-  - 队伍
-  - 题目
-  - provider / image
-  - 启动时间、续期时间、到期时间
-  - 当前 host / port / launch url
-  - 是否已过期
-- 对单条实例租约可直接执行：
-  - `打开`
-  - `复制入口`
-  - `同题提交`
-  - `销毁`
-- 当监控上下文里已经带有 `challenge_id` 时：
-  - 运维视图会继续高亮同题实例
-  - 便于从审计日志、提交流或线索列表回看同一道题的运行状态
-
-## 当前设计
-
-- 不新增监控专用后端接口
-- 直接复用现有管理接口：
-  - `GET /api/games/{id}/participants`
-  - `GET /api/admin/games/{id}/writeups`
-  - `GET /api/admin/games/{id}/submissions`
-  - `GET /api/admin/games/{id}/cheat-clues`
-  - `GET /api/admin/games/{id}/announcements`
-  - `GET /api/admin/games/{id}/instance-leases`
-- 页面保持 Nuxt UI 极简卡片结构，强调“先发现，再处理”
-- 榜单页直接复用公开接口：
-  - `GET /api/games/{id}/scoreboard`
-  - 支持切换总榜 / 分组榜
-  - 会直接提示封榜状态，并保留榜单导出入口
-  - 如果当前切到了某个分组，导出的榜单包也会跟着使用该分组口径
-- 运维页现在额外收口了一块“赛后归档”区：
-  - 导出比赛包
-  - 导出榜单包
-  - 导出 Writeup
-  - 导出提交记录
-- Writeup 审核区的状态统一展示为正式中文标签：
-  - `待审核`
-  - `已通过`
-  - `已驳回`
-- 时间线会把这些赛时事件统一按时间排序：
-  - 管理员公告
-  - 正确提交
-  - 可疑重复错误 Flag 线索
-
-## 回跳约定
-
-- 审计日志中的 `destroy_instance_lease` 会回跳到 `/console/admin?game_id=...&section=#monitoring`
-- 如果日志 detail 已带 `challenge_id`：
-  - 页面会继续透传该题目上下文
-  - 监控区里的提交、线索和实例租约会尽量维持同题定位
-- 监控卡片、时间线和实例租约列表内部的“查看详情”也优先复用同一套上下文跳转方式
-- 当管理端从监控区或比赛挂题区打开公开页时：
-  - 如果当前已经有明确 `challenge_id`，公开页应继续透传 `?tab=challenges&challenge=...`
-  - 如果当前是报名、公告或比赛概览语义，则优先落到 `overview`
-  - 不把这些入口重新收窄成一律跳到比赛页顶部
-- 对公告类事件：
-  - 如果当前已知 `announcement_id`，监控区和时间线应优先直接打开对应公告的编辑弹层
-  - 不再只把管理员送到公告列表顶部后再手动查找目标公告
-
-## 本地检查顺序
-
-1. 管理员创建并激活一场比赛
-2. 普通用户创建队伍并报名
-3. 提交几次错误 Flag，再提交一次正确 Flag
-4. 如果比赛包含动态实例题，再启动一个实例并确认 `运维` 标签出现租约明细
-5. 回到 `/console/admin` 的“赛事监控”面板，确认提交流、可疑线索和实例租约都能同步出现
+值班人员应关联 `request_id`、`job_id` 和 `instance_id` 查看结构化日志与 trace，并结合 Worker 私有 `/metrics` 判断队列、租约丢失、重试、死信和 Provider 延迟。修复根因后，通过 `/console/admin/operations` 执行受控缓存重建、死信重放、实例对账、Session 失效或结果重算，禁止直接修改生产数据库。
