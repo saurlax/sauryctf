@@ -12,13 +12,54 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 
 	"github.com/saurlax/sauryctf/apps/worker/internal/contracts"
 	"github.com/saurlax/sauryctf/apps/worker/internal/jobs"
 	"github.com/saurlax/sauryctf/apps/worker/internal/providers"
 	"github.com/saurlax/sauryctf/apps/worker/internal/providers/providertest"
 )
+
+func TestKubernetesAPIOutageIsRetryableAndRecovers(t *testing.T) {
+	ctx := context.Background()
+	client := fake.NewSimpleClientset()
+	apiAvailable := false
+	client.Fake.PrependReactor("*", "*", func(k8stesting.Action) (bool, runtime.Object, error) {
+		if apiAvailable {
+			return false, nil, nil
+		}
+		return true, nil, apierrors.NewServiceUnavailable("fault drill: Kubernetes API unavailable")
+	})
+	provider, err := New(client, "challenge-test", kubernetesTestRouteConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := kubernetesTestSpec()
+
+	_, err = provider.Ensure(ctx, spec)
+	failure := jobs.ClassifyFailure(err)
+	if failure.Kind != jobs.FailureRetryable || failure.Code != "provider.kubernetes_unavailable" {
+		t.Fatalf("Kubernetes outage failure = %+v/%v", failure, err)
+	}
+	name, _ := spec.Key.ResourceName()
+	if _, err := client.AppsV1().Deployments("challenge-test").Get(ctx, name, metav1.GetOptions{}); err == nil {
+		t.Fatal("Kubernetes outage created a partial workload")
+	}
+
+	apiAvailable = true
+	observation, err := provider.Ensure(ctx, spec)
+	if err != nil {
+		t.Fatalf("Ensure() after Kubernetes API recovery error = %v", err)
+	}
+	if observation.State != jobs.ObservedStarting || observation.ProviderResourceID == "" {
+		t.Fatalf("Ensure() after recovery observation = %+v", observation)
+	}
+	if _, err := client.AppsV1().Deployments("challenge-test").Get(ctx, name, metav1.GetOptions{}); err != nil {
+		t.Fatalf("recovered Kubernetes API did not create workload: %v", err)
+	}
+}
 
 func TestEnsureCreatesAndUpdatesOwnedResources(t *testing.T) {
 	ctx := context.Background()

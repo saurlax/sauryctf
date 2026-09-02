@@ -1,8 +1,8 @@
-import { createClient } from 'redis'
 import type {
   ScoreboardBuildLock,
   ScoreboardBuildLockResult,
 } from '../../domains/scoreboards/build-coordinator'
+import { createResilientRedisClient } from './resilient-redis-client'
 
 const releaseScript = `
 if redis.call('GET', KEYS[1]) == ARGV[1] then
@@ -16,7 +16,7 @@ export class ResilientRedisScoreboardBuildLock implements ScoreboardBuildLock {
   private connecting: Promise<unknown> | null = null
 
   constructor(redisUrl?: string) {
-    this.client = redisUrl ? createClient({ url: redisUrl }) : null
+    this.client = createResilientRedisClient(redisUrl)
     this.client?.on('error', () => {})
   }
 

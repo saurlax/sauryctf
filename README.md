@@ -31,6 +31,7 @@ pnpm check:jeopardy-scope
 pnpm test:contracts
 pnpm test:db
 pnpm test:capacity
+pnpm test:faults
 pnpm test:security
 pnpm test:instances:lifecycle
 pnpm typecheck

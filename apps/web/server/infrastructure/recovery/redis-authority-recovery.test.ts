@@ -427,6 +427,87 @@ describeWithInfrastructure('Redis authority-loss recovery', () => {
       await realtime.close()
     }
   })
+
+  it('serves one merged PostgreSQL rebuild while Redis is unreachable and repopulates cache after recovery', async () => {
+    await database.pool.query(
+      `DELETE FROM scoreboard_snapshots WHERE contest_id = $1`,
+      [publicContestId],
+    )
+    const repository = new PostgresScoreboardViewRepository(database.pool)
+    const authoritativeReplays = new ContestScoringReplayService(
+      new PostgresScoringReplayRepository(database.pool),
+    )
+    let replayCount = 0
+    const replays = {
+      replay: async (...args: Parameters<ContestScoringReplayService['replay']>) => {
+        replayCount++
+        return authoritativeReplays.replay(...args)
+      },
+    }
+    const unavailableRedisUrl = 'redis://127.0.0.1:1'
+    const unavailableCache = new ResilientRedisScoreboardCache(unavailableRedisUrl)
+    const unavailableLock = new ResilientRedisScoreboardBuildLock(unavailableRedisUrl)
+    const degraded = new ScoreboardViewService(
+      repository,
+      replays,
+      undefined,
+      () => currentTime,
+      unavailableCache,
+      new ScoreboardBuildCoordinator(unavailableLock),
+    )
+    const authorityBefore = await authoritySnapshot(database, organizerId, publicContestId, instanceId)
+    try {
+      const reads = await Promise.all(Array.from({ length: 64 }, () => degraded.read({
+        contestId: publicContestId,
+        view: 'public',
+        viewerRole: 'user',
+        scope: { type: 'overall' },
+      })))
+      expect(replayCount).toBe(1)
+      expect(reads.every(read => read.version === 1 && read.board.rows[0]?.totalPoints === 500)).toBe(true)
+      await expect(degraded.read({
+        contestId: publicContestId,
+        view: 'internal',
+        viewerRole: 'user',
+        scope: { type: 'overall' },
+      })).rejects.toMatchObject({ code: 'scoreboard.internal_forbidden' })
+
+      const snapshots = await database.pool.query<{ count: number }>(`
+        SELECT count(*)::int AS count FROM scoreboard_snapshots
+        WHERE contest_id = $1 AND view = 'public'`, [publicContestId])
+      expect(snapshots.rows[0]?.count).toBe(1)
+      expect(await authoritySnapshot(database, organizerId, publicContestId, instanceId))
+        .toEqual(authorityBefore)
+    }
+    finally {
+      await unavailableCache.close()
+      await unavailableLock.close()
+    }
+
+    const recoveredCache = new ResilientRedisScoreboardCache(redisUrl)
+    const recoveredLock = new ResilientRedisScoreboardBuildLock(redisUrl)
+    try {
+      const recovered = new ScoreboardViewService(
+        repository,
+        authoritativeReplays,
+        undefined,
+        () => currentTime,
+        recoveredCache,
+        new ScoreboardBuildCoordinator(recoveredLock),
+      )
+      const projection = await recovered.read({
+        contestId: publicContestId,
+        view: 'public',
+        viewerRole: 'user',
+        scope: { type: 'overall' },
+      })
+      expect(await recoveredCache.get(cacheDescriptor(projection))).toEqual(projection)
+    }
+    finally {
+      await recoveredCache.close()
+      await recoveredLock.close()
+    }
+  }, 20_000)
 })
 
 async function authoritySnapshot(

@@ -490,6 +490,78 @@ func TestRunnerGracefulStopReturnsLeaseToQueue(t *testing.T) {
 	assertAttempt(t, pool, jobID, 1, "cancelled", "worker.interrupted")
 }
 
+func TestRunnerOutageReleasesLeaseAndReplacementCompletes(t *testing.T) {
+	pool := openJobsTestDatabase(t)
+	repository := NewPostgresRepository(pool)
+	jobID := insertInspectJob(t, pool, 1)
+	processorStarted := make(chan struct{})
+	firstProcessor := processorFunc(func(ctx context.Context, _ contracts.InstanceJob) error {
+		close(processorStarted)
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	firstConfig := RunnerConfig{
+		WorkerID:         "worker-before-outage",
+		BatchSize:        1,
+		Concurrency:      1,
+		LeaseDuration:    5 * time.Second,
+		RenewInterval:    time.Second,
+		PollInterval:     10 * time.Millisecond,
+		OperationTimeout: time.Second,
+	}
+	firstRunner := NewRunner(
+		repository,
+		firstProcessor,
+		firstConfig,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	cancelFirst, firstStopped := runRunner(t, firstRunner)
+	waitClosed(t, processorStarted, "processor start")
+
+	eventually(t, 2*time.Second, func() bool {
+		var status string
+		if err := pool.QueryRow(context.Background(), "SELECT status FROM instance_jobs WHERE id = $1", jobID).Scan(&status); err != nil {
+			t.Fatal(err)
+		}
+		return status == "leased"
+	})
+	cancelFirst()
+	waitRunner(t, firstStopped)
+	assertAttempt(t, pool, jobID, 1, "cancelled", "worker.interrupted")
+
+	secondConfig := firstConfig
+	secondConfig.WorkerID = "worker-after-outage"
+	secondRunner := NewRunner(
+		repository,
+		processorFunc(func(context.Context, contracts.InstanceJob) error { return nil }),
+		secondConfig,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	cancelSecond, secondStopped := runRunner(t, secondRunner)
+	eventually(t, 2*time.Second, func() bool {
+		var status string
+		if err := pool.QueryRow(context.Background(), "SELECT status FROM instance_jobs WHERE id = $1", jobID).Scan(&status); err != nil {
+			t.Fatal(err)
+		}
+		return status == string(StatusSucceeded)
+	})
+	cancelSecond()
+	waitRunner(t, secondStopped)
+
+	assertSuccessfulAttempt(t, pool, jobID, 2)
+	var attemptCount int
+	var owner *string
+	var leaseUntil *time.Time
+	if err := pool.QueryRow(context.Background(), `
+		SELECT attempt_count, lease_owner, lease_until
+		FROM instance_jobs WHERE id = $1`, jobID).Scan(&attemptCount, &owner, &leaseUntil); err != nil {
+		t.Fatal(err)
+	}
+	if attemptCount != 2 || owner != nil || leaseUntil != nil {
+		t.Fatalf("recovered job state = attempts:%d owner:%v lease:%v", attemptCount, owner, leaseUntil)
+	}
+}
+
 func openJobsTestDatabase(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	adminURL := os.Getenv("TEST_DATABASE_ADMIN_URL")

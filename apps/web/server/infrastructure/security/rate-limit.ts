@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { createClient } from 'redis'
+import { createResilientRedisClient } from '../cache/resilient-redis-client'
 
 export interface RateLimitDecision {
   allowed: boolean
@@ -54,7 +54,7 @@ export class ResilientRedisRateLimitStore implements RateLimitStore {
   private connecting: Promise<unknown> | null = null
 
   constructor(redisUrl?: string) {
-    this.client = redisUrl ? createClient({ url: redisUrl }) : null
+    this.client = createResilientRedisClient(redisUrl)
     this.client?.on('error', () => {})
   }
 

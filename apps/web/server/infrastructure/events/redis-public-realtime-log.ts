@@ -9,6 +9,7 @@ import {
   contestRealtimeChannel,
   contestRealtimeLogKey,
 } from './redis-domain-event-publisher'
+import { createResilientRedisClient } from '../cache/resilient-redis-client'
 
 export class RedisPublicRealtimeLog implements PublicRealtimeLog {
   private readonly reader
@@ -16,7 +17,7 @@ export class RedisPublicRealtimeLog implements PublicRealtimeLog {
   private readonly subscribers = new Set<ReturnType<typeof createClient>>()
 
   constructor(redisUrl?: string) {
-    this.reader = redisUrl ? createClient({ url: redisUrl }) : null
+    this.reader = createResilientRedisClient(redisUrl)
     this.reader?.on('error', () => {})
   }
 

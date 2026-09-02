@@ -1,4 +1,3 @@
-import { createClient } from 'redis'
 import {
   scoreboardVersionChange,
   serializeDomainEvent,
@@ -7,6 +6,7 @@ import {
   type DomainEventPublishResult,
 } from '../../domains/events/domain-outbox'
 import { publicRealtimeEventSchema } from '../../domains/events/public-realtime'
+import { createResilientRedisClient } from '../cache/resilient-redis-client'
 
 export const domainEventChannel = 'sauryctf:domain-events:domain-event.v1'
 const dedupeTtlSeconds = 7 * 24 * 60 * 60
@@ -45,7 +45,7 @@ export class RedisDomainEventPublisher implements DomainEventPublisher {
   private connecting: Promise<unknown> | null = null
 
   constructor(redisUrl?: string) {
-    this.client = redisUrl ? createClient({ url: redisUrl }) : null
+    this.client = createResilientRedisClient(redisUrl)
     this.client?.on('error', () => {})
   }
 

@@ -1,4 +1,3 @@
-import { createClient } from 'redis'
 import {
   cacheDescriptor,
   parseScoreboardCacheValue,
@@ -9,6 +8,7 @@ import {
 } from '../../domains/scoreboards/cache'
 import type { ScoreboardProjection } from '../../domains/scoreboards/view-service'
 import { OperationalCacheUnavailableError } from '../../domains/administration/operations'
+import { createResilientRedisClient } from './resilient-redis-client'
 
 const liveTtlSeconds = 60
 const durableTtlSeconds = 24 * 60 * 60
@@ -18,7 +18,7 @@ export class ResilientRedisScoreboardCache implements ScoreboardProjectionCache 
   private connecting: Promise<unknown> | null = null
 
   constructor(redisUrl?: string) {
-    this.client = redisUrl ? createClient({ url: redisUrl }) : null
+    this.client = createResilientRedisClient(redisUrl)
     this.client?.on('error', () => {})
   }
 
