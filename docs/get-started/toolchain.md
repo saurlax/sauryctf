@@ -4,7 +4,7 @@
 
 - Node.js `24.20.0`（LTS），由 `.node-version` 与 `.nvmrc` 固定；
 - pnpm `10.34.5`，由根 `package.json#packageManager` 固定；
-- Go `1.26.3`，由 `.go-version`、`go.work`、`apps/worker/go.mod` 与遗留 module 的 `go.mod` 固定。
+- Go `1.26.3`，由 `.go-version`、`go.work` 与 `apps/worker/go.mod` 固定。
 
 本地应先切换到上述 Node 和 Go 版本，再启用仓库指定的 pnpm：
 
@@ -16,7 +16,7 @@ pnpm install --frozen-lockfile
 
 ## 锁文件规则
 
-- `pnpm-lock.yaml` 必须提交；有外部依赖的 Go module 必须提交各自的 `go.sum`。当前遗留锁文件位于 `legacy/go-monolith/go.sum`。
+- `pnpm-lock.yaml` 与 `apps/worker/go.sum` 必须提交。
 - 只有明确升级依赖时才能运行会改写锁文件的安装命令，并必须同时提交 manifest 与锁文件变化。
 - 禁止删除锁文件解决依赖冲突，也禁止在 CI 中使用浮动 Node、Go 或 pnpm 版本。
 - `api/openapi.yaml` 变更后运行 `pnpm generate:api`，并提交 OpenAPI 与 `apps/web` TypeScript 生成结果。Worker 不生成公网 Server。

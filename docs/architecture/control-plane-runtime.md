@@ -7,7 +7,7 @@ pnpm build
 node apps/web/.output/server/index.mjs
 ```
 
-`/api/**` 由 Nitro 自身处理，不再代理到旧 Go HTTP 服务。`apps/worker/` 只构建私有实例 Worker，不能注册用户、队伍、比赛或管理路由。迁移参考位于 `legacy/go-monolith/`，不属于生产拓扑。
+`/api/**` 由 Nitro 自身处理，不代理到 Go HTTP 服务。`apps/worker/` 只构建私有实例 Worker，不能注册用户、队伍、比赛或管理路由。
 
 稳定公开首页 `/` 在构建期预渲染并随 Nitro public assets 发布。比赛列表、比赛详情、控制台和管理页面依赖实时身份或领域状态，不作为纯静态站点发布。
 

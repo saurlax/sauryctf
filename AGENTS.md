@@ -11,9 +11,6 @@ control plane and a private Go instance worker.
 - `apps/worker/` is an independent Go module. It may only consume
   `instance_jobs`, operate approved Docker/Kubernetes providers, reconcile
   managed resources, and write instance observations.
-- `legacy/go-monolith/` is temporary migration reference. It is not an active
-  workspace module, must be tested with `GOWORK=off`, and must never be imported
-  by either active application.
 - PostgreSQL is authoritative. Redis contains rebuildable cache, rate-limit,
   short-lock, and realtime state only. S3-compatible storage is authoritative
   for content objects.
@@ -33,12 +30,10 @@ the user explicitly requests it later.
 apps/
   web/                    # public Nuxt/Nitro control plane
   worker/                 # private Go instance worker
-legacy/
-  go-monolith/            # temporary read-only migration reference
 api/                      # generated public OpenAPI artifact
 docs/                     # architecture and operations documentation
 openspec/                 # specifications and implementation tasks
-scripts/                  # repository checks and migration-era smoke helpers
+scripts/                  # repository checks and release acceptance helpers
 ```
 
 Do not add application business source under root `cmd/`, `internal/`,
@@ -61,11 +56,6 @@ Do not add application business source under root `cmd/`, `internal/`,
 | Type-check Nuxt | `pnpm typecheck` |
 | Build Nuxt/Nitro | `pnpm build` |
 | Test active Go worker | `pnpm test:worker` |
-| Test isolated legacy monolith | `pnpm test:legacy` |
-
-`pnpm dev:legacy` and the `smoke:local*` scripts exist only to inspect or
-regression-test the isolated legacy implementation during migration. They are
-not the target production topology.
 
 ## Nuxt control plane conventions
 
@@ -93,20 +83,12 @@ not the target production topology.
 - `apps/worker/go.mod` is the only active Go module in `go.work`.
 - The worker must not implement user, auth, team, contest, challenge, Flag,
   submission, scoring, scoreboard, or administrator HTTP business APIs.
-- The worker must not import `legacy/go-monolith` or its module packages.
+- The worker must not duplicate or import control-plane business domains.
 - Instance operations are limited to `ensure`, `inspect`, `destroy`, and
   `reconcile` until a later approved OpenSpec change expands the protocol.
 - Provider operations must be idempotent, use deterministic resource names and
   complete ownership labels, and must not use shell command concatenation.
 - Docker uses the Engine API; Kubernetes uses `client-go`.
-
-## Legacy isolation
-
-The legacy module keeps its existing module path only so its internal imports
-continue to compile while it is used as migration reference. Always invoke it
-from `legacy/go-monolith` with `GOWORK=off`. Do not generate the active public
-API into it and do not copy its Gin handlers, JWT sessions, GORM models, Docker
-CLI provider, roles, or AWD category into either active application.
 
 ## Verification and editing
 
@@ -116,5 +98,4 @@ CLI provider, roles, or AWD category into either active application.
 - Before marking monorepo or boundary work complete, run at least:
   `pnpm check:toolchain`, `pnpm check:boundaries`,
   `pnpm check:jeopardy-scope`, `pnpm generate:api`, `pnpm typecheck`,
-  `pnpm test:contracts`, `pnpm build`, `pnpm test:worker`, and
-  `pnpm test:legacy`.
+  `pnpm test:contracts`, `pnpm build`, and `pnpm test:worker`.

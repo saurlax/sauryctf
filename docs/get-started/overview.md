@@ -5,8 +5,7 @@ SauryCTF 当前采用 monorepo，活动应用只有两个：
 - `apps/web`：Nuxt 4/Nitro 控制面，是浏览器和公网 API 的唯一业务入口；
 - `apps/worker`：私有 Go 实例 Worker，只负责动态实例任务与资源对账。
 
-`legacy/go-monolith` 是迁移期间的实现参考，不属于目标部署，也没有加入根
-Go workspace。首期只实现 Jeopardy。
+首期只实现 Jeopardy。仓库不包含第二个公网业务后端。
 
 ## 准备工具链
 
@@ -39,27 +38,16 @@ node apps/web/.output/server/index.mjs
 
 ## Worker
 
-`apps/worker` 已建立独立 Go module 和依赖边界。Worker 的进程入口、任务领取、
-Provider 和 Reconciler 会按 OpenSpec 第 8、9 阶段逐步实现；在这些任务完成前，
-不使用遗留 Go 单体伪装成新 Worker。
+`apps/worker` 是独立 Go module，包含任务领取、Docker/Kubernetes Provider、
+观察回写和周期 Reconciler。它只提供私有存活、就绪与指标端点，不提供公网
+业务 API。
 
 当前可以单独验证 module：
 
 ```bash
 pnpm test:worker
+pnpm build:worker
 ```
-
-## 遗留实现
-
-需要对照旧行为或运行迁移期 smoke 时，使用显式遗留命令：
-
-```bash
-pnpm dev:legacy
-pnpm test:legacy
-```
-
-这些命令不会把 `legacy/go-monolith` 加回活动 workspace，也不能作为新功能的
-落点。迁移完成后整个遗留目录将删除。
 
 ## 建议验证顺序
 

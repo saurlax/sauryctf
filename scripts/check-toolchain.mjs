@@ -29,7 +29,6 @@ const webPackage = JSON.parse(read('apps/web/package.json'))
 const workflow = read('.github/workflows/ci.yml')
 const goWork = read('go.work')
 const workerGoMod = read('apps/worker/go.mod')
-const legacyGoMod = read('legacy/go-monolith/go.mod')
 
 expectEqual('.node-version', read('.node-version').trim(), expected.node)
 expectEqual('.nvmrc', read('.nvmrc').trim(), expected.node)
@@ -42,7 +41,6 @@ expectEqual('.go-version', read('.go-version').trim(), expected.go)
 
 expectGoVersion('go.work', goWork)
 expectGoVersion('apps/worker/go.mod', workerGoMod)
-expectGoVersion('legacy/go-monolith/go.mod', legacyGoMod)
 
 if (!/^use \.\/apps\/worker$/mu.test(goWork)) {
   failures.push('go.work: apps/worker must be the active workspace module')
@@ -51,7 +49,7 @@ if (/legacy\/go-monolith/mu.test(goWork)) {
   failures.push('go.work: legacy/go-monolith must not be an active workspace module')
 }
 
-for (const lockfile of ['pnpm-lock.yaml', 'legacy/go-monolith/go.sum']) {
+for (const lockfile of ['pnpm-lock.yaml', 'apps/worker/go.sum']) {
   if (!existsSync(resolve(root, lockfile))) failures.push(`${lockfile}: required lock file is missing`)
 }
 
@@ -63,7 +61,6 @@ const requiredCiFragments = [
   'pnpm typecheck',
   'pnpm --filter sauryctf-web build',
   'go test ./apps/worker/...',
-  'GOWORK=off go test ./...',
 ]
 
 for (const fragment of requiredCiFragments) {

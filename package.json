@@ -14,19 +14,14 @@
     "dev:web": "pnpm --filter sauryctf-web dev:local",
     "dev:worker": "go run ./apps/worker/cmd/worker",
     "dev:frontend": "pnpm dev:web",
-    "dev:legacy-api": "cd legacy/go-monolith && GOWORK=off go run ./cmd/server",
-    "dev:legacy": "concurrently -k -n LEGACY,WEB -c blue,green \"pnpm dev:legacy-api\" \"pnpm dev:web\"",
     "check:auth-redirects": "node ./scripts/check-auth-redirects.mjs",
     "check:boundaries": "node ./scripts/check-control-plane-boundaries.mjs",
     "check:jeopardy-scope": "node ./scripts/check-jeopardy-scope.mjs",
     "check:toolchain": "node ./scripts/check-toolchain.mjs",
-    "smoke:local": "powershell -ExecutionPolicy Bypass -File ./scripts/smoke-local.ps1 -StartBackend",
-    "smoke:local:docker": "powershell -ExecutionPolicy Bypass -File ./scripts/smoke-local.ps1 -DynamicMode docker -StartBackend",
     "test": "pnpm test:backend && pnpm test:web",
-    "test:backend": "pnpm test:worker && pnpm test:legacy",
+    "test:backend": "pnpm test:worker",
     "test:worker": "go test ./apps/worker/...",
     "build:worker": "go build ./apps/worker/...",
-    "test:legacy": "cd legacy/go-monolith && GOWORK=off go test ./...",
     "test:contracts": "pnpm --filter sauryctf-web test:contracts",
     "test:db": "pnpm --filter sauryctf-web exec vitest run server/infrastructure/db",
     "test:instances:lifecycle": "bash ./scripts/test-instance-lifecycle.sh",
@@ -57,7 +52,6 @@
     }
   },
   "devDependencies": {
-    "concurrently": "^9.2.1",
     "openapi-typescript": "^6.7.6"
   }
 }

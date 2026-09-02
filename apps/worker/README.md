@@ -6,7 +6,7 @@ Kubernetes providers, reconciles managed resources, and writes observations back
 to PostgreSQL.
 
 The worker must not expose public user, authentication, contest, submission, or
-administration APIs. It must not import code from `legacy/go-monolith`.
+administration APIs. Control-plane business logic belongs only in `apps/web`.
 
 The executable entry point is `cmd/worker`. It starts the leased job runner,
 periodic reconciler, and private `/health/live` and `/health/ready` probes; all

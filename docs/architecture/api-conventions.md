@@ -55,4 +55,4 @@
 
 可执行定义与边界测试位于 `apps/web/shared/contracts/http.ts` 和 `apps/web/shared/contracts/http.test.ts`。
 
-`pnpm generate:api` 先从共享 Zod Schema 生成 `api/openapi.yaml`，再生成 `apps/web/app/types/control-plane-api.d.ts`。Go Worker 不实现公网 API，因此新 OpenAPI 不生成 Go HTTP Server。`legacy/go-monolith/internal/http/api.gen.go` 只随待退役单体保留，不能作为活动契约生成目标。
+`pnpm generate:api` 先从共享 Zod Schema 生成 `api/openapi.yaml`，再生成 `apps/web/app/types/control-plane-api.d.ts`。Go Worker 不实现公网 API，因此 OpenAPI 不生成 Go HTTP Server。

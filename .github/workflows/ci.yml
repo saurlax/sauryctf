@@ -50,9 +50,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: .go-version
-          cache-dependency-path: |
-            apps/worker/go.mod
-            legacy/go-monolith/go.sum
+          cache-dependency-path: apps/worker/go.sum
 
       - name: Install JavaScript dependencies
         run: pnpm install --frozen-lockfile
@@ -85,9 +83,3 @@ jobs:
 
       - name: Test instance worker
         run: go test ./apps/worker/...
-
-      - name: Test isolated legacy monolith
-        working-directory: legacy/go-monolith
-        env:
-          GOWORK: "off"
-        run: GOWORK=off go test ./...

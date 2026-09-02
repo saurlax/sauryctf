@@ -58,6 +58,10 @@ for (const staleRoot of ['frontend', 'cmd', 'internal', 'worker', 'server']) {
   }
 }
 
+if (existsSync(resolve(root, 'legacy/go-monolith'))) {
+  violations.push('retired public Go monolith must not exist')
+}
+
 const goWork = readFileSync(resolve(root, 'go.work'), 'utf8')
 if (!/^use \.\/apps\/worker$/mu.test(goWork) || /legacy\/go-monolith/mu.test(goWork)) {
   violations.push('Go workspace must contain apps/worker and must exclude legacy/go-monolith')
@@ -73,7 +77,7 @@ if (!/^module github\.com\/saurlax\/sauryctf\/apps\/worker$/mu.test(workerGoMod)
   violations.push('apps/worker must use its independent module path')
 }
 if (/gin-gonic|legacy\/go-monolith/mu.test(workerGoMod)) {
-  violations.push('apps/worker must not depend on the legacy public monolith')
+  violations.push('apps/worker must not depend on a public Go HTTP monolith')
 }
 
 if (!existsSync(resolve(root, 'apps/worker/cmd/worker/main.go'))) {

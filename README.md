@@ -1,12 +1,10 @@
 # SauryCTF
 
-SauryCTF is a self-hosted, Jeopardy-first CTF platform currently being rebuilt
-as a monorepo.
+SauryCTF is a self-hosted, Jeopardy-first CTF platform organized as a monorepo.
 
 ```text
 apps/web       Nuxt 4/Nitro public control plane
 apps/worker    private Go dynamic-instance worker
-legacy/        isolated migration reference, not production architecture
 ```
 
 PostgreSQL stores authoritative facts, Redis stores rebuildable derived state,
