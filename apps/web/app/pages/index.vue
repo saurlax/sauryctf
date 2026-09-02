@@ -53,13 +53,7 @@ const heroLinks = computed(() => {
       title="SauryCTF"
       description="面向赛事组织与参赛协作的 CTF 平台，提供公开比赛浏览、队伍管理、比赛运行与题目交付能力。"
       :links="heroLinks"
-    >
-      <template #top>
-        <UBadge variant="subtle" color="info">
-          Go + Nuxt 赛事平台
-        </UBadge>
-      </template>
-    </UPageHero>
+    />
 
     <UPageSection title="平台入口" description="公开访问、账号入口和控制台入口集中展示。">
       <UPageGrid>
