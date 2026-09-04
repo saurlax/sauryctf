@@ -869,7 +869,7 @@ export const platformSettings = pgTable('platform_settings', {
   singleton: boolean().primaryKey().default(true),
   brandName: varchar('brand_name', { length: 120 }).notNull().default('SauryCTF'),
   logoObjectId: uuid('logo_object_id').references(() => contentObjects.id),
-  theme: platformTheme().notNull().default('system'),
+  theme: platformTheme().notNull().default('dark'),
   defaultLocale: systemLocale('default_locale').notNull().default('zh-CN'),
   publicRegistrationEnabled: boolean('public_registration_enabled').notNull().default(true),
   authenticationMode: authenticationMode('authentication_mode').notNull().default('password_only'),

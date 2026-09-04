@@ -30,7 +30,9 @@ pnpm build
 
 生产环境必须由 Secret 管理系统注入以下控制面变量：
 
-- `DATABASE_URL`、`PUBLIC_ORIGIN`；
+- `DATABASE_URL`；
+- `NUXT_PUBLIC_SITE_URL` 是浏览器同源校验和邮件绝对链接共用的站点根地址；未配置时默认 `http://localhost:3000`，生产环境必须显式设置为实际 HTTPS 地址；
+- `RATE_LIMIT_BYPASS` 应在生产环境显式设置为 `false`。未配置时默认 `local`，仅对回环来源绕过全部限流；`private` 对回环与私网来源、`true` 对所有来源绕过限流。它不会关闭 Turnstile、同源、CSRF、认证、授权或输入校验；若同时启用 `TRUST_PROXY`，入口代理必须清洗客户端提供的 `X-Forwarded-For`；
 - `NUXT_SESSION_PASSWORD`，至少 32 个字符；
 - `SUBMISSION_ANSWER_KEY`；
 - `INSTANCE_SECRET_ACTIVE_KEY_ID` 与 `INSTANCE_SECRET_KEYS`；

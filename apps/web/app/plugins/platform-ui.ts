@@ -16,7 +16,9 @@ export default defineNuxtPlugin(async () => {
 
   const colorMode = useColorMode()
   watch(() => platformSettings.value.theme, (theme) => {
-    colorMode.preference = theme
+    if (import.meta.server || !localStorage.getItem('nuxt-color-mode')) {
+      colorMode.preference = theme
+    }
   }, { immediate: true })
 
   useHead({

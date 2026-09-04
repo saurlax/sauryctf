@@ -12,7 +12,7 @@ export interface SmtpMailTransportOptions {
   username?: string
   password?: string
   from: string
-  publicOrigin: string
+  siteUrl: string
   presentation?: () => Promise<{ brandName: string, locale: PlatformLocale }>
 }
 
@@ -69,12 +69,12 @@ export class SmtpMailTransport implements MailTransport {
     const tokenEnvelope = message.payload.token_envelope
     if (message.templateKey === 'identity.email_verification_requested') {
       const token = this.revealToken(tokenEnvelope)
-      const link = `${this.options.publicOrigin}/verify-email?token=${encodeURIComponent(token)}`
+      const link = `${this.options.siteUrl}/verify-email?token=${encodeURIComponent(token)}`
       return renderSystemMailTemplate(message.templateKey, { ...configured, locale, link })
     }
     if (message.templateKey === 'identity.password_reset_requested') {
       const token = this.revealToken(tokenEnvelope)
-      const link = `${this.options.publicOrigin}/reset-password?token=${encodeURIComponent(token)}`
+      const link = `${this.options.siteUrl}/reset-password?token=${encodeURIComponent(token)}`
       return renderSystemMailTemplate(message.templateKey, { ...configured, locale, link })
     }
     return renderSystemMailTemplate(message.templateKey, { ...configured, locale })

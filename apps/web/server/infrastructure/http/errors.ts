@@ -28,9 +28,10 @@ export function createApiError(
 }
 
 export function normalizeApiError(error: unknown, requestId: string): NormalizedApiError {
-  if (error instanceof ZodError) {
+  const zodError = findZodError(error)
+  if (zodError) {
     const fields: Record<string, string[]> = {}
-    for (const issue of error.issues) {
+    for (const issue of zodError.issues) {
       const path = issue.path.join('.') || 'request'
       fields[path] ??= []
       fields[path].push(issue.message)
@@ -49,6 +50,12 @@ export function normalizeApiError(error: unknown, requestId: string): Normalized
   }
 
   return errorResponse(500, 'internal.unexpected', '服务器内部错误', requestId, {})
+}
+
+function findZodError(error: unknown): ZodError | undefined {
+  if (error instanceof ZodError) return error
+  if (typeof error !== 'object' || error === null || !('cause' in error)) return undefined
+  return error.cause instanceof ZodError ? error.cause : undefined
 }
 
 function errorResponse(

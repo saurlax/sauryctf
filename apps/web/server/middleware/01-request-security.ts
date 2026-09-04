@@ -7,7 +7,7 @@ import {
 } from '../infrastructure/security/request-security'
 
 export default defineEventHandler(async (event) => {
-  assertSameOrigin(event, process.env.PUBLIC_ORIGIN)
+  assertSameOrigin(event, useRuntimeConfig(event).public.siteUrl)
   assertCsrfProof(event)
 
   const rateLimits = event.context.services?.rateLimits

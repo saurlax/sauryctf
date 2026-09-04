@@ -82,7 +82,7 @@ describeWithPostgres('typed platform settings', () => {
     expect(defaults).toMatchObject({
       brandName: 'SauryCTF',
       logoObjectId: null,
-      theme: 'system',
+      theme: 'dark',
       defaultLocale: 'zh-CN',
       publicRegistrationEnabled: true,
       authenticationMode: 'password_only',

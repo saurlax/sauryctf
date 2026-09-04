@@ -5,7 +5,9 @@ const postgresUrlSchema = z.url().refine((value) => {
   return protocol === 'postgres:' || protocol === 'postgresql:'
 }, '必须是 PostgreSQL URL')
 
-const publicOriginSchema = z.url().refine((value) => {
+export const defaultSiteUrl = 'http://localhost:3000'
+
+const siteUrlSchema = z.url().refine((value) => {
   const url = new URL(value)
   return (url.protocol === 'http:' || url.protocol === 'https:')
     && url.origin === value.replace(/\/$/u, '')
@@ -34,7 +36,7 @@ const instanceSecretKeysSchema = z.preprocess((value) => {
 
 export const deploymentConfigSchema = z.strictObject({
   databaseUrl: postgresUrlSchema,
-  publicOrigin: publicOriginSchema,
+  siteUrl: siteUrlSchema,
   sessionPassword: z.string().min(32).max(1024),
   submissionAnswerKey: z.string().regex(
     /^[A-Za-z0-9_-]{43}$/u,
@@ -71,7 +73,7 @@ export type DeploymentEnvironment = Record<string, string | undefined>
 export function deploymentConfigInput(environment: DeploymentEnvironment) {
   return {
     databaseUrl: environment.DATABASE_URL,
-    publicOrigin: environment.PUBLIC_ORIGIN,
+    siteUrl: environment.NUXT_PUBLIC_SITE_URL || defaultSiteUrl,
     sessionPassword: environment.NUXT_SESSION_PASSWORD,
     submissionAnswerKey: environment.SUBMISSION_ANSWER_KEY,
     instanceSecrets: {

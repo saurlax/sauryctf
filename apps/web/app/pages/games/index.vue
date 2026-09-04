@@ -5,7 +5,6 @@ import { buildAuthEntryPath } from '~/utils/auth-redirect'
 type Game = components['schemas']['Game']
 type GameParticipation = components['schemas']['GameParticipation']
 
-const toast = useToast()
 const { authState, ensureInitialized } = useAuth()
 const { fetchParticipationMap } = useGameParticipationMap()
 const { resolveParticipationMeta } = usePublicGameParticipationState()
@@ -13,102 +12,22 @@ const { businessContent, status: systemStatus, t } = usePlatformUi()
 const games = ref<Game[]>([])
 const participationMap = ref<Record<number, GameParticipation>>({})
 const loading = ref(true)
+const loadFailed = ref(false)
 const searchQuery = ref('')
 const statusFilter = ref<'all' | 'active' | 'ended'>('all')
 const now = ref(Date.now())
-const gamesListPath = '/games'
-
-const firstVisibleGame = computed(() => games.value[0] || null)
-const firstVisibleGamePath = computed(() => firstVisibleGame.value ? `/games/${firstVisibleGame.value.id}` : gamesListPath)
-const hasTeam = computed(() => Object.values(participationMap.value).some(participation => !!participation?.has_team))
-const joinedGames = computed(() => games.value.filter(game => participationMap.value[game.id]?.participated))
-const firstJoinedGame = computed(() => joinedGames.value[0] || null)
-const firstJoinableGame = computed(() =>
-  games.value.find(game =>
-    getGamePhase(game) !== 'ended'
-    && participationMap.value[game.id]?.has_team
-    && !participationMap.value[game.id]?.participated,
-  ) || null,
-)
-
-const listGuideMeta = computed(() => {
-  if (!authState.user) {
-    return {
-      title: '公开比赛可直接浏览',
-      description: firstVisibleGame.value
-        ? '可先查看比赛信息、题目标题和公开榜单。'
-        : '公开比赛开放后，会直接显示在这里。',
-      color: 'info' as const,
-      icon: 'i-lucide-log-in',
-      actionLabel: '去登录',
-      actionTo: buildAuthEntryPath('/login', firstVisibleGamePath.value),
-      secondaryLabel: '去注册',
-      secondaryTo: buildAuthEntryPath('/register', firstVisibleGamePath.value),
-    }
-  }
-
-  if (!hasTeam.value) {
-    return {
-      title: '需要先准备队伍',
-      description: '比赛报名、Flag 提交和排行榜均按队伍处理。',
-      color: 'warning' as const,
-      icon: 'i-lucide-users',
-      actionLabel: '去队伍页',
-      actionTo: buildRedirectedPath('/console/team', firstVisibleGamePath.value),
-      secondaryLabel: firstVisibleGame.value ? '先看比赛详情' : '回控制台',
-      secondaryTo: firstVisibleGame.value ? `/games/${firstVisibleGame.value.id}` : '/console',
-    }
-  }
-
-  if (firstJoinedGame.value) {
-    return {
-      title: '已有参赛记录',
-      description: `当前队伍已关联到 ${firstJoinedGame.value.name}。`,
-      color: 'success' as const,
-      icon: 'i-lucide-badge-check',
-      actionLabel: '打开当前比赛',
-      actionTo: `/games/${firstJoinedGame.value.id}`,
-      secondaryLabel: '浏览全部比赛',
-      secondaryTo: '/games',
-    }
-  }
-
-  if (firstJoinableGame.value) {
-    return {
-      title: '可直接前往报名',
-      description: firstJoinableGame.value.registration_mode === 'auto_accept'
-        ? `${firstJoinableGame.value.name} 当前使用自动通过报名。`
-        : `${firstJoinableGame.value.name} 当前使用人工审核报名。`,
-      color: 'info' as const,
-      icon: 'i-lucide-flag',
-      actionLabel: '前往报名',
-      actionTo: `/games/${firstJoinableGame.value.id}`,
-      secondaryLabel: '回队伍页',
-      secondaryTo: '/console/team',
-    }
-  }
-
-  return {
-    title: '可继续浏览比赛',
-    description: '可先查看规则、分组和练习配置。',
-    color: 'neutral' as const,
-    icon: 'i-lucide-compass',
-    actionLabel: firstVisibleGame.value ? '打开一场比赛' : '回控制台',
-    actionTo: firstVisibleGame.value ? `/games/${firstVisibleGame.value.id}` : '/console',
-    secondaryLabel: '查看队伍',
-    secondaryTo: '/console/team',
-  }
-})
 
 async function fetchGames() {
   loading.value = true
+  loadFailed.value = false
   try {
     const res = await $api('get', '/api/games')
     games.value = res || []
     await fetchParticipationStates()
   }
-  catch (e: any) {
-    toast.add({ title: '获取比赛列表失败', description: e.data?.message || e.message, color: 'error' })
+  catch {
+    games.value = []
+    loadFailed.value = true
   }
   finally {
     loading.value = false
@@ -266,117 +185,11 @@ const filteredGames = computed(() => {
   })
 })
 
-const listStats = computed(() => [
-  {
-    label: '公开比赛',
-    value: String(games.value.length),
-    hint: '当前可浏览的比赛总数',
-    icon: 'i-lucide-trophy',
-    color: 'info' as const,
-  },
-  {
-    label: '进行中',
-    value: String(games.value.filter(game => getGamePhase(game) === 'active').length),
-    hint: '当前已经开赛并仍可继续参赛的比赛',
-    icon: 'i-lucide-activity',
-    color: 'success' as const,
-  },
-  {
-    label: '未开始',
-    value: String(games.value.filter(game => getGamePhase(game) === 'before_start').length),
-    hint: '当前已开放展示但尚未开赛的比赛',
-    icon: 'i-lucide-clock-3',
-    color: 'warning' as const,
-  },
-  {
-    label: '已结束',
-    value: String(games.value.filter(game => getGamePhase(game) === 'ended').length),
-    hint: '适合复盘、补题和查看历史榜单的比赛',
-    icon: 'i-lucide-archive',
-    color: 'neutral' as const,
-  },
-])
-
 const statusOptions = [
   { label: '全部状态', value: 'all' },
   { label: '进行中 / 未开始', value: 'active' },
   { label: '已结束', value: 'ended' },
 ]
-
-const emptyStateMeta = computed(() => {
-  if (authState.user?.role === 'admin') {
-    return {
-      title: '暂无公开比赛',
-      description: '创建比赛并设为公开后，这里会显示对应内容。',
-      icon: 'i-lucide-shield-check',
-      actions: [
-        {
-          label: '去管理端建赛',
-          icon: 'i-lucide-settings-2',
-          to: '/console/admin',
-          color: 'neutral' as const,
-        },
-        {
-          label: '回控制台',
-          icon: 'i-lucide-layout-dashboard',
-          to: '/console',
-          color: 'neutral' as const,
-          variant: 'outline' as const,
-        },
-      ],
-    }
-  }
-
-  return {
-    title: '暂无公开比赛',
-    description: '公开比赛上线后会显示在这里。',
-    icon: 'i-lucide-trophy',
-    actions: authState.user
-      ? [
-          {
-            label: '回控制台',
-            icon: 'i-lucide-layout-dashboard',
-            to: '/console',
-            color: 'neutral' as const,
-          },
-        ]
-      : [
-          {
-            label: '去登录',
-            icon: 'i-lucide-log-in',
-            to: buildAuthEntryPath('/login', gamesListPath),
-            color: 'neutral' as const,
-          },
-          {
-            label: '去注册',
-            icon: 'i-lucide-user-round-plus',
-            to: buildAuthEntryPath('/register', gamesListPath),
-            color: 'neutral' as const,
-            variant: 'outline' as const,
-          },
-        ],
-  }
-})
-
-const filteredEmptyStateMeta = computed(() => {
-  if (!games.value.length) {
-    return null
-  }
-
-  const hasKeyword = searchQuery.value.trim().length > 0
-  const hasStatusFilter = statusFilter.value !== 'all'
-  const filterSummary = [
-    hasKeyword ? `关键词“${searchQuery.value.trim()}”` : '',
-    hasStatusFilter ? `状态“${statusFilter.value === 'active' ? '进行中' : '已结束'}”` : '',
-  ].filter(Boolean).join(' + ')
-
-  return {
-    title: '没有匹配的比赛',
-    description: filterSummary
-      ? `没有比赛同时满足 ${filterSummary}。`
-      : '请调整筛选条件后重试。',
-  }
-})
 
 function resetFilters() {
   searchQuery.value = ''
@@ -392,14 +205,9 @@ onMounted(async () => {
 <template>
   <UContainer class="py-8">
     <div class="flex items-center justify-between mb-8">
-      <div>
-        <h1 class="text-3xl font-bold mb-2">
-          比赛列表
-        </h1>
-        <p class="text-muted">
-          浏览所有公开且已开放展示的比赛
-        </p>
-      </div>
+      <h1 class="text-3xl font-bold">
+        比赛
+      </h1>
     </div>
 
     <div v-if="loading" class="flex justify-center py-16">
@@ -407,54 +215,7 @@ onMounted(async () => {
     </div>
 
     <template v-else>
-      <div class="mb-6 rounded-lg border border-default bg-elevated/50 px-4 py-4">
-        <div class="flex items-start justify-between gap-4 flex-wrap">
-          <div class="min-w-0">
-            <div class="flex items-center gap-2 font-medium text-highlighted">
-              <UIcon :name="listGuideMeta.icon" class="size-4" />
-              <span>{{ listGuideMeta.title }}</span>
-            </div>
-            <p class="mt-2 text-sm text-muted leading-6">
-              {{ listGuideMeta.description }}
-            </p>
-          </div>
-          <div class="flex flex-wrap gap-2">
-            <UButton
-              size="sm"
-              :to="listGuideMeta.actionTo"
-              :label="listGuideMeta.actionLabel"
-            />
-            <UButton
-              v-if="listGuideMeta.secondaryLabel && listGuideMeta.secondaryTo"
-              size="sm"
-              :to="listGuideMeta.secondaryTo"
-              :label="listGuideMeta.secondaryLabel"
-              variant="outline"
-            />
-          </div>
-        </div>
-      </div>
-
-      <UPageGrid :cols="{ default: 1, sm: 2, xl: 4 }" class="mb-6">
-        <UPageCard
-          v-for="stat in listStats"
-          :key="stat.label"
-          :title="stat.value"
-          :description="stat.label"
-          :icon="stat.icon"
-        >
-          <template #footer>
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-xs text-muted">{{ stat.hint }}</span>
-              <UBadge :color="stat.color" variant="subtle" size="sm">
-                {{ stat.label }}
-              </UBadge>
-            </div>
-          </template>
-        </UPageCard>
-      </UPageGrid>
-
-      <UPageCard class="mb-6" title="筛选" icon="i-lucide-filter">
+      <UPageCard v-if="!loadFailed && games.length > 0" class="mb-6" title="筛选" icon="i-lucide-filter">
         <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
           <UFormField label="搜索比赛" name="search">
             <UInput
@@ -472,20 +233,24 @@ onMounted(async () => {
       </UPageCard>
 
       <UEmpty
-        v-if="games.length === 0"
+        v-if="loadFailed"
         class="py-16"
-        :icon="emptyStateMeta.icon"
-        :title="emptyStateMeta.title"
-        :description="emptyStateMeta.description"
-        :actions="emptyStateMeta.actions"
+        icon="i-lucide-circle-alert"
+        title="暂时无法加载比赛"
+      />
+
+      <UEmpty
+        v-else-if="games.length === 0"
+        class="py-16"
+        icon="i-lucide-trophy"
+        title="暂无比赛"
       />
 
       <UEmpty
         v-else-if="filteredGames.length === 0"
         class="py-16"
         icon="i-lucide-search-x"
-        :title="filteredEmptyStateMeta?.title || '当前筛选条件下没有匹配的比赛'"
-        :description="filteredEmptyStateMeta?.description || '可以清空筛选后继续浏览全部公开比赛。'"
+        title="没有匹配的比赛"
         :actions="[
           {
             label: '清空筛选',
@@ -493,13 +258,6 @@ onMounted(async () => {
             color: 'neutral',
             variant: 'outline',
             onClick: resetFilters,
-          },
-          {
-            label: authState.user ? '回控制台' : '去登录',
-            icon: authState.user ? 'i-lucide-layout-dashboard' : 'i-lucide-log-in',
-            to: authState.user ? '/console' : buildAuthEntryPath('/login', gamesListPath),
-            color: 'neutral',
-            variant: 'ghost',
           },
         ]"
       />

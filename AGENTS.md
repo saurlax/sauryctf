@@ -64,6 +64,9 @@ Do not add application business source under root `cmd/`, `internal/`,
   are authoritative.
 - Use `nuxt-auth-utils` sealed cookies for browser auth. Do not add a sessions
   table or browser JWT role snapshot.
+- Before every UI change, consult the relevant official Nuxt UI documentation
+  and examples. Follow the documented component APIs and recommended patterns
+  instead of inventing parallel components or interaction conventions.
 - Prefer Nuxt UI components and keep user-facing copy formal. Low-frequency or
   destructive actions should use `UModal` and clear modal drafts on all close
   paths.

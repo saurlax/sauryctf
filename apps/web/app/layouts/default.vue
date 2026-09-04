@@ -1,18 +1,42 @@
 <script setup lang="ts">
+import type { NavigationMenuItem } from '@nuxt/ui'
+
 const { authState, isLoggedIn, logout } = useAuth()
 const { locale, platformSettings, setLocale, t } = usePlatformUi()
 const route = useRoute()
 
-const items = computed(() => {
-  const nav = [
-    { label: t('nav.home'), to: '/' },
-    { label: t('nav.games'), to: '/games' },
-  ]
-  if (isLoggedIn.value) {
-    nav.push({ label: t('nav.console'), to: '/console' })
-  }
-  return nav
-})
+const items = computed<NavigationMenuItem[]>(() => [
+  {
+    label: t('nav.home'),
+    icon: 'i-lucide-house',
+    to: '/',
+    active: route.path === '/',
+  },
+  {
+    label: t('nav.games'),
+    icon: 'i-lucide-flag',
+    to: '/games',
+    active: route.path.startsWith('/games'),
+  },
+  {
+    label: t('nav.scoreboard'),
+    icon: 'i-lucide-trophy',
+    to: '/scoreboard',
+    active: route.path === '/scoreboard',
+  },
+  {
+    label: t('nav.team'),
+    icon: 'i-lucide-users',
+    to: '/console/team',
+    active: route.path === '/console/team',
+  },
+  {
+    label: t('nav.console'),
+    icon: 'i-lucide-layout-dashboard',
+    to: '/console',
+    active: route.path.startsWith('/console') && route.path !== '/console/team',
+  },
+])
 
 const authRedirect = computed(() => {
   if (route.path === '/login' || route.path === '/register') {
@@ -23,13 +47,11 @@ const authRedirect = computed(() => {
 })
 
 const loginTo = computed(() => buildAuthEntryPath('/login', authRedirect.value))
-const registerTo = computed(() => buildAuthEntryPath('/register', authRedirect.value))
 
 const localeItems = computed(() => [[
   { label: t('locale.zh-CN'), checked: locale.value === 'zh-CN', onSelect: () => setLocale('zh-CN') },
   { label: t('locale.en'), checked: locale.value === 'en', onSelect: () => setLocale('en') },
 ]])
-const localeLabel = computed(() => t(locale.value === 'en' ? 'locale.en' : 'locale.zh-CN'))
 </script>
 
 <template>
@@ -43,13 +65,18 @@ const localeLabel = computed(() => t(locale.value === 'en' ? 'locale.en' : 'loca
     <UNavigationMenu :items="items" />
     <template #right>
       <UDropdownMenu :items="localeItems">
-        <UButton
-          variant="ghost"
-          icon="i-lucide-languages"
-          :label="localeLabel"
-          :aria-label="t('locale.label')"
-        />
+        <UTooltip :text="t('locale.label')">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-languages"
+            :aria-label="t('locale.label')"
+          />
+        </UTooltip>
       </UDropdownMenu>
+      <UTooltip :text="t('theme.toggle')">
+        <UColorModeButton :aria-label="t('theme.toggle')" />
+      </UTooltip>
       <template v-if="isLoggedIn">
         <UDropdownMenu
           :items="
@@ -73,21 +100,30 @@ const localeLabel = computed(() => t(locale.value === 'en' ? 'locale.en' : 'loca
               ],
             ]"
         >
-          <UButton variant="ghost" icon="i-lucide-user" />
+          <UTooltip :text="t('nav.user')">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              icon="i-lucide-user"
+              :aria-label="t('nav.user')"
+            />
+          </UTooltip>
         </UDropdownMenu>
       </template>
       <template v-else>
-        <div class="flex items-center gap-2">
-          <UButton :label="t('nav.login')" icon="i-lucide-log-in" variant="ghost" :to="loginTo" />
+        <UTooltip :text="t('nav.login')">
           <UButton
-            v-if="platformSettings.public_registration_enabled"
-            :label="t('nav.register')"
-            icon="i-lucide-user-round-plus"
-            variant="outline"
-            :to="registerTo"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-log-in"
+            :to="loginTo"
+            :aria-label="t('nav.login')"
           />
-        </div>
+        </UTooltip>
       </template>
+    </template>
+    <template #body>
+      <UNavigationMenu :items="items" orientation="vertical" class="-mx-2.5" />
     </template>
   </UHeader>
 

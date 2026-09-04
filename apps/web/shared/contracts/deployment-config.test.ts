@@ -8,7 +8,7 @@ import {
 
 const validEnvironment: DeploymentEnvironment = {
   DATABASE_URL: 'postgresql://user:password@127.0.0.1:5432/sauryctf',
-  PUBLIC_ORIGIN: 'https://ctf.example.test',
+  NUXT_PUBLIC_SITE_URL: 'https://ctf.example.test',
   NUXT_SESSION_PASSWORD: 'a-secure-session-password-with-32-characters',
   SUBMISSION_ANSWER_KEY: 'c2F1cnljdGYtZGV2LXN1Ym1pc3Npb24ta2V5LTAwMDE',
   INSTANCE_SECRET_ACTIVE_KEY_ID: 'worker-key-v1',
@@ -19,6 +19,12 @@ describe('production deployment config', () => {
   it('parses environment-only deployment secrets', () => {
     const config = parseDeploymentConfig(validEnvironment)
     expect(config.databaseUrl).toContain('postgresql://')
+    expect(config.siteUrl).toBe('https://ctf.example.test')
+  })
+
+  it('defaults the public site URL to local Nuxt development', () => {
+    const config = parseDeploymentConfig({ ...validEnvironment, NUXT_PUBLIC_SITE_URL: undefined })
+    expect(config.siteUrl).toBe('http://localhost:3000')
   })
 
   it.each([
@@ -27,7 +33,6 @@ describe('production deployment config', () => {
     ['INSTANCE_SECRET_ACTIVE_KEY_ID'],
     ['INSTANCE_SECRET_KEYS'],
     ['DATABASE_URL'],
-    ['PUBLIC_ORIGIN'],
   ])('does not become ready without %s', (key) => {
     const environment = { ...validEnvironment, [key]: undefined }
     expect(inspectDeploymentConfig(environment).success).toBe(false)

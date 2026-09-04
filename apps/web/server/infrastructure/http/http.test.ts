@@ -47,6 +47,19 @@ describe('unified API errors', () => {
     expect(response.body.error.fields).toHaveProperty('email')
   })
 
+  it('maps a Zod error wrapped by the runtime', () => {
+    const schema = z.object({ token: z.string().min(1) })
+    const result = schema.safeParse({ token: '' })
+    if (result.success) expect.unreachable()
+
+    const response = normalizeApiError(new Error('runtime wrapper', { cause: result.error }), requestId)
+    expect(response.statusCode).toBe(400)
+    expect(response.body.error).toMatchObject({
+      code: 'validation.failed',
+      fields: { token: expect.any(Array) },
+    })
+  })
+
   it('does not expose unknown exception messages', () => {
     const response = normalizeApiError(new Error('password=secret-value'), requestId)
     expect(JSON.stringify(response.body)).not.toContain('secret-value')

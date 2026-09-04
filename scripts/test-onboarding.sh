@@ -107,7 +107,7 @@ pnpm --filter sauryctf-web build
 
 control_plane_port="$(free_port)"
 DATABASE_URL="${database_url}" \
-PUBLIC_ORIGIN="http://127.0.0.1:${control_plane_port}" \
+NUXT_PUBLIC_SITE_URL="http://127.0.0.1:${control_plane_port}" \
 NUXT_SESSION_PASSWORD='onboarding-session-secret-at-least-32-characters' \
 SUBMISSION_ANSWER_KEY='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' \
 INSTANCE_SECRET_ACTIVE_KEY_ID='onboarding-worker-key-v1' \

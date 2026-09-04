@@ -12,7 +12,7 @@ const fallbackSettings: PublicPlatformSettings = {
   brand_name: 'SauryCTF',
   logo_object_id: null,
   logo_url: null,
-  theme: 'system',
+  theme: 'dark',
   default_locale: 'zh-CN',
   public_registration_enabled: true,
   authentication_mode: 'password_only',

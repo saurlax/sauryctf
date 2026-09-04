@@ -32,6 +32,7 @@ export const migrationBaseline = [
 export const currentMigrationNames = [
   ...migrationBaseline.map(([name]) => name),
   '0022_rate_limit_windows',
+  '0023_dark_theme_default',
 ] as const
 
 export type MigrationBaselineEntry = {

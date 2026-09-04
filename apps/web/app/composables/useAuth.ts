@@ -66,7 +66,7 @@ export function useAuth() {
 
   async function login(identifier: string, password: string, turnstileToken?: string) {
     const res = await $controlApi<IdentitySessionResponse, LoginIdentityRequest>('post', '/api/auth/login', {
-      body: { identifier, password, turnstile_token: turnstileToken },
+      body: { identifier, password, turnstile_token: turnstileToken || undefined },
     })
     authState.user = res.user
     authState.initialized = true
@@ -74,7 +74,7 @@ export function useAuth() {
 
   async function register(username: string, email: string, password: string, turnstileToken?: string) {
     const res = await $controlApi<IdentitySessionResponse, RegisterIdentityRequest>('post', '/api/auth/register', {
-      body: { username, email, password, turnstile_token: turnstileToken },
+      body: { username, email, password, turnstile_token: turnstileToken || undefined },
     })
     authState.user = res.user
     authState.initialized = true

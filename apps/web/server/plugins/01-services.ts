@@ -173,12 +173,12 @@ export default defineNitroPlugin(async (nitroApp) => {
 
   const smtpHost = process.env.MAIL_SMTP_HOST
   const mailFrom = process.env.MAIL_FROM
-  const publicOrigin = process.env.PUBLIC_ORIGIN
+  const siteUrl = useRuntimeConfig().public.siteUrl
   let dispatchTimer: ReturnType<typeof setInterval> | undefined
   let contentCleanupTimer: ReturnType<typeof setInterval> | undefined
   let retentionTimer: ReturnType<typeof setInterval> | undefined
   let telemetryTimer: ReturnType<typeof setInterval> | undefined
-  if (smtpHost && mailFrom && publicOrigin) {
+  if (smtpHost && mailFrom) {
     const smtpPort = Number.parseInt(process.env.MAIL_SMTP_PORT ?? '25', 10)
     const dispatcher = new MailOutboxDispatcher(
       `control-plane-${randomUUID()}`,
@@ -190,7 +190,7 @@ export default defineNitroPlugin(async (nitroApp) => {
         username: process.env.MAIL_SMTP_USERNAME,
         password: process.env.MAIL_SMTP_PASSWORD,
         from: mailFrom,
-        publicOrigin,
+        siteUrl,
         presentation: async () => {
           const settings = await platformSettings.readPublic()
           return { brandName: settings.brandName, locale: settings.defaultLocale }

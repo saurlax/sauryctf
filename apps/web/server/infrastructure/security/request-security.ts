@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'node:crypto'
+import { isIP } from 'node:net'
 import type { H3Event } from 'h3'
 import {
   getCookie,
@@ -7,6 +8,7 @@ import {
   getRequestURL,
   setResponseHeader,
 } from 'h3'
+import { defaultSiteUrl } from '../../../shared/contracts/deployment-config'
 import {
   csrfCookieName,
   csrfHeaderName,
@@ -74,6 +76,7 @@ export async function enforceNetworkRateLimits(event: H3Event, store: RateLimitS
   const policy = actionPolicies.get(path)
   if (!policy) return
   const ip = getClientIp(event)
+  if (shouldBypassRateLimitsForRequest(event, ip)) return
   await enforceRateLimitPolicies(event, store, [
     { bucket: rateLimitBucket('network', ip, 'identity.security'), limit: 120, windowMs: 60_000 },
     { bucket: rateLimitBucket('network', ip, policy.action), limit: policy.limit, windowMs: policy.windowMs },
@@ -85,6 +88,127 @@ export function getClientIp(event: H3Event): string {
   return getRequestIP(event, { xForwardedFor: trustProxy }) || 'unknown'
 }
 
+export type RateLimitBypassMode = 'false' | 'local' | 'private' | 'true'
+
+export function rateLimitBypassMode(value = process.env.RATE_LIMIT_BYPASS): RateLimitBypassMode {
+  if (value === 'false') return 'false'
+  return value === 'private' || value === 'true' ? value : 'local'
+}
+
+export function shouldBypassRateLimitsForSource(
+  ip: string,
+  mode = rateLimitBypassMode(),
+): boolean {
+  if (mode === 'true') return true
+  if (mode === 'local') return isLoopbackIp(ip)
+  if (mode === 'private') return isPrivateNetworkIp(ip)
+  return false
+}
+
+export function shouldBypassRateLimitsForRequest(event: H3Event, ip = getClientIp(event)): boolean {
+  const mode = rateLimitBypassMode()
+  if (shouldBypassRateLimitsForSource(ip, mode)) return true
+  if (mode === 'false' || ip !== 'unknown') return false
+
+  // Nitro's local development adapter can omit the peer socket address. Only
+  // fall back when both the configured origin and request target are local.
+  return isLoopbackHostname(getRequestURL(event).hostname)
+    && isLoopbackOrigin(process.env.NUXT_PUBLIC_SITE_URL || defaultSiteUrl)
+}
+
+function isLoopbackOrigin(origin: string | undefined): boolean {
+  if (!origin) return false
+  try {
+    return isLoopbackHostname(new URL(origin).hostname)
+  }
+  catch {
+    return false
+  }
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase()
+  return normalized === 'localhost'
+    || normalized.endsWith('.localhost')
+    || isLoopbackIp(normalized)
+}
+
+export function isLoopbackIp(ip: string): boolean {
+  const address = normalizeIp(ip)
+  const family = isIP(address)
+  if (family === 4) return address.split('.')[0] === '127'
+  if (family !== 6) return false
+
+  const words = expandIpv6(address)
+  if (!words) return false
+  if (words.slice(0, 7).every(word => word === 0) && words[7] === 1) return true
+  const mappedIpv4 = mappedIpv4Address(words)
+  return mappedIpv4 ? isLoopbackIp(mappedIpv4) : false
+}
+
+export function isPrivateNetworkIp(ip: string): boolean {
+  const address = normalizeIp(ip)
+  const family = isIP(address)
+  if (family === 4) return isPrivateIpv4(address)
+  if (family !== 6) return false
+
+  const words = expandIpv6(address)
+  if (!words) return false
+  if (isLoopbackIp(address)) return true
+  if ((words[0]! & 0xfe00) === 0xfc00) return true
+  if ((words[0]! & 0xffc0) === 0xfe80) return true
+  const mappedIpv4 = mappedIpv4Address(words)
+  return mappedIpv4 ? isPrivateIpv4(mappedIpv4) : false
+}
+
+function normalizeIp(ip: string): string {
+  const address = ip.split('%', 1)[0]?.toLowerCase() || ''
+  return address.startsWith('[') && address.endsWith(']') ? address.slice(1, -1) : address
+}
+
+function mappedIpv4Address(words: number[]): string | undefined {
+  if (!words.slice(0, 5).every(word => word === 0) || words[5] !== 0xffff) return undefined
+  return [
+    words[6]! >> 8,
+    words[6]! & 0xff,
+    words[7]! >> 8,
+    words[7]! & 0xff,
+  ].join('.')
+}
+
+function isPrivateIpv4(address: string): boolean {
+  const octets = address.split('.').map(Number)
+  return octets[0] === 127
+    || octets[0] === 10
+    || (octets[0] === 172 && octets[1]! >= 16 && octets[1]! <= 31)
+    || (octets[0] === 192 && octets[1] === 168)
+    || (octets[0] === 169 && octets[1] === 254)
+}
+
+function expandIpv6(address: string): number[] | undefined {
+  let normalized = address
+  const dottedTail = normalized.match(/(?:^|:)(\d+\.\d+\.\d+\.\d+)$/u)?.[1]
+  if (dottedTail) {
+    const octets = dottedTail.split('.').map(Number)
+    normalized = normalized.slice(0, -dottedTail.length)
+      + ((octets[0]! << 8) | octets[1]!).toString(16)
+      + ':'
+      + ((octets[2]! << 8) | octets[3]!).toString(16)
+  }
+
+  const sides = normalized.split('::')
+  if (sides.length > 2) return undefined
+  const left = sides[0] ? sides[0].split(':') : []
+  const right = sides[1] ? sides[1].split(':') : []
+  const missing = 8 - left.length - right.length
+  if (missing < 0 || (sides.length === 1 && missing !== 0)) return undefined
+  const parts = sides.length === 2
+    ? [...left, ...Array.from({ length: missing }, () => '0'), ...right]
+    : left
+  if (parts.length !== 8) return undefined
+  return parts.map(part => Number.parseInt(part, 16))
+}
+
 export async function enforceUserRateLimit(
   event: H3Event,
   store: RateLimitStore,
@@ -93,6 +217,7 @@ export async function enforceUserRateLimit(
   limit: number,
   windowMs: number,
 ): Promise<void> {
+  if (shouldBypassRateLimitsForRequest(event)) return
   await enforceRateLimit(event, store, rateLimitBucket('user', userId, action), limit, windowMs)
 }
 
@@ -102,6 +227,7 @@ export async function enforceFlagSubmissionNetworkRateLimits(
   challengeId: string,
 ): Promise<void> {
   const ip = getClientIp(event)
+  if (shouldBypassRateLimitsForRequest(event, ip)) return
   await enforceRateLimitPolicies(event, store, [
     {
       bucket: rateLimitBucket('network', ip, 'submission.flag'),

@@ -1,5 +1,5 @@
 import { createApp, eventHandler, setResponseStatus, toWebHandler } from 'h3'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthSessionData } from '../../../shared/contracts/auth-session'
 import { DisabledHumanVerificationProvider } from '../../domains/identity/human-verification'
 import type { SessionSubject } from '../../domains/identity/repository'
@@ -37,6 +37,10 @@ const player: SessionSubject = {
   mustChangePassword: false,
 }
 const organizer: SessionSubject = { ...player, role: 'organizer' }
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
 
 function dependencies(options: {
   subject?: SessionSubject
@@ -293,6 +297,7 @@ describe('Flag submission HTTP admission', () => {
   })
 
   it('limits one source network for a specific challenge before session or service work', async () => {
+    vi.stubEnv('RATE_LIMIT_BYPASS', 'false')
     const deps = dependencies({ rateLimits: new MemoryRateLimitStore() })
     for (let attempt = 0; attempt < 30; attempt += 1) {
       expect((await invoke(deps)).status).toBe(200)

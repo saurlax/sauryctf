@@ -12,7 +12,7 @@ describe('SMTP security mail transport', () => {
       host: '127.0.0.1',
       port: 1025,
       from: 'SauryCTF <noreply@example.test>',
-      publicOrigin: 'https://ctf.example.test',
+      siteUrl: 'https://ctf.example.test',
     }, protector, { sendMail })
 
     await transport.send({
@@ -40,7 +40,7 @@ describe('SMTP security mail transport', () => {
       host: '127.0.0.1',
       port: 1025,
       from: 'Arena <noreply@example.test>',
-      publicOrigin: 'https://ctf.example.test',
+      siteUrl: 'https://ctf.example.test',
       presentation: async () => ({ brandName: 'Arena', locale: 'en' }),
     }, protector, { sendMail })
 

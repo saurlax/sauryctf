@@ -159,7 +159,7 @@ describeFaultDrill('authoritative dependency fault recovery', () => {
         host: '127.0.0.1',
         port: 1,
         from: 'SauryCTF <noreply@example.test>',
-        publicOrigin: 'https://ctf.example.test',
+        siteUrl: 'https://ctf.example.test',
       }, tokenProtector),
       () => currentTime,
     )
@@ -187,7 +187,7 @@ describeFaultDrill('authoritative dependency fault recovery', () => {
         host: smtpHost!,
         port: smtpPort,
         from: 'SauryCTF <noreply@example.test>',
-        publicOrigin: 'https://ctf.example.test',
+        siteUrl: 'https://ctf.example.test',
       }, tokenProtector),
       () => currentTime,
     )

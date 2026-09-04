@@ -10,6 +10,10 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   ignore: ['.data/**'],
   modules: ['@nuxthub/core', '@nuxt/ui', 'nuxt-auth-utils'],
+  colorMode: {
+    preference: 'dark',
+    fallback: 'dark',
+  },
   hub: {
     db: {
       dialect: 'postgresql',
@@ -39,6 +43,7 @@ export default defineNuxtConfig({
     },
     public: {
       apiBase: '/api',
+      siteUrl: 'http://localhost:3000',
       turnstileSiteKey: process.env.TURNSTILE_SITE_KEY || '',
     },
   },

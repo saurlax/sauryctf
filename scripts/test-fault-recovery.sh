@@ -80,7 +80,7 @@ start_control_plane() {
   MAIL_SMTP_HOST='127.0.0.1' \
   MAIL_SMTP_PORT="${smtp_port}" \
   MAIL_FROM='SauryCTF <noreply@example.test>' \
-  PUBLIC_ORIGIN="http://127.0.0.1:${control_plane_port}" \
+  NUXT_PUBLIC_SITE_URL="http://127.0.0.1:${control_plane_port}" \
   NITRO_HOST='127.0.0.1' \
   NITRO_PORT="${control_plane_port}" \
     node apps/web/.output/server/index.mjs >>"${control_plane_log}" 2>&1 &
